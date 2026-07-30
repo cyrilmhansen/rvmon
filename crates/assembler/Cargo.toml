@@ -1,0 +1,12 @@
+[package]
+name = "luna-assembler"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+luna-diag = { path = "../diag" }
+luna-isa = { path = "../isa" }
+
+[lints]
+workspace = true

@@ -1,0 +1,11 @@
+[workspace]
+members = ["crates/diag", "crates/isa", "crates/memory", "crates/machine", "crates/assembler", "crates/app"]
+resolver = "2"
+
+[workspace.package]
+edition = "2024"
+version = "0.1.0"
+license = "Apache-2.0"
+
+[workspace.lints.rust]
+unsafe_code = "forbid"

@@ -1,0 +1,12 @@
+[package]
+name = "luna-isa"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+build = "build.rs"
+
+[dependencies]
+luna-diag = { path = "../diag" }
+
+[lints]
+workspace = true

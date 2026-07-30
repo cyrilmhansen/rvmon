@@ -1,0 +1,12 @@
+[package]
+name = "luna-app"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+luna-assembler = { path = "../assembler" }
+luna-machine = { path = "../machine" }
+
+[lints]
+workspace = true

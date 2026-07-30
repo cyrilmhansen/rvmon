@@ -1,0 +1,13 @@
+[package]
+name = "luna-machine"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+luna-diag = { path = "../diag" }
+luna-isa = { path = "../isa" }
+luna-memory = { path = "../memory" }
+
+[lints]
+workspace = true
