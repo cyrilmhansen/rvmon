@@ -30,7 +30,7 @@ pub struct RType {
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Lui {
     pub rd: u8,
-    pub imm20: i32,
+    pub imm20: u32,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -87,14 +87,14 @@ pub fn encode_r(mnemonic: &str, instruction: RType) -> Result<u32> {
 }
 
 pub fn encode_lui(instruction: Lui) -> Result<u32> {
-    if instruction.rd > 31 || !(-(1 << 19)..=(1 << 19) - 1).contains(&instruction.imm20) {
+    if instruction.rd > 31 || instruction.imm20 > 0x000f_ffff {
         return Err(Diagnostic::error(
             "ISA-OPERAND-001",
             "lui register or immediate out of range",
         ));
     }
     let opcode = generated_opcode("lui")?;
-    let encoded = (instruction.imm20 as u32 & 0x000f_ffff) << 12;
+    let encoded = instruction.imm20 << 12;
     Ok(encoded | ((instruction.rd as u32) << 7) | opcode.match_value)
 }
 
@@ -135,7 +135,7 @@ pub fn decode(word: u32) -> Instruction {
             if word & opcode.mask == opcode.match_value {
                 return Instruction::Lui(Lui {
                     rd: ((word >> 7) & 31) as u8,
-                    imm20: (word as i32 >> 12),
+                    imm20: (word >> 12) & 0x000f_ffff,
                 });
             }
         }
@@ -243,6 +243,18 @@ mod tests {
             Instruction::Lui(Lui {
                 rd: 3,
                 imm20: 0x12345
+            })
+        );
+        let high = encode_lui(Lui {
+            rd: 3,
+            imm20: 0xfffff,
+        })
+        .unwrap();
+        assert_eq!(
+            decode(high),
+            Instruction::Lui(Lui {
+                rd: 3,
+                imm20: 0xfffff
             })
         );
     }

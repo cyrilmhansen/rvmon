@@ -61,7 +61,8 @@ impl Machine {
             }
             Instruction::Lui(instruction) => {
                 if instruction.rd != 0 {
-                    self.x[instruction.rd as usize] = (instruction.imm20 as i64 as u64) << 12;
+                    self.x[instruction.rd as usize] =
+                        ((instruction.imm20 << 12) as i32 as i64) as u64;
                 }
             }
             Instruction::Illegal(_) => {

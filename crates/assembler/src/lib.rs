@@ -49,7 +49,7 @@ pub fn assemble(source: &str) -> Result<ObjectImage> {
         "lui" if parts.len() == 2 => encode_lui(Lui {
             rd: register(parts[0])?,
             imm20: parts[1]
-                .parse::<i32>()
+                .parse::<u32>()
                 .map_err(|_| Diagnostic::error("ASM-IMMEDIATE-001", "invalid U immediate"))?,
         })?,
         "" => return Err(Diagnostic::error("ASM-OPERAND-001", "missing instruction")),
