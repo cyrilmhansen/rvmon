@@ -45,6 +45,25 @@ impl Machine {
                     self.x[addi.rd as usize] = value;
                 }
             }
+            Instruction::Add(instruction) => {
+                let value =
+                    self.x[instruction.rs1 as usize].wrapping_add(self.x[instruction.rs2 as usize]);
+                if instruction.rd != 0 {
+                    self.x[instruction.rd as usize] = value;
+                }
+            }
+            Instruction::Sub(instruction) => {
+                let value =
+                    self.x[instruction.rs1 as usize].wrapping_sub(self.x[instruction.rs2 as usize]);
+                if instruction.rd != 0 {
+                    self.x[instruction.rd as usize] = value;
+                }
+            }
+            Instruction::Lui(instruction) => {
+                if instruction.rd != 0 {
+                    self.x[instruction.rd as usize] = (instruction.imm20 as i64 as u64) << 12;
+                }
+            }
             Instruction::Illegal(_) => {
                 return Err(Diagnostic::error(
                     "TRAP-ILLEGAL-INSTRUCTION",
@@ -63,5 +82,54 @@ impl Machine {
             pc_after: self.pc,
             instruction,
         })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use luna_isa::{Addi, Lui, RType, encode_addi, encode_lui, encode_r};
+
+    #[test]
+    fn executes_generated_integer_instructions() {
+        let mut machine = Machine::new(64);
+        machine.x[6] = 40;
+        machine.x[7] = 2;
+        let words = [
+            encode_addi(Addi {
+                rd: 5,
+                rs1: 0,
+                imm: 1,
+            })
+            .unwrap(),
+            encode_r(
+                "add",
+                RType {
+                    rd: 8,
+                    rs1: 6,
+                    rs2: 7,
+                },
+            )
+            .unwrap(),
+            encode_r(
+                "sub",
+                RType {
+                    rd: 9,
+                    rs1: 6,
+                    rs2: 7,
+                },
+            )
+            .unwrap(),
+            encode_lui(Lui { rd: 10, imm20: 1 }).unwrap(),
+        ];
+        let bytes: Vec<_> = words.iter().flat_map(|word| word.to_le_bytes()).collect();
+        machine.load(0, &bytes).unwrap();
+        for _ in words {
+            machine.step().unwrap();
+        }
+        assert_eq!(machine.x[5], 1);
+        assert_eq!(machine.x[8], 42);
+        assert_eq!(machine.x[9], 38);
+        assert_eq!(machine.x[10], 0x1000);
     }
 }
