@@ -2,6 +2,15 @@
 
 use luna_diag::{Diagnostic, Result};
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Opcode {
+    pub mnemonic: &'static str,
+    pub extension: &'static str,
+    pub mask: u32,
+    pub match_value: u32,
+    pub fields: &'static [&'static str],
+}
+
 include!(concat!(env!("OUT_DIR"), "/opcode.rs"));
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -39,6 +48,10 @@ pub fn decode(word: u32) -> Instruction {
     } else {
         Instruction::Illegal(word)
     }
+}
+
+pub fn generated_opcodes() -> &'static [Opcode] {
+    GENERATED_OPCODES
 }
 
 pub fn encode(instruction: Instruction) -> Result<u32> {
@@ -87,6 +100,21 @@ mod tests {
                 rs1: 3,
                 imm: -1
             })
+        );
+    }
+
+    #[test]
+    fn registry_is_generated_for_the_selected_profile_sources() {
+        assert!(generated_opcodes().len() > 100);
+        assert!(
+            generated_opcodes()
+                .iter()
+                .any(|opcode| opcode.mnemonic == "add")
+        );
+        assert!(
+            generated_opcodes()
+                .iter()
+                .any(|opcode| opcode.mnemonic == "fadd.s")
         );
     }
 }
