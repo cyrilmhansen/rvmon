@@ -79,6 +79,37 @@ impl Machine {
                 self.memory
                     .store32(address, self.x[instruction.rs2 as usize] as u32)?;
             }
+            Instruction::Beq(instruction) => {
+                if self.x[instruction.rs1 as usize] == self.x[instruction.rs2 as usize] {
+                    self.pc = self.pc.wrapping_add(instruction.imm as i64 as u64);
+                } else {
+                    self.pc = self.pc.wrapping_add(4);
+                }
+            }
+            Instruction::Bne(instruction) => {
+                if self.x[instruction.rs1 as usize] != self.x[instruction.rs2 as usize] {
+                    self.pc = self.pc.wrapping_add(instruction.imm as i64 as u64);
+                } else {
+                    self.pc = self.pc.wrapping_add(4);
+                }
+            }
+            Instruction::Jal(instruction) => {
+                let return_pc = self.pc.wrapping_add(4);
+                if instruction.rd != 0 {
+                    self.x[instruction.rd as usize] = return_pc;
+                }
+                self.pc = self.pc.wrapping_add(instruction.imm as i64 as u64);
+            }
+            Instruction::Jalr(instruction) => {
+                let return_pc = self.pc.wrapping_add(4);
+                let target = self.x[instruction.rs1 as usize]
+                    .wrapping_add(instruction.imm as i64 as u64)
+                    & !1;
+                if instruction.rd != 0 {
+                    self.x[instruction.rd as usize] = return_pc;
+                }
+                self.pc = target;
+            }
             Instruction::Illegal(_) => {
                 return Err(Diagnostic::error(
                     "TRAP-ILLEGAL-INSTRUCTION",
@@ -87,10 +118,15 @@ impl Machine {
             }
         }
         self.x[0] = 0;
-        self.pc = self
-            .pc
-            .checked_add(4)
-            .ok_or_else(|| Diagnostic::error("TRAP-PC-OVERFLOW", "program counter overflow"))?;
+        if !matches!(
+            instruction,
+            Instruction::Beq(_) | Instruction::Bne(_) | Instruction::Jal(_) | Instruction::Jalr(_)
+        ) {
+            self.pc = self
+                .pc
+                .checked_add(4)
+                .ok_or_else(|| Diagnostic::error("TRAP-PC-OVERFLOW", "program counter overflow"))?;
+        }
         self.instructions += 1;
         Ok(StepResult {
             pc_before,
@@ -178,5 +214,28 @@ mod tests {
         machine.step().unwrap();
         machine.step().unwrap();
         assert_eq!(machine.x[5], 0xffff_ffff_8000_0001);
+    }
+
+    #[test]
+    fn executes_branch_and_jump_pc_rules() {
+        let mut machine = Machine::new(128);
+        machine.x[1] = 7;
+        machine.x[2] = 7;
+        let branch = luna_isa::encode_branch(
+            "beq",
+            luna_isa::Branch {
+                rs1: 1,
+                rs2: 2,
+                imm: 8,
+            },
+        )
+        .unwrap();
+        machine.load(0, &branch.to_le_bytes()).unwrap();
+        assert_eq!(machine.step().unwrap().pc_after, 8);
+        let jump = luna_isa::encode_jal(luna_isa::Jal { rd: 5, imm: 4 }).unwrap();
+        machine.load(8, &jump.to_le_bytes()).unwrap();
+        machine.step().unwrap();
+        assert_eq!(machine.x[5], 12);
+        assert_eq!(machine.pc, 12);
     }
 }

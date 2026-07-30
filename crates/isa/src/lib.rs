@@ -48,6 +48,26 @@ pub struct Store {
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Branch {
+    pub rs1: u8,
+    pub rs2: u8,
+    pub imm: i16,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Jal {
+    pub rd: u8,
+    pub imm: i32,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Jalr {
+    pub rd: u8,
+    pub rs1: u8,
+    pub imm: i16,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Instruction {
     Addi(Addi),
     Add(RType),
@@ -55,6 +75,10 @@ pub enum Instruction {
     Lui(Lui),
     Lw(Load),
     Sw(Store),
+    Beq(Branch),
+    Bne(Branch),
+    Jal(Jal),
+    Jalr(Jalr),
     Illegal(u32),
 }
 
@@ -145,6 +169,63 @@ pub fn encode_store(mnemonic: &str, instruction: Store) -> Result<u32> {
         | opcode.match_value)
 }
 
+pub fn encode_branch(mnemonic: &str, instruction: Branch) -> Result<u32> {
+    if instruction.rs1 > 31
+        || instruction.rs2 > 31
+        || !(-4096..=4094).contains(&instruction.imm)
+        || instruction.imm % 2 != 0
+    {
+        return Err(Diagnostic::error(
+            "ISA-OPERAND-001",
+            "branch register or aligned immediate out of range",
+        ));
+    }
+    let opcode = generated_opcode(mnemonic)?;
+    let imm = instruction.imm as i32 as u32;
+    Ok(((imm >> 12) << 31)
+        | (((imm >> 5) & 0x3f) << 25)
+        | ((instruction.rs2 as u32) << 20)
+        | ((instruction.rs1 as u32) << 15)
+        | opcode.match_value
+        | (((imm >> 1) & 0xf) << 8)
+        | (((imm >> 11) & 1) << 7))
+}
+
+pub fn encode_jal(instruction: Jal) -> Result<u32> {
+    if instruction.rd > 31
+        || !(-1_048_576..=1_048_574).contains(&instruction.imm)
+        || instruction.imm % 2 != 0
+    {
+        return Err(Diagnostic::error(
+            "ISA-OPERAND-001",
+            "jal register or aligned immediate out of range",
+        ));
+    }
+    let opcode = generated_opcode("jal")?;
+    let imm = instruction.imm as i64 as u32;
+    Ok((((imm >> 20) & 1) << 31)
+        | (((imm >> 1) & 0x3ff) << 21)
+        | (((imm >> 11) & 1) << 20)
+        | (((imm >> 12) & 0xff) << 12)
+        | ((instruction.rd as u32) << 7)
+        | opcode.match_value)
+}
+
+pub fn encode_jalr(instruction: Jalr) -> Result<u32> {
+    if instruction.rd > 31 || instruction.rs1 > 31 || !(-2048..=2047).contains(&instruction.imm) {
+        return Err(Diagnostic::error(
+            "ISA-OPERAND-001",
+            "jalr register or immediate out of range",
+        ));
+    }
+    let opcode = generated_opcode("jalr")?;
+    let imm = (instruction.imm as i32 as u32) & 0xfff;
+    Ok((imm << 20)
+        | ((instruction.rs1 as u32) << 15)
+        | ((instruction.rd as u32) << 7)
+        | opcode.match_value)
+}
+
 pub fn decode(word: u32) -> Instruction {
     if word & ADDI_MASK == ADDI_MATCH {
         let imm = ((word as i32) >> 20) as i16;
@@ -205,6 +286,58 @@ pub fn decode(word: u32) -> Instruction {
                 });
             }
         }
+        let branch_imm = (((word >> 31) & 1) << 12)
+            | (((word >> 25) & 0x3f) << 5)
+            | (((word >> 8) & 0xf) << 1)
+            | (((word >> 7) & 1) << 11);
+        let branch_imm = ((branch_imm as i32) << 19 >> 19) as i16;
+        for (mnemonic, instruction) in [
+            (
+                "beq",
+                Instruction::Beq(Branch {
+                    rs1: ((word >> 15) & 31) as u8,
+                    rs2: ((word >> 20) & 31) as u8,
+                    imm: branch_imm,
+                }),
+            ),
+            (
+                "bne",
+                Instruction::Bne(Branch {
+                    rs1: ((word >> 15) & 31) as u8,
+                    rs2: ((word >> 20) & 31) as u8,
+                    imm: branch_imm,
+                }),
+            ),
+        ] {
+            if let Ok(opcode) = generated_opcode(mnemonic) {
+                if word & opcode.mask == opcode.match_value {
+                    return instruction;
+                }
+            }
+        }
+        if let Ok(opcode) = generated_opcode("jal") {
+            if word & opcode.mask == opcode.match_value {
+                let imm = ((((word >> 31) & 1) << 20
+                    | ((word >> 21) & 0x3ff) << 1
+                    | ((word >> 20) & 1) << 11
+                    | ((word >> 12) & 0xff) << 12) as i32)
+                    << 11
+                    >> 11;
+                return Instruction::Jal(Jal {
+                    rd: ((word >> 7) & 31) as u8,
+                    imm,
+                });
+            }
+        }
+        if let Ok(opcode) = generated_opcode("jalr") {
+            if word & opcode.mask == opcode.match_value {
+                return Instruction::Jalr(Jalr {
+                    rd: ((word >> 7) & 31) as u8,
+                    rs1: ((word >> 15) & 31) as u8,
+                    imm: (word as i32 >> 20) as i16,
+                });
+            }
+        }
         Instruction::Illegal(word)
     }
 }
@@ -221,6 +354,10 @@ pub fn encode(instruction: Instruction) -> Result<u32> {
         Instruction::Lui(instruction) => encode_lui(instruction),
         Instruction::Lw(instruction) => encode_load("lw", instruction),
         Instruction::Sw(instruction) => encode_store("sw", instruction),
+        Instruction::Beq(instruction) => encode_branch("beq", instruction),
+        Instruction::Bne(instruction) => encode_branch("bne", instruction),
+        Instruction::Jal(instruction) => encode_jal(instruction),
+        Instruction::Jalr(instruction) => encode_jalr(instruction),
         Instruction::Illegal(_) => Err(Diagnostic::error(
             "ISA-ENCODE-001",
             "cannot encode an illegal instruction",

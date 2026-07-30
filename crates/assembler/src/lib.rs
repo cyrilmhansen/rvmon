@@ -2,7 +2,8 @@
 
 use luna_diag::{Diagnostic, Result};
 use luna_isa::{
-    Addi, Load, Lui, RType, Store, encode_addi, encode_load, encode_lui, encode_r, encode_store,
+    Addi, Branch, Jal, Jalr, Load, Lui, RType, Store, encode_addi, encode_branch, encode_jal,
+    encode_jalr, encode_load, encode_lui, encode_r, encode_store,
 };
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -89,11 +90,35 @@ pub fn assemble(source: &str) -> Result<ObjectImage> {
                 },
             )?
         }
+        "beq" | "bne" if parts.len() == 3 => encode_branch(
+            mnemonic,
+            Branch {
+                rs1: register(parts[0])?,
+                rs2: register(parts[1])?,
+                imm: parts[2].parse::<i16>().map_err(|_| {
+                    Diagnostic::error("ASM-IMMEDIATE-001", "invalid branch immediate")
+                })?,
+            },
+        )?,
+        "jal" if parts.len() == 2 => encode_jal(Jal {
+            rd: register(parts[0])?,
+            imm: parts[1]
+                .parse::<i32>()
+                .map_err(|_| Diagnostic::error("ASM-IMMEDIATE-001", "invalid jump immediate"))?,
+        })?,
+        "jalr" if parts.len() == 2 => {
+            let (imm, rs1) = memory_operand(parts[1])?;
+            encode_jalr(Jalr {
+                rd: register(parts[0])?,
+                rs1,
+                imm,
+            })?
+        }
         "" => return Err(Diagnostic::error("ASM-OPERAND-001", "missing instruction")),
         _ => {
             return Err(Diagnostic::error(
                 "ASM-BOOT-UNSUPPORTED",
-                "bootstrap assembler accepts addi, add, sub, lui, lw and sw",
+                "bootstrap assembler accepts addi, add, sub, lui, lw, sw, beq, bne, jal and jalr",
             ));
         }
     };
@@ -125,5 +150,8 @@ mod tests {
         assert!(assemble("lui x3,74565").is_ok());
         assert!(assemble("lw x3,8(x4)").is_ok());
         assert!(assemble("sw x3,-8(x4)").is_ok());
+        assert!(assemble("beq x1,x2,-4").is_ok());
+        assert!(assemble("jal ra,2048").is_ok());
+        assert!(assemble("jalr ra,0(x4)").is_ok());
     }
 }
