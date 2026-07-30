@@ -36,6 +36,10 @@ impl Memory {
         let range = self.range(address, 4)?;
         Ok(u32::from_le_bytes(self.bytes[range].try_into().unwrap()))
     }
+    pub fn load8(&self, address: u64) -> Result<u8> {
+        let range = self.range(address, 1)?;
+        Ok(self.bytes[range][0])
+    }
     pub fn store8(&mut self, address: u64, value: u8) -> Result<()> {
         let range = self.range(address, 1)?;
         self.bytes[range].copy_from_slice(&[value]);

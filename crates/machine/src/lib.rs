@@ -65,6 +65,20 @@ impl Machine {
                         ((instruction.imm20 << 12) as i32 as i64) as u64;
                 }
             }
+            Instruction::Lw(instruction) => {
+                let address =
+                    self.x[instruction.rs1 as usize].wrapping_add(instruction.imm as i64 as u64);
+                let value = self.memory.load32(address)? as i32 as i64 as u64;
+                if instruction.rd != 0 {
+                    self.x[instruction.rd as usize] = value;
+                }
+            }
+            Instruction::Sw(instruction) => {
+                let address =
+                    self.x[instruction.rs1 as usize].wrapping_add(instruction.imm as i64 as u64);
+                self.memory
+                    .store32(address, self.x[instruction.rs2 as usize] as u32)?;
+            }
             Instruction::Illegal(_) => {
                 return Err(Diagnostic::error(
                     "TRAP-ILLEGAL-INSTRUCTION",
@@ -132,5 +146,37 @@ mod tests {
         assert_eq!(machine.x[8], 42);
         assert_eq!(machine.x[9], 38);
         assert_eq!(machine.x[10], 0x1000);
+    }
+
+    #[test]
+    fn executes_lw_and_sw_with_sign_extension() {
+        let mut machine = Machine::new(128);
+        machine.x[4] = 64;
+        machine.x[3] = 0xffff_ffff_8000_0001;
+        let words = [
+            luna_isa::encode_store(
+                "sw",
+                luna_isa::Store {
+                    rs2: 3,
+                    rs1: 4,
+                    imm: 0,
+                },
+            )
+            .unwrap(),
+            luna_isa::encode_load(
+                "lw",
+                luna_isa::Load {
+                    rd: 5,
+                    rs1: 4,
+                    imm: 0,
+                },
+            )
+            .unwrap(),
+        ];
+        let bytes: Vec<_> = words.iter().flat_map(|word| word.to_le_bytes()).collect();
+        machine.load(0, &bytes).unwrap();
+        machine.step().unwrap();
+        machine.step().unwrap();
+        assert_eq!(machine.x[5], 0xffff_ffff_8000_0001);
     }
 }

@@ -34,11 +34,27 @@ pub struct Lui {
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Load {
+    pub rd: u8,
+    pub rs1: u8,
+    pub imm: i16,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Store {
+    pub rs2: u8,
+    pub rs1: u8,
+    pub imm: i16,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Instruction {
     Addi(Addi),
     Add(RType),
     Sub(RType),
     Lui(Lui),
+    Lw(Load),
+    Sw(Store),
     Illegal(u32),
 }
 
@@ -98,6 +114,37 @@ pub fn encode_lui(instruction: Lui) -> Result<u32> {
     Ok(encoded | ((instruction.rd as u32) << 7) | opcode.match_value)
 }
 
+pub fn encode_load(mnemonic: &str, instruction: Load) -> Result<u32> {
+    if instruction.rd > 31 || instruction.rs1 > 31 || !(-2048..=2047).contains(&instruction.imm) {
+        return Err(Diagnostic::error(
+            "ISA-OPERAND-001",
+            "load register or immediate out of range",
+        ));
+    }
+    let opcode = generated_opcode(mnemonic)?;
+    let imm = (instruction.imm as i32 as u32) & 0xfff;
+    Ok((imm << 20)
+        | ((instruction.rs1 as u32) << 15)
+        | ((instruction.rd as u32) << 7)
+        | opcode.match_value)
+}
+
+pub fn encode_store(mnemonic: &str, instruction: Store) -> Result<u32> {
+    if instruction.rs2 > 31 || instruction.rs1 > 31 || !(-2048..=2047).contains(&instruction.imm) {
+        return Err(Diagnostic::error(
+            "ISA-OPERAND-001",
+            "store register or immediate out of range",
+        ));
+    }
+    let opcode = generated_opcode(mnemonic)?;
+    let imm = (instruction.imm as i32 as u32) & 0xfff;
+    Ok(((imm >> 5) << 25)
+        | ((instruction.rs2 as u32) << 20)
+        | ((instruction.rs1 as u32) << 15)
+        | ((imm & 0x1f) << 7)
+        | opcode.match_value)
+}
+
 pub fn decode(word: u32) -> Instruction {
     if word & ADDI_MASK == ADDI_MATCH {
         let imm = ((word as i32) >> 20) as i16;
@@ -139,6 +186,25 @@ pub fn decode(word: u32) -> Instruction {
                 });
             }
         }
+        if let Ok(opcode) = generated_opcode("lw") {
+            if word & opcode.mask == opcode.match_value {
+                return Instruction::Lw(Load {
+                    rd: ((word >> 7) & 31) as u8,
+                    rs1: ((word >> 15) & 31) as u8,
+                    imm: (word as i32 >> 20) as i16,
+                });
+            }
+        }
+        if let Ok(opcode) = generated_opcode("sw") {
+            if word & opcode.mask == opcode.match_value {
+                let immediate = (((word >> 25) & 0x7f) << 5) | ((word >> 7) & 0x1f);
+                return Instruction::Sw(Store {
+                    rs2: ((word >> 20) & 31) as u8,
+                    rs1: ((word >> 15) & 31) as u8,
+                    imm: ((immediate as i32) << 20 >> 20) as i16,
+                });
+            }
+        }
         Instruction::Illegal(word)
     }
 }
@@ -153,6 +219,8 @@ pub fn encode(instruction: Instruction) -> Result<u32> {
         Instruction::Add(instruction) => encode_r_type("add", instruction),
         Instruction::Sub(instruction) => encode_r_type("sub", instruction),
         Instruction::Lui(instruction) => encode_lui(instruction),
+        Instruction::Lw(instruction) => encode_load("lw", instruction),
+        Instruction::Sw(instruction) => encode_store("sw", instruction),
         Instruction::Illegal(_) => Err(Diagnostic::error(
             "ISA-ENCODE-001",
             "cannot encode an illegal instruction",
@@ -255,6 +323,40 @@ mod tests {
             Instruction::Lui(Lui {
                 rd: 3,
                 imm20: 0xfffff
+            })
+        );
+        let lw = encode_load(
+            "lw",
+            Load {
+                rd: 4,
+                rs1: 5,
+                imm: -8,
+            },
+        )
+        .unwrap();
+        assert_eq!(
+            decode(lw),
+            Instruction::Lw(Load {
+                rd: 4,
+                rs1: 5,
+                imm: -8
+            })
+        );
+        let sw = encode_store(
+            "sw",
+            Store {
+                rs2: 4,
+                rs1: 5,
+                imm: -8,
+            },
+        )
+        .unwrap();
+        assert_eq!(
+            decode(sw),
+            Instruction::Sw(Store {
+                rs2: 4,
+                rs1: 5,
+                imm: -8
             })
         );
     }

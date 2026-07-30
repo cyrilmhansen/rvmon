@@ -1,7 +1,9 @@
 #![forbid(unsafe_code)]
 
 use luna_diag::{Diagnostic, Result};
-use luna_isa::{Addi, Lui, RType, encode_addi, encode_lui, encode_r};
+use luna_isa::{
+    Addi, Load, Lui, RType, Store, encode_addi, encode_load, encode_lui, encode_r, encode_store,
+};
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ObjectImage {
@@ -22,6 +24,19 @@ fn register(name: &str) -> Result<u8> {
         "ra" => Ok(1),
         _ => Err(Diagnostic::error("ASM-REGISTER-001", "unknown register")),
     }
+}
+
+fn memory_operand(value: &str) -> Result<(i16, u8)> {
+    let (immediate, base) = value.split_once('(').ok_or_else(|| {
+        Diagnostic::error("ASM-MEMORY-001", "memory operand must be imm(register)")
+    })?;
+    let base = base
+        .strip_suffix(')')
+        .ok_or_else(|| Diagnostic::error("ASM-MEMORY-001", "missing closing parenthesis"))?;
+    let immediate = immediate
+        .parse::<i16>()
+        .map_err(|_| Diagnostic::error("ASM-IMMEDIATE-001", "invalid memory immediate"))?;
+    Ok((immediate, register(base)?))
 }
 
 pub fn assemble(source: &str) -> Result<ObjectImage> {
@@ -52,11 +67,33 @@ pub fn assemble(source: &str) -> Result<ObjectImage> {
                 .parse::<u32>()
                 .map_err(|_| Diagnostic::error("ASM-IMMEDIATE-001", "invalid U immediate"))?,
         })?,
+        "lw" if parts.len() == 2 => {
+            let (imm, rs1) = memory_operand(parts[1])?;
+            encode_load(
+                "lw",
+                Load {
+                    rd: register(parts[0])?,
+                    rs1,
+                    imm,
+                },
+            )?
+        }
+        "sw" if parts.len() == 2 => {
+            let (imm, rs1) = memory_operand(parts[1])?;
+            encode_store(
+                "sw",
+                Store {
+                    rs2: register(parts[0])?,
+                    rs1,
+                    imm,
+                },
+            )?
+        }
         "" => return Err(Diagnostic::error("ASM-OPERAND-001", "missing instruction")),
         _ => {
             return Err(Diagnostic::error(
                 "ASM-BOOT-UNSUPPORTED",
-                "bootstrap assembler accepts addi, add, sub and lui",
+                "bootstrap assembler accepts addi, add, sub, lui, lw and sw",
             ));
         }
     };
@@ -86,5 +123,7 @@ mod tests {
         assert!(assemble("add x5,x6,x7").is_ok());
         assert!(assemble("sub x5,x6,x7").is_ok());
         assert!(assemble("lui x3,74565").is_ok());
+        assert!(assemble("lw x3,8(x4)").is_ok());
+        assert!(assemble("sw x3,-8(x4)").is_ok());
     }
 }
