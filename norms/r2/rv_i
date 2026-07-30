@@ -1,3 +1,3 @@
-# Extract pinned from riscv/riscv-opcodes at commit c6edca7.
+# Extract pinned from riscv/riscv-opcodes at commit c6edca7d8c3f92694963a0a0baeb511930fb2af4.
 # Source: extensions/rv_i, line 20 in the pinned snapshot.
 addi    rd rs1 imm12           14..12=0 6..2=0x04 1..0=3

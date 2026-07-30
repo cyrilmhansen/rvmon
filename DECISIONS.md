@@ -22,7 +22,7 @@
 
 ## D-006 — Encodages générés
 
-**Décision :** R2 figé par SHA, tables générées mask/match/champs/pseudos. **Alternative :** tables manuelles, rejetée pour divergence et maintenance.
+**Décision :** R2 figé par SHA `c6edca7d8c3f92694963a0a0baeb511930fb2af4`, tables générées mask/match/champs/pseudos. **Alternative :** tables manuelles, rejetée pour divergence et maintenance.
 
 ## D-007 — Mémoire isolée et limites
 

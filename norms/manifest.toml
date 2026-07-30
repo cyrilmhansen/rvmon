@@ -1,0 +1,33 @@
+schema_version = 1
+
+[r1]
+name = "RISC-V Unprivileged ISA"
+version = "v20260120"
+source = "https://docs.riscv.org/reference/home/index.html"
+status = "ratified"
+
+[r2]
+name = "riscv-opcodes"
+commit = "c6edca7d8c3f92694963a0a0baeb511930fb2af4"
+source = "https://github.com/riscv/riscv-opcodes/commit/c6edca7d8c3f92694963a0a0baeb511930fb2af4"
+status = "pinned"
+license = "BSD-3-Clause"
+
+[r3]
+name = "riscv-elf-psabi-doc"
+commit = "76b837ec964509f4bac11c66e5d7106b6a1e626a"
+source = "https://github.com/riscv-non-isa/riscv-elf-psabi-doc/commit/76b837ec964509f4bac11c66e5d7106b6a1e626a"
+status = "development-experimental"
+license = "CC-BY-4.0"
+
+[r4]
+name = "riscv-asm-manual"
+source = "https://github.com/riscv-non-isa/riscv-asm-manual"
+status = "dialect-reference"
+license = "CC-BY-4.0"
+
+[r5]
+name = "sail-riscv"
+source = "https://github.com/riscv/sail-riscv"
+status = "semantic-oracle"
+license = "BSD-2-Clause"

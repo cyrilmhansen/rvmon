@@ -7,6 +7,11 @@ pub struct Memory {
     bytes: Vec<u8>,
 }
 
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Transaction {
+    writes: Vec<(u64, u8)>,
+}
+
 impl Memory {
     pub fn new(size: usize) -> Self {
         Self {
@@ -40,5 +45,55 @@ impl Memory {
         let range = self.range(address, 4)?;
         self.bytes[range].copy_from_slice(&value.to_le_bytes());
         Ok(())
+    }
+
+    pub fn transaction(&self) -> Transaction {
+        Transaction { writes: Vec::new() }
+    }
+
+    pub fn commit(&mut self, transaction: Transaction) -> Result<()> {
+        for (address, _) in &transaction.writes {
+            self.range(*address, 1)?;
+        }
+        for (address, value) in transaction.writes {
+            self.store8(address, value)?;
+        }
+        Ok(())
+    }
+}
+
+impl Transaction {
+    pub fn write8(&mut self, address: u64, value: u8) {
+        self.writes.push((address, value));
+    }
+    pub fn is_empty(&self) -> bool {
+        self.writes.is_empty()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn failed_commit_is_atomic() {
+        let mut memory = Memory::new(4);
+        let mut tx = memory.transaction();
+        tx.write8(0, 0xaa);
+        tx.write8(4, 0xbb);
+        assert!(memory.commit(tx).is_err());
+        assert_eq!(memory.load32(0).unwrap(), 0);
+    }
+
+    #[test]
+    fn successful_commit_writes_all_bytes() {
+        let mut memory = Memory::new(4);
+        let mut tx = memory.transaction();
+        tx.write8(0, 0x93);
+        tx.write8(1, 0x00);
+        tx.write8(2, 0x10);
+        tx.write8(3, 0x00);
+        memory.commit(tx).unwrap();
+        assert_eq!(memory.load32(0).unwrap(), 0x0010_0093);
     }
 }

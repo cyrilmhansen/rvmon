@@ -39,7 +39,7 @@ Débutant qui apprend l’ISA ; programmeur assembleur qui veut un cycle edit–
 
 Ordre d’autorité : R1 ISA ratifiée v20260120 ; R2 encodages figés ; R3 psABI de développement figée ; R4 dialecte ; R5 oracle ; A1/A2 interaction ; C1 index uniquement. Les liens de référence sont [R1](https://docs.riscv.org/reference/home/index.html), [R2](https://github.com/riscv/riscv-opcodes/tree/c6edca7), [R3](https://github.com/riscv-non-isa/riscv-elf-psabi-doc), [R4](https://github.com/riscv-non-isa/riscv-asm-manual), [R5](https://github.com/riscv/sail-riscv), [A1](https://archive.org/stream/AsmOne1.02Manual/Asm-One1.02Manual_djvu.txt), [Aminet](https://aminet.net/package/dev/asm/ASM-One).
 
-R2 est gelé sur le commit `c6edca7` (11-07-2026), à remplacer par le SHA complet dans l’implémentation ; les tables sont générées, jamais recopiées. R3 est le snapshot `master` observé le 31-07-2026 et doit être remplacé par un SHA complet avant implémentation. R4 est une spécification non ratifiée de dialecte. R5 ne remplace jamais R1.
+R2 est gelé sur le commit `c6edca7d8c3f92694963a0a0baeb511930fb2af4` (11-07-2026) ; les tables sont générées, jamais recopiées. R3 est gelé sur `76b837ec964509f4bac11c66e5d7106b6a1e626a` (snapshot du 31-07-2026), et reste une spécification de développement expérimentale. R4 est une spécification non ratifiée de dialecte. R5 ne remplace jamais R1.
 
 Une divergence est enregistrée dans `DECISIONS.md`, reçoit un identifiant `CONFLICT-*`, une règle locale versionnée et un test. Aucun changement silencieux. La règle locale est réversible par migration de projet.
 
