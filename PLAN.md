@@ -1,0 +1,126 @@
+# Plan de développement — moniteur-assembleur RV64ILP32
+
+## 1. Résumé exécutif
+
+Le projet sera livré comme un workspace Rust multi-crates, avec un cœur sans UI et un frontend terminal initial. Le premier incrément démontrable est volontairement étroit : générer l’encodage de `addi`, assembler `addi x1,x0,1`, charger l’image dans une RAM virtuelle, exécuter exactement un pas et montrer `x1=1`. Le deuxième incrément à risque est `fadd.s`, avec motif de résultat et `fflags` comparés à un oracle externe.
+
+Le profil hérité est `rv64imafd_zicsr_zifencei`, little-endian, U mono-hart, `XLEN=64`, `FLEN=64`, ABI locale `RV64ILP32D-MON-1`, C optionnel, A non exécuté par défaut, Zfh/Q data/decode-only. La génération des encodages depuis `riscv-opcodes` est une condition de conception, pas une tâche de confort.
+
+### Effort et capacité
+
+Estimation essentielle : 55–75 journées-agent, hors frontend graphique, export ELF complet et multi-hart. Marge de risque : 20–30 journées-agent, principalement flottants, C, ILP32 et oracles. Optionnel V1 : 8–15 journées-agent pour ELF contrôlé, historique arrière et polish terminal. Hypothèse : 2 agents de code à temps plein, 1 agent validation/revue à temps partiel ; les fourchettes ne sont pas des dates calendaires.
+
+## 2. Contrôle de cohérence
+
+### Écarts et décisions nécessaires
+
+1. **R2 n’est pas réellement figé** : `c6edca7` est un SHA court. Le premier code dépend d’un SHA complet et d’un artefact hashé.
+2. **R3 pointe vers `master`** : impossible de reproduire la validation ABI. À figer avant import/export ELF et avant toute convention ABI testée.
+3. **Carte pointeur haute vs RAM/MMIO** : la spécification définit la traduction `sign_extend_32`, mais pas si une allocation dans la fenêtre haute est physiquement aliasée vers une RAM basse. Défaut : deux fenêtres logiques indépendantes ; aucune aliasing ; les allocations hautes sont explicites et bornées.
+4. **ELF32/flags** : `ELFCLASS32` ne suffit pas à reconnaître RV64ILP32. Défaut : import rejeté si machine, classe, flags float, ABI manifest ou relocation ne concordent pas ; ELF externe n’est pas requis par M2–M4.
+5. **Outils GNU/LLVM** : leur acceptation de RV64ILP32 varie. Défaut : les tests différentiels marquent `unsupported-by-oracle` avec preuve de version et ne deviennent jamais des tests auto-comparatifs.
+6. **IEEE 754 déterministe** : la spécification exige un résultat indépendant de l’hôte, mais ne choisit pas de bibliothèque. Défaut : prototype contre Berkeley SoftFloat ou équivalent logiciel audité ; aucun fallback implicite vers les opérations hôte.
+7. **C** : C est optionnel et son émission automatique est désactivée. Défaut : C explicitement activable dès que le décodeur 16/32 est stable, sans relaxation automatique.
+8. **Historique arrière** : le journal inverse est retenu mais son coût n’est pas borné en octets. Défaut : quota configurable et test de pression ; la fonctionnalité peut être désactivée sans casser undo transactionnel.
+
+Ces points ne sont pas corrigés silencieusement ; ils deviennent ADR et tests de contrat.
+
+## 3. Étape 0 — décisions bloquantes avant le premier code
+
+| Décision | Défaut obligatoire | Condition de sortie |
+|---|---|---|
+| SHA R2 | commit complet correspondant à `c6edca7`, avec archive des fichiers générés | manifest R2, SHA vérifié deux fois, licence enregistrée |
+| SHA R3 | commit complet du snapshot observé le 31-07-2026 | manifest R3, HTML/AsciiDoc hashé, `CONFLICT-ABI-001` accepté |
+| R2↔R1 | script de contrôle qui compare au moins les instructions du profil | rapport zéro divergence non expliquée |
+| pointeurs hauts | fenêtres basse/haute non aliasées, `sign_extend_32`, mapping explicite par segment | table de carte mémoire et tests 0x7fffffff/0x80000000/0xffffffff |
+| ELF | import strict, refus des combinaisons ambiguës, format `.luna` canonique | corpus ELF accepté/refusé et codes stables |
+| langage | Rust stable piné par `rust-toolchain.toml`, cœur sans `unsafe` par défaut | build reproductible et audit des dépendances |
+| oracle FP | SoftFloat logiciel audité comme oracle d’exécution, Sail/Spike pour sémantique globale | prototype `fadd.s` comparé sur 1000 motifs |
+
+Étape 0 ne bloque pas l’écriture de fixtures et de scripts de vérification indépendants, mais bloque les crates de production qui consomment les encodages ou l’ABI.
+
+## 4. Architecture de dépôt proposée
+
+```text
+/
+  Cargo.toml                         # workspace, versions communes
+  rust-toolchain.toml                # toolchain pinée
+  norms/                              # snapshots R1–R5, manifests, licences
+  generated/opcodes/<r2-sha>/        # tables dérivées, manifest, hash, pas de saisie manuelle
+  crates/
+    diag/                             # Diagnostic, codes, Location, Severity
+    profile/                          # ISA/ABI/environment manifests et capabilities
+    bits/                             # bitvectors, endian, widths, bit patterns
+    opcode-gen/                       # import R2, validation R1, génération
+    isa/                              # encode/decode, pseudos, C 16/32
+    float/                            # formats, SoftFloat adapter, fcsr, display
+    abi/                              # types, sign extension, ELF flags/validation
+    asm-lexer/                        # tokens, Unicode policy, comments
+    asm-parser/                       # AST, expressions, directives, macros
+    assembler/                        # passes, symbols, relocations, listing
+    memory/                           # sparse RAM, MMIO contract, transactions
+    machine/                          # state, hart, CSR, traps, deterministic backend
+    debugger/                         # break/watch, stepping, source mapping, history
+    formats/                          # project, image, snapshot, symbols, ELF limited
+    command/                          # EBNF command parser/evaluator
+    monitor-model/                    # views, marks, QuickJump, selection
+    frontend-terminal/                # ratatui/crossterm adapter, keymap
+    app/                              # composition, persistence, CLI entrypoint
+  tests/
+    golden/                           # fixtures R2, GNU, LLVM, Sail/Spike
+    e2e/                              # scénarios SPEC 1–14
+    fuzz/                             # targets, seeds, reducers
+  tools/                              # scripts oracle, lock, corpus, benchmarks
+  docs/                               # guide développeur/utilisateur
+```
+
+Frontières : `machine` ne connaît ni AST ni UI ; `assembler` ne dépend pas de `machine` ; `isa` dépend des tables générées, jamais de texte saisi ; `formats` sérialise des contrats versionnés ; le frontend ne manipule jamais directement la RAM.
+
+## 5. Langage, bibliothèques et coût de verrouillage
+
+Rust stable est recommandé pour les invariants de largeur, ownership des snapshots, portabilité et fuzzing. Alternatives : C++ (meilleur accès à certains oracles mais coût mémoire/ownership plus élevé), Go (ergonomie mais moins adapté au bit-level et au frontend terminal riche). Le choix Rust verrouille l’écosystème Cargo et impose des wrappers FFI audités si SoftFloat est retenu.
+
+Bibliothèques candidates à figer après M0 : `thiserror`/`miette` ou équivalent interne pour diagnostics ; `serde` + format JSON canonique ; `proptest` et `cargo-fuzz` ; `ratatui`/`crossterm` pour le terminal. Les versions exactes et licences sont enregistrées dans `norms/dependencies.lock`; aucune bibliothèque ne fournit la sémantique ISA sans comparaison externe.
+
+Pour FP, le défaut est un backend logiciel dérivé/vendored d’un SoftFloat audité ; alternative : `rustc_apfloat` si sa couverture et sa licence conviennent. Le prototype M4 doit mesurer payload NaN, sous-normaux, `frm` et flags avant verrouillage.
+
+## 6. Politique de normes et données générées
+
+Chaque build porte les identifiants R1–R5 et SHA. Le générateur R2 produit `mask`, `match`, champs, contraintes, pseudos, imports et métadonnées d’extension. Les artefacts générés sont committés pour revue mais ne sont jamais édités manuellement ; CI les régénère et compare sans tolérance. Un changement de SHA ouvre un ADR, reconstruit les fixtures et exige une migration de profil.
+
+R1 reste l’autorité sémantique ; le contrôle R2 détecte une divergence mais ne la résout pas automatiquement. Les oracles GNU/LLVM/Sail/Spike sont des dépendances de test, pas de runtime V1.
+
+## 7. Tranches verticales et jalons
+
+| Jalon | Démonstration | Scénarios SPEC | Sortie minimale |
+|---|---|---|---|
+| M0 | dépôt reproductible et sources gelées | prérequis 1, 6, 10, 12 | CI, manifests, licences, ADR ouverts |
+| M1 | `addi` encode/decode avec tables générées | E2E 1 partiel, 10 | golden R2, encode↔decode, illegal opcode |
+| M2 | source→RAM→step→`x1=1` | E2E 1 | tranche entière sans UI obligatoire |
+| M3 | symboles/directives/diagnostics/disassemble | E2E 3, 9, 10, 14 | listing, C mixte, round-trip |
+| M4 | `fadd.s`, résultat bit-exact, `fflags` | E2E 5, 6, 13 | oracle FP indépendant |
+| M5 | D, données binary16/128, Zfh/Q decode-only | E2E 7 | profil matrix et refus d’exécution |
+| M6 | commandes, mémoire hex/ASCII/dis, marks | E2E 2, 3 | terminal utilisable |
+| M7 | break/watch/step/source/history | E2E 4, 11 | debugger contractuel |
+| M8 | projets, snapshots, export/reprise/migration | E2E 12, 14 | replay hash-identique |
+| M9 | fuzz, perf, accessibilité, release candidate | tous | rapport RC signé |
+
+Chaque jalon conserve un build vert et une démonstration scriptée. M1–M4 sont prioritaires sur le polish UI.
+
+## 8. Migration du profil minimal
+
+Le profil de bootstrap est `rv64i_zicsr_zifencei` uniquement, utilisé pour valider pipeline et traps. M2 ajoute M et les loads/stores nécessaires. M4 active F en conservant les mêmes interfaces d’état ; M5 active D et les formats data sans activer Q/Zfh en exécution. C est ajouté par capability et ne modifie pas le curseur mémoire. A reçoit un profil séparé `A-MH1`, jamais un booléen global. Toute extension future doit fournir parse/assemble/decode/execute/debug/test/export séparément et un corpus externe.
+
+## 9. Parallélisation et intégration
+
+Parallélisables après M0 : générateur R2, diagnostics, FP oracle adapter, lexer/parser, memory transactions, fixtures d’oracle. À intégrer tôt : `ProfileId`, `Diagnostic`, `DecodedInstruction`, `MachineState`, `ObjectImage`, `SnapshotManifest`. Un agent ne modifie pas une interface publique sans ADR ou contrat de test. Les branches fusionnent par tranche, avec rebase limité et test de compatibilité des artefacts générés.
+
+## 10. Risques et réduction précoce
+
+* **ILP32/ELF** : tests de frontières et corpus refusé en Étape 0 ; import ELF repoussé hors chemin critique.
+* **Encodages** : générateur + contrôle R1 dès M1 ; aucune table manuelle.
+* **FP** : prototype SoftFloat contre GNU/Sail/Spike avant généralisation ; commencer par `fadd.s`.
+* **C** : décodeur longueur variable testé avant relaxation ; émission automatique désactivée.
+* **Pas-à-pas** : machine synchrone et compteur d’instructions dès M2 ; UI n’est pas l’horloge.
+* **Fuzzing** : targets parser/decoder/command dès M3, budgets CI séparés.
+* **Reproductibilité** : manifests et hash de chaque entrée dès M0, snapshots sans horodatage.
