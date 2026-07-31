@@ -53,4 +53,4 @@ if [[ "$mutated_hex" == "$qemu_hex" ]]; then
 fi
 
 printf 'QEMU %s independently matches %s F/D result-and-flag cases; mutation check: PASS\n' \
-    "$actual_qemu" 8
+    "$actual_qemu" 13

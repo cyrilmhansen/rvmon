@@ -618,17 +618,17 @@ Une tâche est terminée seulement si sa condition de sortie est satisfaite.
 - **Non-but :** intégrer un oracle dans le runtime sans audit.
 - **Entrées/sources :** R1 F; R5 Sail; SoftFloat version/licence candidate.
 - **Fichiers/modules :** `tools/oracles`, `norms/dependencies.lock`, rapport ADR.
-- **Étapes réalisées :** épingler QEMU user-mode 11.0.2 dans le manifeste; construire un probe RISC-V autonome pour quatre cas F et quatre cas D; comparer motifs de résultat et fflags au moteur; vérifier qu’une mutation du candidat est détectée; enregistrer la décision D-016.
+- **Étapes réalisées :** épingler QEMU user-mode 11.0.2 dans le manifeste; construire un probe RISC-V autonome pour quatre cas F, quatre cas D et cinq cas d’arrondi F; comparer motifs de résultat et fflags au moteur; vérifier qu’une mutation du candidat est détectée; enregistrer la décision D-016.
 - **Dépendances/bloqués :** BOOT-003; BOOT-001 pour versions; bloque FP-002.
 - **Tests :** bash tools/check-fp-oracle.sh; corpus fixe; comparaison QEMU/machine; mutation de la chaîne candidate.
-- **Acceptation :** QEMU 11.0.2 et le moteur concordent sur huit cas; la mutation contrôlée diverge; choix et licence sont enregistrés.
+- **Acceptation :** QEMU 11.0.2 et le moteur concordent sur treize cas; la mutation contrôlée diverge; choix et licence sont enregistrés.
 - **Limites/échecs :** outil absent → capability `unavailable`, jamais comparaison self-to-self.
 - **Taille :** 5 points / 2,5 j, incertitude élevée.
 - **Compétences/outils :** IEEE, Sail/Spike, FFI éventuel.
 - **Parallélisable :** oui avec FP-001, non FP-002.
 - **Contexte minimal :** SPEC §§4/11.1/23, règle utilisateur 5/8.
 
-### FP-002 — Exécuter fadd.s avec fcsr et NaN-boxing
+### FP-002 — Exécuter fadd.s avec fcsr et NaN-boxing — PARTIELLEMENT TERMINÉ
 
 - **Jalon / exigences :** M4; FP-001..018, DBG-001, REQ-PROD-002.
 - **But :** ajouter f-register bits, `fadd.s`, rm dynamique/statique, flags et box validation.
@@ -637,13 +637,30 @@ Une tâche est terminée seulement si sa condition de sortie est satisfaite.
 - **Fichiers/modules :** `float`, `machine`, `isa`.
 - **Étapes :** f[32]:u64; fcsr fields; operation; sticky flags; NaN-box; trace changes; profile gate.
 - **Dépendances/bloqués :** FP-ORACLE-001; MACHINE-001.
-- **Tests :** `fadd.s` normal, ±0, subnormal, NaN, invalid box, all rm.
+- **Tests :** `fadd.s` normal, ±0, subnormal, NaN, invalid box, all rm; les tests d’exécution F/D et l’oracle d’arrondi sont détaillés dans FP-002A.
 - **Acceptation :** E2E 5/6/13 match motif oracle and exact flags; hôte x86/arm same output.
 - **Limites/échecs :** rm reserved, nonbox, unsupported profile → stable diagnostic/trap.
 - **Taille :** 5 points / 2,5 j, incertitude élevée.
 - **Compétences/outils :** IEEE/RISC-V F.
 - **Parallélisable :** non avec FP-ORACLE integration.
 - **Contexte minimal :** SPEC §§5/8/11.1/24.
+
+### FP-002A — Modes d’arrondi déterministes F/D — TERMINÉ
+
+- **Jalon / exigences :** M4/M5; FP-003..006, FP-012..018, DBG-001.
+- **But :** exécuter `fadd.s` et `fadd.d` avec RNE, RTZ, RDN, RUP et RMM, en mode statique ou dynamique via `frm`, sans dépendre de l’arrondi de l’hôte.
+- **Non-but :** conversions entier/flottant, opérations autres que l’addition, binary16/binary128 exécutés, et preuve exhaustive des règles underflow de toutes les opérations.
+- **Entrées/sources :** R1 §§11.1/11.2 (F/D, `rm`, `frm`, `fflags`); R2 commit épinglé pour les champs; QEMU 11.0.2 comme oracle externe D-016.
+- **Fichiers/modules :** `crates/machine/src/lib.rs`, `crates/machine/examples/fp_probe.rs`, `tests/oracles/fp_qemu_probe.S`, `tools/check-fp-oracle.sh`.
+- **Étapes réalisées :** ajouter une arithmétique de significandes entières avec bits de garde/sticky; traiter les cinq modes, les ties, les débordements, les subnormaux et les zéros signés; refuser `rm=5/6` et `frm=5/6` avec `TRAP-FP-RM-001`; conserver les flags sticky.
+- **Dépendances :** FP-002, FP-ORACLE-001; prépare FP-004 conversions.
+- **Tests :** tie `1 + 2^-24` dans les cinq modes; tie binary64; mode dynamique; modes réservés; QEMU sur treize cas F/D de résultats et flags.
+- **Acceptation :** les motifs et `fflags` de `cargo test -p luna-machine` et `bash tools/check-fp-oracle.sh` sont stables sur l’hôte; QEMU 11.0.2 concorde; une mutation contrôlée de la sortie est détectée.
+- **Limites/échecs :** les conversions, multiplication/division et l’exécution Q/Zfh restent à implémenter; le calcul exact est borné aux formats F/D actuels.
+- **Taille :** 5 points / 2,5 journées-agent, incertitude moyenne.
+- **Compétences/outils :** IEEE 754, RISC-V F/D, arithmétique multi-précision bornée, QEMU, Rust.
+- **Parallélisable :** oui avec la préparation des conversions et la documentation; non avec une modification concurrente du modèle `fcsr`.
+- **Contexte minimal :** SPEC §§5/8/11.1/24, `crates/machine/src/lib.rs`, `tests/oracles/fp_qemu_probe.S`, `norms/oracles/manifest.toml`.
 
 ### FP-003 — Étendre D et refuser proprement Q/Zfh exécutable
 

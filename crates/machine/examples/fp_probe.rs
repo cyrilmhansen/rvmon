@@ -1,7 +1,7 @@
 use luna_isa::{FRegisterRType, encode_f_r};
 use luna_machine::Machine;
 
-fn run(mnemonic: &str, left: u64, right: u64) -> (u64, u64) {
+fn run(mnemonic: &str, left: u64, right: u64, rounding_mode: u8, frm: u8) -> (u64, u64) {
     let mut machine = Machine::new(16);
     machine.f[1] = if mnemonic == "fadd.s" {
         0xffff_ffff_0000_0000 | left
@@ -13,13 +13,14 @@ fn run(mnemonic: &str, left: u64, right: u64) -> (u64, u64) {
     } else {
         right
     };
+    machine.fcsr = u32::from(frm) << 5;
     let word = encode_f_r(
         mnemonic,
         FRegisterRType {
             rd: 3,
             rs1: 1,
             rs2: 2,
-            rm: 0,
+            rm: rounding_mode,
         },
     )
     .expect("probe instruction must be generated from pinned R2");
@@ -37,17 +38,22 @@ fn run(mnemonic: &str, left: u64, right: u64) -> (u64, u64) {
 
 fn main() {
     let cases = [
-        ("fadd.s", 0x3fc0_0000, 0x4010_0000),
-        ("fadd.s", 0x7f7f_ffff, 0x7f7f_ffff),
-        ("fadd.s", 0x0000_0001, 0x0000_0001),
-        ("fadd.s", 0x7f80_0000, 0xff80_0000),
-        ("fadd.d", 0x3ff8_0000_0000_0000, 0x4002_0000_0000_0000),
-        ("fadd.d", 0x7fef_ffff_ffff_ffff, 0x7fef_ffff_ffff_ffff),
-        ("fadd.d", 0x0000_0000_0000_0001, 0x0000_0000_0000_0001),
-        ("fadd.d", 0x7ff0_0000_0000_0000, 0xfff0_0000_0000_0000),
+        ("fadd.s", 0x3fc0_0000, 0x4010_0000, 0, 0),
+        ("fadd.s", 0x7f7f_ffff, 0x7f7f_ffff, 0, 0),
+        ("fadd.s", 0x0000_0001, 0x0000_0001, 0, 0),
+        ("fadd.s", 0x7f80_0000, 0xff80_0000, 0, 0),
+        ("fadd.d", 0x3ff8_0000_0000_0000, 0x4002_0000_0000_0000, 0, 0),
+        ("fadd.d", 0x7fef_ffff_ffff_ffff, 0x7fef_ffff_ffff_ffff, 0, 0),
+        ("fadd.d", 0x0000_0000_0000_0001, 0x0000_0000_0000_0001, 0, 0),
+        ("fadd.d", 0x7ff0_0000_0000_0000, 0xfff0_0000_0000_0000, 0, 0),
+        ("fadd.s", 0x3f80_0000, 0x3380_0000, 0, 0),
+        ("fadd.s", 0x3f80_0000, 0x3380_0000, 1, 0),
+        ("fadd.s", 0x3f80_0000, 0x3380_0000, 2, 0),
+        ("fadd.s", 0x3f80_0000, 0x3380_0000, 3, 0),
+        ("fadd.s", 0x3f80_0000, 0x3380_0000, 4, 0),
     ];
-    for (mnemonic, left, right) in cases {
-        let (result, flags) = run(mnemonic, left, right);
+    for (mnemonic, left, right, rounding_mode, frm) in cases {
+        let (result, flags) = run(mnemonic, left, right, rounding_mode, frm);
         print!("{result:016x}{flags:016x}");
     }
     println!();

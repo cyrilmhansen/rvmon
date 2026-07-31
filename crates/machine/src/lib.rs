@@ -203,15 +203,15 @@ impl Machine {
                 } else {
                     instruction.rm
                 };
-                if rounding_mode != 0 {
+                if !is_valid_rounding_mode(rounding_mode) {
                     return Err(Diagnostic::error(
                         "TRAP-FP-RM-001",
-                        "only round-to-nearest-even is implemented for fadd.s",
+                        "reserved floating-point rounding mode",
                     ));
                 }
                 let left = boxed_f32(self.f[instruction.rs1 as usize]);
                 let right = boxed_f32(self.f[instruction.rs2 as usize]);
-                let (result, flags) = add_s(left, right);
+                let (result, flags) = add_s(left, right, rounding_mode);
                 self.f[instruction.rd as usize] = 0xffff_ffff_0000_0000 | u64::from(result);
                 self.fcsr |= flags;
             }
@@ -221,15 +221,16 @@ impl Machine {
                 } else {
                     instruction.rm
                 };
-                if rounding_mode != 0 {
+                if !is_valid_rounding_mode(rounding_mode) {
                     return Err(Diagnostic::error(
                         "TRAP-FP-RM-001",
-                        "only round-to-nearest-even is implemented for fadd.d",
+                        "reserved floating-point rounding mode",
                     ));
                 }
                 let (result, flags) = add_d(
                     self.f[instruction.rs1 as usize],
                     self.f[instruction.rs2 as usize],
+                    rounding_mode,
                 );
                 self.f[instruction.rd as usize] = result;
                 self.fcsr |= flags;
@@ -485,94 +486,366 @@ fn boxed_f32(value: u64) -> u32 {
     }
 }
 
-fn add_s(left: u32, right: u32) -> (u32, u32) {
-    let left_nan = is_nan(left);
-    let right_nan = is_nan(right);
-    if (left_nan && is_signaling_nan(left)) || (right_nan && is_signaling_nan(right)) {
-        return (0x7fc0_0000, FFLAG_NV);
+const ROUND_RNE: u8 = 0;
+const ROUND_RTZ: u8 = 1;
+const ROUND_RDN: u8 = 2;
+const ROUND_RUP: u8 = 3;
+const ROUND_RMM: u8 = 4;
+
+#[derive(Clone, Copy)]
+struct BinaryFormat {
+    fraction_bits: u32,
+    precision: u32,
+    bias: i32,
+    exponent_mask: u64,
+    sign_mask: u64,
+    quiet_nan_mask: u64,
+    canonical_nan: u64,
+}
+
+const FORMAT_S: BinaryFormat = BinaryFormat {
+    fraction_bits: 23,
+    precision: 24,
+    bias: 127,
+    exponent_mask: 0x7f80_0000,
+    sign_mask: 0x8000_0000,
+    quiet_nan_mask: 0x0040_0000,
+    canonical_nan: 0x7fc0_0000,
+};
+
+const FORMAT_D: BinaryFormat = BinaryFormat {
+    fraction_bits: 52,
+    precision: 53,
+    bias: 1023,
+    exponent_mask: 0x7ff0_0000_0000_0000,
+    sign_mask: 0x8000_0000_0000_0000,
+    quiet_nan_mask: 0x0008_0000_0000_0000,
+    canonical_nan: 0x7ff8_0000_0000_0000,
+};
+
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+struct BigUint {
+    limbs: Vec<u64>,
+}
+
+impl BigUint {
+    fn from_u64(value: u64) -> Self {
+        if value == 0 {
+            Self::default()
+        } else {
+            Self { limbs: vec![value] }
+        }
+    }
+
+    fn is_zero(&self) -> bool {
+        self.limbs.is_empty()
+    }
+
+    fn bit_len(&self) -> usize {
+        self.limbs.last().map_or(0, |limb| {
+            (self.limbs.len() - 1) * 64 + (64 - limb.leading_zeros() as usize)
+        })
+    }
+
+    fn bit(&self, index: usize) -> bool {
+        self.limbs
+            .get(index / 64)
+            .is_some_and(|limb| limb & (1 << (index % 64)) != 0)
+    }
+
+    fn any_below(&self, exclusive: usize) -> bool {
+        if exclusive == 0 {
+            return false;
+        }
+        let full_limbs = (exclusive / 64).min(self.limbs.len());
+        if self.limbs[..full_limbs].iter().any(|limb| *limb != 0) {
+            return true;
+        }
+        let remaining = exclusive % 64;
+        remaining != 0
+            && self
+                .limbs
+                .get(full_limbs)
+                .is_some_and(|limb| limb & ((1u64 << remaining) - 1) != 0)
+    }
+
+    fn shl_bits(&mut self, shift: usize) {
+        if self.is_zero() || shift == 0 {
+            return;
+        }
+        let whole = shift / 64;
+        let partial = shift % 64;
+        if whole != 0 {
+            let old_len = self.limbs.len();
+            self.limbs.resize(old_len + whole, 0);
+            self.limbs.copy_within(0..old_len, whole);
+            self.limbs[..whole].fill(0);
+        }
+        if partial != 0 {
+            let mut carry = 0;
+            for limb in &mut self.limbs {
+                let next = *limb >> (64 - partial);
+                *limb = (*limb << partial) | carry;
+                carry = next;
+            }
+            if carry != 0 {
+                self.limbs.push(carry);
+            }
+        }
+    }
+
+    fn add_assign(&mut self, other: &Self) {
+        let length = self.limbs.len().max(other.limbs.len());
+        self.limbs.resize(length, 0);
+        let mut carry = 0u64;
+        for index in 0..length {
+            let (sum, carry1) =
+                self.limbs[index].overflowing_add(other.limbs.get(index).copied().unwrap_or(0));
+            let (sum, carry2) = sum.overflowing_add(carry);
+            self.limbs[index] = sum;
+            carry = u64::from(carry1 || carry2);
+        }
+        if carry != 0 {
+            self.limbs.push(carry);
+        }
+    }
+
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        match self.limbs.len().cmp(&other.limbs.len()) {
+            std::cmp::Ordering::Equal => self.limbs.iter().rev().cmp(other.limbs.iter().rev()),
+            ordering => ordering,
+        }
+    }
+
+    fn sub_assign(&mut self, other: &Self) {
+        debug_assert!(self.cmp(other) != std::cmp::Ordering::Less);
+        let mut borrow = 0u64;
+        for index in 0..self.limbs.len() {
+            let right = other.limbs.get(index).copied().unwrap_or(0);
+            let (difference, borrow1) = self.limbs[index].overflowing_sub(right);
+            let (difference, borrow2) = difference.overflowing_sub(borrow);
+            self.limbs[index] = difference;
+            borrow = u64::from(borrow1 || borrow2);
+        }
+        while self.limbs.last() == Some(&0) {
+            self.limbs.pop();
+        }
+    }
+
+    fn low_u64(&self) -> u64 {
+        self.limbs.first().copied().unwrap_or(0)
+    }
+
+    fn shifted_u64(&self, shift: usize) -> u64 {
+        (0..64).fold(0, |value, bit| {
+            value | u64::from(self.bit(shift + bit)) << bit
+        })
+    }
+}
+
+fn is_valid_rounding_mode(rounding_mode: u8) -> bool {
+    rounding_mode <= ROUND_RMM
+}
+
+fn add_s(left: u32, right: u32, rounding_mode: u8) -> (u32, u32) {
+    let (result, flags) = add_binary(u64::from(left), u64::from(right), FORMAT_S, rounding_mode);
+    (result as u32, flags)
+}
+
+fn add_d(left: u64, right: u64, rounding_mode: u8) -> (u64, u32) {
+    add_binary(left, right, FORMAT_D, rounding_mode)
+}
+
+fn add_binary(left: u64, right: u64, format: BinaryFormat, rounding_mode: u8) -> (u64, u32) {
+    let left_nan = is_nan_binary(left, format);
+    let right_nan = is_nan_binary(right, format);
+    if (left_nan && is_signaling_nan_binary(left, format))
+        || (right_nan && is_signaling_nan_binary(right, format))
+    {
+        return (format.canonical_nan, FFLAG_NV);
     }
     if left_nan || right_nan {
-        return (0x7fc0_0000, 0);
+        return (format.canonical_nan, 0);
     }
-    if is_infinite(left) && is_infinite(right) && ((left ^ right) & 0x8000_0000 != 0) {
-        return (0x7fc0_0000, FFLAG_NV);
+    let left_infinite = is_infinite_binary(left, format);
+    let right_infinite = is_infinite_binary(right, format);
+    if left_infinite && right_infinite && (left ^ right) & format.sign_mask != 0 {
+        return (format.canonical_nan, FFLAG_NV);
     }
-    let left_value = f32::from_bits(left);
-    let right_value = f32::from_bits(right);
-    let result = left_value + right_value;
-    if result.is_infinite() && left_value.is_finite() && right_value.is_finite() {
-        return (result.to_bits(), FFLAG_OF | FFLAG_NX);
+    if left_infinite {
+        return (left, 0);
     }
-    let inexact = result.is_finite()
-        && (result - left_value != right_value || result - right_value != left_value);
-    let underflow = inexact && result.abs() < f32::MIN_POSITIVE;
-    (
-        result.to_bits(),
-        if underflow {
-            FFLAG_UF | FFLAG_NX
-        } else if inexact {
-            FFLAG_NX
+    if right_infinite {
+        return (right, 0);
+    }
+
+    let left_sign = left & format.sign_mask != 0;
+    let right_sign = right & format.sign_mask != 0;
+    let (left_significand, left_exponent) = finite_components(left, format);
+    let (right_significand, right_exponent) = finite_components(right, format);
+    let common_exponent = left_exponent.min(right_exponent);
+    let mut left_magnitude = BigUint::from_u64(left_significand);
+    let mut right_magnitude = BigUint::from_u64(right_significand);
+    left_magnitude.shl_bits((left_exponent - common_exponent) as usize);
+    right_magnitude.shl_bits((right_exponent - common_exponent) as usize);
+
+    let (negative, magnitude) = if left_sign == right_sign {
+        left_magnitude.add_assign(&right_magnitude);
+        (left_sign, left_magnitude)
+    } else {
+        match left_magnitude.cmp(&right_magnitude) {
+            std::cmp::Ordering::Greater => {
+                left_magnitude.sub_assign(&right_magnitude);
+                (left_sign, left_magnitude)
+            }
+            std::cmp::Ordering::Less => {
+                right_magnitude.sub_assign(&left_magnitude);
+                (right_sign, right_magnitude)
+            }
+            std::cmp::Ordering::Equal => (rounding_mode == ROUND_RDN, BigUint::default()),
+        }
+    };
+    round_binary(magnitude, common_exponent, negative, format, rounding_mode)
+}
+
+fn finite_components(value: u64, format: BinaryFormat) -> (u64, i32) {
+    let fraction_mask = (1u64 << format.fraction_bits) - 1;
+    let fraction = value & fraction_mask;
+    let exponent_field = (value & format.exponent_mask) >> format.fraction_bits;
+    if exponent_field == 0 {
+        (fraction, 1 - format.bias - format.fraction_bits as i32)
+    } else {
+        (
+            (1u64 << format.fraction_bits) | fraction,
+            exponent_field as i32 - format.bias - format.fraction_bits as i32,
+        )
+    }
+}
+
+fn round_binary(
+    magnitude: BigUint,
+    exponent: i32,
+    negative: bool,
+    format: BinaryFormat,
+    rounding_mode: u8,
+) -> (u64, u32) {
+    if magnitude.is_zero() {
+        return (if negative { format.sign_mask } else { 0 }, 0);
+    }
+    let precision = format.precision as i32;
+    let emin = 1 - format.bias;
+    let emax = format.bias;
+    let exponent_of_most_significant = exponent + magnitude.bit_len() as i32 - 1;
+    if exponent_of_most_significant > emax {
+        return overflow_result(negative, format, rounding_mode);
+    }
+
+    let sign_bit = if negative { format.sign_mask } else { 0 };
+    if exponent_of_most_significant >= emin {
+        let shift = magnitude.bit_len() as i32 - precision;
+        let (mut significand, inexact) = if shift > 0 {
+            round_big(&magnitude, shift as usize, negative, rounding_mode)
         } else {
-            0
-        },
+            let mut shifted = magnitude;
+            shifted.shl_bits((-shift) as usize);
+            (shifted.low_u64(), false)
+        };
+        let mut exponent_field = exponent_of_most_significant;
+        if significand == 1u64 << format.precision {
+            significand >>= 1;
+            exponent_field += 1;
+        }
+        if exponent_field > emax {
+            return overflow_result(negative, format, rounding_mode);
+        }
+        let fraction_mask = (1u64 << format.fraction_bits) - 1;
+        let fraction = significand & fraction_mask;
+        let encoded_exponent = ((exponent_field + format.bias) as u64) << format.fraction_bits;
+        return (
+            sign_bit | encoded_exponent | fraction,
+            u32::from(inexact) * FFLAG_NX,
+        );
+    }
+
+    let subnormal_exponent = emin - (precision - 1);
+    let shift = subnormal_exponent - exponent;
+    let (significand, inexact) = if shift > 0 {
+        round_big(&magnitude, shift as usize, negative, rounding_mode)
+    } else {
+        let mut shifted = magnitude;
+        shifted.shl_bits((-shift) as usize);
+        (shifted.low_u64(), false)
+    };
+    let minimum_normal_significand = 1u64 << (format.precision - 1);
+    if significand >= minimum_normal_significand {
+        let result = sign_bit | (1u64 << format.fraction_bits);
+        return (result, u32::from(inexact) * FFLAG_NX);
+    }
+    let flags = if inexact { FFLAG_UF | FFLAG_NX } else { 0 };
+    (sign_bit | significand, flags)
+}
+
+fn round_big(value: &BigUint, shift: usize, negative: bool, rounding_mode: u8) -> (u64, bool) {
+    let mut significand = value.shifted_u64(shift);
+    let inexact = value.any_below(shift);
+    if !inexact {
+        return (significand, false);
+    }
+    let half = shift != 0 && value.bit(shift - 1);
+    let below_half = shift > 1 && value.any_below(shift - 1);
+    let increment = match rounding_mode {
+        ROUND_RNE => half && (below_half || significand & 1 != 0),
+        ROUND_RTZ => false,
+        ROUND_RDN => negative,
+        ROUND_RUP => !negative,
+        ROUND_RMM => half,
+        _ => false,
+    };
+    if increment {
+        significand += 1;
+    }
+    (significand, true)
+}
+
+fn overflow_result(negative: bool, format: BinaryFormat, rounding_mode: u8) -> (u64, u32) {
+    let sign_bit = if negative { format.sign_mask } else { 0 };
+    let infinity_field = format.exponent_mask;
+    let max_finite_exponent = infinity_field - (1u64 << format.fraction_bits);
+    let max_fraction = (1u64 << format.fraction_bits) - 1;
+    let directed_to_infinity = match rounding_mode {
+        ROUND_RTZ => false,
+        ROUND_RDN => negative,
+        ROUND_RUP => !negative,
+        _ => true,
+    };
+    let exponent = if directed_to_infinity {
+        infinity_field
+    } else {
+        max_finite_exponent
+    };
+    (
+        sign_bit
+            | exponent
+            | if directed_to_infinity {
+                0
+            } else {
+                max_fraction
+            },
+        FFLAG_OF | FFLAG_NX,
     )
 }
 
-fn is_nan(value: u32) -> bool {
-    value & 0x7f80_0000 == 0x7f80_0000 && value & 0x007f_ffff != 0
+fn is_nan_binary(value: u64, format: BinaryFormat) -> bool {
+    value & format.exponent_mask == format.exponent_mask
+        && value & (format.exponent_mask - (1u64 << format.fraction_bits)) != 0
 }
 
-fn is_signaling_nan(value: u32) -> bool {
-    is_nan(value) && value & 0x0040_0000 == 0
+fn is_signaling_nan_binary(value: u64, format: BinaryFormat) -> bool {
+    is_nan_binary(value, format) && value & format.quiet_nan_mask == 0
 }
 
-fn is_infinite(value: u32) -> bool {
-    value & 0x7fff_ffff == 0x7f80_0000
-}
-
-fn add_d(left: u64, right: u64) -> (u64, u32) {
-    let left_nan = is_nan_d(left);
-    let right_nan = is_nan_d(right);
-    if (left_nan && is_signaling_nan_d(left)) || (right_nan && is_signaling_nan_d(right)) {
-        return (0x7ff8_0000_0000_0000, FFLAG_NV);
-    }
-    if left_nan || right_nan {
-        return (0x7ff8_0000_0000_0000, 0);
-    }
-    if is_infinite_d(left) && is_infinite_d(right) && ((left ^ right) & (1 << 63) != 0) {
-        return (0x7ff8_0000_0000_0000, FFLAG_NV);
-    }
-    let left_value = f64::from_bits(left);
-    let right_value = f64::from_bits(right);
-    let result = left_value + right_value;
-    if result.is_infinite() && left_value.is_finite() && right_value.is_finite() {
-        return (result.to_bits(), FFLAG_OF | FFLAG_NX);
-    }
-    let inexact = result.is_finite()
-        && (result - left_value != right_value || result - right_value != left_value);
-    let underflow = inexact && result.abs() < f64::MIN_POSITIVE;
-    (
-        result.to_bits(),
-        if underflow {
-            FFLAG_UF | FFLAG_NX
-        } else if inexact {
-            FFLAG_NX
-        } else {
-            0
-        },
-    )
-}
-
-fn is_nan_d(value: u64) -> bool {
-    value & 0x7ff0_0000_0000_0000 == 0x7ff0_0000_0000_0000 && value & 0x000f_ffff_ffff_ffff != 0
-}
-
-fn is_signaling_nan_d(value: u64) -> bool {
-    is_nan_d(value) && value & 0x0008_0000_0000_0000 == 0
-}
-
-fn is_infinite_d(value: u64) -> bool {
-    value & 0x7fff_ffff_ffff_ffff == 0x7ff0_0000_0000_0000
+fn is_infinite_binary(value: u64, format: BinaryFormat) -> bool {
+    value & (format.exponent_mask | ((1u64 << format.fraction_bits) - 1)) == format.exponent_mask
 }
 
 #[cfg(test)]
@@ -836,6 +1109,111 @@ mod tests {
         machine.step().unwrap();
         assert_ne!(machine.fflags() & FFLAG_NV as u8, 0);
         assert_eq!(machine.f[3] as u32, 0x7fc0_0000);
+    }
+
+    fn execute_fadd(
+        mnemonic: &str,
+        left: u64,
+        right: u64,
+        rounding_mode: u8,
+        frm: u8,
+    ) -> (u64, u8) {
+        let mut machine = Machine::new(64);
+        machine.f[1] = if mnemonic == "fadd.s" {
+            0xffff_ffff_0000_0000 | left
+        } else {
+            left
+        };
+        machine.f[2] = if mnemonic == "fadd.s" {
+            0xffff_ffff_0000_0000 | right
+        } else {
+            right
+        };
+        machine.fcsr = u32::from(frm) << 5;
+        let word = luna_isa::encode_f_r(
+            mnemonic,
+            luna_isa::FRegisterRType {
+                rd: 3,
+                rs1: 1,
+                rs2: 2,
+                rm: rounding_mode,
+            },
+        )
+        .unwrap();
+        machine.load(0, &word.to_le_bytes()).unwrap();
+        machine.step().unwrap();
+        let result = if mnemonic == "fadd.s" {
+            machine.f[3] & 0xffff_ffff
+        } else {
+            machine.f[3]
+        };
+        (result, machine.fflags())
+    }
+
+    #[test]
+    fn fadd_s_honors_static_and_dynamic_rounding_modes() {
+        let expected = [
+            (ROUND_RNE, 0x3f80_0000),
+            (ROUND_RTZ, 0x3f80_0000),
+            (ROUND_RDN, 0x3f80_0000),
+            (ROUND_RUP, 0x3f80_0001),
+            (ROUND_RMM, 0x3f80_0001),
+        ];
+        for (rounding_mode, expected_bits) in expected {
+            let (result, flags) =
+                execute_fadd("fadd.s", 0x3f80_0000, 0x3380_0000, rounding_mode, 0);
+            assert_eq!(result as u32, expected_bits);
+            assert_eq!(flags, FFLAG_NX as u8);
+        }
+
+        let (dynamic_result, dynamic_flags) =
+            execute_fadd("fadd.s", 0x3f80_0000, 0x3380_0000, 7, ROUND_RUP);
+        assert_eq!(dynamic_result as u32, 0x3f80_0001);
+        assert_eq!(dynamic_flags, FFLAG_NX as u8);
+    }
+
+    #[test]
+    fn fadd_d_honors_rounding_and_rejects_reserved_modes() {
+        let (result, flags) = execute_fadd(
+            "fadd.d",
+            0x3ff0_0000_0000_0000,
+            0x3ca0_0000_0000_0000,
+            ROUND_RUP,
+            0,
+        );
+        assert_eq!(result, 0x3ff0_0000_0000_0001);
+        assert_eq!(flags, FFLAG_NX as u8);
+
+        let mut machine = Machine::new(64);
+        machine.f[1] = 1.0f32.to_bits() as u64 | 0xffff_ffff_0000_0000;
+        machine.f[2] = 0;
+        let word = luna_isa::encode_f_r(
+            "fadd.s",
+            luna_isa::FRegisterRType {
+                rd: 3,
+                rs1: 1,
+                rs2: 2,
+                rm: 5,
+            },
+        )
+        .unwrap();
+        machine.load(0, &word.to_le_bytes()).unwrap();
+        assert_eq!(machine.step().unwrap_err().code, "TRAP-FP-RM-001");
+
+        machine.pc = 4;
+        machine.fcsr = u32::from(6u8) << 5;
+        let dynamic_word = luna_isa::encode_f_r(
+            "fadd.s",
+            luna_isa::FRegisterRType {
+                rd: 3,
+                rs1: 1,
+                rs2: 2,
+                rm: 7,
+            },
+        )
+        .unwrap();
+        machine.load(4, &dynamic_word.to_le_bytes()).unwrap();
+        assert_eq!(machine.step().unwrap_err().code, "TRAP-FP-RM-001");
     }
 
     #[test]

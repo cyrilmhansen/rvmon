@@ -68,9 +68,50 @@ _start:
     csrr    t2, fflags
     sd      t2, 120(t1)
 
+    # Exact halfway case: 1.0 + 2^-24, one record per static rounding mode.
+    csrw    fflags, zero
+    flw     ft0, 96(t0)
+    flw     ft1, 100(t0)
+    fadd.s  ft2, ft0, ft1, rne
+    fsw     ft2, 128(t1)
+    csrr    t2, fflags
+    sw      t2, 136(t1)
+
+    csrw    fflags, zero
+    flw     ft0, 96(t0)
+    flw     ft1, 100(t0)
+    fadd.s  ft2, ft0, ft1, rtz
+    fsw     ft2, 144(t1)
+    csrr    t2, fflags
+    sw      t2, 152(t1)
+
+    csrw    fflags, zero
+    flw     ft0, 96(t0)
+    flw     ft1, 100(t0)
+    fadd.s  ft2, ft0, ft1, rdn
+    fsw     ft2, 160(t1)
+    csrr    t2, fflags
+    sw      t2, 168(t1)
+
+    csrw    fflags, zero
+    flw     ft0, 96(t0)
+    flw     ft1, 100(t0)
+    fadd.s  ft2, ft0, ft1, rup
+    fsw     ft2, 176(t1)
+    csrr    t2, fflags
+    sw      t2, 184(t1)
+
+    csrw    fflags, zero
+    flw     ft0, 96(t0)
+    flw     ft1, 100(t0)
+    fadd.s  ft2, ft0, ft1, rmm
+    fsw     ft2, 192(t1)
+    csrr    t2, fflags
+    sw      t2, 200(t1)
+
     li      a0, 1
     la      a1, output
-    li      a2, 128
+    li      a2, 208
     li      a7, 64
     ecall
 
@@ -91,8 +132,10 @@ inputs:
     .dword  0x7fefffffffffffff, 0x7fefffffffffffff
     .dword  0x0000000000000001, 0x0000000000000001
     .dword  0x7ff0000000000000, 0xfff0000000000000
+    # binary32 halfway case used by the rounding-mode oracle
+    .word   0x3f800000, 0x33800000
 
     .section .bss
     .balign 8
 output:
-    .space 128
+    .space 208
