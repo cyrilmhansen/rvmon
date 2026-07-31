@@ -1,4 +1,5 @@
 .section .text.init
+.option norvc
 .globl _start
 .type _start, @function
 _start:
@@ -42,6 +43,101 @@ enter_user:
     mv sp, a1
     mret
 .size enter_user, .-enter_user
+
+.globl resume_user
+.type resume_user, @function
+resume_user:
+    # a0 is the saved TargetContext. Keep it in t6 while restoring all
+    # target registers; t6 itself is restored last from x31.
+    mv t6, a0
+
+    fld f0, 256(t6)
+    fld f1, 264(t6)
+    fld f2, 272(t6)
+    fld f3, 280(t6)
+    fld f4, 288(t6)
+    fld f5, 296(t6)
+    fld f6, 304(t6)
+    fld f7, 312(t6)
+    fld f8, 320(t6)
+    fld f9, 328(t6)
+    fld f10, 336(t6)
+    fld f11, 344(t6)
+    fld f12, 352(t6)
+    fld f13, 360(t6)
+    fld f14, 368(t6)
+    fld f15, 376(t6)
+    fld f16, 384(t6)
+    fld f17, 392(t6)
+    fld f18, 400(t6)
+    fld f19, 408(t6)
+    fld f20, 416(t6)
+    fld f21, 424(t6)
+    fld f22, 432(t6)
+    fld f23, 440(t6)
+    fld f24, 448(t6)
+    fld f25, 456(t6)
+    fld f26, 464(t6)
+    fld f27, 472(t6)
+    fld f28, 480(t6)
+    fld f29, 488(t6)
+    fld f30, 496(t6)
+    fld f31, 504(t6)
+
+    ld ra, 8(t6)
+    ld sp, 16(t6)
+    ld gp, 24(t6)
+    ld tp, 32(t6)
+    ld t0, 40(t6)
+    ld t1, 48(t6)
+    ld t2, 56(t6)
+    ld s0, 64(t6)
+    ld s1, 72(t6)
+    ld a0, 80(t6)
+    ld a1, 88(t6)
+    ld a2, 96(t6)
+    ld a3, 104(t6)
+    ld a4, 112(t6)
+    ld a5, 120(t6)
+    ld a6, 128(t6)
+    ld a7, 136(t6)
+    ld s2, 144(t6)
+    ld s3, 152(t6)
+    ld s4, 160(t6)
+    ld s5, 168(t6)
+    ld s6, 176(t6)
+    ld s7, 184(t6)
+    ld s8, 192(t6)
+    ld s9, 200(t6)
+    ld s10, 208(t6)
+    ld s11, 216(t6)
+    ld t3, 224(t6)
+    ld t4, 232(t6)
+    ld t5, 240(t6)
+
+    ld t0, 512(t6)
+    csrw mepc, t0
+    ld t0, 520(t6)
+    csrw fcsr, t0
+    ld t0, 528(t6)
+    csrw mstatus, t0
+    csrw mscratch, t6
+    ld t6, 248(t6)
+    mret
+.size resume_user, .-resume_user
+
+.align 2
+.globl target_entry
+.type target_entry, @function
+target_entry:
+    addi x1, x0, 1
+    ebreak
+    addi x1, x1, 1
+    ebreak
+target_halt:
+    wfi
+    j target_halt
+.size target_entry, .-target_entry
 
 .align 2
 .globl trap_entry

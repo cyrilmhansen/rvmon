@@ -9,9 +9,10 @@ Validation locale complète :
     cargo fmt --all
     cargo test --workspace
     cargo build -p luna-guest-monitor --target riscv64gc-unknown-none-elf
+    bash scripts/test-guest-monitor.sh
     git diff --check
 
-La suite actuelle exécute 51 tests unitaires/intégration répartis dans les crates. Les doc-tests compilent mais ne contiennent actuellement aucun cas.
+La suite actuelle exécute 53 tests unitaires/intégration répartis dans les crates. Les doc-tests compilent mais ne contiennent actuellement aucun cas.
 
 Démonstration M-mode/U-mode sous QEMU :
 
@@ -44,8 +45,8 @@ Moniteur texte interactif :
 | luna-disassembler | 7 | Format canonique, symboles, opcodes illégaux, C rejeté et round-trip. |
 | luna-floatfmt | 3 | Bits hex exacts, décimal court, classes IEEE et NaN-box invalide. |
 | luna-monitor | 3 | assemble → step → regs, affichage flottant et run borné. |
-| luna-target-api | 2 | Contexte de trap, capacités explicites RV64 bare-metal et NaN-box initial. |
-| luna-guest-monitor | 0 | Image bare-metal, boot QEMU, PMP, transition M→U et trap `ebreak`; vérifié par smoke test QEMU. |
+| luna-target-api | 4 | Contexte de trap, capacités explicites RV64 bare-metal, codes `mcause` et contrat de layout. |
+| luna-guest-monitor | 0 | Image bare-metal, boot QEMU, PMP, transition M→U, trap `ebreak` et boucle UART; vérifié par smoke test QEMU. |
 | luna-app | 0 | Compilation du binaire et démonstration ; pas encore d’E2E terminal. |
 | luna-diag | 0 | Types utilisés par les autres crates ; pas de test dédié. |
 
@@ -126,6 +127,12 @@ configure `mtvec`, `mscratch`, les registres flottants et une entrée PMP TOR
 permettant l’accès U-mode à la fenêtre basse contenant le MMIO UART et la RAM.
 Le trap capture les registres entiers, flottants, `fcsr`, `mstatus`, `mepc`,
 `mcause` et `mtval`, puis s’arrête sur le prompt monitor.
+
+Le smoke test envoie `help`, `regs`, `step`, `regs`, puis `quit`. Il vérifie
+que `step` restaure le contexte et atteint le second `ebreak`, avec `x1` qui
+progresse de 1 à 2. Cette commande est une reprise jusqu’au prochain
+`ebreak` logiciel explicite ; le pas-à-pas générique par breakpoint temporaire
+reste une étape ultérieure.
 
 ## Pyramide actuelle
 

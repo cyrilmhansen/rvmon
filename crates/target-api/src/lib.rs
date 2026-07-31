@@ -32,12 +32,12 @@ impl TargetContext {
 #[repr(u64)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum StopReason {
-    Breakpoint = 1,
+    InstructionAccessFault = 1,
     IllegalInstruction = 2,
-    InstructionAccessFault = 3,
-    LoadAccessFault = 4,
-    StoreAccessFault = 5,
-    EnvironmentCall = 6,
+    Breakpoint = 3,
+    LoadAccessFault = 5,
+    StoreAccessFault = 7,
+    EnvironmentCall = 8,
     UnknownTrap = 255,
 }
 
@@ -89,5 +89,18 @@ mod tests {
         assert_eq!(TargetCapabilities::RV64_BARE_METAL_V1.xlen, 64);
         assert!(!TargetCapabilities::RV64_BARE_METAL_V1.supports_compressed);
         assert_eq!(TargetCapabilities::RV64_BARE_METAL_V1.hart_count, 1);
+    }
+
+    #[test]
+    fn stop_reasons_match_risc_v_exception_codes() {
+        assert_eq!(StopReason::InstructionAccessFault as u64, 1);
+        assert_eq!(StopReason::Breakpoint as u64, 3);
+        assert_eq!(StopReason::EnvironmentCall as u64, 8);
+    }
+
+    #[test]
+    fn context_layout_matches_trap_assembly_contract() {
+        assert_eq!(core::mem::size_of::<TargetContext>(), 560);
+        assert_eq!(core::mem::align_of::<TargetContext>(), 8);
     }
 }
