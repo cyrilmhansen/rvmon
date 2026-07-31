@@ -18,6 +18,7 @@
 | ADR-012 | C explicite, relaxation off | D-012 | accepté | decoder/assembler |
 | ADR-013 | FP bit-preserving/déterministe | D-013 | à confirmer par prototype | float |
 | ADR-014 | Hiérarchie des sources/conflits | D-014 | accepté | gouvernance |
+| D-016 | Oracle sémantique F/D QEMU versionné | D-016 | accepté | tests flottants indépendants |
 
 ## ADR à prendre pendant le projet
 

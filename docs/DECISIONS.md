@@ -87,3 +87,22 @@ non une mutation de l’interface utilisateur.
 endianess explicite, toolchain et ELF BE à qualifier séparément. Le profil BE
 reste expérimental tant qu’un compilateur/linker produisant un ELF RISC-V BE
 compatible n’est pas démontré.
+
+## D-016 — Oracle sémantique F/D par probe QEMU versionné
+
+**Décision :** utiliser QEMU user-mode RISC-V 11.0.2 comme oracle externe
+indépendant pour un corpus de probes fadd.s/fadd.d. Le probe est un binaire
+RISC-V autonome utilisant uniquement les syscalls Linux write et exit; il ne
+partage ni le code d’opération, ni le moteur flottant, ni les fonctions Rust
+de luna-machine. La comparaison porte sur le motif de résultat et les bits
+fflags.
+
+**Alternative :** utiliser les opérations flottantes de l’hôte ou comparer le
+moteur Rust à lui-même, rejetée car elle ne fournit pas d’oracle indépendant.
+SoftFloat, Sail et Spike restent des oracles complémentaires à qualifier, pas
+des dépendances du runtime.
+
+**Coût :** dépendance de test QEMU 11.0.2, probe Linux RV64 à maintenir et
+couverture initiale limitée à huit cas RNE F/D. Une absence ou une divergence
+QEMU bloque la validation sémantique et est rapportée comme unsupported, pas
+convertie en succès.

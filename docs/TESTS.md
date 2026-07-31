@@ -10,12 +10,13 @@ Validation locale complète :
     bash tools/check-r2.sh
     bash tools/check-oracles.sh
     cargo test --workspace
+    bash tools/check-fp-oracle.sh
     cargo build -p luna-guest-monitor --target riscv64gc-unknown-none-elf
     bash scripts/test-guest-monitor.sh
     bash scripts/test-qemu-gdb-backend.sh
     git diff --check
 
-La suite actuelle exécute 121 tests unitaires/intégration répartis dans les crates. Les doc-tests compilent mais ne contiennent actuellement aucun cas. Le script QEMU ouvre en plus une session GDB RSP réelle, hors comptage Cargo.
+La suite actuelle exécute 122 tests unitaires/intégration répartis dans les crates. Les doc-tests compilent mais ne contiennent actuellement aucun cas. Le script FP oracle QEMU compare huit cas F/D indépendants, hors comptage Cargo. Le script QEMU ouvre en plus une session GDB RSP réelle, hors comptage Cargo.
 
 Démonstration M-mode/U-mode sous QEMU :
 
@@ -45,10 +46,10 @@ Moniteur texte interactif :
 | luna-assembler | 40 | AST, alias ABI, expressions, symboles globaux/locaux, sections, `.equ/.set`, chaînes, alignement, macros paramétrées bornées, includes sous sandbox, conditionnels bornés, listing texte, fadd.s et fadd.d. |
 | luna-isa-core | 3 | Encodeurs `addi`, branches, sauts et `fadd.s`/`fadd.d` sans allocation, depuis les tables R2 partagées avec le guest ; commit R2 et champs générés validés. |
 | luna-isa | 6 | Tables générées depuis R2, encodage/décodage entier et flottant via `luna-isa-core`. |
-| luna-machine | 13 | Exécution entière, branches, mémoire, tables de pointeurs ILP32, fadd.s, fadd.d, NaN-boxing, flags, contrat backend et snapshot cible. |
-| luna-disassembler | 10 | Format canonique, symboles, opcodes illégaux, régions code/données explicites, C rejeté et round-trip. |
+| luna-machine | 14 | Exécution entière, branches, mémoire, tables de pointeurs ILP32, fadd.s, fadd.d, NaN-boxing, positions exactes de fflags, contrat backend et snapshot cible. |
+| luna-disassembler | 12 | Format canonique, symboles, opcodes illégaux, régions code/données explicites, C rejeté et round-trip. |
 | luna-floatfmt | 3 | Bits hex exacts, décimal court, classes IEEE et NaN-box invalide. |
-| luna-monitor | 21 | assemble → step → regs, affichage flottant, run borné, vues mémoire hex/ASCII, désassemblage mixte code/données, édition/undo, console backend-générique, marques QuickJump, breakpoints, watchpoints, symboles, pile, historique et persistance. |
+| luna-monitor | 23 | assemble → step → regs, affichage flottant, run borné, vues mémoire hex/ASCII, désassemblage mixte code/données/C, édition/undo, console backend-générique, marques QuickJump, breakpoints, watchpoints, symboles, pile, historique et persistance. |
 | luna-target-api | 4 | Contexte de trap, capacités explicites RV64 bare-metal, codes `mcause`, contrat de layout, résultats et accès mémoire du backend commun. |
 | luna-qemu-backend | 7 | Framing GDB RSP, checksum, lecture mémoire, layouts RV64 entier et F/D, stop reply, initialisation `?`, pas et budget nul. |
 | luna-guest-monitor | 0 | Image bare-metal, boot QEMU, PMP, transition M→U, lecture/édition mémoire transactionnelle, `undo`, directives exactes `.word`/`.float`/`.binary128`, assemblage invité entier/flottant, `setf`, NaN-boxing et traps; vérifié par smoke test QEMU. |
@@ -326,7 +327,7 @@ Les tests ne prouvent pas encore :
 ## Prochains tests prioritaires
 
 1. Différentiel GNU/LLVM sur fadd.s, fadd.d et les formes entières.
-2. Oracle indépendant des résultats et flags flottants.
+2. Extension de l’oracle QEMU sur les arrondis et conversions retenues.
 3. Corpus IEEE binary32/binary64 : limites, overflow, underflow, exact/inexact, ±0, infinis, qNaN/sNaN et payloads.
 4. Test E2E stdin/replay du moniteur.
 5. Fuzz targets lexer, parser, désassembleur et commandes.

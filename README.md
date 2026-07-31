@@ -1,6 +1,6 @@
 # RVMonitor — RV64ILP32 monitor
 
-Bootstrap implementation of the first vertical slice described in `PLAN.md`.
+Bootstrap implementation of the first vertical slice described in `docs/PLAN.md`.
 
 ```text
 cargo test --workspace

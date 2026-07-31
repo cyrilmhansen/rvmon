@@ -594,17 +594,17 @@ Une tâche est terminée seulement si sa condition de sortie est satisfaite.
 - **Parallélisable :** oui avec FP-ORACLE-001.
 - **Contexte minimal :** SPEC §11.1, scénarios 6/7/13.
 
-### FP-ORACLE-001 — Prototyper et figer l’oracle F
+### FP-ORACLE-001 — Prototyper et figer l’oracle F — TERMINÉ
 
 - **Jalon / exigences :** M4; FP-001..018, ISA F.
 - **But :** comparer une implémentation logicielle candidate à SoftFloat/Sail/Spike/GNU disponibles.
 - **Non-but :** intégrer un oracle dans le runtime sans audit.
 - **Entrées/sources :** R1 F; R5 Sail; SoftFloat version/licence candidate.
 - **Fichiers/modules :** `tools/oracles`, `norms/dependencies.lock`, rapport ADR.
-- **Étapes :** construire adapters; 1000 motifs; comparer result bits/flags; mesurer unsupported cases; choisir backend.
+- **Étapes réalisées :** épingler QEMU user-mode 11.0.2 dans le manifeste; construire un probe RISC-V autonome pour quatre cas F et quatre cas D; comparer motifs de résultat et fflags au moteur; vérifier qu’une mutation du candidat est détectée; enregistrer la décision D-016.
 - **Dépendances/bloqués :** BOOT-003; BOOT-001 pour versions; bloque FP-002.
-- **Tests :** corpus fixe et mutation de l’implémentation pour prouver détection.
-- **Acceptation :** oracle indépendant détecte une erreur injectée et choix/licence sont enregistrés.
+- **Tests :** bash tools/check-fp-oracle.sh; corpus fixe; comparaison QEMU/machine; mutation de la chaîne candidate.
+- **Acceptation :** QEMU 11.0.2 et le moteur concordent sur huit cas; la mutation contrôlée diverge; choix et licence sont enregistrés.
 - **Limites/échecs :** outil absent → capability `unavailable`, jamais comparaison self-to-self.
 - **Taille :** 5 points / 2,5 j, incertitude élevée.
 - **Compétences/outils :** IEEE, Sail/Spike, FFI éventuel.

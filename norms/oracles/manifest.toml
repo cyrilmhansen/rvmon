@@ -13,3 +13,10 @@ command = "llvm-mc"
 version = "22.1.8"
 license = "Apache-2.0 WITH LLVM-exception"
 role = "independent encoding oracle"
+
+[qemu]
+name = "QEMU RISC-V user-mode emulator"
+command = "qemu-riscv64"
+version = "11.0.2"
+license = "GPL-2.0-or-later"
+role = "independent F/D semantic oracle"

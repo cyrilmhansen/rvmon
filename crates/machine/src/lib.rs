@@ -9,11 +9,11 @@ use luna_target_api::{
     TargetContext,
 };
 
-pub const FFLAG_NV: u32 = 1 << 0;
-pub const FFLAG_DZ: u32 = 1 << 1;
+pub const FFLAG_NX: u32 = 1 << 0;
+pub const FFLAG_UF: u32 = 1 << 1;
 pub const FFLAG_OF: u32 = 1 << 2;
-pub const FFLAG_UF: u32 = 1 << 3;
-pub const FFLAG_NX: u32 = 1 << 4;
+pub const FFLAG_DZ: u32 = 1 << 3;
+pub const FFLAG_NV: u32 = 1 << 4;
 const SNAPSHOT_MAGIC: &[u8; 8] = b"RVMACH01";
 const SNAPSHOT_VERSION: u32 = 1;
 const MAX_SNAPSHOT_MEMORY: usize = 64 * 1024 * 1024;
@@ -836,6 +836,15 @@ mod tests {
         machine.step().unwrap();
         assert_ne!(machine.fflags() & FFLAG_NV as u8, 0);
         assert_eq!(machine.f[3] as u32, 0x7fc0_0000);
+    }
+
+    #[test]
+    fn fflags_follow_riscv_fcsr_bit_positions() {
+        assert_eq!(FFLAG_NX, 1 << 0);
+        assert_eq!(FFLAG_UF, 1 << 1);
+        assert_eq!(FFLAG_OF, 1 << 2);
+        assert_eq!(FFLAG_DZ, 1 << 3);
+        assert_eq!(FFLAG_NV, 1 << 4);
     }
 
     #[test]
