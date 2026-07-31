@@ -814,6 +814,23 @@ Une tâche est terminée seulement si sa condition de sortie est satisfaite.
 - **Parallélisable :** oui avec le modèle mémoire MON-001; non avec une modification concurrente du contrat de dispatch.
 - **Paquet de contexte minimal :** SPEC §10/19, `crates/monitor/src/lib.rs`, `docs/TESTS.md`.
 
+### CMD-001B — AST d’expressions et plages d’adresses contrôlées — TERMINÉ
+
+- **Jalon / exigences :** M6; CMD-001, CMD-003, CMD-004, REQ-PROD-005.
+- **But :** évaluer des expressions entières signées 128 bits avant conversion contrôlée en adresse RV64 et partager cette sémantique entre les deux consoles.
+- **Non-but :** conditions `if` des breakpoints, expressions de watchpoints, mutation pendant `run`, ou un langage de script.
+- **Entrées/sources :** SPEC §10/19; DECISIONS D-001/D-003/D-007.
+- **Fichiers/modules :** `crates/monitor/src/command.rs`, `crates/monitor/src/lib.rs`.
+- **Étapes réalisées :** AST littéral/symbole/unaires/binaires; bases décimale, hexadécimale et binaire; précédence, parenthèses, décalages et opérations contrôlées; symboles, `pc`, registres ABI/numériques et marques; plages `start..end`; support de `disasm pc..pc+N`.
+- **Dépendances/bloqués :** CMD-001A; la validation des commandes structurées et des conditions de breakpoint reste à faire.
+- **Tests :** précédence, overflow signé, division par zéro, symboles, plages inversées/multiples, adresses `pc`, registre et marque sans modification du PC.
+- **Critères de sortie :** aucun wrap implicite vers u64; valeur négative, dépassement, symbole inconnu, opération invalide ou plage non alignée produisent `CMD-003` ou le code contextuel; le même AST est utilisé par `Monitor` et `BackendConsole`.
+- **Cas limites et échecs :** `i128::MAX+1`, division par zéro, décalage ≥128, plage inversée, longueur non multiple de 4, registre hors `x0..x31`.
+- **Taille :** 3 points / 1,5 journée-agent, incertitude moyenne.
+- **Compétences/outils :** parsing Pratt, arithmétique signée, débogueur RV64.
+- **Parallélisable :** oui avec MON-001; non avec une modification concurrente de la syntaxe d’adresse.
+- **Paquet de contexte minimal :** SPEC §10/19, `crates/monitor/src/command.rs`, contrat `TargetContext`.
+
 ### CMD-001 — Parser commandes et expressions contrôlées
 
 - **Jalon / exigences :** M6; CMD-001..005, REQ-PROD-005.

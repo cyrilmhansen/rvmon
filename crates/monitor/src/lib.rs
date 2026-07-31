@@ -568,19 +568,41 @@ impl Monitor {
     }
 
     fn disassemble(&mut self, argument: &str) -> Result<String> {
-        let parts: Vec<_> = argument.split_whitespace().collect();
-        let (address, count) = match parts.as_slice() {
-            [] => (self.machine.pc, 4),
-            [count] => (self.machine.pc, parse_count(count, "MON-DISASM-001")?),
-            [address, count] => (
-                self.resolve_address(address, "MON-DISASM-002")?,
-                parse_count(count, "MON-DISASM-001")?,
-            ),
-            _ => {
+        let (address, count) = if argument.contains("..") {
+            let range = command::parse_range(argument)
+                .map_err(|error| Diagnostic::error("MON-DISASM-001", error.message))?;
+            let end = range.end.ok_or_else(|| {
+                Diagnostic::error("MON-DISASM-001", "disasm range expects start..end")
+            })?;
+            let address = self.resolve_expression(&range.start, "MON-DISASM-002")?;
+            let end = self.resolve_expression(&end, "MON-DISASM-002")?;
+            let bytes = end
+                .checked_sub(address)
+                .ok_or_else(|| Diagnostic::error("MON-DISASM-002", "range is reversed"))?;
+            if bytes % 4 != 0 {
                 return Err(Diagnostic::error(
                     "MON-DISASM-001",
-                    "disasm expects [count] or [address] [count]",
+                    "disasm range must contain complete 32-bit instructions",
                 ));
+            }
+            let count = usize::try_from(bytes / 4)
+                .map_err(|_| Diagnostic::error("MON-DISASM-002", "range is too large"))?;
+            (address, count)
+        } else {
+            let parts: Vec<_> = argument.split_whitespace().collect();
+            match parts.as_slice() {
+                [] => (self.machine.pc, 4),
+                [count] => (self.machine.pc, parse_count(count, "MON-DISASM-001")?),
+                [address, count] => (
+                    self.resolve_address(address, "MON-DISASM-002")?,
+                    parse_count(count, "MON-DISASM-001")?,
+                ),
+                _ => {
+                    return Err(Diagnostic::error(
+                        "MON-DISASM-001",
+                        "disasm expects [count], [address] [count], or start..end",
+                    ));
+                }
             }
         };
         let mut output = String::new();
@@ -802,11 +824,46 @@ impl Monitor {
             if name.is_empty() {
                 return Err(Diagnostic::error(code, "mark name is empty"));
             }
-            return self.marks.get(name).copied().ok_or_else(|| {
-                Diagnostic::error("MON-MARK-005", format!("unknown mark: @{name}"))
-            });
+            if let Some(address) = self.marks.get(name) {
+                return Ok(*address);
+            }
+            if !name.contains(['+', '-', '*', '/', '%', '<', '>', '&', '^', '|', '(', ')']) {
+                return Err(Diagnostic::error(
+                    "MON-MARK-005",
+                    format!("unknown mark: @{name}"),
+                ));
+            }
         }
-        parse_address(value, code)
+        let expression = command::parse_expression(value)
+            .map_err(|error| Diagnostic::error(code, error.message))?;
+        self.resolve_expression(&expression, code)
+    }
+
+    fn resolve_expression(
+        &self,
+        expression: &command::Expression,
+        code: &'static str,
+    ) -> Result<u64> {
+        expression
+            .evaluate(&|name| {
+                let symbol = name.strip_prefix('@').unwrap_or(name);
+                if symbol.eq_ignore_ascii_case("pc") {
+                    return Some(i128::from(self.machine.pc));
+                }
+                if let Some(index) = command::register_index(symbol) {
+                    return Some(i128::from(self.machine.x[index]));
+                }
+                self.marks.get(symbol).copied().map(i128::from).or_else(|| {
+                    self.symbols.iter().find_map(|(address, candidate)| {
+                        (candidate == symbol).then_some(i128::from(*address))
+                    })
+                })
+            })
+            .and_then(|value| {
+                u64::try_from(value)
+                    .map_err(|_| Diagnostic::error(code, "expression does not fit in u64 address"))
+            })
+            .map_err(|error| Diagnostic::error(code, error.message))
     }
 
     fn add_breakpoint(&mut self, argument: &str) -> Result<String> {
@@ -1282,22 +1339,44 @@ where
     }
 
     fn disassemble(&mut self, argument: &str) -> Result<String> {
-        let parts: Vec<_> = argument.split_whitespace().collect();
-        let (address, count) = match parts.as_slice() {
-            [] => (self.backend.context().pc, 4),
-            [count] => (
-                self.backend.context().pc,
-                parse_count(count, "MON-DISASM-101")?,
-            ),
-            [address, count] => (
-                self.resolve_address(address, "MON-DISASM-102")?,
-                parse_count(count, "MON-DISASM-101")?,
-            ),
-            _ => {
+        let (address, count) = if argument.contains("..") {
+            let range = command::parse_range(argument)
+                .map_err(|error| Diagnostic::error("MON-DISASM-101", error.message))?;
+            let end = range.end.ok_or_else(|| {
+                Diagnostic::error("MON-DISASM-101", "disasm range expects start..end")
+            })?;
+            let address = self.resolve_expression(&range.start, "MON-DISASM-102")?;
+            let end = self.resolve_expression(&end, "MON-DISASM-102")?;
+            let bytes = end
+                .checked_sub(address)
+                .ok_or_else(|| Diagnostic::error("MON-DISASM-102", "range is reversed"))?;
+            if bytes % 4 != 0 {
                 return Err(Diagnostic::error(
                     "MON-DISASM-101",
-                    "disasm expects [addr] [count]",
+                    "disasm range must contain complete 32-bit instructions",
                 ));
+            }
+            let count = usize::try_from(bytes / 4)
+                .map_err(|_| Diagnostic::error("MON-DISASM-102", "range is too large"))?;
+            (address, count)
+        } else {
+            let parts: Vec<_> = argument.split_whitespace().collect();
+            match parts.as_slice() {
+                [] => (self.backend.context().pc, 4),
+                [count] => (
+                    self.backend.context().pc,
+                    parse_count(count, "MON-DISASM-101")?,
+                ),
+                [address, count] => (
+                    self.resolve_address(address, "MON-DISASM-102")?,
+                    parse_count(count, "MON-DISASM-101")?,
+                ),
+                _ => {
+                    return Err(Diagnostic::error(
+                        "MON-DISASM-101",
+                        "disasm expects [addr] [count] or start..end",
+                    ));
+                }
             }
         };
         if count > MAX_MEMORY_VIEW_BYTES / 4 {
@@ -1393,15 +1472,34 @@ where
     }
 
     fn resolve_address(&self, value: &str, code: &'static str) -> Result<u64> {
-        let name = value.strip_prefix('@').unwrap_or(value);
-        if let Some(address) = self
-            .symbols
-            .iter()
-            .find_map(|(address, symbol)| (symbol == name).then_some(*address))
-        {
-            return Ok(address);
-        }
-        parse_address(value, code)
+        let expression = command::parse_expression(value)
+            .map_err(|error| Diagnostic::error(code, error.message))?;
+        self.resolve_expression(&expression, code)
+    }
+
+    fn resolve_expression(
+        &self,
+        expression: &command::Expression,
+        code: &'static str,
+    ) -> Result<u64> {
+        expression
+            .evaluate(&|name| {
+                let name = name.strip_prefix('@').unwrap_or(name);
+                if name.eq_ignore_ascii_case("pc") {
+                    return Some(i128::from(self.backend.context().pc));
+                }
+                if let Some(index) = command::register_index(name) {
+                    return Some(i128::from(self.backend.context().x[index]));
+                }
+                self.symbols
+                    .iter()
+                    .find_map(|(address, symbol)| (symbol == name).then_some(i128::from(*address)))
+            })
+            .and_then(|value| {
+                u64::try_from(value)
+                    .map_err(|_| Diagnostic::error(code, "expression does not fit in u64 address"))
+            })
+            .map_err(|error| Diagnostic::error(code, error.message))
     }
 
     fn memory(&mut self, argument: &str) -> Result<String> {
@@ -2675,6 +2773,22 @@ mod tests {
         assert_eq!(monitor.machine.pc, 0);
         assert!(monitor.execute("memory 4").is_ok());
         assert_eq!(monitor.view_address, 4);
+    }
+
+    #[test]
+    fn address_expressions_resolve_pc_registers_and_marks() {
+        let mut monitor = Monitor::new(128);
+        monitor.machine.pc = 0x10;
+        monitor.machine.x[5] = 0x20;
+        monitor.execute("view pc+4").unwrap();
+        assert_eq!(monitor.view_address, 0x14);
+        monitor.execute("mark next x5+4").unwrap();
+        assert_eq!(monitor.view_address, 0x14);
+        monitor.execute("view @next+4").unwrap();
+        assert_eq!(monitor.view_address, 0x28);
+        let disassembly = monitor.execute("disasm pc..pc+4").unwrap();
+        assert!(disassembly.contains("0x0000000000000010:"));
+        assert_eq!(monitor.machine.pc, 0x10);
     }
 
     #[test]

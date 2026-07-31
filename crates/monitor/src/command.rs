@@ -9,6 +9,409 @@ pub(crate) struct CommandLine {
     pub(crate) tokens: Vec<String>,
 }
 
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(crate) enum Expression {
+    Literal(i128),
+    Symbol(String),
+    Unary {
+        operator: UnaryOperator,
+        operand: Box<Expression>,
+    },
+    Binary {
+        operator: BinaryOperator,
+        left: Box<Expression>,
+        right: Box<Expression>,
+    },
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum UnaryOperator {
+    Plus,
+    Minus,
+    BitNot,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum BinaryOperator {
+    Add,
+    Subtract,
+    Multiply,
+    Divide,
+    Remainder,
+    ShiftLeft,
+    ShiftRight,
+    BitAnd,
+    BitXor,
+    BitOr,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(crate) struct ExpressionRange {
+    pub(crate) start: Expression,
+    pub(crate) end: Option<Expression>,
+}
+
+impl Expression {
+    pub(crate) fn evaluate(&self, resolve: &dyn Fn(&str) -> Option<i128>) -> Result<i128> {
+        match self {
+            Self::Literal(value) => Ok(*value),
+            Self::Symbol(name) => resolve(name).ok_or_else(|| {
+                Diagnostic::error("CMD-003", format!("unknown expression symbol: {name}"))
+            }),
+            Self::Unary { operator, operand } => {
+                let value = operand.evaluate(resolve)?;
+                match operator {
+                    UnaryOperator::Plus => Ok(value),
+                    UnaryOperator::Minus => value
+                        .checked_neg()
+                        .ok_or_else(|| Diagnostic::error("CMD-003", "expression signed overflow")),
+                    UnaryOperator::BitNot => Ok(!value),
+                }
+            }
+            Self::Binary {
+                operator,
+                left,
+                right,
+            } => {
+                let left = left.evaluate(resolve)?;
+                let right = right.evaluate(resolve)?;
+                let result = match operator {
+                    BinaryOperator::Add => left.checked_add(right),
+                    BinaryOperator::Subtract => left.checked_sub(right),
+                    BinaryOperator::Multiply => left.checked_mul(right),
+                    BinaryOperator::Divide => left.checked_div(right),
+                    BinaryOperator::Remainder => left.checked_rem(right),
+                    BinaryOperator::ShiftLeft => shift_left(left, right),
+                    BinaryOperator::ShiftRight => shift_right(left, right),
+                    BinaryOperator::BitAnd => Some(left & right),
+                    BinaryOperator::BitXor => Some(left ^ right),
+                    BinaryOperator::BitOr => Some(left | right),
+                };
+                result.ok_or_else(|| {
+                    Diagnostic::error("CMD-003", "expression overflow or invalid operation")
+                })
+            }
+        }
+    }
+}
+
+pub(crate) fn parse_expression(input: &str) -> Result<Expression> {
+    let mut parser = ExpressionParser::new(input)?;
+    let expression = parser.expression(0)?;
+    if !matches!(parser.peek(), ExpressionToken::End) {
+        return Err(Diagnostic::error(
+            "CMD-003",
+            "unexpected token after expression",
+        ));
+    }
+    Ok(expression)
+}
+
+pub(crate) fn parse_range(input: &str) -> Result<ExpressionRange> {
+    let mut parser = ExpressionParser::new(input)?;
+    let start = parser.expression(0)?;
+    let end = if matches!(parser.peek(), ExpressionToken::Range) {
+        parser.next();
+        Some(parser.expression(0)?)
+    } else {
+        None
+    };
+    if !matches!(parser.peek(), ExpressionToken::End) {
+        return Err(Diagnostic::error(
+            "CMD-003",
+            "range expects one expression or start..end",
+        ));
+    }
+    Ok(ExpressionRange { start, end })
+}
+
+pub(crate) fn register_index(name: &str) -> Option<usize> {
+    let name = name.to_ascii_lowercase();
+    if let Some(index) = name.strip_prefix('x').and_then(|value| value.parse().ok()) {
+        return (index < 32).then_some(index);
+    }
+    match name.as_str() {
+        "zero" => Some(0),
+        "ra" => Some(1),
+        "sp" => Some(2),
+        "gp" => Some(3),
+        "tp" => Some(4),
+        "t0" => Some(5),
+        "t1" => Some(6),
+        "t2" => Some(7),
+        "s0" | "fp" => Some(8),
+        "s1" => Some(9),
+        "a0" => Some(10),
+        "a1" => Some(11),
+        "a2" => Some(12),
+        "a3" => Some(13),
+        "a4" => Some(14),
+        "a5" => Some(15),
+        "a6" => Some(16),
+        "a7" => Some(17),
+        "s2" => Some(18),
+        "s3" => Some(19),
+        "s4" => Some(20),
+        "s5" => Some(21),
+        "s6" => Some(22),
+        "s7" => Some(23),
+        "s8" => Some(24),
+        "s9" => Some(25),
+        "s10" => Some(26),
+        "s11" => Some(27),
+        "t3" => Some(28),
+        "t4" => Some(29),
+        "t5" => Some(30),
+        "t6" => Some(31),
+        _ => None,
+    }
+}
+
+fn shift_left(left: i128, right: i128) -> Option<i128> {
+    u32::try_from(right).ok().filter(|shift| *shift < 128)?;
+    left.checked_shl(right as u32)
+}
+
+fn shift_right(left: i128, right: i128) -> Option<i128> {
+    u32::try_from(right).ok().filter(|shift| *shift < 128)?;
+    Some(left >> right as u32)
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum ExpressionToken<'a> {
+    Literal(i128),
+    Symbol(&'a str),
+    Plus,
+    Minus,
+    Star,
+    Slash,
+    Percent,
+    ShiftLeft,
+    ShiftRight,
+    Ampersand,
+    Caret,
+    Pipe,
+    Tilde,
+    LeftParen,
+    RightParen,
+    Range,
+    End,
+}
+
+struct ExpressionParser<'a> {
+    tokens: Vec<ExpressionToken<'a>>,
+    position: usize,
+}
+
+impl<'a> ExpressionParser<'a> {
+    fn new(input: &'a str) -> Result<Self> {
+        Ok(Self {
+            tokens: tokenize_expression(input)?,
+            position: 0,
+        })
+    }
+
+    fn peek(&self) -> ExpressionToken<'a> {
+        self.tokens
+            .get(self.position)
+            .copied()
+            .unwrap_or(ExpressionToken::End)
+    }
+
+    fn next(&mut self) -> ExpressionToken<'a> {
+        let token = self.peek();
+        if !matches!(token, ExpressionToken::End) {
+            self.position += 1;
+        }
+        token
+    }
+
+    fn expression(&mut self, minimum_precedence: u8) -> Result<Expression> {
+        let mut left = self.unary()?;
+        while let Some((operator, precedence)) = binary_operator(self.peek()) {
+            if precedence < minimum_precedence {
+                break;
+            }
+            self.next();
+            let right = self.expression(precedence + 1)?;
+            left = Expression::Binary {
+                operator,
+                left: Box::new(left),
+                right: Box::new(right),
+            };
+        }
+        Ok(left)
+    }
+
+    fn unary(&mut self) -> Result<Expression> {
+        let operator = match self.peek() {
+            ExpressionToken::Plus => Some(UnaryOperator::Plus),
+            ExpressionToken::Minus => Some(UnaryOperator::Minus),
+            ExpressionToken::Tilde => Some(UnaryOperator::BitNot),
+            _ => None,
+        };
+        if let Some(operator) = operator {
+            self.next();
+            return Ok(Expression::Unary {
+                operator,
+                operand: Box::new(self.unary()?),
+            });
+        }
+        match self.next() {
+            ExpressionToken::Literal(value) => Ok(Expression::Literal(value)),
+            ExpressionToken::Symbol(name) => Ok(Expression::Symbol(name.to_string())),
+            ExpressionToken::LeftParen => {
+                let expression = self.expression(0)?;
+                if !matches!(self.next(), ExpressionToken::RightParen) {
+                    return Err(Diagnostic::error("CMD-003", "missing closing parenthesis"));
+                }
+                Ok(expression)
+            }
+            _ => Err(Diagnostic::error("CMD-003", "expected an expression atom")),
+        }
+    }
+}
+
+fn binary_operator(token: ExpressionToken<'_>) -> Option<(BinaryOperator, u8)> {
+    Some(match token {
+        ExpressionToken::Pipe => (BinaryOperator::BitOr, 1),
+        ExpressionToken::Caret => (BinaryOperator::BitXor, 2),
+        ExpressionToken::Ampersand => (BinaryOperator::BitAnd, 3),
+        ExpressionToken::ShiftLeft => (BinaryOperator::ShiftLeft, 4),
+        ExpressionToken::ShiftRight => (BinaryOperator::ShiftRight, 4),
+        ExpressionToken::Plus => (BinaryOperator::Add, 5),
+        ExpressionToken::Minus => (BinaryOperator::Subtract, 5),
+        ExpressionToken::Star => (BinaryOperator::Multiply, 6),
+        ExpressionToken::Slash => (BinaryOperator::Divide, 6),
+        ExpressionToken::Percent => (BinaryOperator::Remainder, 6),
+        _ => return None,
+    })
+}
+
+fn tokenize_expression(input: &str) -> Result<Vec<ExpressionToken<'_>>> {
+    let mut tokens = Vec::new();
+    let mut index = 0;
+    while index < input.len() {
+        let character = input[index..]
+            .chars()
+            .next()
+            .expect("expression index is on a character boundary");
+        if character.is_ascii_whitespace() {
+            index += character.len_utf8();
+            continue;
+        }
+        let rest = &input[index..];
+        let token = match character {
+            '+' => {
+                index += 1;
+                ExpressionToken::Plus
+            }
+            '-' => {
+                index += 1;
+                ExpressionToken::Minus
+            }
+            '*' => {
+                index += 1;
+                ExpressionToken::Star
+            }
+            '/' => {
+                index += 1;
+                ExpressionToken::Slash
+            }
+            '%' => {
+                index += 1;
+                ExpressionToken::Percent
+            }
+            '&' => {
+                index += 1;
+                ExpressionToken::Ampersand
+            }
+            '^' => {
+                index += 1;
+                ExpressionToken::Caret
+            }
+            '|' => {
+                index += 1;
+                ExpressionToken::Pipe
+            }
+            '~' => {
+                index += 1;
+                ExpressionToken::Tilde
+            }
+            '(' => {
+                index += 1;
+                ExpressionToken::LeftParen
+            }
+            ')' => {
+                index += 1;
+                ExpressionToken::RightParen
+            }
+            '<' if rest.starts_with("<<") => {
+                index += 2;
+                ExpressionToken::ShiftLeft
+            }
+            '>' if rest.starts_with(">>") => {
+                index += 2;
+                ExpressionToken::ShiftRight
+            }
+            '.' if rest.starts_with("..") => {
+                index += 2;
+                ExpressionToken::Range
+            }
+            character if character.is_ascii_digit() => {
+                let start = index;
+                index += character.len_utf8();
+                while input[index..].chars().next().is_some_and(|next| {
+                    next.is_ascii_hexdigit() || next == '_' || next == 'x' || next == 'b'
+                }) {
+                    index += input[index..]
+                        .chars()
+                        .next()
+                        .expect("digit continuation exists")
+                        .len_utf8();
+                }
+                let text = &input[start..index];
+                let normalized = text.replace('_', "");
+                let value = if let Some(hex) = normalized.strip_prefix("0x") {
+                    i128::from_str_radix(hex, 16)
+                } else if let Some(binary) = normalized.strip_prefix("0b") {
+                    i128::from_str_radix(binary, 2)
+                } else {
+                    normalized.parse::<i128>()
+                }
+                .map_err(|_| Diagnostic::error("CMD-003", "invalid expression number"))?;
+                ExpressionToken::Literal(value)
+            }
+            character
+                if character.is_ascii_alphabetic()
+                    || matches!(character, '_' | '.' | '$' | '@') =>
+            {
+                let start = index;
+                index += character.len_utf8();
+                while let Some(next) = input[index..].chars().next() {
+                    if next == '.' && input[index..].starts_with("..") {
+                        break;
+                    }
+                    if !(next.is_ascii_alphanumeric() || matches!(next, '_' | '.' | '$' | '@')) {
+                        break;
+                    }
+                    index += next.len_utf8();
+                }
+                ExpressionToken::Symbol(&input[start..index])
+            }
+            _ => {
+                return Err(Diagnostic::error(
+                    "CMD-003",
+                    format!("invalid expression character: {character}"),
+                ));
+            }
+        };
+        tokens.push(token);
+    }
+    tokens.push(ExpressionToken::End);
+    Ok(tokens)
+}
+
 /// Parse the command boundary shared by the host simulator and target backend
 /// consoles. The command implementation deliberately receives the original
 /// argument tail so assembler source and multiline programs retain their
@@ -173,5 +576,44 @@ mod tests {
     #[test]
     fn accepts_question_mark_alias() {
         assert_eq!(parse("?").unwrap().unwrap().name, "?");
+    }
+
+    #[test]
+    fn parses_and_evaluates_signed_precedence() {
+        let expression = parse_expression("-(1 + 2) * 4 + 0x10").unwrap();
+        assert_eq!(expression.evaluate(&|_| None).unwrap(), 4);
+        let expression = parse_expression("1 << 3 | 2").unwrap();
+        assert_eq!(expression.evaluate(&|_| None).unwrap(), 10);
+    }
+
+    #[test]
+    fn resolves_symbols_and_ranges_without_host_integer_wrap() {
+        let expression = parse_expression("base + 4").unwrap();
+        assert_eq!(
+            expression
+                .evaluate(&|name| (name == "base").then_some(0x100i128))
+                .unwrap(),
+            0x104
+        );
+        let range = parse_range("0x10 .. base + 0x20").unwrap();
+        assert_eq!(
+            range
+                .end
+                .unwrap()
+                .evaluate(&|name| (name == "base").then_some(0x100))
+                .unwrap(),
+            0x120
+        );
+    }
+
+    #[test]
+    fn rejects_expression_overflow_division_by_zero_and_bad_ranges() {
+        let overflow = parse_expression("1 / 0").unwrap().evaluate(&|_| None);
+        assert_eq!(overflow.unwrap_err().code, "CMD-003");
+        let overflow = parse_expression("170141183460469231731687303715884105727 + 1")
+            .unwrap()
+            .evaluate(&|_| None);
+        assert_eq!(overflow.unwrap_err().code, "CMD-003");
+        assert_eq!(parse_range("1..2..3").unwrap_err().code, "CMD-003");
     }
 }

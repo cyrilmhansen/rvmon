@@ -19,7 +19,7 @@ Validation locale complète :
     bash scripts/test-qemu-gdb-backend.sh
     git diff --check
 
-La suite actuelle exécute 154 tests unitaires/intégration répartis dans les crates. Les doc-tests compilent mais ne contiennent actuellement aucun cas. Les scripts FP oracle QEMU comparent treize cas F/D, trois conversions de format, treize conversions entières W/L et quatre mouvements binaires F/D, hors comptage Cargo. Le script QEMU ouvre en plus une session GDB RSP réelle, hors comptage Cargo.
+La suite actuelle exécute 157 tests unitaires/intégration répartis dans les crates. Les doc-tests compilent mais ne contiennent actuellement aucun cas. Les scripts FP oracle QEMU comparent treize cas F/D, trois conversions de format, treize conversions entières W/L et quatre mouvements binaires F/D, hors comptage Cargo. Le script QEMU ouvre en plus une session GDB RSP réelle, hors comptage Cargo.
 
 Démonstration M-mode/U-mode sous QEMU :
 
@@ -48,11 +48,11 @@ Moniteur texte interactif :
 | luna-asm-lexer | 6 | Registres numériques/ABI, commentaires, décalages, chaînes UTF-8, flottants décimaux et positions d’erreur. |
 | luna-assembler | 47 | AST, alias ABI, expressions, symboles globaux/locaux, sections, `.equ/.set`, chaînes, alignement, macros paramétrées bornées, includes sous sandbox, conditionnels bornés, listing texte, fadd.s/fadd.d, formes Zfh/Q générées avec registres et mémoire, mouvements binaires F/D, conversions F/D↔F/D et entier W/L, directives exactes binary16/32/64/128. |
 | luna-isa-core | 3 | Encodeurs `addi`, branches, sauts et `fadd.s`/`fadd.d` sans allocation, depuis les tables R2 partagées avec le guest ; commit R2 et champs générés validés. |
-| luna-isa | 10 | Tables générées depuis R2, encodage/décodage entier, flottant, mouvements binaires, conversions de format et mots Zfh/Q décodables mais non exécutables via `luna-isa-core`. |
+| luna-isa | 9 | Tables générées depuis R2, encodage/décodage entier, flottant, mouvements binaires, conversions de format et mots Zfh/Q décodables mais non exécutables via `luna-isa-core`. |
 | luna-machine | 23 | Exécution entière, branches, mémoire, tables de pointeurs ILP32, fadd.s/fadd.d dans les cinq modes d’arrondi, mouvements binaires F/D, conversions F/D et W/L entier/flottant, refus explicite Zfh/Q decode-only, mode dynamique, NaN-boxing, positions exactes de fflags, contrat backend et snapshot cible. |
 | luna-disassembler | 13 | Format canonique, symboles, opcodes illégaux, mots Zfh/Q decode-only, régions code/données explicites, C rejeté et round-trip. |
 | luna-floatfmt | 5 | Bits hex exacts, classes IEEE binary16/32/64/128, décimal déterministe et NaN-box invalide. |
-| luna-monitor | 31 | parseur partagé de commandes, diagnostics `CMD-*`, assemble → step → regs, affichage flottant, run borné, vues mémoire hex/ASCII, désassemblage mixte code/données/C, édition/undo, console backend-générique, marques QuickJump, breakpoints, watchpoints, symboles, pile, historique et persistance. |
+| luna-monitor | 35 | parseur partagé de commandes, AST d’expressions signées, plages `start..end`, adresses `pc`/registres/marques, diagnostics `CMD-*`, assemble → step → regs, affichage flottant, run borné, vues mémoire hex/ASCII, désassemblage mixte code/données/C, édition/undo, console backend-générique, marques QuickJump, breakpoints, watchpoints, symboles, pile, historique et persistance. |
 | luna-target-api | 4 | Contexte de trap, capacités explicites RV64 bare-metal, codes `mcause`, contrat de layout, résultats et accès mémoire du backend commun. |
 | luna-qemu-backend | 7 | Framing GDB RSP, checksum, lecture mémoire, layouts RV64 entier et F/D, stop reply, initialisation `?`, pas et budget nul. |
 | luna-guest-monitor | 0 | Image bare-metal, boot QEMU, PMP, transition M→U, lecture/édition mémoire transactionnelle, `undo`, directives exactes `.word`/`.float`/`.binary128`, assemblage invité entier/flottant, `set`/`setf`, NaN-boxing, `fmv.w.x`/`fmv.x.w` et traps; vérifié par E2E UART QEMU. |
@@ -97,6 +97,12 @@ exécution avec `TRAP-UNSUPPORTED-EXTENSION`. Les formes réelles Zfh/Q peuvent
 désassemblage canonique et l’exécution binary16/binary128 restent différés.
 
 Les expressions couvrent la précédence, les bases décimale/hexadécimale/binaire, les opérateurs unaires, les décalages, les symboles en avant et les débordements. Un test vérifie qu’un offset numérique de branche reste un offset après pc = 0.
+
+Le moniteur réutilise également un AST d’expressions signées 128 bits pour les
+adresses interactives : `view pc+4`, `view a0+0x20`, `view @entry+4` et
+`disasm pc..pc+32`. Les conversions négatives ou hors u64, les divisions par
+zéro, les décalages invalides et les plages inversées/non alignées sont rejetés
+sans mutation de la cible.
 
 Les macros paramétrées sont expansées avant le lexer avec `.macro NAME params` et
 `.endm`/`.endmacro`. Les substitutions `\\param` et `$param`, les macros
