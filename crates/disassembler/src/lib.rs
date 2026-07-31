@@ -13,6 +13,32 @@ pub struct DisassembledLine {
     pub text: String,
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum DisassemblyRegionKind {
+    Code,
+    Data,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct DisassemblyRegion {
+    pub offset: usize,
+    pub length: usize,
+    pub kind: DisassemblyRegionKind,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct DataLine {
+    pub address: u64,
+    pub bytes: Vec<u8>,
+    pub text: String,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum DisassembledItem {
+    Instruction(DisassembledLine),
+    Data(DataLine),
+}
+
 pub fn disassemble_word(
     address: u64,
     word: u32,
@@ -66,6 +92,78 @@ pub fn disassemble_bytes(
         offset += 4;
     }
     Ok(lines)
+}
+
+/// Disassemble an image whose caller has explicitly marked code and data
+/// regions. Regions must be contiguous, non-empty, non-overlapping and cover
+/// the complete byte slice. Data is emitted as reassemblable `.byte` lines and
+/// is never passed to the instruction decoder.
+pub fn disassemble_regions(
+    bytes: &[u8],
+    origin: u64,
+    regions: &[DisassemblyRegion],
+    symbols: &BTreeMap<u64, String>,
+) -> Result<Vec<DisassembledItem>> {
+    let mut cursor = 0usize;
+    let mut items = Vec::new();
+    for region in regions {
+        if region.length == 0 || region.offset != cursor {
+            return Err(Diagnostic::error(
+                "DISASM-REGION-001",
+                "regions must be contiguous and non-empty",
+            ));
+        }
+        let end = region
+            .offset
+            .checked_add(region.length)
+            .ok_or_else(|| Diagnostic::error("DISASM-REGION-002", "region range overflows"))?;
+        if end > bytes.len() {
+            return Err(Diagnostic::error(
+                "DISASM-REGION-002",
+                "region exceeds the byte image",
+            ));
+        }
+        let address = origin
+            .checked_add(region.offset as u64)
+            .ok_or_else(|| Diagnostic::error("DISASM-ADDRESS-001", "address overflow"))?;
+        match region.kind {
+            DisassemblyRegionKind::Code => {
+                let lines = disassemble_bytes(&bytes[region.offset..end], address, symbols)?;
+                items.extend(lines.into_iter().map(DisassembledItem::Instruction));
+            }
+            DisassemblyRegionKind::Data => {
+                for (chunk_index, chunk) in bytes[region.offset..end].chunks(16).enumerate() {
+                    let chunk_address =
+                        address
+                            .checked_add((chunk_index * 16) as u64)
+                            .ok_or_else(|| {
+                                Diagnostic::error("DISASM-ADDRESS-001", "address overflow")
+                            })?;
+                    let text = format!(
+                        ".byte {}",
+                        chunk
+                            .iter()
+                            .map(|byte| format!("0x{byte:02x}"))
+                            .collect::<Vec<_>>()
+                            .join(",")
+                    );
+                    items.push(DisassembledItem::Data(DataLine {
+                        address: chunk_address,
+                        bytes: chunk.to_vec(),
+                        text,
+                    }));
+                }
+            }
+        }
+        cursor = end;
+    }
+    if cursor != bytes.len() {
+        return Err(Diagnostic::error(
+            "DISASM-REGION-001",
+            "regions must cover the complete byte image",
+        ));
+    }
+    Ok(items)
 }
 
 fn format_instruction(
@@ -222,5 +320,117 @@ mod tests {
             let rebuilt = luna_assembler::assemble(&line.text).unwrap().text;
             assert_eq!(rebuilt, original, "round-trip failed for {source}");
         }
+    }
+
+    #[test]
+    fn disassembles_explicit_code_and_data_regions_without_crossing_boundaries() {
+        let first = luna_assembler::assemble("addi x1,x0,1").unwrap().text;
+        let second = luna_assembler::assemble("addi x2,x0,2").unwrap().text;
+        let mut bytes = first.clone();
+        bytes.extend([0xde, 0xad, 0xbe]);
+        bytes.extend(second.clone());
+        let regions = [
+            DisassemblyRegion {
+                offset: 0,
+                length: first.len(),
+                kind: DisassemblyRegionKind::Code,
+            },
+            DisassemblyRegion {
+                offset: first.len(),
+                length: 3,
+                kind: DisassemblyRegionKind::Data,
+            },
+            DisassemblyRegion {
+                offset: first.len() + 3,
+                length: second.len(),
+                kind: DisassemblyRegionKind::Code,
+            },
+        ];
+        let items = disassemble_regions(&bytes, 0x1000, &regions, &BTreeMap::new()).unwrap();
+        assert_eq!(items.len(), 3);
+        assert!(matches!(items[0], DisassembledItem::Instruction(_)));
+        assert!(matches!(items[1], DisassembledItem::Data(_)));
+        assert!(matches!(items[2], DisassembledItem::Instruction(_)));
+        let DisassembledItem::Data(data) = &items[1] else {
+            panic!("middle region must remain data");
+        };
+        assert_eq!(data.address, 0x1004);
+        assert_eq!(data.text, ".byte 0xde,0xad,0xbe");
+    }
+
+    #[test]
+    fn renders_data_regions_as_reassemblable_byte_directives() {
+        let bytes: Vec<u8> = (0..17).collect();
+        let regions = [DisassemblyRegion {
+            offset: 0,
+            length: bytes.len(),
+            kind: DisassemblyRegionKind::Data,
+        }];
+        let items = disassemble_regions(&bytes, 0, &regions, &BTreeMap::new()).unwrap();
+        assert_eq!(items.len(), 2);
+        for item in items {
+            let DisassembledItem::Data(data) = item else {
+                panic!("data region must not decode as an instruction");
+            };
+            let rebuilt = luna_assembler::assemble(&data.text).unwrap();
+            assert_eq!(rebuilt.text, data.bytes);
+        }
+    }
+
+    #[test]
+    fn rejects_non_contiguous_overlapping_and_out_of_range_regions() {
+        let bytes = [0u8; 4];
+        let error = disassemble_regions(
+            &bytes,
+            0,
+            &[
+                DisassemblyRegion {
+                    offset: 0,
+                    length: 1,
+                    kind: DisassemblyRegionKind::Data,
+                },
+                DisassemblyRegion {
+                    offset: 2,
+                    length: 2,
+                    kind: DisassemblyRegionKind::Data,
+                },
+            ],
+            &BTreeMap::new(),
+        )
+        .unwrap_err();
+        assert_eq!(error.code, "DISASM-REGION-001");
+
+        let error = disassemble_regions(
+            &bytes,
+            0,
+            &[
+                DisassemblyRegion {
+                    offset: 0,
+                    length: 2,
+                    kind: DisassemblyRegionKind::Data,
+                },
+                DisassemblyRegion {
+                    offset: 1,
+                    length: 2,
+                    kind: DisassemblyRegionKind::Data,
+                },
+            ],
+            &BTreeMap::new(),
+        )
+        .unwrap_err();
+        assert_eq!(error.code, "DISASM-REGION-001");
+
+        let error = disassemble_regions(
+            &bytes,
+            0,
+            &[DisassemblyRegion {
+                offset: 0,
+                length: 5,
+                kind: DisassemblyRegionKind::Data,
+            }],
+            &BTreeMap::new(),
+        )
+        .unwrap_err();
+        assert_eq!(error.code, "DISASM-REGION-002");
     }
 }

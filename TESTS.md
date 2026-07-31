@@ -15,7 +15,7 @@ Validation locale complète :
     bash scripts/test-qemu-gdb-backend.sh
     git diff --check
 
-La suite actuelle exécute 112 tests unitaires/intégration répartis dans les crates. Les doc-tests compilent mais ne contiennent actuellement aucun cas. Le script QEMU ouvre en plus une session GDB RSP réelle, hors comptage Cargo.
+La suite actuelle exécute 115 tests unitaires/intégration répartis dans les crates. Les doc-tests compilent mais ne contiennent actuellement aucun cas. Le script QEMU ouvre en plus une session GDB RSP réelle, hors comptage Cargo.
 
 Démonstration M-mode/U-mode sous QEMU :
 
@@ -46,7 +46,7 @@ Moniteur texte interactif :
 | luna-isa-core | 3 | Encodeurs `addi`, branches, sauts et `fadd.s`/`fadd.d` sans allocation, depuis les tables R2 partagées avec le guest ; commit R2 et champs générés validés. |
 | luna-isa | 6 | Tables générées depuis R2, encodage/décodage entier et flottant via `luna-isa-core`. |
 | luna-machine | 13 | Exécution entière, branches, mémoire, tables de pointeurs ILP32, fadd.s, fadd.d, NaN-boxing, flags, contrat backend et snapshot cible. |
-| luna-disassembler | 7 | Format canonique, symboles, opcodes illégaux, C rejeté et round-trip. |
+| luna-disassembler | 10 | Format canonique, symboles, opcodes illégaux, régions code/données explicites, C rejeté et round-trip. |
 | luna-floatfmt | 3 | Bits hex exacts, décimal court, classes IEEE et NaN-box invalide. |
 | luna-monitor | 19 | assemble → step → regs, affichage flottant, run borné, vues mémoire hex/ASCII, édition/undo, console backend-générique, marques QuickJump, breakpoints, watchpoints, symboles, pile, historique et persistance. |
 | luna-target-api | 4 | Contexte de trap, capacités explicites RV64 bare-metal, codes `mcause`, contrat de layout, résultats et accès mémoire du backend commun. |
@@ -157,7 +157,14 @@ Les tests vérifient le round-trip du décimal court pour des valeurs finies rep
 
 ### Désassembleur
 
-Les tests couvrent le format canonique en xN/fN, la symbolisation PC-relative, la représentation d’un opcode illégal en .word, les unités tronquées, le rejet explicite de C non supporté et assembleur → désassembleur → assembleur.
+Les tests couvrent le format canonique en xN/fN, la symbolisation PC-relative, la représentation d’un opcode illégal en `.word`, les unités tronquées, le rejet explicite de C non supporté et assembleur → désassembleur → assembleur.
+
+`disassemble_regions` impose une carte contiguë de régions `Code` et `Data`.
+Le code seul passe au décodeur; les données sont rendues en directives `.byte`
+par groupes de 16 octets et restent donc réassemblables. Une région illégale
+reste un item code `.word`, tandis qu’une donnée identique n’est jamais
+interprétée comme une instruction. Les gaps, recouvrements, régions vides et
+dépassements sont rejetés par `DISASM-REGION-*`.
 
 ### Moniteur et application
 

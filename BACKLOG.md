@@ -507,6 +507,23 @@ Une tâche est terminée seulement si sa condition de sortie est satisfaite.
 - **Parallélisable :** oui avec DIS-001 et FP-001.
 - **Contexte minimal :** SPEC §§11/12/18.
 
+### DIS-001A — Désassemblage mixte code/données — TERMINÉ
+
+- **Jalon / exigences :** M3; DIS-001..006, MEM-001..012, IO-005.
+- **But :** fournir un parcours de désassemblage où l’appelant marque explicitement les régions code et données, sans décoder les données par erreur et sans perdre les adresses.
+- **Non-but :** détection heuristique automatique du code, prise en charge C exécutée, pseudo-instructions non prouvées, format ELF complet et mutation de la mémoire cible.
+- **Entrées/sources :** SPEC §§13–15 (désassembleur, données mêlées au code, mémoire), §23 (round-trip et opcodes illégaux); R1/R2 pour le décodage des unités 32 bits; décision locale de carte de régions explicite.
+- **Fichiers/modules :** `crates/disassembler/src/lib.rs`, `TESTS.md`, `BACKLOG.md`.
+- **Étapes réalisées :** ajouter `DisassemblyRegion`, `DisassemblyRegionKind` et `DisassembledItem`; exiger des régions non vides, contiguës et couvrant toute l’image; décoder uniquement les régions `Code`; rendre les régions `Data` en `.byte` réassemblables par groupes de 16; conserver les items illégaux dans le flux code.
+- **Dépendances :** GEN-001 et contrat `Instruction`; aucune dépendance externe; prépare la vue mémoire qui devra fournir les marques code/données; le support C reste une tranche distincte.
+- **Tests :** image code/données/code; région data réassemblable et non décodée; illegal dans le code; gap, recouvrement et dépassement; suite workspace.
+- **Critères de sortie :** aucune donnée marquée `Data` n’atteint `luna_isa::decode`; les adresses des items suivent exactement les offsets; les `.byte` reconstruisent bit à bit la région; les codes `DISASM-REGION-001/002` sont stables.
+- **Cas limites et échecs :** image vide, région vide, données de 16/17 octets, adresse origin haute, code tronqué, opcode illégal, régions non triées et overflow d’adresse.
+- **Taille :** 3 points / 1–1,5 journée-agent, incertitude faible; équivalent indicatif 40k–100k tokens.
+- **Compétences/outils :** désassemblage, API de régions, round-trip assembleur, tests de bornes.
+- **Parallélisable :** oui avec FP-001 et ASM-003; non avec une modification concurrente du format `DisassembledItem`.
+- **Paquet de contexte minimal :** SPEC §§13–15/23, R1/R2, `crates/disassembler/src/lib.rs`, `TESTS.md`.
+
 ### DIS-001 — Désassembleur canonique et symbolisation
 
 - **Jalon / exigences :** M3; DIS-001..006, MEM-001..012.
