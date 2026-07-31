@@ -25,6 +25,7 @@ pub struct Monitor {
     max_run_steps: u64,
     view_address: u64,
     undo: Vec<MemoryEdit>,
+    marks: BTreeMap<String, u64>,
 }
 
 impl Monitor {
@@ -35,6 +36,7 @@ impl Monitor {
             max_run_steps: 1000,
             view_address: 0,
             undo: Vec::new(),
+            marks: BTreeMap::new(),
         }
     }
 
@@ -57,11 +59,15 @@ impl Monitor {
             "view" | "jump" => self.set_view(argument),
             "edit" | "e" => self.edit_memory(argument),
             "undo" | "u" => self.undo_memory(),
+            "mark" => self.mark(argument),
+            "marks" => self.list_marks(),
+            "unmark" => self.unmark(argument),
             "reset" => {
                 self.machine = Machine::new(self.machine.memory_size());
                 self.symbols.clear();
                 self.view_address = 0;
                 self.undo.clear();
+                self.marks.clear();
                 Ok("machine reset".into())
             }
             "quit" | "exit" => Ok("bye".into()),
@@ -144,7 +150,7 @@ impl Monitor {
             [] => (self.machine.pc, 4),
             [count] => (self.machine.pc, parse_count(count, "MON-DISASM-001")?),
             [address, count] => (
-                parse_address(address, "MON-DISASM-002")?,
+                self.resolve_address(address, "MON-DISASM-002")?,
                 parse_count(count, "MON-DISASM-001")?,
             ),
             _ => {
@@ -184,7 +190,7 @@ impl Monitor {
                 "view expects one target address",
             ));
         };
-        self.view_address = parse_address(address, "MON-MEM-002")?;
+        self.view_address = self.resolve_address(address, "MON-MEM-002")?;
         Ok(format!("view=0x{:016x}", self.view_address))
     }
 
@@ -193,11 +199,11 @@ impl Monitor {
         let (address, count) = match parts.as_slice() {
             [] => (self.view_address, DEFAULT_MEMORY_VIEW_BYTES),
             [address] => (
-                parse_address(address, "MON-MEM-002")?,
+                self.resolve_address(address, "MON-MEM-002")?,
                 DEFAULT_MEMORY_VIEW_BYTES,
             ),
             [address, count] => (
-                parse_address(address, "MON-MEM-002")?,
+                self.resolve_address(address, "MON-MEM-002")?,
                 parse_count(count, "MON-MEM-003")?,
             ),
             _ => {
@@ -248,7 +254,7 @@ impl Monitor {
         let address_text = parts.next().ok_or_else(|| {
             Diagnostic::error("MON-MEM-005", "edit expects an address followed by bytes")
         })?;
-        let address = parse_address(address_text, "MON-MEM-002")?;
+        let address = self.resolve_address(address_text, "MON-MEM-002")?;
         let mut bytes = Vec::new();
         for token in parts {
             parse_byte_token(token, &mut bytes)?;
@@ -292,6 +298,58 @@ impl Monitor {
             "undid {} byte(s) at 0x{address:016x}",
             previous.len()
         ))
+    }
+
+    fn mark(&mut self, argument: &str) -> Result<String> {
+        let parts: Vec<_> = argument.split_whitespace().collect();
+        let (name, address) = match parts.as_slice() {
+            [name] => (*name, self.view_address),
+            [name, address] => (*name, self.resolve_address(address, "MON-MARK-002")?),
+            _ => {
+                return Err(Diagnostic::error(
+                    "MON-MARK-001",
+                    "mark expects <name> [address]",
+                ));
+            }
+        };
+        validate_mark_name(name)?;
+        self.marks.insert(name.to_string(), address);
+        Ok(format!("mark @{name}=0x{address:016x}"))
+    }
+
+    fn list_marks(&self) -> Result<String> {
+        if self.marks.is_empty() {
+            return Ok("marks: none".into());
+        }
+        let mut output = String::from("marks:\n");
+        for (name, address) in &self.marks {
+            writeln!(output, "  @{name}=0x{address:016x}").unwrap();
+        }
+        Ok(output.trim_end().into())
+    }
+
+    fn unmark(&mut self, argument: &str) -> Result<String> {
+        let parts: Vec<_> = argument.split_whitespace().collect();
+        let [name] = parts.as_slice() else {
+            return Err(Diagnostic::error("MON-MARK-003", "unmark expects one name"));
+        };
+        let name = name.strip_prefix('@').unwrap_or(name);
+        if self.marks.remove(name).is_none() {
+            return Err(Diagnostic::error("MON-MARK-004", "mark does not exist"));
+        }
+        Ok(format!("unmarked @{name}"))
+    }
+
+    fn resolve_address(&self, value: &str, code: &'static str) -> Result<u64> {
+        if let Some(name) = value.strip_prefix('@') {
+            if name.is_empty() {
+                return Err(Diagnostic::error(code, "mark name is empty"));
+            }
+            return self.marks.get(name).copied().ok_or_else(|| {
+                Diagnostic::error("MON-MARK-005", format!("unknown mark: @{name}"))
+            });
+        }
+        parse_address(value, code)
     }
 
     fn registers(&self) -> Result<String> {
@@ -372,6 +430,9 @@ fn help() -> String {
         "view <addr>          move memory view without changing pc",
         "edit <addr> <bytes>  write bytes transactionally (hex)",
         "undo                 undo the last memory edit",
+        "mark <name> [addr]   name the current or specified address",
+        "marks                list named addresses",
+        "unmark <name>        remove a named address",
         "regs                 show x/f registers and fcsr exactly",
         "reset                reset machine state",
         "quit                 leave the interactive monitor",
@@ -410,6 +471,23 @@ fn parse_byte_token(token: &str, output: &mut Vec<u8>) -> Result<()> {
         let text = std::str::from_utf8(pair).expect("ASCII hexadecimal token");
         let byte = u8::from_str_radix(text, 16).expect("validated hexadecimal byte");
         output.push(byte);
+    }
+    Ok(())
+}
+
+fn validate_mark_name(name: &str) -> Result<()> {
+    let mut characters = name.chars();
+    let Some(first) = characters.next() else {
+        return Err(Diagnostic::error("MON-MARK-006", "mark name is empty"));
+    };
+    if name.len() > 32
+        || !(first == '_' || first.is_ascii_alphabetic())
+        || !characters.all(|character| character == '_' || character.is_ascii_alphanumeric())
+    {
+        return Err(Diagnostic::error(
+            "MON-MARK-006",
+            "mark name must match [A-Za-z_][A-Za-z0-9_]* and fit in 32 bytes",
+        ));
     }
     Ok(())
 }
@@ -489,5 +567,59 @@ mod tests {
         let error = monitor.execute("edit 0x10 123").unwrap_err();
         assert_eq!(error.code, "MON-MEM-008");
         assert_eq!(monitor.machine.memory.load32(0x10).unwrap(), 0);
+    }
+
+    #[test]
+    fn marks_and_quickjump_resolve_without_changing_pc() {
+        let mut monitor = Monitor::new(128);
+        monitor.execute("assemble addi x1,x0,1").unwrap();
+        monitor.execute("view 0x20").unwrap();
+        monitor.execute("mark entry").unwrap();
+        monitor.execute("view 0x30").unwrap();
+        monitor.execute("jump @entry").unwrap();
+        assert_eq!(monitor.view_address, 0x20);
+        assert_eq!(monitor.machine.pc, 0);
+        assert!(
+            monitor
+                .execute("memory @entry 1")
+                .unwrap()
+                .contains("0x0000000000000020")
+        );
+        assert!(
+            monitor
+                .execute("marks")
+                .unwrap()
+                .contains("@entry=0x0000000000000020")
+        );
+    }
+
+    #[test]
+    fn explicit_marks_can_be_removed_and_invalid_names_are_rejected() {
+        let mut monitor = Monitor::new(128);
+        monitor.execute("mark code 0x10").unwrap();
+        assert!(
+            monitor
+                .execute("unmark @code")
+                .unwrap()
+                .contains("unmarked @code")
+        );
+        assert_eq!(monitor.execute("marks").unwrap(), "marks: none");
+        let error = monitor.execute("mark 1bad 0x10").unwrap_err();
+        assert_eq!(error.code, "MON-MARK-006");
+        assert_eq!(
+            monitor.execute("jump @code").unwrap_err().code,
+            "MON-MARK-005"
+        );
+    }
+
+    #[test]
+    fn reset_removes_marks_and_memory_undo_history() {
+        let mut monitor = Monitor::new(128);
+        monitor.execute("mark start 0x10").unwrap();
+        monitor.execute("edit 0x10 aa").unwrap();
+        monitor.execute("reset").unwrap();
+        assert_eq!(monitor.execute("marks").unwrap(), "marks: none");
+        assert_eq!(monitor.execute("undo").unwrap_err().code, "MON-MEM-007");
+        assert_eq!(monitor.machine.memory.load8(0x10).unwrap(), 0);
     }
 }

@@ -12,7 +12,7 @@ Validation locale complète :
     bash scripts/test-guest-monitor.sh
     git diff --check
 
-La suite actuelle exécute 59 tests unitaires/intégration répartis dans les crates. Les doc-tests compilent mais ne contiennent actuellement aucun cas.
+La suite actuelle exécute 62 tests unitaires/intégration répartis dans les crates. Les doc-tests compilent mais ne contiennent actuellement aucun cas.
 
 Démonstration M-mode/U-mode sous QEMU :
 
@@ -44,7 +44,7 @@ Moniteur texte interactif :
 | luna-machine | 11 | Exécution entière, branches, mémoire, tables de pointeurs ILP32, fadd.s, fadd.d, NaN-boxing, flags et contrat backend. |
 | luna-disassembler | 7 | Format canonique, symboles, opcodes illégaux, C rejeté et round-trip. |
 | luna-floatfmt | 3 | Bits hex exacts, décimal court, classes IEEE et NaN-box invalide. |
-| luna-monitor | 6 | assemble → step → regs, affichage flottant, run borné, vues mémoire hex/ASCII, édition et undo. |
+| luna-monitor | 9 | assemble → step → regs, affichage flottant, run borné, vues mémoire hex/ASCII, édition/undo et marques QuickJump. |
 | luna-target-api | 4 | Contexte de trap, capacités explicites RV64 bare-metal, codes `mcause`, contrat de layout et types du backend commun. |
 | luna-guest-monitor | 0 | Image bare-metal, boot QEMU, PMP, transition M→U, trap `ebreak` et boucle UART; vérifié par smoke test QEMU. |
 | luna-app | 0 | Compilation du binaire et démonstration ; pas encore d’E2E terminal. |
@@ -122,6 +122,11 @@ remplace les caractères non imprimables par `.` dans la colonne ASCII. `edit`
 effectue une lecture de sauvegarde puis une écriture via `TargetBackend`; une
 erreur de plage ne modifie donc pas la mémoire. `undo` restaure au maximum les
 64 dernières éditions, avec une limite de 4096 octets par opération.
+
+Les marques sont des noms ASCII stables de 32 octets maximum. `mark name`
+capture l’adresse de la vue courante, tandis que `mark name address` l’associe
+à une adresse explicite. La notation `@name` est acceptée par les commandes de
+navigation et de vue, et `reset` supprime les marques.
 
 ### Backend cible 4B
 
