@@ -49,6 +49,13 @@ name = "luna-floatfmt"
 version = "0.1.0"
 
 [[package]]
+name = "luna-guest-monitor"
+version = "0.1.0"
+dependencies = [
+ "luna-target-api",
+]
+
+[[package]]
 name = "luna-isa"
 version = "0.1.0"
 dependencies = [
@@ -82,3 +89,7 @@ dependencies = [
  "luna-floatfmt",
  "luna-machine",
 ]
+
+[[package]]
+name = "luna-target-api"
+version = "0.1.0"

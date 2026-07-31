@@ -1,0 +1,10 @@
+[target.riscv64gc-unknown-none-elf]
+# The installed Rust target is named `gc`, but the V1 guest profile has C off.
+# Disable both the umbrella feature and Zca, then link the bare-metal image at
+# the QEMU virt RAM origin.
+rustflags = [
+    "-C",
+    "target-feature=-c,-zca",
+    "-C",
+    "link-arg=-Tcrates/guest-monitor/linker.ld",
+]

@@ -1,6 +1,6 @@
 # État des tests RVMonitor
 
-Ce document décrit le périmètre effectivement couvert par les tests présents dans le dépôt au commit 118dce7. Il complète TEST_PLAN.md, qui décrit la stratégie cible et contient des fonctions encore non implémentées.
+Ce document décrit le périmètre effectivement couvert par les tests présents dans le dépôt sur la branche courante. Il complète TEST_PLAN.md, qui décrit la stratégie cible et contient des fonctions encore non implémentées.
 
 ## Commandes de validation
 
@@ -8,9 +8,20 @@ Validation locale complète :
 
     cargo fmt --all
     cargo test --workspace
+    cargo build -p luna-guest-monitor --target riscv64gc-unknown-none-elf
     git diff --check
 
-La suite actuelle exécute 49 tests unitaires/intégration répartis dans les crates. Les doc-tests compilent mais ne contiennent actuellement aucun cas.
+La suite actuelle exécute 51 tests unitaires/intégration répartis dans les crates. Les doc-tests compilent mais ne contiennent actuellement aucun cas.
+
+Démonstration M-mode/U-mode sous QEMU :
+
+    timeout 4s qemu-system-riscv64 -M virt -bios none \
+      -kernel target/riscv64gc-unknown-none-elf/debug/luna-guest-monitor \
+      -nographic
+
+La commande doit afficher le passage en U-mode, `target: before ebreak`, puis
+`trap: breakpoint` avec l’adresse du `ebreak`. La terminaison par timeout est
+attendue car le prompt de trap est volontairement bloquant dans cette tranche.
 
 Démonstration minimale :
 
@@ -33,6 +44,8 @@ Moniteur texte interactif :
 | luna-disassembler | 7 | Format canonique, symboles, opcodes illégaux, C rejeté et round-trip. |
 | luna-floatfmt | 3 | Bits hex exacts, décimal court, classes IEEE et NaN-box invalide. |
 | luna-monitor | 3 | assemble → step → regs, affichage flottant et run borné. |
+| luna-target-api | 2 | Contexte de trap, capacités explicites RV64 bare-metal et NaN-box initial. |
+| luna-guest-monitor | 0 | Image bare-metal, boot QEMU, PMP, transition M→U et trap `ebreak`; vérifié par smoke test QEMU. |
 | luna-app | 0 | Compilation du binaire et démonstration ; pas encore d’E2E terminal. |
 | luna-diag | 0 | Types utilisés par les autres crates ; pas de test dédié. |
 
@@ -103,16 +116,27 @@ Les tests du moniteur utilisent son API déterministe, pas un terminal réel. Il
 
 Les commandes couvertes sont help, assemble, step, run, disasm, regs, reset et quit. L’entrée/sortie interactive, les couleurs, le clavier, l’édition mémoire et l’annulation restent à tester.
 
+### Backend cible 4B
+
+Le crate `luna-guest-monitor` est une première tranche d’intégration hors
+`cargo test` : il est compilé pour `riscv64gc-unknown-none-elf`, mais les
+options Cargo désactivent `c` et `zca` afin de respecter le profil V1 C=off.
+Le linker place l’image en RAM QEMU à partir de `0x80000000`. Le code M-mode
+configure `mtvec`, `mscratch`, les registres flottants et une entrée PMP TOR
+permettant l’accès U-mode à la fenêtre basse contenant le MMIO UART et la RAM.
+Le trap capture les registres entiers, flottants, `fcsr`, `mstatus`, `mepc`,
+`mcause` et `mtval`, puis s’arrête sur le prompt monitor.
+
 ## Pyramide actuelle
 
 | Niveau | État | Commentaire |
 |---|---|---|
-| Unitaire | Présent | ABI, mémoire, lexer, expressions, ISA, flottants et machine. |
+| Unitaire | Présent | ABI, mémoire, lexer, expressions, ISA, flottants, machine et contrat de cible. |
 | Composant | Partiel | Assembleur, désassembleur et moniteur testés par API. |
 | Intégration interne | Présent | Round-trips et chaîne monitor/machine. |
 | Différentiel externe | Absent | GNU, LLVM, Sail, Spike et SoftFloat ne sont pas branchés dans CI. |
 | Génératif/fuzzing | Absent | Aucun budget de fuzzing installé. |
-| E2E terminal | Partiel | Le mode existe, mais le protocole stdin n’est pas automatisé. |
+| E2E terminal | Partiel | Le mode existe, mais le protocole stdin n’est pas automatisé ; smoke boot QEMU présent. |
 | Multi-plateforme | Absent | Pas encore de matrice Linux/macOS/Windows et x86_64/arm64. |
 
 ## Limites actuelles
@@ -137,4 +161,4 @@ Les tests ne prouvent pas encore :
 4. Test E2E stdin/replay du moniteur.
 5. Fuzz targets lexer, parser, désassembleur et commandes.
 
-Un test est considéré comme présent uniquement s’il est exécuté par cargo test --workspace au commit indiqué. Les éléments de TEST_PLAN.md non reflétés ici sont des objectifs, pas des garanties actuelles.
+Un test est considéré comme présent uniquement s’il est exécuté par `cargo test --workspace` dans la validation courante. Les éléments de TEST_PLAN.md non reflétés ici sont des objectifs, pas des garanties actuelles.

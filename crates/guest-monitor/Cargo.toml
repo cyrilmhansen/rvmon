@@ -1,0 +1,18 @@
+[package]
+name = "luna-guest-monitor"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[[bin]]
+name = "luna-guest-monitor"
+path = "src/main.rs"
+test = false
+bench = false
+
+[dependencies]
+luna-target-api = { path = "../target-api" }
+
+# Hardware MMIO, entry assembly and trap return are isolated in this crate.
+[lints.rust]
+unsafe_code = "allow"
