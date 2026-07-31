@@ -117,6 +117,7 @@ fn monitor_loop(context: *mut TargetContext) -> ! {
         match &line[..length] {
             b"help" | b"?" => print_help(),
             b"regs" | b"registers" => print_registers(context),
+            command if command.starts_with(b"setf ") => set_float_register(context, &command[5..]),
             command if command.starts_with(b"memory ") => print_memory(&command[7..]),
             command if command.starts_with(b"assemble ") => {
                 assemble_command(context, &command[9..])
@@ -142,7 +143,7 @@ fn monitor_loop(context: *mut TargetContext) -> ! {
 
 fn print_help() {
     uart_write(
-        "help/? regs/registers memory <addr> <length> assemble <addr> <instruction> assemble-program <addr> ... end symbols disasm <addr|label> <count> step/s continue/c break <addr|label> delete <n> info break quit/q\r\n",
+        "help/? regs/registers setf <freg> <hex64> memory <addr> <length> assemble <addr> <instruction> assemble-program <addr> ... end symbols disasm <addr|label> <count> step/s continue/c break <addr|label> delete <n> info break quit/q\r\n",
     );
 }
 
@@ -188,6 +189,33 @@ fn print_registers(context: *mut TargetContext) {
             uart_write("  ");
         }
     }
+}
+
+fn set_float_register(context: *mut TargetContext, argument: &[u8]) {
+    if unsafe { (*context).mcause } != StopReason::Breakpoint as u64 {
+        uart_write("error: target is not stopped at a breakpoint\r\n");
+        return;
+    }
+    let Some((register_bytes, value_bytes)) = split_token_space(argument) else {
+        uart_write("error: setf expects <freg> <hex64>\r\n");
+        return;
+    };
+    let Some(register) = parse_float_register(register_bytes) else {
+        uart_write("error: setf register must be f0..f31\r\n");
+        return;
+    };
+    let Some(value) = parse_hex(value_bytes) else {
+        uart_write("error: setf value must be a hexadecimal 64-bit pattern\r\n");
+        return;
+    };
+    unsafe {
+        (*context).f[usize::from(register)] = value;
+    }
+    uart_write("set f");
+    uart_decimal(u64::from(register));
+    uart_write("=0x");
+    uart_hex(value);
+    uart_write("\r\n");
 }
 
 fn print_memory(argument: &[u8]) {
@@ -324,6 +352,25 @@ fn print_disassembled_word(address: u64, word: u32) {
         uart_signed_decimal(immediate);
         return;
     }
+    for opcode in GENERATED_OPCODES {
+        if (opcode.mnemonic == "fadd.s" || opcode.mnemonic == "fadd.d")
+            && word & opcode.mask == opcode.match_value
+        {
+            uart_write(opcode.mnemonic);
+            uart_write(" f");
+            uart_decimal(u64::from((word >> 7) & 31));
+            uart_write(",f");
+            uart_decimal(u64::from((word >> 15) & 31));
+            uart_write(",f");
+            uart_decimal(u64::from((word >> 20) & 31));
+            let rm = (word >> 12) & 7;
+            if rm != 0 {
+                uart_write(",");
+                uart_decimal(u64::from(rm));
+            }
+            return;
+        }
+    }
     if word & 0x7f == 0x63 {
         let mnemonic = match (word >> 12) & 0x7 {
             0b000 => "beq",
@@ -452,7 +499,7 @@ fn assemble_program_command(context: *mut TargetContext, argument: &[u8]) {
         return;
     }
 
-    uart_write("source mode: enter addi, beq, bne, jal or jalr lines, finish with end\r\n");
+    uart_write("source mode: enter integer/control or fadd.s/fadd.d lines, finish with end\r\n");
     let mut lines = [[0u8; COMMAND_CAPACITY]; MAX_SOURCE_LINES];
     let mut lengths = [0usize; MAX_SOURCE_LINES];
     let mut count = 0usize;
@@ -540,7 +587,9 @@ fn assemble_program_command(context: *mut TargetContext, argument: &[u8]) {
             return;
         }
         let Some(word) = parse_source_instruction(line, line_address, &staged_symbols) else {
-            uart_write("error: source line supports addi, beq, bne, jal or jalr syntax\r\n");
+            uart_write(
+                "error: source line supports addi, branches, jumps or fadd.s/fadd.d syntax\r\n",
+            );
             return;
         };
         if permanent_breakpoint_at(line_address).is_some() || temporary_breakpoint_at(line_address)
@@ -600,6 +649,12 @@ fn parse_source_instruction(
     if let Some(operands) = source.strip_prefix(b"jalr ") {
         return parse_jalr_operands(operands);
     }
+    if let Some(operands) = source.strip_prefix(b"fadd.s ") {
+        return parse_fadd_operands("fadd.s", operands);
+    }
+    if let Some(operands) = source.strip_prefix(b"fadd.d ") {
+        return parse_fadd_operands("fadd.d", operands);
+    }
     None
 }
 
@@ -637,6 +692,22 @@ fn parse_jalr_operands(operands: &[u8]) -> Option<u32> {
     luna_isa_core::encode_jalr(rd, rs1, immediate)
 }
 
+fn parse_fadd_operands(mnemonic: &str, operands: &[u8]) -> Option<u32> {
+    let (rd_bytes, rest) = split_once_comma(operands)?;
+    let (rs1_bytes, rest) = split_once_comma(rest)?;
+    let (rs2_bytes, rm_bytes) = split_once_comma(rest).unwrap_or((rest, b""));
+    let rd = parse_float_register(rd_bytes.trim_ascii())?;
+    let rs1 = parse_float_register(rs1_bytes.trim_ascii())?;
+    let rs2 = parse_float_register(rs2_bytes.trim_ascii())?;
+    let rm = if rm_bytes.is_empty() {
+        0
+    } else {
+        let value = parse_decimal(rm_bytes.trim_ascii())?;
+        (value <= 7).then_some(value as u8)?
+    };
+    luna_isa_core::encode_f_r(mnemonic, rd, rs1, rs2, rm)
+}
+
 fn split_once_left_paren(input: &[u8]) -> Option<(&[u8], &[u8])> {
     let separator = input.iter().position(|byte| *byte == b'(')?;
     Some((&input[..separator], &input[separator + 1..]))
@@ -646,6 +717,11 @@ fn split_once_space(input: &[u8]) -> Option<(u64, &[u8])> {
     let separator = input.iter().position(|byte| *byte == b' ')?;
     let address = parse_hex(&input[..separator])?;
     Some((address, input[separator + 1..].trim_ascii()))
+}
+
+fn split_token_space(input: &[u8]) -> Option<(&[u8], &[u8])> {
+    let separator = input.iter().position(|byte| *byte == b' ')?;
+    Some((&input[..separator], input[separator + 1..].trim_ascii()))
 }
 
 fn split_once_address_space(input: &[u8]) -> Option<(u64, u64)> {
@@ -666,6 +742,12 @@ fn split_once_comma(input: &[u8]) -> Option<(&[u8], &[u8])> {
 
 fn parse_register(input: &[u8]) -> Option<u8> {
     let register = input.strip_prefix(b"x")?;
+    let value = parse_decimal(register)?;
+    (value <= 31).then_some(value as u8)
+}
+
+fn parse_float_register(input: &[u8]) -> Option<u8> {
+    let register = input.strip_prefix(b"f")?;
     let value = parse_decimal(register)?;
     (value <= 31).then_some(value as u8)
 }

@@ -21,7 +21,7 @@ assembly_address_full="$(printf '0x%016x' "$((16#$workspace_start_hex + 0x100))"
 
 set +e
 output="$({
-    printf 'help\nregs\nmemory 0x80000000 16\nbreak %s\ninfo break\ncontinue\nregs\ncontinue\ndelete 1\nstep\nregs\nstep\nregs\nassemble-program %s\n_start:\naddi x1,x0,1\nbeq x1,x1,next\naddi x1,x0,99\nnext:\naddi x1,x1,2\nend\nsymbols\ndisasm _start 4\nbreak next\ninfo break\ndelete 1\nstep\nregs\nstep\nregs\nstep\nregs\nquit\n' \
+    printf 'help\nregs\nmemory 0x80000000 16\nbreak %s\ninfo break\ncontinue\nregs\ncontinue\ndelete 1\nstep\nregs\nstep\nregs\nassemble-program %s\n_start:\naddi x1,x0,1\nbeq x1,x1,next\naddi x1,x0,99\nnext:\nfadd.s f3,f1,f2\nfadd.d f6,f4,f5\naddi x1,x1,2\nend\nsymbols\ndisasm _start 6\nsetf f1 0xffffffff3f800000\nsetf f2 0xffffffff40000000\nsetf f4 0x3ff0000000000000\nsetf f5 0x4000000000000000\nbreak next\ninfo break\ndelete 1\nstep\nregs\nstep\nregs\nstep\nregs\nstep\nregs\nstep\nregs\nquit\n' \
         "$breakpoint_address" "$assembly_address"
 } | timeout 5s qemu-system-riscv64 \
     -M virt \
@@ -47,14 +47,20 @@ for expected in \
     '0x0000000080000000:' \
     'x31=0x' \
     'f31=0x' \
-    'source mode: enter addi, beq, bne, jal or jalr lines, finish with end' \
-    "assembled program: 4 instruction(s) at $assembly_address_full" \
+    'source mode: enter integer/control or fadd.s/fadd.d lines, finish with end' \
+    "assembled program: 6 instruction(s) at $assembly_address_full" \
     '_start' \
     'next' \
     'addi x1,x0,1' \
     'beq x1,x1,next' \
     'addi x1,x0,99' \
-    'addi x1,x1,2' \
+    'fadd.s f3,f1,f2' \
+    'fadd.d f6,f4,f5' \
+    'set f1=0xffffffff3f800000' \
+    'set f5=0x4000000000000000' \
+    'f3=0xffffffff40400000' \
+    'f6=0x4008000000000000' \
+    'fcsr=0x0000000000000000' \
     'breakpoint #1 set at' \
     'breakpoint #1 deleted' \
     'x1=0x0000000000000003' \

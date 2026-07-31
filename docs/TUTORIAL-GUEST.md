@@ -16,7 +16,7 @@ terminal                           <-- commandes et diagnostics UART
 Ce binaire invité est actuellement un moniteur de démarrage et de débogage
 minimal. Il fournit déjà l’inspection des registres, la lecture mémoire et
 des commandes `assemble` et `assemble-program` limitées à `addi`, `beq`,
-`bne`, `jal` et `jalr`. Les vues
+`bne`, `jal`, `jalr`, `fadd.s` et `fadd.d`. Les vues
 les directives et les snapshots restent à porter. Le programme U-mode de
 démonstration est lié dans l’image et sert à valider les traps, les
 breakpoints logiciels et le pas-à-pas.
@@ -75,7 +75,7 @@ La commande `help` affiche la grammaire actuellement implémentée :
 
 ```text
 rvmonitor> help
-help/? regs/registers memory <addr> <length> assemble <addr> addi <rd>,<rs1>,<imm> step/s continue/c break <addr> delete <n> info break quit/q
+help/? regs/registers setf <freg> <hex64> memory <addr> <length> assemble <addr> <instruction> assemble-program <addr> ... end symbols disasm <addr|label> <count> step/s continue/c break <addr|label> delete <n> info break quit/q
 ```
 
 ### Lire les registres
@@ -113,7 +113,7 @@ Le premier cycle source → encodage → RAM → pas-à-pas dans le guest est :
 
 ```text
 rvmonitor> assemble 0x80001000 addi x1,x0,1
-assembled addi at 0x0000000080001000 = 0x0000000000100093
+assembled instruction at 0x0000000080001000 = 0x0000000000100093
 rvmonitor> step
 step: temporary breakpoint restored
 trap: breakpoint pc=0x0000000080001004
@@ -132,7 +132,7 @@ Chaque ligne est validée avant toute écriture ; `end` termine la saisie :
 
 ```text
 rvmonitor> assemble-program 0x80010a30
-source mode: enter addi, beq, bne, jal or jalr lines, finish with end
+source mode: enter integer/control or fadd.s/fadd.d lines, finish with end
 source> _start:
 source> addi x1,x0,1
 source> beq x1,x1,next
@@ -160,9 +160,12 @@ rvmonitor> regs
 ... x1=0x0000000000000003 ...
 ```
 
-Le parseur invité accepte `addi`, `beq`, `bne`, `jal` et `jalr`. Les branches
-et `jal` prennent une cible relative numérique ou un label, éventuellement
-suivi de `+offset` ou `-offset`; `jalr` utilise la forme `jalr rd,imm(rs1)`.
+Le parseur invité accepte `addi`, `beq`, `bne`, `jal`, `jalr`, `fadd.s` et
+`fadd.d`. Les branches et `jal` prennent une cible relative numérique ou un
+label, éventuellement suivi de `+offset` ou `-offset`; `jalr` utilise la forme
+`jalr rd,imm(rs1)`. Les instructions flottantes utilisent
+`fadd.[s|d] fd,fs1,fs2` et acceptent éventuellement un mode d’arrondi numérique
+`0..7` en quatrième opérande.
 Le tampon accepte au maximum 16 lignes de 96 caractères et huit labels. Les
 labels ASCII (`a-z`, chiffres, `_`, `.` et `$`) occupent l’adresse courante
 sans produire d’instruction. L’adresse de l’exemple doit correspondre à une
@@ -183,9 +186,33 @@ rvmonitor> regs
 pc=0x000000008000.... x1=0x0000000000000002 ...
 ```
 
-Le pas-à-pas actuel couvre le flux de contrôle nécessaire au programme de
-démonstration. Une instruction de contrôle non reconnue provoque un
+Le pas-à-pas actuel couvre le flux de contrôle et les opérations flottantes
+nécessaires aux démonstrations. Une instruction non reconnue provoque un
 diagnostic et laisse le moniteur en M-mode.
+
+### Exécuter des flottants avec des motifs exacts
+
+`setf` écrit directement les 64 bits sauvegardés d’un registre flottant. Cette
+commande permet de préparer explicitement des opérandes NaN-boxés pour `.s` et
+des motifs binary64 pour `.d` :
+
+```text
+rvmonitor> setf f1 0xffffffff3f800000
+set f1=0xffffffff3f800000
+rvmonitor> setf f2 0xffffffff40000000
+set f2=0xffffffff40000000
+rvmonitor> assemble 0x80001000 fadd.s f3,f1,f2
+assembled instruction at 0x0000000080001000 = 0x00000000002081d3
+rvmonitor> step
+rvmonitor> regs
+... f3=0xffffffff40400000 ... fcsr=0x0000000000000000 ...
+```
+
+Pour `.d`, écrire par exemple `0x3ff0000000000000` et
+`0x4000000000000000` dans `f4` et `f5`; le résultat `f6` de
+`fadd.d f6,f4,f5` est `0x4008000000000000`. L’affichage reste le motif brut,
+indépendant du format décimal de l’hôte. Un résultat `.s` est NaN-boxé avec
+les 32 bits hauts à `0xffffffff`.
 
 ### Continuer l’exécution
 
@@ -271,8 +298,8 @@ Le script :
 3. démarre QEMU avec `-bios none`, `-kernel` et `-nographic` ;
 4. envoie `help`, `regs`, `memory`, `break`, `info break`, `continue`,
    `step`, `delete` et `assemble-program` sur l’UART ;
-5. vérifie les modifications de `x1`, l’encodage `addi` et les diagnostics de
-   trap.
+5. vérifie les modifications de `x1`, les motifs exacts de `f3`/`f6`,
+   `fcsr`, les encodages flottants et les diagnostics de trap.
 
 Pour observer la même session manuellement, démarrer QEMU dans un terminal,
 puis saisir les commandes une par une dans son terminal UART.
@@ -288,10 +315,10 @@ restore
 ```
 
 Le cycle d’une ligne et le source buffer multi-ligne existent désormais pour
-`addi`, les branches et les sauts avec résolution de labels, ainsi que le
-désassemblage des mots 32 bits. Les expressions générales et directives
-restent à venir, en conservant le moniteur M-mode et le programme cible U-mode
-séparés.
+`addi`, les branches, les sauts et `fadd.s`/`fadd.d` avec résolution de labels,
+ainsi que le désassemblage des mots 32 bits. Les expressions générales et
+directives restent à venir, en conservant le moniteur M-mode et le programme
+cible U-mode séparés.
 
 ## 6. Différence avec les deux autres parcours
 

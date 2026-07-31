@@ -14,8 +14,9 @@ hôte connectée à QEMU par GDB RSP.
 
 The current slice includes the isolated RV64 simulator, the backend-neutral
 console, generic breakpoints/watchpoints/history, and a live GDB RSP path to
-QEMU. The `addi` encoding is derived at build time from the pinned R2 extract
-in `norms/r2/rv_i`; it is not maintained as a hand-edited opcode table.
+QEMU. The integer, branch, jump, and `fadd.s`/`fadd.d` encodings are derived
+at build time from the pinned R2 extracts; they are not maintained as
+hand-edited opcode tables.
 
 The implementation is intentionally not yet the complete monitor. Native
 QEMU watchpoints, full target-state snapshots, richer terminal UI, and broader

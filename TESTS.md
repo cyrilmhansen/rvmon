@@ -41,7 +41,7 @@ Moniteur texte interactif :
 | luna-memory | 2 | Little-endian, transactions atomiques et rollback après erreur. |
 | luna-asm-lexer | 2 | Labels, ponctuation, commentaires, chaînes et positions d’erreur. |
 | luna-assembler | 16 | AST, alias ABI, expressions, symboles, directives, alignement, fadd.s et fadd.d. |
-| luna-isa-core | 3 | Encodeurs `addi`, branches et sauts sans allocation, depuis les tables R2 partagées avec le guest. |
+| luna-isa-core | 3 | Encodeurs `addi`, branches, sauts et `fadd.s`/`fadd.d` sans allocation, depuis les tables R2 partagées avec le guest. |
 | luna-isa | 6 | Tables générées depuis R2, encodage/décodage entier et flottant via `luna-isa-core`. |
 | luna-machine | 12 | Exécution entière, branches, mémoire, tables de pointeurs ILP32, fadd.s, fadd.d, NaN-boxing, flags, contrat backend et snapshot cible. |
 | luna-disassembler | 7 | Format canonique, symboles, opcodes illégaux, C rejeté et round-trip. |
@@ -49,7 +49,7 @@ Moniteur texte interactif :
 | luna-monitor | 19 | assemble → step → regs, affichage flottant, run borné, vues mémoire hex/ASCII, édition/undo, console backend-générique, marques QuickJump, breakpoints, watchpoints, symboles, pile, historique et persistance. |
 | luna-target-api | 4 | Contexte de trap, capacités explicites RV64 bare-metal, codes `mcause`, contrat de layout, résultats et accès mémoire du backend commun. |
 | luna-qemu-backend | 7 | Framing GDB RSP, checksum, lecture mémoire, layouts RV64 entier et F/D, stop reply, initialisation `?`, pas et budget nul. |
-| luna-guest-monitor | 0 | Image bare-metal, boot QEMU, PMP, transition M→U, contexte complet, lecture mémoire, assemblage invité `addi`/branches/sauts, trap `ebreak` et boucle UART; vérifié par smoke test QEMU. |
+| luna-guest-monitor | 0 | Image bare-metal, boot QEMU, PMP, transition M→U, contexte complet, lecture mémoire, assemblage invité entier/flottant, `setf`, NaN-boxing, trap `ebreak` et boucle UART; vérifié par smoke test QEMU. |
 | luna-app | 0 | Compilation du binaire et démonstration ; pas encore d’E2E terminal. |
 | luna-diag | 0 | Types utilisés par les autres crates ; pas de test dédié. |
 
@@ -193,8 +193,9 @@ le PC de reset. Les symboles multi-lignes et snapshots restent dans le profil
 `Monitor` historique jusqu’à leur migration explicite vers le contrat backend.
 
 Le crate `luna-isa-core` est `no_std` et produit les artefacts d’opcodes à
-partir des mêmes sources R2 que `luna-isa`; il expose l’encodeur `addi` sans
-allocation pour le guest. Le crate `luna-guest-monitor` est une première
+partir des mêmes sources R2 que `luna-isa`; il expose les encodeurs entiers,
+de contrôle et `fadd.s`/`fadd.d` sans allocation pour le guest. Le crate
+`luna-guest-monitor` est une première
 tranche d’intégration hors
 `cargo test` : il est compilé pour `riscv64gc-unknown-none-elf`, mais les
 options Cargo désactivent `c` et `zca` afin de respecter le profil V1 C=off.
@@ -216,10 +217,11 @@ pose un breakpoint permanent sur le `beq`, vérifie `info break`, exécute
 franchir l’instruction originale et vérifier le réarmement. Il supprime ensuite
 le breakpoint et reprend deux pas temporaires. La séquence vérifie la
 restauration des mots, les instructions séquentielles, `beq`/`bne`, `jal` et
-`jalr` du profil actuellement émis. Il assemble enfin quatre lignes, dont une
-branche avec labels et une instruction ignorée, dans la fenêtre de travail
-réservée, vérifie `symbols` et `disasm`, pose un breakpoint par label, exécute
-trois pas et vérifie `x1=3` ainsi que l’encodage partagé.
+`jalr` du profil actuellement émis. Il assemble enfin six lignes, dont une
+branche avec labels, une instruction ignorée et `fadd.s`/`fadd.d`, dans la
+fenêtre de travail réservée. Il vérifie `symbols`, `disasm`, `setf`, les motifs
+NaN-boxés et binary64, pose un breakpoint par label, exécute cinq pas et
+vérifie `x1=3`, `f3`, `f6` et `fcsr`.
 
 Le backend QEMU limite volontairement la table à quatre breakpoints permanents
 numérotés de 1 à 4. Une adresse doit être un mot aligné de la fenêtre RAM cible.
