@@ -248,23 +248,75 @@ impl Machine {
                     ));
                 }
                 let (result, flags) = match instruction.kind {
-                    FloatConversionKind::SFromD => convert_binary(
-                        self.f[instruction.rs1 as usize],
-                        FORMAT_D,
-                        FORMAT_S,
-                        rounding_mode,
-                    ),
+                    FloatConversionKind::SFromD => {
+                        let (result, flags) = convert_binary(
+                            self.f[instruction.rs1 as usize],
+                            FORMAT_D,
+                            FORMAT_S,
+                            rounding_mode,
+                        );
+                        (0xffff_ffff_0000_0000 | (result & 0xffff_ffff), flags)
+                    }
                     FloatConversionKind::DFromS => convert_binary(
                         boxed_f32(self.f[instruction.rs1 as usize]) as u64,
                         FORMAT_S,
                         FORMAT_D,
                         rounding_mode,
                     ),
+                    FloatConversionKind::WFromS | FloatConversionKind::WuFromS => {
+                        convert_binary_to_integer(
+                            boxed_f32(self.f[instruction.rs1 as usize]) as u64,
+                            FORMAT_S,
+                            matches!(instruction.kind, FloatConversionKind::WFromS),
+                            rounding_mode,
+                        )
+                    }
+                    FloatConversionKind::WFromD | FloatConversionKind::WuFromD => {
+                        convert_binary_to_integer(
+                            self.f[instruction.rs1 as usize],
+                            FORMAT_D,
+                            matches!(instruction.kind, FloatConversionKind::WFromD),
+                            rounding_mode,
+                        )
+                    }
+                    FloatConversionKind::SFromW | FloatConversionKind::SFromWu => {
+                        let value = self.x[instruction.rs1 as usize];
+                        let (negative, magnitude) =
+                            if matches!(instruction.kind, FloatConversionKind::SFromW) {
+                                let signed = value as i32;
+                                (signed < 0, signed.unsigned_abs() as u64)
+                            } else {
+                                (false, value as u32 as u64)
+                            };
+                        let (result, flags) =
+                            convert_integer_to_binary(negative, magnitude, FORMAT_S, rounding_mode);
+                        (0xffff_ffff_0000_0000 | (result & 0xffff_ffff), flags)
+                    }
+                    FloatConversionKind::DFromW | FloatConversionKind::DFromWu => {
+                        let value = self.x[instruction.rs1 as usize];
+                        let (negative, magnitude) =
+                            if matches!(instruction.kind, FloatConversionKind::DFromW) {
+                                let signed = value as i32;
+                                (signed < 0, signed.unsigned_abs() as u64)
+                            } else {
+                                (false, value as u32 as u64)
+                            };
+                        convert_integer_to_binary(negative, magnitude, FORMAT_D, rounding_mode)
+                    }
                 };
-                self.f[instruction.rd as usize] = match instruction.kind {
-                    FloatConversionKind::SFromD => 0xffff_ffff_0000_0000 | (result & 0xffff_ffff),
-                    FloatConversionKind::DFromS => result,
-                };
+                if matches!(
+                    instruction.kind,
+                    FloatConversionKind::SFromD
+                        | FloatConversionKind::DFromS
+                        | FloatConversionKind::SFromW
+                        | FloatConversionKind::SFromWu
+                        | FloatConversionKind::DFromW
+                        | FloatConversionKind::DFromWu
+                ) {
+                    self.f[instruction.rd as usize] = result;
+                } else if instruction.rd != 0 {
+                    self.x[instruction.rd as usize] = result;
+                }
                 self.fcsr |= flags;
             }
             Instruction::Illegal(_) => {
@@ -723,6 +775,92 @@ fn convert_binary(
         destination,
         rounding_mode,
     )
+}
+
+fn convert_integer_to_binary(
+    negative: bool,
+    magnitude: u64,
+    destination: BinaryFormat,
+    rounding_mode: u8,
+) -> (u64, u32) {
+    round_binary(
+        BigUint::from_u64(magnitude),
+        0,
+        negative && magnitude != 0,
+        destination,
+        rounding_mode,
+    )
+}
+
+fn convert_binary_to_integer(
+    value: u64,
+    source: BinaryFormat,
+    signed: bool,
+    rounding_mode: u8,
+) -> (u64, u32) {
+    let negative = value & source.sign_mask != 0;
+    if is_nan_binary(value, source) || is_infinite_binary(value, source) {
+        return (invalid_word_result(signed, negative), FFLAG_NV);
+    }
+    let (significand, exponent) = finite_components(value, source);
+    let (magnitude, inexact) = if exponent >= 0 {
+        let mut magnitude = BigUint::from_u64(significand);
+        magnitude.shl_bits(exponent as usize);
+        (magnitude, false)
+    } else {
+        let (rounded, inexact) = round_big(
+            &BigUint::from_u64(significand),
+            (-exponent) as usize,
+            negative,
+            rounding_mode,
+        );
+        (BigUint::from_u64(rounded), inexact)
+    };
+
+    let max_positive = BigUint::from_u64(0x7fff_ffff);
+    let min_magnitude = BigUint::from_u64(0x8000_0000);
+    let max_unsigned = BigUint::from_u64(0xffff_ffff);
+    let invalid = if signed {
+        if negative {
+            magnitude.cmp(&min_magnitude) == std::cmp::Ordering::Greater
+        } else {
+            magnitude.cmp(&max_positive) == std::cmp::Ordering::Greater
+        }
+    } else {
+        negative && !magnitude.is_zero()
+            || magnitude.cmp(&max_unsigned) == std::cmp::Ordering::Greater
+    };
+    if invalid {
+        return (invalid_word_result(signed, negative), FFLAG_NV);
+    }
+
+    let result = if signed {
+        let raw = if negative {
+            0u32.wrapping_sub(magnitude.low_u64() as u32)
+        } else {
+            magnitude.low_u64() as u32
+        };
+        sign_extend_32(raw)
+    } else {
+        sign_extend_32(magnitude.low_u64() as u32)
+    };
+    (result, if inexact { FFLAG_NX } else { 0 })
+}
+
+fn invalid_word_result(signed: bool, negative: bool) -> u64 {
+    if signed && negative {
+        sign_extend_32(0x8000_0000)
+    } else if signed {
+        sign_extend_32(0x7fff_ffff)
+    } else if negative {
+        0
+    } else {
+        sign_extend_32(0xffff_ffff)
+    }
+}
+
+fn sign_extend_32(value: u32) -> u64 {
+    (value as i32 as i64) as u64
 }
 
 fn add_binary(left: u64, right: u64, format: BinaryFormat, rounding_mode: u8) -> (u64, u32) {
@@ -1382,6 +1520,7 @@ mod tests {
         machine.f[1] = match kind {
             luna_isa::FloatConversionKind::SFromD => value,
             luna_isa::FloatConversionKind::DFromS => 0xffff_ffff_0000_0000 | (value & 0xffff_ffff),
+            _ => panic!("format conversion helper received integer conversion"),
         };
         machine.fcsr = u32::from(frm) << 5;
         let word = luna_isa::encode_f_convert(luna_isa::FloatConversion {
@@ -1394,6 +1533,91 @@ mod tests {
         machine.load(0, &word.to_le_bytes()).unwrap();
         machine.step().unwrap();
         (machine.f[3], machine.fflags())
+    }
+
+    fn execute_integer_conversion(
+        kind: luna_isa::FloatConversionKind,
+        value: u64,
+        rounding_mode: u8,
+    ) -> (u64, u64, u8) {
+        let mut machine = Machine::new(64);
+        match kind {
+            luna_isa::FloatConversionKind::WFromS | luna_isa::FloatConversionKind::WuFromS => {
+                machine.f[1] = 0xffff_ffff_0000_0000 | (value & 0xffff_ffff);
+            }
+            luna_isa::FloatConversionKind::WFromD | luna_isa::FloatConversionKind::WuFromD => {
+                machine.f[1] = value
+            }
+            luna_isa::FloatConversionKind::SFromW
+            | luna_isa::FloatConversionKind::SFromWu
+            | luna_isa::FloatConversionKind::DFromW
+            | luna_isa::FloatConversionKind::DFromWu => machine.x[1] = value,
+            _ => panic!("integer conversion helper received format conversion"),
+        }
+        let word = luna_isa::encode_f_convert(luna_isa::FloatConversion {
+            kind,
+            rd: 3,
+            rs1: 1,
+            rm: rounding_mode,
+        })
+        .unwrap();
+        machine.load(0, &word.to_le_bytes()).unwrap();
+        machine.step().unwrap();
+        (machine.x[3], machine.f[3], machine.fflags())
+    }
+
+    #[test]
+    fn executes_w_integer_float_conversions_with_rounding_and_bounds() {
+        let (integer, _, flags) = execute_integer_conversion(
+            luna_isa::FloatConversionKind::WFromS,
+            1.75f32.to_bits() as u64,
+            ROUND_RNE,
+        );
+        assert_eq!(integer, 2);
+        assert_eq!(flags, FFLAG_NX as u8);
+
+        let (integer, _, flags) = execute_integer_conversion(
+            luna_isa::FloatConversionKind::WFromS,
+            (-1.75f32).to_bits() as u64,
+            ROUND_RDN,
+        );
+        assert_eq!(integer, u64::MAX - 1);
+        assert_eq!(flags, FFLAG_NX as u8);
+
+        let (integer, _, flags) = execute_integer_conversion(
+            luna_isa::FloatConversionKind::WFromD,
+            f64::INFINITY.to_bits(),
+            ROUND_RNE,
+        );
+        assert_eq!(integer, 0x0000_0000_7fff_ffff);
+        assert_eq!(flags, FFLAG_NV as u8);
+    }
+
+    #[test]
+    fn executes_unsigned_w_and_integer_to_float_conversions() {
+        let (integer, _, flags) = execute_integer_conversion(
+            luna_isa::FloatConversionKind::WuFromS,
+            (-1.0f32).to_bits() as u64,
+            ROUND_RNE,
+        );
+        assert_eq!(integer, 0);
+        assert_eq!(flags, FFLAG_NV as u8);
+
+        let (_, float, flags) = execute_integer_conversion(
+            luna_isa::FloatConversionKind::SFromWu,
+            0xffff_ffff,
+            ROUND_RNE,
+        );
+        assert_eq!(float, 0xffff_ffff_4f80_0000);
+        assert_eq!(flags, FFLAG_NX as u8);
+
+        let (_, float, flags) = execute_integer_conversion(
+            luna_isa::FloatConversionKind::DFromW,
+            0x0000_0000_8000_0000,
+            ROUND_RNE,
+        );
+        assert_eq!(float, (-2147483648i64 as f64).to_bits());
+        assert_eq!(flags, 0);
     }
 
     #[test]

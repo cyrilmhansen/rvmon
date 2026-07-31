@@ -6,6 +6,7 @@ fn run(kind: FloatConversionKind, value: u64, rounding_mode: u8) -> (u64, u64) {
     machine.f[1] = match kind {
         FloatConversionKind::SFromD => value,
         FloatConversionKind::DFromS => 0xffff_ffff_0000_0000 | (value & 0xffff_ffff),
+        _ => panic!("format conversion probe received integer conversion"),
     };
     let word = encode_f_convert(FloatConversion {
         kind,
@@ -21,6 +22,7 @@ fn run(kind: FloatConversionKind, value: u64, rounding_mode: u8) -> (u64, u64) {
     let result = match kind {
         FloatConversionKind::SFromD => machine.f[2] & 0xffff_ffff,
         FloatConversionKind::DFromS => machine.f[2],
+        _ => panic!("format conversion probe received integer conversion"),
     };
     (result, u64::from(machine.fflags()))
 }

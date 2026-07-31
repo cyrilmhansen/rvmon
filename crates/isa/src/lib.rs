@@ -73,6 +73,14 @@ pub struct FRegisterRType {
 pub enum FloatConversionKind {
     SFromD,
     DFromS,
+    WFromS,
+    WuFromS,
+    SFromW,
+    SFromWu,
+    WFromD,
+    WuFromD,
+    DFromW,
+    DFromWu,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -172,6 +180,14 @@ pub fn encode_f_convert(instruction: FloatConversion) -> Result<u32> {
     let mnemonic = match instruction.kind {
         FloatConversionKind::SFromD => "fcvt.s.d",
         FloatConversionKind::DFromS => "fcvt.d.s",
+        FloatConversionKind::WFromS => "fcvt.w.s",
+        FloatConversionKind::WuFromS => "fcvt.wu.s",
+        FloatConversionKind::SFromW => "fcvt.s.w",
+        FloatConversionKind::SFromWu => "fcvt.s.wu",
+        FloatConversionKind::WFromD => "fcvt.w.d",
+        FloatConversionKind::WuFromD => "fcvt.wu.d",
+        FloatConversionKind::DFromW => "fcvt.d.w",
+        FloatConversionKind::DFromWu => "fcvt.d.wu",
     };
     let opcode = generated_opcode(mnemonic)?;
     Ok(opcode.match_value
@@ -446,6 +462,14 @@ pub fn decode(word: u32) -> Instruction {
         for (mnemonic, kind) in [
             ("fcvt.s.d", FloatConversionKind::SFromD),
             ("fcvt.d.s", FloatConversionKind::DFromS),
+            ("fcvt.w.s", FloatConversionKind::WFromS),
+            ("fcvt.wu.s", FloatConversionKind::WuFromS),
+            ("fcvt.s.w", FloatConversionKind::SFromW),
+            ("fcvt.s.wu", FloatConversionKind::SFromWu),
+            ("fcvt.w.d", FloatConversionKind::WFromD),
+            ("fcvt.wu.d", FloatConversionKind::WuFromD),
+            ("fcvt.d.w", FloatConversionKind::DFromW),
+            ("fcvt.d.wu", FloatConversionKind::DFromWu),
         ] {
             if let Ok(opcode) = generated_opcode(mnemonic) {
                 if word & opcode.mask == opcode.match_value {
@@ -574,6 +598,14 @@ mod tests {
         for (mnemonic, kind) in [
             ("fcvt.s.d", FloatConversionKind::SFromD),
             ("fcvt.d.s", FloatConversionKind::DFromS),
+            ("fcvt.w.s", FloatConversionKind::WFromS),
+            ("fcvt.wu.s", FloatConversionKind::WuFromS),
+            ("fcvt.s.w", FloatConversionKind::SFromW),
+            ("fcvt.s.wu", FloatConversionKind::SFromWu),
+            ("fcvt.w.d", FloatConversionKind::WFromD),
+            ("fcvt.wu.d", FloatConversionKind::WuFromD),
+            ("fcvt.d.w", FloatConversionKind::DFromW),
+            ("fcvt.d.wu", FloatConversionKind::DFromWu),
         ] {
             let instruction = FloatConversion {
                 kind,

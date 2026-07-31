@@ -498,6 +498,54 @@ fn format_instruction(
             rs1,
             rm: _,
         }) => format!("fcvt.d.s f{rd},f{rs1}"),
+        Instruction::FloatConversion(FloatConversion {
+            kind: FloatConversionKind::WFromS,
+            rd,
+            rs1,
+            rm: _,
+        }) => format!("fcvt.w.s x{rd},f{rs1}"),
+        Instruction::FloatConversion(FloatConversion {
+            kind: FloatConversionKind::WuFromS,
+            rd,
+            rs1,
+            rm: _,
+        }) => format!("fcvt.wu.s x{rd},f{rs1}"),
+        Instruction::FloatConversion(FloatConversion {
+            kind: FloatConversionKind::SFromW,
+            rd,
+            rs1,
+            rm: _,
+        }) => format!("fcvt.s.w f{rd},x{rs1}"),
+        Instruction::FloatConversion(FloatConversion {
+            kind: FloatConversionKind::SFromWu,
+            rd,
+            rs1,
+            rm: _,
+        }) => format!("fcvt.s.wu f{rd},x{rs1}"),
+        Instruction::FloatConversion(FloatConversion {
+            kind: FloatConversionKind::WFromD,
+            rd,
+            rs1,
+            rm: _,
+        }) => format!("fcvt.w.d x{rd},f{rs1}"),
+        Instruction::FloatConversion(FloatConversion {
+            kind: FloatConversionKind::WuFromD,
+            rd,
+            rs1,
+            rm: _,
+        }) => format!("fcvt.wu.d x{rd},f{rs1}"),
+        Instruction::FloatConversion(FloatConversion {
+            kind: FloatConversionKind::DFromW,
+            rd,
+            rs1,
+            rm: _,
+        }) => format!("fcvt.d.w f{rd},x{rs1}"),
+        Instruction::FloatConversion(FloatConversion {
+            kind: FloatConversionKind::DFromWu,
+            rd,
+            rs1,
+            rm: _,
+        }) => format!("fcvt.d.wu f{rd},x{rs1}"),
         Instruction::Illegal(word) => format!(".word 0x{word:08x}"),
     }
 }
@@ -659,6 +707,14 @@ mod tests {
             "fadd.d f3,f1,f2",
             "fcvt.s.d f3,f1",
             "fcvt.d.s f3,f1",
+            "fcvt.w.s x3,f1",
+            "fcvt.wu.s x3,f1",
+            "fcvt.s.w f3,x1",
+            "fcvt.s.wu f3,x1",
+            "fcvt.w.d x3,f1",
+            "fcvt.wu.d x3,f1",
+            "fcvt.d.w f3,x1",
+            "fcvt.d.wu f3,x1",
         ] {
             let original = luna_assembler::assemble(source).unwrap().text;
             let line = disassemble_bytes(&original, 0, &BTreeMap::new())

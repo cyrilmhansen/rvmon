@@ -380,6 +380,46 @@ fn assemble_parsed(parsed: &ParsedLine, pc: u64, symbols: &SymbolValues) -> Resu
             rs1: floating_register(operand_text(&parts[1])?)?,
             rm: 7,
         })?,
+        "fcvt.w.s" | "fcvt.wu.s" if parts.len() == 2 => encode_f_convert(FloatConversion {
+            kind: if mnemonic == "fcvt.w.s" {
+                FloatConversionKind::WFromS
+            } else {
+                FloatConversionKind::WuFromS
+            },
+            rd: register(operand_text(&parts[0])?)?,
+            rs1: floating_register(operand_text(&parts[1])?)?,
+            rm: 7,
+        })?,
+        "fcvt.s.w" | "fcvt.s.wu" if parts.len() == 2 => encode_f_convert(FloatConversion {
+            kind: if mnemonic == "fcvt.s.w" {
+                FloatConversionKind::SFromW
+            } else {
+                FloatConversionKind::SFromWu
+            },
+            rd: floating_register(operand_text(&parts[0])?)?,
+            rs1: register(operand_text(&parts[1])?)?,
+            rm: 7,
+        })?,
+        "fcvt.w.d" | "fcvt.wu.d" if parts.len() == 2 => encode_f_convert(FloatConversion {
+            kind: if mnemonic == "fcvt.w.d" {
+                FloatConversionKind::WFromD
+            } else {
+                FloatConversionKind::WuFromD
+            },
+            rd: register(operand_text(&parts[0])?)?,
+            rs1: floating_register(operand_text(&parts[1])?)?,
+            rm: 7,
+        })?,
+        "fcvt.d.w" | "fcvt.d.wu" if parts.len() == 2 => encode_f_convert(FloatConversion {
+            kind: if mnemonic == "fcvt.d.w" {
+                FloatConversionKind::DFromW
+            } else {
+                FloatConversionKind::DFromWu
+            },
+            rd: floating_register(operand_text(&parts[0])?)?,
+            rs1: register(operand_text(&parts[1])?)?,
+            rm: 7,
+        })?,
         "" => {
             return Err(Diagnostic::error("ASM-OPERAND-001", "missing instruction"));
         }
@@ -1927,6 +1967,24 @@ mod tests {
             assemble("fcvt.d.s f3,f1").unwrap().text,
             [0xd3, 0xf1, 0x00, 0x42]
         );
+    }
+
+    #[test]
+    fn assembles_integer_float_conversions_with_register_class_validation() {
+        for source in [
+            "fcvt.w.s x3,f1",
+            "fcvt.wu.s x3,f1",
+            "fcvt.s.w f3,x1",
+            "fcvt.s.wu f3,x1",
+            "fcvt.w.d x3,f1",
+            "fcvt.wu.d x3,f1",
+            "fcvt.d.w f3,x1",
+            "fcvt.d.wu f3,x1",
+        ] {
+            assert_eq!(assemble(source).unwrap().text.len(), 4, "{source}");
+        }
+        assert!(assemble("fcvt.w.s f3,f1").is_err());
+        assert!(assemble("fcvt.s.w x3,x1").is_err());
     }
 
     #[test]
