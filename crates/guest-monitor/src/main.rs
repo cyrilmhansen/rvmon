@@ -142,7 +142,7 @@ fn monitor_loop(context: *mut TargetContext) -> ! {
 
 fn print_help() {
     uart_write(
-        "help/? regs/registers memory <addr> <length> assemble <addr> addi <rd>,<rs1>,<imm> assemble-program <addr> ... end symbols disasm <addr|label> <count> step/s continue/c break <addr|label> delete <n> info break quit/q\r\n",
+        "help/? regs/registers memory <addr> <length> assemble <addr> <instruction> assemble-program <addr> ... end symbols disasm <addr|label> <count> step/s continue/c break <addr|label> delete <n> info break quit/q\r\n",
     );
 }
 
@@ -302,12 +302,12 @@ fn print_disassembly(argument: &[u8]) {
             uart_write(">");
         }
         uart_write("  ");
-        print_disassembled_word(word);
+        print_disassembled_word(instruction_address, word);
         uart_write("\r\n");
     }
 }
 
-fn print_disassembled_word(word: u32) {
+fn print_disassembled_word(address: u64, word: u32) {
     if word == EBREAK_WORD {
         uart_write("ebreak");
         return;
@@ -322,6 +322,66 @@ fn print_disassembled_word(word: u32) {
         uart_decimal(u64::from(rs1));
         uart_write(",");
         uart_signed_decimal(immediate);
+        return;
+    }
+    if word & 0x7f == 0x63 {
+        let mnemonic = match (word >> 12) & 0x7 {
+            0b000 => "beq",
+            0b001 => "bne",
+            _ => "",
+        };
+        if !mnemonic.is_empty() {
+            let rs1 = ((word >> 15) & 31) as u8;
+            let rs2 = ((word >> 20) & 31) as u8;
+            let immediate = (((word >> 31) & 1) << 12)
+                | (((word >> 25) & 0x3f) << 5)
+                | (((word >> 8) & 0xf) << 1)
+                | (((word >> 7) & 1) << 11);
+            let immediate = ((immediate as i32) << 19 >> 19) as i16;
+            uart_write(mnemonic);
+            uart_write(" x");
+            uart_decimal(u64::from(rs1));
+            uart_write(",x");
+            uart_decimal(u64::from(rs2));
+            uart_write(",");
+            let target = address.wrapping_add_signed(i64::from(immediate));
+            if let Some(symbol) = symbol_at(target) {
+                uart_bytes(&symbol.name[..symbol.length]);
+            } else {
+                uart_signed_decimal(immediate);
+            }
+            return;
+        }
+    }
+    if word & 0x7f == 0x6f {
+        let rd = ((word >> 7) & 31) as u8;
+        let immediate = (((word >> 31) & 1) << 20)
+            | (((word >> 21) & 0x3ff) << 1)
+            | (((word >> 20) & 1) << 11)
+            | (((word >> 12) & 0xff) << 12);
+        let immediate = ((immediate as i32) << 11 >> 11) as i32;
+        uart_write("jal x");
+        uart_decimal(u64::from(rd));
+        uart_write(",");
+        let target = address.wrapping_add_signed(i64::from(immediate));
+        if let Some(symbol) = symbol_at(target) {
+            uart_bytes(&symbol.name[..symbol.length]);
+        } else {
+            uart_signed_decimal(i16::try_from(immediate).unwrap_or(0));
+        }
+        return;
+    }
+    if word & 0x7f == 0x67 && (word >> 12) & 0x7 == 0 {
+        let rd = ((word >> 7) & 31) as u8;
+        let rs1 = ((word >> 15) & 31) as u8;
+        let immediate = (word as i32 >> 20) as i16;
+        uart_write("jalr x");
+        uart_decimal(u64::from(rd));
+        uart_write(",");
+        uart_signed_decimal(immediate);
+        uart_write("(x");
+        uart_decimal(u64::from(rs1));
+        uart_write(")");
         return;
     }
     for opcode in GENERATED_OPCODES {
@@ -349,7 +409,7 @@ fn symbol_at(address: u64) -> Option<GuestSymbol> {
 
 fn assemble_command(context: *mut TargetContext, argument: &[u8]) {
     let Some((address, source)) = split_once_space(argument) else {
-        uart_write("error: assemble expects <address> addi <rd>,<rs1>,<imm>\r\n");
+        uart_write("error: assemble expects <address> <instruction>\r\n");
         return;
     };
     if !valid_target_program_word_address(address) {
@@ -361,8 +421,8 @@ fn assemble_command(context: *mut TargetContext, argument: &[u8]) {
         return;
     }
     let empty_symbols = [GuestSymbol::empty(); MAX_SYMBOLS];
-    let Some(word) = parse_addi_source(source, &empty_symbols) else {
-        uart_write("error: expected addi <rd>,<rs1>,<imm> with valid operands\r\n");
+    let Some(word) = parse_source_instruction(source, address, &empty_symbols) else {
+        uart_write("error: expected addi, beq, bne, jal or jalr with valid operands\r\n");
         return;
     };
     if !target_store32(address, word) {
@@ -375,7 +435,7 @@ fn assemble_command(context: *mut TargetContext, argument: &[u8]) {
     context.mepc = address;
     context.mcause = StopReason::Breakpoint as u64;
     context.mtval = 0;
-    uart_write("assembled addi at 0x");
+    uart_write("assembled instruction at 0x");
     uart_hex(address);
     uart_write(" = 0x");
     uart_hex(u64::from(word));
@@ -392,7 +452,7 @@ fn assemble_program_command(context: *mut TargetContext, argument: &[u8]) {
         return;
     }
 
-    uart_write("source mode: enter addi lines, finish with end\r\n");
+    uart_write("source mode: enter addi, beq, bne, jal or jalr lines, finish with end\r\n");
     let mut lines = [[0u8; COMMAND_CAPACITY]; MAX_SOURCE_LINES];
     let mut lengths = [0usize; MAX_SOURCE_LINES];
     let mut count = 0usize;
@@ -474,15 +534,15 @@ fn assemble_program_command(context: *mut TargetContext, argument: &[u8]) {
         if line.ends_with(b":") {
             continue;
         }
-        let Some(word) = parse_addi_source(line, &staged_symbols) else {
-            uart_write("error: source line supports only valid addi syntax\r\n");
-            return;
-        };
         let line_address = address + (word_count as u64) * 4;
         if !valid_target_program_word_address(line_address) {
             uart_write("error: source program exceeds target workspace\r\n");
             return;
         }
+        let Some(word) = parse_source_instruction(line, line_address, &staged_symbols) else {
+            uart_write("error: source line supports addi, beq, bne, jal or jalr syntax\r\n");
+            return;
+        };
         if permanent_breakpoint_at(line_address).is_some() || temporary_breakpoint_at(line_address)
         {
             uart_write("error: source overlaps an active breakpoint\r\n");
@@ -517,14 +577,69 @@ fn assemble_program_command(context: *mut TargetContext, argument: &[u8]) {
     uart_write("\r\n");
 }
 
-fn parse_addi_source(source: &[u8], symbols: &[GuestSymbol; MAX_SYMBOLS]) -> Option<u32> {
-    let operands = source.strip_prefix(b"addi ")?;
+fn parse_source_instruction(
+    source: &[u8],
+    address: u64,
+    symbols: &[GuestSymbol; MAX_SYMBOLS],
+) -> Option<u32> {
+    if let Some(operands) = source.strip_prefix(b"addi ") {
+        return parse_addi_operands(operands, symbols);
+    }
+    if let Some(operands) = source.strip_prefix(b"beq ") {
+        return parse_branch_operands("beq", operands, address, symbols);
+    }
+    if let Some(operands) = source.strip_prefix(b"bne ") {
+        return parse_branch_operands("bne", operands, address, symbols);
+    }
+    if let Some(operands) = source.strip_prefix(b"jal ") {
+        let (rd_bytes, target_bytes) = split_once_comma(operands)?;
+        let rd = parse_register(rd_bytes.trim_ascii())?;
+        let immediate = parse_relative_target(target_bytes.trim_ascii(), address, symbols)?;
+        return luna_isa_core::encode_jal(rd, immediate);
+    }
+    if let Some(operands) = source.strip_prefix(b"jalr ") {
+        return parse_jalr_operands(operands);
+    }
+    None
+}
+
+fn parse_addi_operands(operands: &[u8], symbols: &[GuestSymbol; MAX_SYMBOLS]) -> Option<u32> {
     let (rd_bytes, rest) = split_once_comma(operands)?;
     let (rs1_bytes, imm_bytes) = split_once_comma(rest)?;
     let rd = parse_register(rd_bytes.trim_ascii())?;
     let rs1 = parse_register(rs1_bytes.trim_ascii())?;
     let imm = parse_signed_decimal_or_symbol(imm_bytes.trim_ascii(), symbols)?;
     luna_isa_core::encode_addi(rd, rs1, imm)
+}
+
+fn parse_branch_operands(
+    mnemonic: &str,
+    operands: &[u8],
+    address: u64,
+    symbols: &[GuestSymbol; MAX_SYMBOLS],
+) -> Option<u32> {
+    let (rs1_bytes, rest) = split_once_comma(operands)?;
+    let (rs2_bytes, target_bytes) = split_once_comma(rest)?;
+    let rs1 = parse_register(rs1_bytes.trim_ascii())?;
+    let rs2 = parse_register(rs2_bytes.trim_ascii())?;
+    let immediate = parse_relative_target(target_bytes.trim_ascii(), address, symbols)?;
+    luna_isa_core::encode_branch(mnemonic, rs1, rs2, i16::try_from(immediate).ok()?)
+}
+
+fn parse_jalr_operands(operands: &[u8]) -> Option<u32> {
+    let (rd_bytes, rest) = split_once_comma(operands)?;
+    let rd = parse_register(rd_bytes.trim_ascii())?;
+    let rest = rest.trim_ascii();
+    let rest = rest.strip_suffix(b")")?;
+    let (imm_bytes, rs1_bytes) = split_once_left_paren(rest)?;
+    let immediate = parse_signed_decimal(imm_bytes.trim_ascii())?;
+    let rs1 = parse_register(rs1_bytes.trim_ascii())?;
+    luna_isa_core::encode_jalr(rd, rs1, immediate)
+}
+
+fn split_once_left_paren(input: &[u8]) -> Option<(&[u8], &[u8])> {
+    let separator = input.iter().position(|byte| *byte == b'(')?;
+    Some((&input[..separator], &input[separator + 1..]))
 }
 
 fn split_once_space(input: &[u8]) -> Option<(u64, &[u8])> {
@@ -541,15 +656,7 @@ fn split_once_address_space(input: &[u8]) -> Option<(u64, u64)> {
 }
 
 fn parse_address_or_symbol(input: &[u8]) -> Option<u64> {
-    parse_hex(input).or_else(|| {
-        for index in 0..MAX_SYMBOLS {
-            let symbol = unsafe { core::ptr::read_volatile(core::ptr::addr_of!(SYMBOLS[index])) };
-            if symbol.enabled && &symbol.name[..symbol.length] == input {
-                return Some(symbol.address);
-            }
-        }
-        None
-    })
+    parse_hex(input).or_else(|| find_symbol(input))
 }
 
 fn split_once_comma(input: &[u8]) -> Option<(&[u8], &[u8])> {
@@ -575,6 +682,17 @@ fn parse_signed_decimal(input: &[u8]) -> Option<i16> {
     (value <= 2047).then_some(value as i16)
 }
 
+fn parse_signed_decimal_wide(input: &[u8]) -> Option<i64> {
+    if let Some(positive) = input.strip_prefix(b"+") {
+        return parse_signed_decimal_wide(positive);
+    }
+    if let Some(negative) = input.strip_prefix(b"-") {
+        let value = parse_decimal(negative)?;
+        return i64::try_from(value).ok()?.checked_neg();
+    }
+    i64::try_from(parse_decimal(input)?).ok()
+}
+
 fn parse_signed_decimal_or_symbol(
     input: &[u8],
     symbols: &[GuestSymbol; MAX_SYMBOLS],
@@ -586,6 +704,45 @@ fn parse_signed_decimal_or_symbol(
             .address;
         i16::try_from(address).ok()
     })
+}
+
+fn parse_relative_target(
+    input: &[u8],
+    address: u64,
+    symbols: &[GuestSymbol; MAX_SYMBOLS],
+) -> Option<i32> {
+    if let Some(immediate) = parse_signed_decimal_wide(input) {
+        return i32::try_from(immediate).ok();
+    }
+
+    let (symbol_name, offset) = split_symbol_offset(input);
+    let symbol_address = symbols
+        .iter()
+        .find(|symbol| symbol.enabled && &symbol.name[..symbol.length] == symbol_name)?
+        .address;
+    let absolute = (symbol_address as i64).checked_add(offset)?;
+    let relative = absolute.checked_sub(i64::try_from(address).ok()?)?;
+    i32::try_from(relative).ok()
+}
+
+fn split_symbol_offset(input: &[u8]) -> (&[u8], i64) {
+    for (index, byte) in input.iter().enumerate().skip(1) {
+        if *byte == b'+' || *byte == b'-' {
+            let offset = parse_signed_decimal_wide(&input[index..]).unwrap_or(i64::MAX);
+            return (&input[..index], offset);
+        }
+    }
+    (input, 0)
+}
+
+fn find_symbol(input: &[u8]) -> Option<u64> {
+    for index in 0..MAX_SYMBOLS {
+        let symbol = unsafe { core::ptr::read_volatile(core::ptr::addr_of!(SYMBOLS[index])) };
+        if symbol.enabled && &symbol.name[..symbol.length] == input {
+            return Some(symbol.address);
+        }
+    }
+    None
 }
 
 fn make_symbol(name: &[u8], address: u64) -> Option<GuestSymbol> {

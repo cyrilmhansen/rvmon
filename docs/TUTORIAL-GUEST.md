@@ -15,7 +15,8 @@ terminal                           <-- commandes et diagnostics UART
 
 Ce binaire invité est actuellement un moniteur de démarrage et de débogage
 minimal. Il fournit déjà l’inspection des registres, la lecture mémoire et
-des commandes `assemble` et `assemble-program` limitées à `addi`. Les vues
+des commandes `assemble` et `assemble-program` limitées à `addi`, `beq`,
+`bne`, `jal` et `jalr`. Les vues
 les directives et les snapshots restent à porter. Le programme U-mode de
 démonstration est lié dans l’image et sert à valider les traps, les
 breakpoints logiciels et le pas-à-pas.
@@ -131,28 +132,37 @@ Chaque ligne est validée avant toute écriture ; `end` termine la saisie :
 
 ```text
 rvmonitor> assemble-program 0x80010a30
-source mode: enter addi lines, finish with end
+source mode: enter addi, beq, bne, jal or jalr lines, finish with end
 source> _start:
 source> addi x1,x0,1
+source> beq x1,x1,next
+source> addi x1,x0,99
 source> next:
 source> addi x1,x1,2
 source> end
-assembled program: 2 instruction(s) at 0x0000000080010a30
+assembled program: 4 instruction(s) at 0x0000000080010a30
 rvmonitor> symbols
 symbols:
   0x0000000080010a30 _start
-  0x0000000080010a34 next
-rvmonitor> disasm _start 2
+  0x0000000080010a3c next
+rvmonitor> disasm _start 4
 0x0000000080010a30: 0000000000100093 <_start>  addi x1,x0,1
-0x0000000080010a34: 0000000000208093 <next>  addi x1,x1,2
+0x0000000080010a34: 0000000000108463  beq x1,x1,next
+0x0000000080010a38: 0000000006300093  addi x1,x0,99
+0x0000000080010a3c: 0000000000208093 <next>  addi x1,x1,2
 rvmonitor> step
 trap: breakpoint pc=0x0000000080010a34
 rvmonitor> step
-trap: breakpoint pc=0x0000000080010a38
+trap: breakpoint pc=0x0000000080010a3c
+rvmonitor> step
+trap: breakpoint pc=0x0000000080010a40
 rvmonitor> regs
 ... x1=0x0000000000000003 ...
 ```
 
+Le parseur invité accepte `addi`, `beq`, `bne`, `jal` et `jalr`. Les branches
+et `jal` prennent une cible relative numérique ou un label, éventuellement
+suivi de `+offset` ou `-offset`; `jalr` utilise la forme `jalr rd,imm(rs1)`.
 Le tampon accepte au maximum 16 lignes de 96 caractères et huit labels. Les
 labels ASCII (`a-z`, chiffres, `_`, `.` et `$`) occupent l’adresse courante
 sans produire d’instruction. L’adresse de l’exemple doit correspondre à une
@@ -278,10 +288,10 @@ restore
 ```
 
 Le cycle d’une ligne et le source buffer multi-ligne existent désormais pour
-`addi`, les labels et le désassemblage des mots 32 bits. La prochaine étape est
-la prise en charge des expressions, directives et des instructions de contrôle
-avec résolution de labels, en conservant le moniteur M-mode et le programme
-cible U-mode séparés.
+`addi`, les branches et les sauts avec résolution de labels, ainsi que le
+désassemblage des mots 32 bits. Les expressions générales et directives
+restent à venir, en conservant le moniteur M-mode et le programme cible U-mode
+séparés.
 
 ## 6. Différence avec les deux autres parcours
 
