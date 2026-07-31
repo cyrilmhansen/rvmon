@@ -1,5 +1,7 @@
 #![forbid(unsafe_code)]
 
+use std::collections::BTreeMap;
+
 use luna_diag::{Diagnostic, Result};
 use luna_isa::{
     Addi, Branch, Jal, Jalr, Load, Lui, RType, Store, encode_addi, encode_branch, encode_jal,
@@ -10,6 +12,7 @@ use luna_isa::{
 pub struct ObjectImage {
     pub text: Vec<u8>,
     pub entry: u64,
+    pub symbols: BTreeMap<String, u64>,
 }
 
 fn register(name: &str) -> Result<u8> {
@@ -125,7 +128,82 @@ pub fn assemble(source: &str) -> Result<ObjectImage> {
     Ok(ObjectImage {
         text: word.to_le_bytes().to_vec(),
         entry: 0,
+        symbols: BTreeMap::new(),
     })
+}
+
+pub fn assemble_program(source: &str) -> Result<ObjectImage> {
+    let mut symbols = BTreeMap::new();
+    let mut pc = 0u64;
+    for raw_line in source.lines() {
+        let mut line = raw_line.split('#').next().unwrap_or("").trim();
+        while let Some((label, rest)) = line.split_once(':') {
+            let label = label.trim();
+            if label.is_empty()
+                || !label
+                    .chars()
+                    .all(|character| character.is_ascii_alphanumeric() || "_.$".contains(character))
+            {
+                return Err(Diagnostic::error("ASM-LABEL-001", "invalid label"));
+            }
+            if symbols.insert(label.to_string(), pc).is_some() {
+                return Err(Diagnostic::error("ASM-LABEL-002", "duplicate label"));
+            }
+            line = rest.trim();
+        }
+        if !line.is_empty() {
+            pc = pc
+                .checked_add(4)
+                .ok_or_else(|| Diagnostic::error("ASM-ADDRESS-001", "program is too large"))?;
+        }
+    }
+
+    let mut text = Vec::new();
+    pc = 0;
+    for raw_line in source.lines() {
+        let mut line = raw_line.split('#').next().unwrap_or("").trim();
+        while let Some((_, rest)) = line.split_once(':') {
+            line = rest.trim();
+        }
+        if line.is_empty() {
+            continue;
+        }
+        let resolved = resolve_control_label(line, pc, &symbols)?;
+        let image = assemble(&resolved)?;
+        text.extend_from_slice(&image.text);
+        pc += 4;
+    }
+    let entry = symbols.get("_start").copied().unwrap_or(0);
+    Ok(ObjectImage {
+        text,
+        entry,
+        symbols,
+    })
+}
+
+fn resolve_control_label(line: &str, pc: u64, symbols: &BTreeMap<String, u64>) -> Result<String> {
+    let mut words = line.splitn(2, char::is_whitespace);
+    let mnemonic = words.next().unwrap_or("");
+    let operands = words.next().unwrap_or("");
+    let mut parts: Vec<_> = operands.split(',').map(str::trim).collect();
+    let index = match mnemonic {
+        "beq" | "bne" => Some(2),
+        "jal" => Some(1),
+        _ => None,
+    };
+    if let Some(index) = index {
+        if let Some(label) = parts.get(index).copied() {
+            if label.parse::<i64>().is_err() {
+                let target = symbols.get(label).ok_or_else(|| {
+                    Diagnostic::error("ASM-SYMBOL-001", format!("unknown symbol: {label}"))
+                })?;
+                let offset = *target as i64 - pc as i64;
+                parts[index] = Box::leak(offset.to_string().into_boxed_str());
+                return Ok(format!("{} {}", mnemonic, parts.join(",")));
+            }
+        }
+    }
+    Ok(line.to_string())
 }
 
 #[cfg(test)]
@@ -153,5 +231,13 @@ mod tests {
         assert!(assemble("beq x1,x2,-4").is_ok());
         assert!(assemble("jal ra,2048").is_ok());
         assert!(assemble("jalr ra,0(x4)").is_ok());
+    }
+
+    #[test]
+    fn assembles_program_with_labels_and_control_flow() {
+        let image = assemble_program("_start: addi x1,x0,1\n       beq x1,x1,done\n       addi x1,x0,99\ndone:  addi x2,x0,7").unwrap();
+        assert_eq!(image.symbols["_start"], 0);
+        assert_eq!(image.symbols["done"], 12);
+        assert_eq!(image.text.len(), 16);
     }
 }
