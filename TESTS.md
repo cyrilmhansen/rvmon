@@ -172,12 +172,15 @@ scripts/test-qemu-gdb-backend.sh` valide ce chemin sur un QEMU live, avec
 lecture de la RAM à `0x80000000` puis un pas.
 
 `luna-monitor::BackendConsole<B>` utilise le même contrat pour les commandes
-communes `assemble`, `step`, `run`, `regs`, `memory`, `view`, `edit` et `undo`.
+communes `assemble`, `step`, `run`, `continue`, `regs`, `memory`, `view`,
+`edit`, `undo`, `break`, `delete` et `info break`. Ses breakpoints sont
+logiques côté moniteur : ils arrêtent avant l’appel au backend et ne modifient
+pas la mémoire cible.
 `luna-app --qemu-port PORT` sélectionne ce chemin et l’intègre à la boucle
 interactive ; la sonde live vérifie les registres, la RAM QEMU et le pas depuis
-le PC de reset. Les breakpoints, symboles multi-lignes, snapshots et
-watchpoints restent dans le profil `Monitor<Machine>` historique jusqu’à leur
-migration explicite vers le contrat backend.
+le PC de reset. Les symboles multi-lignes, snapshots et watchpoints restent
+dans le profil `Monitor` historique jusqu’à leur migration explicite vers le
+contrat backend.
 
 Le crate `luna-guest-monitor` est une première tranche d’intégration hors
 `cargo test` : il est compilé pour `riscv64gc-unknown-none-elf`, mais les

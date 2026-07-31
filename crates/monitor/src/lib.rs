@@ -27,6 +27,11 @@ struct MemoryEdit {
     previous: Vec<u8>,
 }
 
+struct BackendBreakpoint {
+    id: u64,
+    address: u64,
+}
+
 struct Watchpoint {
     address: u64,
     width: u64,
@@ -979,6 +984,8 @@ pub struct BackendConsole<B> {
     pub backend: B,
     view_address: u64,
     undo: Vec<MemoryEdit>,
+    breakpoints: BTreeMap<u64, BackendBreakpoint>,
+    next_breakpoint_id: u64,
     max_run_steps: u64,
 }
 
@@ -993,6 +1000,8 @@ where
             backend,
             view_address,
             undo: Vec::new(),
+            breakpoints: BTreeMap::new(),
+            next_breakpoint_id: 1,
             max_run_steps: 1000,
         }
     }
@@ -1010,11 +1019,15 @@ where
             "assemble" | "a" => self.assemble(argument),
             "step" | "s" => self.step(),
             "run" | "r" => self.run(argument),
+            "continue" | "c" => self.continue_target(argument),
             "regs" | "registers" => Ok(self.registers()),
             "memory" | "mem" | "hex" | "ascii" => self.memory(argument),
             "view" | "jump" => self.set_view(argument),
             "edit" | "e" => self.edit(argument),
             "undo" | "u" => self.undo_edit(),
+            "break" | "b" => self.add_breakpoint(argument),
+            "delete" | "del" => self.delete_breakpoint(argument),
+            "info" => self.info(argument),
             "quit" | "exit" => Ok("bye".into()),
             _ => Err(Diagnostic::error(
                 "MON-CMD-101",
@@ -1051,8 +1064,47 @@ where
 
     fn run(&mut self, argument: &str) -> Result<String> {
         let limit = parse_run_limit(argument, self.max_run_steps)?;
-        let outcome = self.backend.run(limit).map_err(target_error)?;
-        Ok(format_backend_console_outcome(outcome))
+        self.run_with_limit(limit, false)
+    }
+
+    fn continue_target(&mut self, argument: &str) -> Result<String> {
+        let limit = parse_run_limit(argument, self.max_run_steps)?;
+        self.run_with_limit(limit, true)
+    }
+
+    fn run_with_limit(&mut self, limit: u64, bypass_current: bool) -> Result<String> {
+        let mut bypass =
+            bypass_current && self.breakpoints.contains_key(&self.backend.context().pc);
+        let mut executed = 0u64;
+        for _ in 0..limit {
+            let pc = self.backend.context().pc;
+            if !bypass {
+                if let Some(breakpoint) = self.breakpoints.get(&pc) {
+                    return Ok(format!(
+                        "stopped: breakpoint #{} at pc=0x{pc:016x}",
+                        breakpoint.id
+                    ));
+                }
+            }
+            let outcome = self.backend.step().map_err(target_error)?;
+            executed = executed.saturating_add(1);
+            match outcome {
+                ExecutionOutcome::Retired { .. } => bypass = false,
+                ExecutionOutcome::Stopped(event) => {
+                    return Ok(format_backend_stop(event));
+                }
+                ExecutionOutcome::BudgetExhausted { .. } => {
+                    return Err(Diagnostic::error(
+                        "MON-DEBUG-101",
+                        "step backend returned a run-only outcome",
+                    ));
+                }
+            }
+        }
+        Ok(format!(
+            "ran {executed} step(s); pc=0x{:016x}",
+            self.backend.context().pc
+        ))
     }
 
     fn registers(&self) -> String {
@@ -1178,6 +1230,74 @@ where
         Ok(format!("undid edit at 0x{:016x}", edit.address))
     }
 
+    fn add_breakpoint(&mut self, argument: &str) -> Result<String> {
+        let parts: Vec<_> = argument.split_whitespace().collect();
+        let [address_text] = parts.as_slice() else {
+            return Err(Diagnostic::error(
+                "MON-DEBUG-100",
+                "break expects one target address",
+            ));
+        };
+        let address = parse_address(address_text, "MON-DEBUG-101")?;
+        if address & 3 != 0 {
+            return Err(Diagnostic::error(
+                "MON-DEBUG-102",
+                "backend breakpoints require four-byte alignment",
+            ));
+        }
+        if self.breakpoints.contains_key(&address) {
+            return Err(Diagnostic::error(
+                "MON-DEBUG-103",
+                "a breakpoint already exists at this address",
+            ));
+        }
+        let id = self.next_breakpoint_id;
+        self.next_breakpoint_id = self.next_breakpoint_id.saturating_add(1);
+        self.breakpoints
+            .insert(address, BackendBreakpoint { id, address });
+        Ok(format!("breakpoint #{id} set at 0x{address:016x}"))
+    }
+
+    fn delete_breakpoint(&mut self, argument: &str) -> Result<String> {
+        let parts: Vec<_> = argument.split_whitespace().collect();
+        let [id_text] = parts.as_slice() else {
+            return Err(Diagnostic::error(
+                "MON-DEBUG-104",
+                "delete expects one breakpoint id",
+            ));
+        };
+        let id = parse_count(id_text, "MON-DEBUG-105")? as u64;
+        let address = self
+            .breakpoints
+            .iter()
+            .find_map(|(address, breakpoint)| (breakpoint.id == id).then_some(*address))
+            .ok_or_else(|| Diagnostic::error("MON-DEBUG-106", "breakpoint does not exist"))?;
+        self.breakpoints.remove(&address);
+        Ok(format!("breakpoint #{id} deleted"))
+    }
+
+    fn info(&self, argument: &str) -> Result<String> {
+        if !argument.is_empty() && argument != "break" && argument != "breakpoints" {
+            return Err(Diagnostic::error(
+                "MON-DEBUG-107",
+                "info accepts break or breakpoints",
+            ));
+        }
+        if self.breakpoints.is_empty() {
+            return Ok("breakpoints: none".into());
+        }
+        let mut output = String::from("breakpoints:\n");
+        for breakpoint in self.breakpoints.values() {
+            writeln!(
+                output,
+                "  #{} at 0x{:016x}",
+                breakpoint.id, breakpoint.address
+            )
+            .unwrap();
+        }
+        Ok(output.trim_end().into())
+    }
+
     fn read_word(&mut self, address: u64) -> Result<u32> {
         let mut bytes = [0u8; 4];
         self.backend
@@ -1245,11 +1365,15 @@ fn backend_help() -> String {
         "assemble <source>    assemble and write at target pc",
         "step                 execute one target instruction",
         "run [count]          execute up to count target steps",
+        "continue [count]     resume, bypassing a breakpoint at current pc",
         "regs                 show target registers and capabilities",
         "memory [addr] [n]    show target memory as hex/ASCII",
         "view <addr>          move memory view without changing pc",
         "edit <addr> <bytes>  write target bytes transactionally",
         "undo                 restore the last target memory edit",
+        "break <addr>         stop before a target address",
+        "delete <id>          remove a backend breakpoint",
+        "info break           list backend breakpoints",
         "quit                 close the console",
     ]
     .join("\n")
@@ -2030,12 +2154,27 @@ mod tests {
                 .unwrap()
                 .contains("loaded 4 byte(s)")
         );
-        console.execute("step").unwrap();
+        assert_eq!(
+            console.execute("break 0").unwrap(),
+            "breakpoint #1 set at 0x0000000000000000"
+        );
+        assert!(console.execute("run 1").unwrap().contains("breakpoint #1"));
+        assert!(console.execute("info break").unwrap().contains("#1"));
+        assert!(
+            console
+                .execute("continue 1")
+                .unwrap()
+                .contains("ran 1 step(s)")
+        );
         assert!(
             console
                 .execute("regs")
                 .unwrap()
                 .contains("x01=0x0000000000000001")
+        );
+        assert_eq!(
+            console.execute("delete 1").unwrap(),
+            "breakpoint #1 deleted"
         );
 
         let original = console.execute("memory 0 4").unwrap();
