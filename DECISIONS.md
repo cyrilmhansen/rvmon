@@ -55,3 +55,35 @@
 ## D-014 — Sources et conflits
 
 **Décision :** R1 prime, R2 automatisable après contrôle, R3 jamais ratifiée, R4 dialecte, A interaction. Chaque divergence reçoit `CONFLICT-*`, règle locale et test.
+
+## D-015 — Profil big-endian expérimental conforme RISC-V
+
+**Décision :** ajouter un profil versionné `RV64IMAFD_Zicsr_Zifencei-BE` séparé
+du profil little-endian actuel. L’ISA et les fetchs d’instructions restent les
+mêmes ; les accès données M-mode et U-mode utilisent respectivement `MBE=1` et
+`UBE=1`, sans mode mixte dans ce profil. Les adresses continuent de croître
+octet par octet ; seule la correspondance entre les octets d’une valeur
+multi-octets et ces adresses est inversée par rapport au profil LE. La pile
+continue donc de croître vers les adresses basses dans les deux profils. Les
+valeurs multi-octets, les champs de pile, les structures ABI, les snapshots de
+registres et les objets ELF utilisent `ELFDATA2MSB`. Les directives numériques
+se sérialisent selon l’endianess du profil ; une directive de suite d’octets
+reste indépendante de l’endianess.
+
+Le profil d’appel BE du moniteur est local et expérimental : la psABI RISC-V
+actuelle ne définit pas encore de convention d’appel big-endian. Il est donc
+nommé `RV64ILP32D-MON-1-BE`, et aucune compatibilité GNU/LLVM BE ne sera
+annoncée sans preuve par une toolchain et un ELF interopérables.
+
+**Alternative :** ajouter un simple drapeau d’affichage ou inverser les octets
+dans QEMU depuis le moniteur, rejetée car elle ne modifie ni les loads/stores ni
+la représentation ABI et donnerait un faux mode BE.
+
+**Alternative :** rendre le profil LE/BE dynamique à chaque commande, rejetée
+pour V1-BE ; le changement d’endianess est une propriété de profil/runtime et
+non une mutation de l’interface utilisateur.
+
+**Coût :** double matrice de tests, format de projet/snapshot versionné avec
+endianess explicite, toolchain et ELF BE à qualifier séparément. Le profil BE
+reste expérimental tant qu’un compilateur/linker produisant un ELF RISC-V BE
+compatible n’est pas démontré.

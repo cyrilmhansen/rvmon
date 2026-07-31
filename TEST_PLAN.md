@@ -76,6 +76,35 @@ Fixtures d’appels couvrant `a0..a7`, `fa0..fa7`, variadiques, structures ≤/>
 
 Tester fenêtres basse/haute non aliasées, RAM, MMIO, unmapped, cross-page, misalignment, quota et transaction rollback. ELF fixtures : classe/machine/flags compatibles, `ELFCLASS32` seul, flags flottants contradictoires, relocation non supportée.
 
+## 8-BE. Matrice little-endian / big-endian
+
+Le profil LE reste la référence V1. Le profil BE expérimental réutilise les
+encodages et le fetch d’instructions, mais exécute un corpus parallèle pour
+les accès données. Chaque cas ci-dessous doit être exécuté avec les deux
+profils, et les bytes attendus sont distincts uniquement lorsque la largeur
+de l’accès est supérieure à un octet :
+
+| Cas | LE attendu | BE attendu | Contrôle |
+|---|---|---|---|
+| `.byte 0x12` | `12` | `12` | invariance par octet |
+| `.half 0x1234` | `34 12` | `12 34` | store/load 16 bits |
+| `.word 0x11223344` | `44 33 22 11` | `11 22 33 44` | store/load 32 bits |
+| `.dword 0x0102030405060708` | `08..01` | `01..08` | store/load 64 bits |
+| binary128 motif | octet faible en premier | octet fort en premier | 16 bytes exacts |
+| instruction `addi` | parcels LE | parcels LE | fetch identique |
+| `fadd.s`/`fadd.d` | résultat identique | résultat identique | registres/flags |
+
+Tests spécifiques BE : vérifier `MBE=1` en M-mode, `UBE=1` en U-mode,
+l’invariance des adresses d’octets, le contexte de trap, la pile, les accès
+UART byte-wide, les pointeurs ILP32 et `ELFDATA2MSB`. Les tests de pile doivent
+prouver séparément que `sp_new < sp_old` après allocation et que les octets
+d’un champ multi-octets sont rangés aux adresses `A`, `A+1`, etc. selon le
+profil ; ils ne doivent jamais utiliser une adresse décroissante pour
+représenter le BE. Aucun test ne doit
+autoriser une bascule endianess implicite pendant une instruction ou une
+transaction. Le smoke QEMU utilise la propriété CPU `big-endian=on`, jamais
+une inversion opérée par le moniteur.
+
 ## 9. Instructions illégales et données mêlées
 
 Corpus de bytes sans match, match d’extension désactivée, longueur 16 tronquée, 32 tronquée, CSR non implémenté, instruction privilégiée et C off. Le désassembleur émet un item illégal ; le moteur trap avec PC/bytes/cause. Les marks de données empêchent une exécution implicite mais ne masquent pas l’octet.

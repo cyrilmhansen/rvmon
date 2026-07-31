@@ -81,7 +81,20 @@ Le mot “support” est interdit sans les colonnes ci-dessus.
 
 Un hart virtuel est constitué de `x[32]:u64`, `pc:u64`, `f[32]:u64`, `fcsr:u32`, mémoire, périphériques et compteur d’instructions. `x0` reste zéro. Les CSR visibles V1 sont `fflags`, `frm`, `fcsr` et les CSR nécessaires à `Zicsr`; les CSR privilégiés sont absents et toute tentative produit `TRAP_CSR_UNIMPLEMENTED`. Mode U seulement ; pas de MMU, interruptions ou concurrence V1. Les traps sont des arrêts structurés avec cause, PC, adresse fautive et instruction.
 
-Mémoire little-endian, pages logiques de 4 KiB, taille configurable par projet mais bornée à 256 MiB. RAM `0x00000000..ram_end`; pile réservée au sommet ; MMIO `0xffff0000..0xffffffff`, lecture/écriture via périphériques déterministes explicitement déclarés. Adresse non mappée, accès hors limites, instruction mal alignée et accès mal aligné suivent R1, chapitre Load/Store et exceptions ; V1 lève un trap plutôt que de simuler une extension hôte.
+Mémoire little-endian, pages logiques de 4 KiB, taille configurable par projet mais bornée à 256 MiB. RAM `0x00000000..ram_end`; pile réservée au sommet et croissant vers les adresses basses ; MMIO `0xffff0000..0xffffffff`, lecture/écriture via périphériques déterministes explicitement déclarés. Adresse non mappée, accès hors limites, instruction mal alignée et accès mal aligné suivent R1, chapitre Load/Store et exceptions ; V1 lève un trap plutôt que de simuler une extension hôte.
+
+Le profil expérimental `RV64IMAFD_Zicsr_Zifencei-BE` est une variante de
+déploiement planifiée, non le profil LE V1. Il conserve le fetch des
+instructions en little-endian, active les accès données BE (`MBE=1` en M-mode,
+`UBE=1` en U-mode) et conserve une adresse par octet : pour `0x12345678` à
+l’adresse `A`, LE produit `A:78 A+1:56 A+2:34 A+3:12`, tandis que BE produit
+`A:12 A+1:34 A+2:56 A+3:78`. L’axe des adresses et le sens de croissance de la
+pile ne changent pas. Une allocation de frame diminue `sp`; si `sp` vaut
+`0x80010000` et que le frame vaut 32 octets, le nouveau `sp` vaut
+`0x8000ffe0` et le frame occupe `[0x8000ffe0,0x80010000)`. Les champs
+multi-octets de ce frame sont sérialisés BE, mais ses octets restent à des
+adresses croissantes. La convention d’appel BE est locale et expérimentale,
+car la psABI actuelle ne définit pas encore de convention big-endian.
 
 Le temps est un compteur d’instructions exécutées ; aucun wall-clock, thread ou valeur aléatoire n’est visible. `ecall` expose uniquement `exit`, `write-console` et `read-input` avec entrée enregistrée ; les autres appels sont des traps. Chaque run a une limite configurable par défaut de 10 millions d’instructions et 256 MiB, puis `TRAP_RESOURCE_LIMIT`.
 
@@ -171,7 +184,7 @@ Le décodeur essaie 16 bits si `C=on` et bits bas indiquent une instruction comp
 
 ## 14. Moniteur mémoire
 
-Vues désassemblée, hexadécimale et ASCII partagent un curseur d’adresse et une sélection. `QuickJump` accepte symbole, registre ou expression. Marks nommés sont persistants dans le projet. Édition, remplissage, copie et recherche sont transactions ; une sélection illégale n’est jamais partiellement appliquée. ASCII affiche octets imprimables Unicode-safe mais édite des octets, pas des caractères hôte. `undo` restaure la transaction mémoire et ses métadonnées.
+Vues désassemblée, hexadécimale et ASCII partagent un curseur d’adresse et une sélection. `QuickJump` accepte symbole, registre ou expression. Marks nommés sont persistants dans le projet. Édition, remplissage, copie et recherche sont transactions ; une sélection illégale n’est jamais partiellement appliquée. ASCII affiche octets imprimables Unicode-safe mais édite des octets, pas des caractères hôte. En BE, la colonne mémoire reste ordonnée par adresses croissantes ; seule la présentation d’une valeur multi-octets regroupe ses octets dans l’ordre BE. `undo` restaure la transaction mémoire et ses métadonnées.
 
 ## 15. Registres
 

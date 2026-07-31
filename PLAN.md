@@ -8,7 +8,39 @@ Le profil hérité est `rv64imafd_zicsr_zifencei`, little-endian, U mono-hart, `
 
 ### Effort et capacité
 
-Estimation essentielle : 55–75 journées-agent, hors frontend graphique, export ELF complet et multi-hart. Marge de risque : 20–30 journées-agent, principalement flottants, C, ILP32 et oracles. Optionnel V1 : 8–15 journées-agent pour ELF contrôlé, historique arrière et polish terminal. Hypothèse : 2 agents de code à temps plein, 1 agent validation/revue à temps partiel ; les fourchettes ne sont pas des dates calendaires.
+Estimation essentielle LE : 55–75 journées-agent, hors frontend graphique,
+export ELF complet et multi-hart. Marge de risque LE : 20–30
+journées-agent, principalement flottants, C, ILP32 et oracles. Le profil BE
+complet est un lot post-V1 de 20–35 journées-agent essentielles, plus 10–20
+de marge toolchain/QEMU. Optionnel V1 : 8–15 journées-agent pour ELF contrôlé,
+historique arrière et polish terminal. Hypothèse : 2 agents de code à temps
+plein, 1 agent validation/revue à temps partiel ; les fourchettes ne sont pas
+des dates calendaires.
+
+### Conversion indicative en tokens GPT-5.6 Luna High
+
+Une journée-agent n’est pas une quantité de tokens fixe : elle inclut les
+attentes d’outils, les lectures de contexte, les erreurs, les reprises et la
+revue locale. Pour budgéter sans fausse précision, ce plan utilise **40 000 à
+80 000 tokens de travail total par journée-agent**, entrée + sortie +
+raisonnement du modèle, avec une valeur centrale de 60 000.
+
+| Unité | Budget indicatif |
+|---|---:|
+| 0,5 journée-agent / 1 point | 20k–40k tokens |
+| 1 journée-agent | 40k–80k tokens |
+| 2 journées-agent | 80k–160k tokens |
+| LE essentiel, 55–75 j | 2,2M–6,0M tokens |
+| marge LE, 20–30 j | 0,8M–2,4M tokens |
+| BE essentiel, 20–35 j | 0,8M–2,8M tokens |
+| marge BE/toolchain, 10–20 j | 0,4M–1,6M tokens |
+
+Le cœur LE + risques LE + BE + marge BE représente donc environ **4,2M à
+12,8M tokens**, soit 6,3M–9,6M au point central. Le parallélisme réduit la
+durée calendaire, pas le volume total de tokens. Une tâche d’oracle, de
+flottants ou d’intégration QEMU peut dépasser cette fourchette de 30–100 % ;
+elle doit alors être découpée ou marquée à risque. Ces nombres servent au
+capacity planning et ne prédisent ni une facture ni une limite de contexte.
 
 ## 2. Contrôle de cohérence
 
@@ -22,6 +54,10 @@ Estimation essentielle : 55–75 journées-agent, hors frontend graphique, expor
 6. **IEEE 754 déterministe** : la spécification exige un résultat indépendant de l’hôte, mais ne choisit pas de bibliothèque. Défaut : prototype contre Berkeley SoftFloat ou équivalent logiciel audité ; aucun fallback implicite vers les opérations hôte.
 7. **C** : C est optionnel et son émission automatique est désactivée. Défaut : C explicitement activable dès que le décodeur 16/32 est stable, sans relaxation automatique.
 8. **Historique arrière** : le journal inverse est retenu mais son coût n’est pas borné en octets. Défaut : quota configurable et test de pression ; la fonctionnalité peut être désactivée sans casser undo transactionnel.
+9. **Big-endian RISC-V** : l’ISA autorise des accès données big-endian mais le
+   profil et l’ELF/ABI doivent être cohérents. Défaut : profil BE distinct,
+   instructions toujours little-endian, `MBE=1`/`UBE=1`, aucune bascule mixte en
+   session ; QEMU et la toolchain BE sont validés comme dépendances séparées.
 
 Ces points ne sont pas corrigés silencieusement ; ils deviennent ADR et tests de contrat.
 
@@ -105,12 +141,32 @@ R1 reste l’autorité sémantique ; le contrôle R2 détecte une divergence mai
 | M7 | break/watch/step/source/history | E2E 4, 11 | debugger contractuel |
 | M8 | projets, snapshots, export/reprise/migration | E2E 12, 14 | replay hash-identique |
 | M9 | fuzz, perf, accessibilité, release candidate | tous | rapport RC signé |
+| M10-BE | contrat d’endianess, profils LE/BE, sérialisation et ELF MSB | BE-001 à BE-002 | simulateur LE inchangé, matrice endian complète |
+| M11-BE | simulateur interne BE : loads/stores, pile, CSR, traps, flottants | BE-003 | exécution bit-exacte LE/BE sur le même corpus |
+| M12-BE | image guest BE, contexte de trap et toolchain/ELF qualifiés | BE-004 à BE-005 | boot bare-metal BE ou blocage toolchain documenté |
+| M13-BE | QEMU `big-endian=on`, smoke test et mode pédagogique final | BE-006 à BE-007 | démonstration QEMU BE reproductible, sinon waiver explicite |
 
 Chaque jalon conserve un build vert et une démonstration scriptée. M1–M4 sont prioritaires sur le polish UI.
 
 ## 8. Migration du profil minimal
 
 Le profil de bootstrap est `rv64i_zicsr_zifencei` uniquement, utilisé pour valider pipeline et traps. M2 ajoute M et les loads/stores nécessaires. M4 active F en conservant les mêmes interfaces d’état ; M5 active D et les formats data sans activer Q/Zfh en exécution. C est ajouté par capability et ne modifie pas le curseur mémoire. A reçoit un profil séparé `A-MH1`, jamais un booléen global. Toute extension future doit fournir parse/assemble/decode/execute/debug/test/export séparément et un corpus externe.
+
+### Migration vers le profil big-endian
+
+Le profil BE ne réutilise pas implicitement les fixtures LE. M10 introduit
+`Endian::Little`/`Endian::Big`, un `ProfileId` distinct et des serializers
+paramétrés ; l’ISA générée et les fetchs d’instructions restent communs. M11
+porte les accès multi-octets de la machine interne, le contexte de trap, les
+registres flottants et les pointeurs ILP32 dans les deux endianness. M12 vérifie
+qu’une chaîne de compilation peut produire un ELF RISC-V BE cohérent
+(`EI_DATA=ELFDATA2MSB`) ; à défaut, le profil reste exécutable uniquement par
+fixtures/assembleur contrôlés et n’est pas annoncé compatible GNU/LLVM. M13
+branche QEMU avec `-cpu <model>,big-endian=on`, vérifie `MBE`/`UBE`, l’UART et
+les instructions little-endian, puis publie un corpus de replay LE/BE. Les
+tests de pile vérifient séparément la décroissance de `sp` et l’ordre des
+octets des frames ; aucune vue mémoire ne doit simuler le BE en parcourant les
+adresses à rebours.
 
 ## 9. Parallélisation et intégration
 

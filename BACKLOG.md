@@ -1,6 +1,10 @@
 # Backlog atomique
 
-Convention : 1 point ≈ 0,5 journée-agent ; les estimations incluent tests locaux mais pas revue finale. Une tâche est terminée seulement si sa condition de sortie est satisfaite.
+Convention : 1 point ≈ 0,5 journée-agent ; les estimations incluent tests locaux mais pas revue finale. Pour un agent GPT-5.6 Luna High, on budgète
+indicativement 20k–40k tokens de travail total par point, ou 40k–80k par
+journée-agent. Ce sont des tokens de contexte + sortie + raisonnement ; ils ne
+mesurent pas la taille du diff et ne remplacent pas la condition de sortie.
+Une tâche est terminée seulement si sa condition de sortie est satisfaite.
 
 ## Étape 0 / M0
 
