@@ -88,6 +88,7 @@ dependencies = [
  "luna-diag",
  "luna-disassembler",
  "luna-floatfmt",
+ "luna-isa",
  "luna-machine",
  "luna-target-api",
 ]

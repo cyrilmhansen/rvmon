@@ -3,9 +3,10 @@
 use std::collections::BTreeMap;
 use std::fmt::Write;
 
-use luna_assembler::assemble;
+use luna_assembler::{assemble, assemble_program as assemble_source_program};
 use luna_diag::{Diagnostic, Result};
 use luna_disassembler::disassemble_word;
+use luna_isa::Instruction;
 use luna_machine::{FFLAG_DZ, FFLAG_NV, FFLAG_NX, FFLAG_OF, FFLAG_UF, Machine};
 use luna_target_api::{ExecutionOutcome, MemoryAccess, MemoryAccessKind, StopEvent, TargetBackend};
 
@@ -13,6 +14,7 @@ const DEFAULT_MEMORY_VIEW_BYTES: usize = 64;
 const MAX_MEMORY_VIEW_BYTES: usize = 4096;
 const MAX_EDIT_BYTES: usize = 4096;
 const MAX_UNDO_ENTRIES: usize = 64;
+const MAX_HISTORY_ENTRIES: usize = 4096;
 
 struct MemoryEdit {
     address: u64,
@@ -26,6 +28,19 @@ struct Watchpoint {
     id: u64,
 }
 
+struct HistoryEntry {
+    sequence: u64,
+    pc_before: u64,
+    pc_after: u64,
+    instruction: String,
+    memory_access: Option<MemoryAccess>,
+}
+
+struct CallFrame {
+    return_pc: u64,
+    target: u64,
+}
+
 pub struct Monitor {
     pub machine: Machine,
     symbols: BTreeMap<u64, String>,
@@ -37,6 +52,8 @@ pub struct Monitor {
     watchpoints: BTreeMap<u64, Watchpoint>,
     next_breakpoint_id: u64,
     next_watchpoint_id: u64,
+    history: Vec<HistoryEntry>,
+    call_stack: Vec<CallFrame>,
 }
 
 impl Monitor {
@@ -52,6 +69,8 @@ impl Monitor {
             watchpoints: BTreeMap::new(),
             next_breakpoint_id: 1,
             next_watchpoint_id: 1,
+            history: Vec::new(),
+            call_stack: Vec::new(),
         }
     }
 
@@ -67,6 +86,7 @@ impl Monitor {
             "help" | "?" => Ok(help()),
             "regs" | "registers" => self.registers(),
             "assemble" | "a" => self.assemble(argument),
+            "assemble-program" | "load" => self.assemble_program(argument),
             "step" | "s" => self.step(),
             "run" | "r" => self.run(argument),
             "continue" | "c" => self.continue_target(argument),
@@ -84,6 +104,10 @@ impl Monitor {
             "awatch" => self.add_watchpoint(argument, None),
             "delete" | "del" => self.delete_debug_item(argument),
             "info" => self.info_debug(argument),
+            "history" | "trace" => self.show_history(argument),
+            "stack" | "bt" => self.show_stack(),
+            "where" => self.show_location(),
+            "symbols" => self.show_symbols(),
             "reset" => {
                 self.machine = Machine::new(self.machine.memory_size());
                 self.symbols.clear();
@@ -92,6 +116,8 @@ impl Monitor {
                 self.marks.clear();
                 self.breakpoints.clear();
                 self.watchpoints.clear();
+                self.history.clear();
+                self.call_stack.clear();
                 Ok("machine reset".into())
             }
             "quit" | "exit" => Ok("bye".into()),
@@ -123,13 +149,57 @@ impl Monitor {
         })
     }
 
+    pub fn assemble_program(&mut self, source: &str) -> Result<String> {
+        if source.trim().is_empty() {
+            return Err(Diagnostic::error(
+                "MON-ASM-002",
+                "assemble-program expects at least one source line",
+            ));
+        }
+        let image = assemble_source_program(source)?;
+        self.machine = Machine::new(self.machine.memory_size());
+        self.machine.load(image.entry, &image.text)?;
+        self.machine.pc = image.entry;
+        self.symbols = image
+            .symbols
+            .into_iter()
+            .map(|(name, address)| (address + image.entry, name))
+            .collect();
+        self.view_address = image.entry;
+        self.undo.clear();
+        self.marks.clear();
+        self.breakpoints.clear();
+        self.watchpoints.clear();
+        self.history.clear();
+        self.call_stack.clear();
+        Ok(format!(
+            "loaded {} bytes at 0x{:016x}; {} symbol(s)",
+            image.text.len(),
+            image.entry,
+            self.symbols.len()
+        ))
+    }
+
     fn step(&mut self) -> Result<String> {
         let address = self.machine.pc;
         let word = self.read_word(address)?;
         let line = disassemble_word(address, word, &self.symbols);
         let outcome = TargetBackend::step(&mut self.machine)?;
         let pc_after = match outcome {
-            ExecutionOutcome::Retired { pc_after, .. } => pc_after,
+            ExecutionOutcome::Retired {
+                pc_before,
+                pc_after,
+                memory_access,
+            } => {
+                self.record_retired(
+                    pc_before,
+                    pc_after,
+                    line.instruction,
+                    &line.text,
+                    memory_access,
+                );
+                pc_after
+            }
             ExecutionOutcome::Stopped(event) => event.pc,
             ExecutionOutcome::BudgetExhausted { pc, .. } => pc,
         };
@@ -162,6 +232,9 @@ impl Monitor {
                     ));
                 }
             }
+            let pc_before = self.machine.pc;
+            let word = self.read_word(pc_before)?;
+            let line = disassemble_word(pc_before, word, &self.symbols);
             let outcome = TargetBackend::step(&mut self.machine)?;
             match outcome {
                 ExecutionOutcome::Retired {
@@ -170,6 +243,13 @@ impl Monitor {
                     ..
                 } => {
                     bypass = false;
+                    self.record_retired(
+                        pc_before,
+                        pc_after,
+                        line.instruction,
+                        &line.text,
+                        memory_access,
+                    );
                     if let Some(access) = memory_access {
                         if let Some(watchpoint) = self.watchpoint_hit(access) {
                             return Ok(format_watchpoint_stop(
@@ -204,6 +284,126 @@ impl Monitor {
             self.machine.pc,
             self.machine.instructions
         ))
+    }
+
+    fn record_retired(
+        &mut self,
+        pc_before: u64,
+        pc_after: u64,
+        instruction: Instruction,
+        text: &str,
+        memory_access: Option<MemoryAccess>,
+    ) {
+        if self.history.len() == MAX_HISTORY_ENTRIES {
+            self.history.remove(0);
+        }
+        self.history.push(HistoryEntry {
+            sequence: self.machine.instructions,
+            pc_before,
+            pc_after,
+            instruction: text.to_string(),
+            memory_access,
+        });
+        match instruction {
+            Instruction::Jal(luna_isa::Jal { rd: 1, imm }) => {
+                self.call_stack.push(CallFrame {
+                    return_pc: pc_before.wrapping_add(4),
+                    target: pc_before.wrapping_add_signed(i64::from(imm)),
+                });
+            }
+            Instruction::Jalr(luna_isa::Jalr { rd: 0, rs1: 1, .. }) => {
+                self.call_stack.pop();
+            }
+            _ => {}
+        }
+    }
+
+    fn show_history(&self, argument: &str) -> Result<String> {
+        let requested = if argument.trim().is_empty() {
+            16
+        } else {
+            parse_count(argument.trim(), "MON-HIST-001")?
+        };
+        let count = requested.min(256).min(self.history.len());
+        let start = self.history.len() - count;
+        if count == 0 {
+            return Ok("history: empty".into());
+        }
+        let mut output = String::from("history:\n");
+        for entry in &self.history[start..] {
+            write!(
+                output,
+                "  #{:06}  0x{:016x} -> 0x{:016x}  {}",
+                entry.sequence, entry.pc_before, entry.pc_after, entry.instruction
+            )
+            .unwrap();
+            if let Some(access) = entry.memory_access {
+                let kind = match access.kind {
+                    MemoryAccessKind::Read => "read",
+                    MemoryAccessKind::Write => "write",
+                };
+                write!(
+                    output,
+                    " [{kind} 0x{:016x}/{}]",
+                    access.address, access.width
+                )
+                .unwrap();
+            }
+            output.push('\n');
+        }
+        Ok(output.trim_end().into())
+    }
+
+    fn show_stack(&self) -> Result<String> {
+        if self.call_stack.is_empty() {
+            return Ok("stack: empty".into());
+        }
+        let mut output = String::from("stack:\n");
+        for (depth, frame) in self.call_stack.iter().rev().enumerate() {
+            writeln!(
+                output,
+                "  #{depth} target={} return=0x{:016x}",
+                self.format_symbol(frame.target),
+                frame.return_pc
+            )
+            .unwrap();
+        }
+        Ok(output.trim_end().into())
+    }
+
+    fn show_location(&self) -> Result<String> {
+        Ok(format!(
+            "pc=0x{:016x} {} view=0x{:016x}",
+            self.machine.pc,
+            self.format_symbol(self.machine.pc),
+            self.view_address
+        ))
+    }
+
+    fn show_symbols(&self) -> Result<String> {
+        if self.symbols.is_empty() {
+            return Ok("symbols: none".into());
+        }
+        let mut output = String::from("symbols:\n");
+        for (address, name) in &self.symbols {
+            writeln!(output, "  0x{address:016x} {name}").unwrap();
+        }
+        Ok(output.trim_end().into())
+    }
+
+    fn format_symbol(&self, address: u64) -> String {
+        self.symbols
+            .range(..=address)
+            .next_back()
+            .map(|(symbol_address, name)| {
+                let offset = address - symbol_address;
+                if offset == 0 {
+                    name.clone()
+                } else {
+                    format!("{name}+0x{offset:x}")
+                }
+            })
+            .unwrap_or_else(|| "<no-symbol>".into())
     }
 
     fn disassemble(&self, argument: &str) -> Result<String> {
@@ -685,6 +885,7 @@ fn help() -> String {
     [
         "help                 show commands",
         "assemble <source>    assemble and load one source line at pc",
+        "assemble-program <source> load a multi-line program and symbols",
         "step                 execute one instruction",
         "run [count]          execute up to count instructions (default 1000)",
         "continue [count]     resume, bypassing a breakpoint at current pc",
@@ -702,6 +903,10 @@ fn help() -> String {
         "watch <addr> [w]     stop on memory writes",
         "rwatch <addr> [w]    stop on memory reads",
         "awatch <addr> [w]    stop on reads or writes",
+        "symbols              list loaded symbols",
+        "where                show pc, nearest symbol and memory view",
+        "stack                show inferred jal/jalr call stack",
+        "history [count]      show bounded execution history",
         "regs                 show x/f registers and fcsr exactly",
         "reset                reset machine state",
         "quit                 leave the interactive monitor",
@@ -958,5 +1163,42 @@ mod tests {
         assert_eq!(monitor.machine.x[3], 0xffff_ffff_8000_0001);
         monitor.execute("delete watch 1").unwrap();
         assert!(!monitor.execute("info watch").unwrap().contains("#1 read"));
+    }
+
+    #[test]
+    fn program_symbols_location_and_inferred_call_stack_are_visible() {
+        let mut monitor = Monitor::new(128);
+        let loaded = monitor
+            .assemble_program("_start: jal ra,func\n        addi x2,x0,9\nfunc:   addi x3,x0,7")
+            .unwrap();
+        assert!(loaded.contains("2 symbol(s)"));
+        assert!(monitor.execute("symbols").unwrap().contains("func"));
+
+        monitor.execute("step").unwrap();
+        assert!(monitor.execute("where").unwrap().contains("func"));
+        assert!(monitor.execute("stack").unwrap().contains("target=func"));
+        assert!(monitor.execute("history").unwrap().contains("jal x1,func"));
+    }
+
+    #[test]
+    fn execution_history_is_bounded_and_fifo() {
+        let mut monitor = Monitor::new(128);
+        monitor.assemble_program("_start: jal x0,0").unwrap();
+        monitor.execute("run 4100").unwrap();
+        assert_eq!(monitor.history.len(), MAX_HISTORY_ENTRIES);
+        assert_eq!(monitor.history.first().unwrap().sequence, 5);
+        assert!(monitor.execute("history 2").unwrap().contains("#004100"));
+    }
+
+    #[test]
+    fn source_address_commands_reject_unknown_symbols() {
+        let mut monitor = Monitor::new(128);
+        monitor.assemble_program("_start: addi x1,x0,1").unwrap();
+        let error = monitor.execute("jump @missing").unwrap_err();
+        assert_eq!(error.code, "MON-MARK-005");
+        assert_eq!(
+            monitor.execute("symbols").unwrap(),
+            "symbols:\n  0x0000000000000000 _start"
+        );
     }
 }

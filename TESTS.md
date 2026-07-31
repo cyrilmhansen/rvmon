@@ -12,7 +12,7 @@ Validation locale complète :
     bash scripts/test-guest-monitor.sh
     git diff --check
 
-La suite actuelle exécute 65 tests unitaires/intégration répartis dans les crates. Les doc-tests compilent mais ne contiennent actuellement aucun cas.
+La suite actuelle exécute 68 tests unitaires/intégration répartis dans les crates. Les doc-tests compilent mais ne contiennent actuellement aucun cas.
 
 Démonstration M-mode/U-mode sous QEMU :
 
@@ -44,7 +44,7 @@ Moniteur texte interactif :
 | luna-machine | 11 | Exécution entière, branches, mémoire, tables de pointeurs ILP32, fadd.s, fadd.d, NaN-boxing, flags et contrat backend. |
 | luna-disassembler | 7 | Format canonique, symboles, opcodes illégaux, C rejeté et round-trip. |
 | luna-floatfmt | 3 | Bits hex exacts, décimal court, classes IEEE et NaN-box invalide. |
-| luna-monitor | 12 | assemble → step → regs, affichage flottant, run borné, vues mémoire hex/ASCII, édition/undo, marques QuickJump, breakpoints et watchpoints. |
+| luna-monitor | 15 | assemble → step → regs, affichage flottant, run borné, vues mémoire hex/ASCII, édition/undo, marques QuickJump, breakpoints, watchpoints, symboles, pile et historique. |
 | luna-target-api | 4 | Contexte de trap, capacités explicites RV64 bare-metal, codes `mcause`, contrat de layout, résultats et accès mémoire du backend commun. |
 | luna-guest-monitor | 0 | Image bare-metal, boot QEMU, PMP, transition M→U, trap `ebreak` et boucle UART; vérifié par smoke test QEMU. |
 | luna-app | 0 | Compilation du binaire et démonstration ; pas encore d’E2E terminal. |
@@ -137,6 +137,13 @@ watchpoint arrête après l’instruction et rapporte l’accès mémoire observ
 machine expose ces accès dans `ExecutionOutcome`; un backend qui ne peut pas
 les fournir doit déclarer cette capacité comme non supportée au lieu de les
 inventer.
+
+Le chargement `assemble-program` accepte un texte multi-lignes, charge les
+symboles et réinitialise l’état d’exécution. `where` affiche le PC et le
+symbole le plus proche, `symbols` liste la table, `stack` expose la pile
+d’appels inférée pour `jal`/`jalr`, et `history` conserve au plus 4096
+instructions. L’inférence de pile n’est pas un unwind ABI complet et ne doit
+pas être utilisée comme preuve de validité d’une pile corrompue.
 
 ### Backend cible 4B
 

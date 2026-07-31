@@ -9,6 +9,7 @@ luna-assembler = { path = "../assembler" }
 luna-diag = { path = "../diag" }
 luna-disassembler = { path = "../disassembler" }
 luna-floatfmt = { path = "../floatfmt" }
+luna-isa = { path = "../isa" }
 luna-machine = { path = "../machine" }
 luna-target-api = { path = "../target-api" }
 
