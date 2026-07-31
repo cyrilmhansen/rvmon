@@ -72,6 +72,7 @@ pub enum Instruction {
     Add(RType),
     Sub(RType),
     Lui(Lui),
+    Auipc(Lui),
     Lw(Load),
     Sw(Store),
     Ld(Load),
@@ -143,16 +144,20 @@ pub fn encode_f_r(mnemonic: &str, instruction: FRegisterRType) -> Result<u32> {
         | ((instruction.rd as u32) << 7))
 }
 
-pub fn encode_lui(instruction: Lui) -> Result<u32> {
+pub fn encode_u(mnemonic: &str, instruction: Lui) -> Result<u32> {
     if instruction.rd > 31 || instruction.imm20 > 0x000f_ffff {
         return Err(Diagnostic::error(
             "ISA-OPERAND-001",
-            "lui register or immediate out of range",
+            "U-type register or immediate out of range",
         ));
     }
-    let opcode = generated_opcode("lui")?;
+    let opcode = generated_opcode(mnemonic)?;
     let encoded = instruction.imm20 << 12;
     Ok(encoded | ((instruction.rd as u32) << 7) | opcode.match_value)
+}
+
+pub fn encode_lui(instruction: Lui) -> Result<u32> {
+    encode_u("lui", instruction)
 }
 
 pub fn encode_load(mnemonic: &str, instruction: Load) -> Result<u32> {
@@ -284,6 +289,14 @@ pub fn decode(word: u32) -> Instruction {
                 });
             }
         }
+        if let Ok(opcode) = generated_opcode("auipc") {
+            if word & opcode.mask == opcode.match_value {
+                return Instruction::Auipc(Lui {
+                    rd: ((word >> 7) & 31) as u8,
+                    imm20: (word >> 12) & 0x000f_ffff,
+                });
+            }
+        }
         if let Ok(opcode) = generated_opcode("lw") {
             if word & opcode.mask == opcode.match_value {
                 return Instruction::Lw(Load {
@@ -408,6 +421,7 @@ pub fn encode(instruction: Instruction) -> Result<u32> {
         Instruction::Add(instruction) => encode_r_type("add", instruction),
         Instruction::Sub(instruction) => encode_r_type("sub", instruction),
         Instruction::Lui(instruction) => encode_lui(instruction),
+        Instruction::Auipc(instruction) => encode_u("auipc", instruction),
         Instruction::Lw(instruction) => encode_load("lw", instruction),
         Instruction::Sw(instruction) => encode_store("sw", instruction),
         Instruction::Ld(instruction) => encode_load("ld", instruction),

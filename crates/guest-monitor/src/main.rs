@@ -910,6 +910,12 @@ fn parse_source_instruction(
     if let Some(operands) = source.strip_prefix(b"addi ") {
         return parse_addi_operands(operands, symbols);
     }
+    if let Some(operands) = source.strip_prefix(b"lui ") {
+        return parse_u_operands("lui", operands);
+    }
+    if let Some(operands) = source.strip_prefix(b"auipc ") {
+        return parse_u_operands("auipc", operands);
+    }
     if let Some(operands) = source.strip_prefix(b"beq ") {
         return parse_branch_operands("beq", operands, address, symbols);
     }
@@ -947,6 +953,18 @@ fn parse_addi_operands(operands: &[u8], symbols: &[GuestSymbol; MAX_SYMBOLS]) ->
     let rs1 = parse_register(rs1_bytes.trim_ascii())?;
     let imm = parse_signed_decimal_or_symbol(imm_bytes.trim_ascii(), symbols)?;
     luna_isa_core::encode_addi(rd, rs1, imm)
+}
+
+fn parse_u_operands(mnemonic: &str, operands: &[u8]) -> Option<u32> {
+    let (rd_bytes, immediate_bytes) = split_once_comma(operands)?;
+    let rd = parse_register(rd_bytes.trim_ascii())?;
+    let immediate = parse_hex(immediate_bytes.trim_ascii())
+        .or_else(|| parse_decimal(immediate_bytes.trim_ascii()))?;
+    if mnemonic == "lui" {
+        luna_isa_core::encode_lui(rd, u32::try_from(immediate).ok()?)
+    } else {
+        luna_isa_core::encode_auipc(rd, u32::try_from(immediate).ok()?)
+    }
 }
 
 fn parse_branch_operands(

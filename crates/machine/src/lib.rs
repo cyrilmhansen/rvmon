@@ -112,6 +112,12 @@ impl Machine {
                         ((instruction.imm20 << 12) as i32 as i64) as u64;
                 }
             }
+            Instruction::Auipc(instruction) => {
+                if instruction.rd != 0 {
+                    let offset = ((instruction.imm20 << 12) as i32 as i64) as u64;
+                    self.x[instruction.rd as usize] = pc_before.wrapping_add(offset);
+                }
+            }
             Instruction::Lw(instruction) => {
                 let address =
                     self.x[instruction.rs1 as usize].wrapping_add(instruction.imm as i64 as u64);
@@ -572,7 +578,7 @@ fn is_infinite_d(value: u64) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use luna_isa::{Addi, Lui, RType, encode_addi, encode_lui, encode_r};
+    use luna_isa::{Addi, Lui, RType, encode_addi, encode_lui, encode_r, encode_u};
 
     #[test]
     fn executes_generated_integer_instructions() {
@@ -605,6 +611,7 @@ mod tests {
             )
             .unwrap(),
             encode_lui(Lui { rd: 10, imm20: 1 }).unwrap(),
+            encode_u("auipc", Lui { rd: 11, imm20: 1 }).unwrap(),
         ];
         let bytes: Vec<_> = words.iter().flat_map(|word| word.to_le_bytes()).collect();
         machine.load(0, &bytes).unwrap();
@@ -615,6 +622,7 @@ mod tests {
         assert_eq!(machine.x[8], 42);
         assert_eq!(machine.x[9], 38);
         assert_eq!(machine.x[10], 0x1000);
+        assert_eq!(machine.x[11], 0x1000 + (words.len() as u64 - 1) * 4);
     }
 
     #[test]

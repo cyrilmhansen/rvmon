@@ -5,7 +5,7 @@ use std::collections::BTreeMap;
 use luna_diag::{Diagnostic, Result};
 use luna_isa::{
     Addi, Branch, FRegisterRType, Jal, Jalr, Load, Lui, RType, Store, encode_addi, encode_branch,
-    encode_f_r, encode_jal, encode_jalr, encode_load, encode_lui, encode_r, encode_store,
+    encode_f_r, encode_jal, encode_jalr, encode_load, encode_r, encode_store, encode_u,
 };
 
 mod expr;
@@ -146,11 +146,14 @@ fn assemble_parsed(
                 rs2: register(operand_text(&parts[2])?)?,
             },
         )?,
-        "lui" if parts.len() == 2 => encode_lui(Lui {
-            rd: register(operand_text(&parts[0])?)?,
-            imm20: u32::try_from(immediate(&parts[1], symbols, 0, 0x000f_ffff)?)
-                .map_err(|_| Diagnostic::error("ASM-IMMEDIATE-001", "invalid U immediate"))?,
-        })?,
+        "lui" | "auipc" if parts.len() == 2 => encode_u_instruction(
+            mnemonic,
+            Lui {
+                rd: register(operand_text(&parts[0])?)?,
+                imm20: u32::try_from(immediate(&parts[1], symbols, 0, 0x000f_ffff)?)
+                    .map_err(|_| Diagnostic::error("ASM-IMMEDIATE-001", "invalid U immediate"))?,
+            },
+        )?,
         "lw" | "ld" if parts.len() == 2 => {
             let (imm, rs1) = memory_operand(&parts[1], symbols)?;
             encode_load(
@@ -238,6 +241,16 @@ fn assemble_parsed(
         entry: 0,
         symbols: BTreeMap::new(),
     })
+}
+
+fn encode_u_instruction(mnemonic: &str, instruction: Lui) -> Result<u32> {
+    if instruction.rd > 31 || instruction.imm20 > 0x000f_ffff {
+        return Err(Diagnostic::error(
+            "ASM-IMMEDIATE-001",
+            "U-type register or immediate out of range",
+        ));
+    }
+    encode_u(mnemonic, instruction)
 }
 
 fn immediate(
@@ -449,6 +462,10 @@ mod tests {
         assert!(assemble("add x5,x6,x7").is_ok());
         assert!(assemble("sub x5,x6,x7").is_ok());
         assert!(assemble("lui x3,74565").is_ok());
+        assert_eq!(
+            assemble("auipc x4,4096").unwrap().text,
+            [0x17, 0x02, 0x00, 0x01]
+        );
         assert!(assemble("lw x3,8(x4)").is_ok());
         assert!(assemble("sw x3,-8(x4)").is_ok());
         assert!(assemble("beq x1,x2,-4").is_ok());

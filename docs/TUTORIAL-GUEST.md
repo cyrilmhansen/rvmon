@@ -15,8 +15,8 @@ terminal                           <-- commandes et diagnostics UART
 
 Ce binaire invité est actuellement un moniteur de démarrage et de débogage
 minimal. Il fournit déjà l’inspection des registres, la lecture mémoire et
-des commandes `assemble` et `assemble-program` limitées à `addi`, `beq`,
-`bne`, `jal`, `jalr`, `ld`, `sd`, `fadd.s` et `fadd.d`. Les vues
+des commandes `assemble` et `assemble-program` limitées à `addi`, `lui`,
+`beq`, `bne`, `jal`, `jalr`, `ld`, `sd`, `fadd.s` et `fadd.d`. Les vues
 les directives et les snapshots restent à porter. Le programme U-mode de
 démonstration est lié dans l’image et sert à valider les traps, les
 breakpoints logiciels et le pas-à-pas.
@@ -176,7 +176,7 @@ Chaque ligne est validée avant toute écriture ; `end` termine la saisie :
 
 ```text
 rvmonitor> assemble-program 0x80010a30
-source mode: enter integer/control, ld/sd or fadd.s/fadd.d lines, finish with end
+source mode: enter integer/control, lui/auipc, ld/sd or fadd.s/fadd.d lines, finish with end
 source> _start:
 source> addi x1,x0,1
 source> beq x1,x1,next
@@ -204,7 +204,7 @@ rvmonitor> regs
 ... x1=0x0000000000000003 ...
 ```
 
-Le parseur invité accepte `addi`, `beq`, `bne`, `jal`, `jalr`, `ld`, `sd`,
+Le parseur invité accepte `addi`, `lui`, `auipc`, `beq`, `bne`, `jal`, `jalr`, `ld`, `sd`,
 `fadd.s` et `fadd.d`. Les branches et `jal` prennent une cible relative numérique ou un
 label, éventuellement suivi de `+offset` ou `-offset`; `jalr` utilise la forme
 `jalr rd,imm(rs1)`. Les instructions flottantes utilisent

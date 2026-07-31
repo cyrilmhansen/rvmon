@@ -218,6 +218,23 @@ Une tâche est terminée seulement si sa condition de sortie est satisfaite.
 - **Parallélisable :** oui avec FP-004 et GEN-001 ; intégration guest séquentielle.
 - **Paquet de contexte minimal :** SPEC §§5–8/23, `crates/isa-core/src/lib.rs`, `crates/isa/src/lib.rs`, `scripts/test-guest-monitor.sh`.
 
+### ISA-004 — Construire une adresse de données distante dans le guest — TERMINÉ
+
+- **Jalon / exigences :** M2/M3; ABI-001..004, ISA-001, MEM-001..004, DBG-001.
+- **But :** valider sous QEMU le chemin guest `auipc → sd → ld` entre le workspace de code `0x81000000` et la zone de données `0x82000000`, sans masquer la règle RV64 de signe-extension.
+- **Non-but :** ajouter des alias mémoire, modifier la sémantique ILP32 ou fournir un linker ELF externe.
+- **Entrées et sources :** R1 RV64I, U-type et Loads/Stores; R2 commit généré; SPEC §§5–8/13/23; décision locale sur la carte 64 MiB.
+- **Fichiers/modules :** `crates/isa-core`, `crates/isa`, `crates/assembler`, `crates/machine`, `crates/disassembler`, `crates/guest-monitor`, `docs/TUTORIAL-GUEST.md`, `scripts/test-guest-ld-sd.sh`.
+- **Étapes réalisées :** généraliser l’encodage U-type généré à `lui`/`auipc`; décoder, désassembler et exécuter `auipc`; porter le parseur guest; construire l’adresse distante depuis le PC; écrire/lire 64 bits dans la zone data; vérifier les registres et octets via QEMU.
+- **Dépendances et tâches bloquées :** ISA-003 et carte guest 64 MiB; aucune dépendance à l’interface terminale; ce test doit rester vert pendant M6–M8.
+- **Tests :** golden `auipc`; round-trip encode/decode/disassemble; test machine PC-relative; compilation RV64 bare-metal; `bash scripts/test-guest-ld-sd.sh`; suite workspace.
+- **Critères de sortie :** le guest assemble quatre instructions, `x4=0x0000000082000000`, `x5=42`, et affiche `2a 00 00 00 00 00 00 00` à `0x82000008`.
+- **Cas limites et échecs :** `lui x4,0x82000` reste correctement signe-étendu en `0xffffffff82000000`; accès hors `[0x80000000,0x84000000)` → faute; PC relatif incorrect → adresse distante non validée.
+- **Taille :** 3 points / 1,5 journée-agent, incertitude faible; équivalent indicatif 60k–120k tokens.
+- **Compétences/outils :** encodage U-type, sémantique RV64, Rust no-std, linker, QEMU.
+- **Parallélisable :** oui avec FP-004 et GEN-001; non avec une autre modification du parseur guest ou du linker sans contrat de fusion.
+- **Paquet de contexte minimal :** SPEC §§5–8, `crates/isa-core/src/lib.rs`, `crates/machine/src/lib.rs`, `scripts/test-guest-ld-sd.sh`.
+
 ### ASM-001 — Lexer, registres et diagnostics de position
 
 - **Jalon / exigences :** M3; ASM-001..015, REQ-PROD-004.

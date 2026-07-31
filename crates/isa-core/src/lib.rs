@@ -23,6 +23,26 @@ pub const fn encode_addi(rd: u8, rs1: u8, imm: i16) -> Option<u32> {
     Some((immediate << 20) | ((rs1 as u32) << 15) | ((rd as u32) << 7) | ADDI_MATCH)
 }
 
+pub fn encode_lui(rd: u8, imm20: u32) -> Option<u32> {
+    if rd > 31 || imm20 > 0x000f_ffff {
+        return None;
+    }
+    let opcode = GENERATED_OPCODES
+        .iter()
+        .find(|opcode| opcode.mnemonic == "lui")?;
+    Some((imm20 << 12) | ((rd as u32) << 7) | opcode.match_value)
+}
+
+pub fn encode_auipc(rd: u8, imm20: u32) -> Option<u32> {
+    if rd > 31 || imm20 > 0x000f_ffff {
+        return None;
+    }
+    let opcode = GENERATED_OPCODES
+        .iter()
+        .find(|opcode| opcode.mnemonic == "auipc")?;
+    Some((imm20 << 12) | ((rd as u32) << 7) | opcode.match_value)
+}
+
 pub fn encode_branch(mnemonic: &str, rs1: u8, rs2: u8, imm: i16) -> Option<u32> {
     if rs1 > 31 || rs2 > 31 || !(-4096..=4094).contains(&imm) || imm % 2 != 0 {
         return None;
@@ -118,7 +138,8 @@ pub fn encode_f_r(mnemonic: &str, rd: u8, rs1: u8, rs2: u8, rm: u8) -> Option<u3
 #[cfg(test)]
 mod tests {
     use super::{
-        encode_addi, encode_branch, encode_f_r, encode_jal, encode_jalr, encode_load, encode_store,
+        encode_addi, encode_auipc, encode_branch, encode_f_r, encode_jal, encode_jalr, encode_load,
+        encode_lui, encode_store,
     };
 
     #[test]
@@ -139,6 +160,8 @@ mod tests {
         assert_eq!(encode_branch("bne", 1, 2, -8), Some(0xfe20_9ce3));
         assert_eq!(encode_jal(0, 12), Some(0x00c0_006f));
         assert_eq!(encode_jalr(0, 1, 0), Some(0x0000_8067));
+        assert_eq!(encode_lui(4, 0x82000), Some(0x8200_0237));
+        assert_eq!(encode_auipc(4, 0x1000), Some(0x0100_0217));
         assert_eq!(encode_load("ld", 3, 4, -8), Some(0xff82_3183));
         assert_eq!(encode_store("sd", 3, 4, 8), Some(0x0032_3423));
         assert_eq!(encode_f_r("fadd.s", 3, 1, 2, 0), Some(0x0020_81d3));
