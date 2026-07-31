@@ -1,13 +1,15 @@
 [package]
-name = "luna-app"
+name = "luna-monitor"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
 
 [dependencies]
 luna-assembler = { path = "../assembler" }
+luna-diag = { path = "../diag" }
+luna-disassembler = { path = "../disassembler" }
+luna-floatfmt = { path = "../floatfmt" }
 luna-machine = { path = "../machine" }
-luna-monitor = { path = "../monitor" }
 
 [lints]
 workspace = true

@@ -18,6 +18,10 @@ impl Memory {
             bytes: vec![0; size],
         }
     }
+
+    pub fn len(&self) -> usize {
+        self.bytes.len()
+    }
     fn range(&self, address: u64, width: usize) -> Result<std::ops::Range<usize>> {
         let start = usize::try_from(address)
             .map_err(|_| Diagnostic::error("MEM-ADDRESS-001", "address does not fit host index"))?;

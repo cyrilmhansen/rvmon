@@ -1,15 +1,51 @@
 #![forbid(unsafe_code)]
 
+use std::io::{self, BufRead, Write};
+
 fn main() {
-    let image = luna_assembler::assemble("addi x1,x0,1").expect("bootstrap source must assemble");
-    let mut machine = luna_machine::Machine::new(4096);
-    machine
-        .load(image.entry, &image.text)
-        .expect("image must load");
-    let result = machine.step().expect("addi must execute");
+    if std::env::args().any(|argument| argument == "--interactive") {
+        interactive();
+    } else {
+        demo();
+    }
+}
+
+fn demo() {
+    let mut monitor = luna_monitor::Monitor::new(4096);
     println!(
-        "pc=0x{:016x} -> 0x{:016x}; x1=0x{:016x}; instructions={}",
-        result.pc_before, result.pc_after, machine.x[1], machine.instructions
+        "{}",
+        monitor
+            .execute("assemble addi x1,x0,1")
+            .expect("bootstrap source must assemble")
     );
-    assert_eq!(machine.x[1], 1);
+    println!("{}", monitor.execute("step").expect("addi must execute"));
+    assert_eq!(monitor.machine.x[1], 1);
+}
+
+fn interactive() {
+    let stdin = io::stdin();
+    let mut monitor = luna_monitor::Monitor::new(64 * 1024);
+    println!("RVMonitor interactive; type 'help' for commands");
+    print!("rvmonitor> ");
+    io::stdout().flush().unwrap();
+    for line in stdin.lock().lines() {
+        let line = match line {
+            Ok(line) => line,
+            Err(error) => {
+                eprintln!("input error: {error}");
+                break;
+            }
+        };
+        let leave = matches!(line.trim(), "quit" | "exit");
+        match monitor.execute(&line) {
+            Ok(output) if !output.is_empty() => println!("{output}"),
+            Ok(_) => {}
+            Err(error) => eprintln!("{}: {}", error.code, error.message),
+        }
+        if leave {
+            break;
+        }
+        print!("rvmonitor> ");
+        io::stdout().flush().unwrap();
+    }
 }

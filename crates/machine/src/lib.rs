@@ -46,6 +46,10 @@ impl Machine {
         Ok(())
     }
 
+    pub fn memory_size(&self) -> usize {
+        self.memory.len()
+    }
+
     pub fn fflags(&self) -> u8 {
         (self.fcsr & 0x1f) as u8
     }
