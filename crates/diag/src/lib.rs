@@ -12,6 +12,8 @@ pub struct Diagnostic {
     pub code: &'static str,
     pub severity: Severity,
     pub message: String,
+    pub line: Option<u32>,
+    pub column: Option<u32>,
 }
 
 impl Diagnostic {
@@ -20,7 +22,15 @@ impl Diagnostic {
             code,
             severity: Severity::Error,
             message: message.into(),
+            line: None,
+            column: None,
         }
+    }
+
+    pub fn at(mut self, line: u32, column: u32) -> Self {
+        self.line = Some(line);
+        self.column = Some(column);
+        self
     }
 }
 

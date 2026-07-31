@@ -2,6 +2,7 @@
 
 use std::collections::BTreeMap;
 
+use luna_asm_lexer::tokenize;
 use luna_diag::{Diagnostic, Result};
 use luna_isa::{
     Addi, Branch, Jal, Jalr, Load, Lui, RType, Store, encode_addi, encode_branch, encode_jal,
@@ -45,6 +46,7 @@ fn memory_operand(value: &str) -> Result<(i16, u8)> {
 
 pub fn assemble(source: &str) -> Result<ObjectImage> {
     let line = source.split('#').next().unwrap_or("").trim();
+    tokenize(line)?;
     let mut words = line.splitn(2, char::is_whitespace);
     let mnemonic = words.next().unwrap_or("");
     let operands = words.next().unwrap_or("").trim();

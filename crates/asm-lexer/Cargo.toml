@@ -1,13 +1,11 @@
 [package]
-name = "luna-assembler"
+name = "luna-asm-lexer"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
 
 [dependencies]
 luna-diag = { path = "../diag" }
-luna-asm-lexer = { path = "../asm-lexer" }
-luna-isa = { path = "../isa" }
 
 [lints]
 workspace = true

@@ -15,9 +15,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "luna-asm-lexer"
+version = "0.1.0"
+dependencies = [
+ "luna-diag",
+]
+
+[[package]]
 name = "luna-assembler"
 version = "0.1.0"
 dependencies = [
+ "luna-asm-lexer",
  "luna-diag",
  "luna-isa",
 ]
