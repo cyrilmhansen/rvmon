@@ -19,14 +19,34 @@ pub struct ObjectImage {
     pub symbols: BTreeMap<String, u64>,
     pub constants: BTreeMap<String, i128>,
     pub listing: Vec<ListingEntry>,
+    pub sections: Vec<SectionImage>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ListingEntry {
     pub source_line: u32,
     pub address: u64,
+    pub section: String,
     pub source: String,
     pub bytes: Vec<u8>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct SectionImage {
+    pub name: String,
+    pub flags: String,
+    pub address: u64,
+    pub alignment: u64,
+    pub bytes: Vec<u8>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+struct SectionState {
+    name: String,
+    flags: String,
+    address: Option<u64>,
+    alignment: u64,
+    bytes: Vec<u8>,
 }
 
 type SymbolValues = BTreeMap<String, i128>;
@@ -131,6 +151,7 @@ pub fn assemble(source: &str) -> Result<ObjectImage> {
     image.listing.push(ListingEntry {
         source_line: 1,
         address: 0,
+        section: ".text".into(),
         source: source.to_owned(),
         bytes: image.text.clone(),
     });
@@ -147,6 +168,7 @@ fn assemble_parsed(parsed: &ParsedLine, pc: u64, symbols: &SymbolValues) -> Resu
             symbols: BTreeMap::new(),
             constants: BTreeMap::new(),
             listing: Vec::new(),
+            sections: Vec::new(),
         });
     }
     let word = match mnemonic {
@@ -265,6 +287,7 @@ fn assemble_parsed(parsed: &ParsedLine, pc: u64, symbols: &SymbolValues) -> Resu
         symbols: BTreeMap::new(),
         constants: BTreeMap::new(),
         listing: Vec::new(),
+        sections: Vec::new(),
     })
 }
 
@@ -381,6 +404,114 @@ fn data_values(operands: &[Operand], width: usize, symbols: &SymbolValues) -> Re
     Ok(bytes)
 }
 
+fn section_spec(line: &ParsedLine) -> Result<Option<(String, String)>> {
+    let Some(mnemonic) = line.mnemonic.as_deref() else {
+        return Ok(None);
+    };
+    let builtin = match mnemonic {
+        ".text" => Some((".text", "ax")),
+        ".rodata" => Some((".rodata", "a")),
+        ".data" => Some((".data", "aw")),
+        ".bss" => Some((".bss", "aw")),
+        _ => None,
+    };
+    if let Some((name, flags)) = builtin {
+        if !line.operands.is_empty() {
+            return Err(Diagnostic::error(
+                "ASM-SECTION-001",
+                "built-in section directives take no operands",
+            ));
+        }
+        return Ok(Some((name.into(), flags.into())));
+    }
+    if mnemonic != ".section" {
+        return Ok(None);
+    }
+    if line.operands.len() != 2 {
+        return Err(Diagnostic::error(
+            "ASM-SECTION-001",
+            ".section expects a name and flags string",
+        ));
+    }
+    let name = match &line.operands[0].kind {
+        OperandKind::Symbol(value) | OperandKind::String(value) => value.clone(),
+        _ => {
+            return Err(Diagnostic::error(
+                "ASM-SECTION-002",
+                "section name must be a symbol or string",
+            )
+            .at(line.operands[0].span.line, line.operands[0].span.column));
+        }
+    };
+    let OperandKind::String(flags) = &line.operands[1].kind else {
+        return Err(
+            Diagnostic::error("ASM-SECTION-003", "section flags must be a string")
+                .at(line.operands[1].span.line, line.operands[1].span.column),
+        );
+    };
+    if name.is_empty() || flags.is_empty() || !flags.is_ascii() {
+        return Err(Diagnostic::error(
+            "ASM-SECTION-004",
+            "section name and flags must be non-empty ASCII strings",
+        ));
+    }
+    Ok(Some((name, flags.clone())))
+}
+
+fn select_section(sections: &mut Vec<SectionState>, name: String, flags: String) -> Result<usize> {
+    if let Some((index, section)) = sections
+        .iter()
+        .enumerate()
+        .find(|(_, section)| section.name == name)
+    {
+        if section.flags != flags {
+            return Err(Diagnostic::error(
+                "ASM-SECTION-005",
+                "section flags cannot change after first declaration",
+            ));
+        }
+        return Ok(index);
+    }
+    sections.push(SectionState {
+        name,
+        flags,
+        address: None,
+        alignment: 1,
+        bytes: Vec::new(),
+    });
+    Ok(sections.len() - 1)
+}
+
+fn default_sections() -> Vec<SectionState> {
+    vec![SectionState {
+        name: ".text".into(),
+        flags: "ax".into(),
+        address: None,
+        alignment: 1,
+        bytes: Vec::new(),
+    }]
+}
+
+fn section_alignment_requirement(line: &ParsedLine, symbols: &SymbolValues) -> Result<Option<u64>> {
+    match line.mnemonic.as_deref() {
+        Some(".align") => {
+            if line.operands.len() != 1 {
+                return Ok(None);
+            }
+            let exponent = immediate(&line.operands[0], symbols, 0, 63)?;
+            Ok(Some(1u64 << u32::try_from(exponent).unwrap()))
+        }
+        Some(".balign") => {
+            if line.operands.len() != 1 {
+                return Ok(None);
+            }
+            let boundary = immediate(&line.operands[0], symbols, 1, i128::from(u64::MAX))?;
+            Ok(Some(u64::try_from(boundary).unwrap()))
+        }
+        _ => Ok(None),
+    }
+}
+
 pub fn assemble_program(source: &str) -> Result<ObjectImage> {
     let source_lines: Vec<&str> = source.lines().collect();
     let lines: Vec<_> = source_lines
@@ -392,9 +523,13 @@ pub fn assemble_program(source: &str) -> Result<ObjectImage> {
     let mut constants = BTreeMap::new();
     let mut equ_values = SymbolValues::new();
     let mut equ_names = BTreeSet::new();
+    let mut declared_sections = default_sections();
     let mut current_global = None;
     let mut pc = 0u64;
     for line in &lines {
+        if let Some((name, flags)) = section_spec(line)? {
+            select_section(&mut declared_sections, name, flags)?;
+        }
         define_labels(
             &line.labels,
             pc,
@@ -422,6 +557,9 @@ pub fn assemble_program(source: &str) -> Result<ObjectImage> {
 
     let mut text = Vec::new();
     let mut listing = Vec::with_capacity(lines.len());
+    let mut sections = default_sections();
+    let mut current_section = 0usize;
+    sections[0].address = Some(0);
     let mut emit_values: SymbolValues = symbols
         .iter()
         .map(|(name, address)| (name.clone(), i128::from(*address)))
@@ -431,10 +569,26 @@ pub fn assemble_program(source: &str) -> Result<ObjectImage> {
     pc = 0;
     for (line_index, line) in lines.into_iter().enumerate() {
         update_scope(&line.labels, &mut current_global)?;
+        if let Some((name, flags)) = section_spec(&line)? {
+            current_section = select_section(&mut sections, name, flags)?;
+            sections[current_section].address.get_or_insert(pc);
+            let section_name = sections[current_section].name.clone();
+            listing.push(ListingEntry {
+                source_line: u32::try_from(line_index + 1).unwrap_or(u32::MAX),
+                address: pc,
+                section: section_name,
+                source: source_lines[line_index].to_owned(),
+                bytes: Vec::new(),
+            });
+            continue;
+        }
+        sections[current_section].address.get_or_insert(pc);
+        let section_name = sections[current_section].name.clone();
         if line.mnemonic.is_none() {
             listing.push(ListingEntry {
                 source_line: u32::try_from(line_index + 1).unwrap_or(u32::MAX),
                 address: pc,
+                section: section_name,
                 source: source_lines[line_index].to_owned(),
                 bytes: Vec::new(),
             });
@@ -451,6 +605,7 @@ pub fn assemble_program(source: &str) -> Result<ObjectImage> {
             listing.push(ListingEntry {
                 source_line: u32::try_from(line_index + 1).unwrap_or(u32::MAX),
                 address: pc,
+                section: section_name,
                 source: source_lines[line_index].to_owned(),
                 bytes: Vec::new(),
             });
@@ -460,6 +615,7 @@ pub fn assemble_program(source: &str) -> Result<ObjectImage> {
             listing.push(ListingEntry {
                 source_line: u32::try_from(line_index + 1).unwrap_or(u32::MAX),
                 address: pc,
+                section: section_name,
                 source: source_lines[line_index].to_owned(),
                 bytes: Vec::new(),
             });
@@ -469,9 +625,15 @@ pub fn assemble_program(source: &str) -> Result<ObjectImage> {
         let resolved = resolve_control_label(line, pc, &scoped)?;
         let image = assemble_parsed(&resolved, pc, &scoped)?;
         let bytes = image.text;
+        if let Some(alignment) = section_alignment_requirement(&resolved, &scoped)? {
+            sections[current_section].alignment =
+                sections[current_section].alignment.max(alignment);
+        }
+        sections[current_section].bytes.extend_from_slice(&bytes);
         listing.push(ListingEntry {
             source_line: u32::try_from(line_index + 1).unwrap_or(u32::MAX),
             address: pc,
+            section: section_name,
             source: source_lines[line_index].to_owned(),
             bytes: bytes.clone(),
         });
@@ -479,12 +641,23 @@ pub fn assemble_program(source: &str) -> Result<ObjectImage> {
         pc += bytes.len() as u64;
     }
     let entry = symbols.get("_start").copied().unwrap_or(0);
+    let sections = sections
+        .into_iter()
+        .map(|section| SectionImage {
+            address: section.address.unwrap_or(pc),
+            name: section.name,
+            flags: section.flags,
+            alignment: section.alignment,
+            bytes: section.bytes,
+        })
+        .collect();
     Ok(ObjectImage {
         text,
         entry,
         symbols,
         constants,
         listing,
+        sections,
     })
 }
 
@@ -671,6 +844,7 @@ fn apply_set_directive(
 
 fn line_size(line: &ParsedLine, pc: u64, symbols: &SymbolValues) -> Result<u64> {
     match line.mnemonic.as_deref().unwrap_or_default() {
+        ".text" | ".rodata" | ".data" | ".bss" | ".section" => return Ok(0),
         ".equ" | ".set" => return Ok(0),
         ".byte" => return Ok(line.operands.len() as u64),
         ".half" => return Ok((line.operands.len() * 2) as u64),
@@ -760,6 +934,56 @@ mod tests {
         let single = assemble("addi x1,x0,1").unwrap();
         assert_eq!(single.listing[0].source_line, 1);
         assert_eq!(single.listing[0].bytes, single.text);
+    }
+
+    #[test]
+    fn assembles_named_sections_and_keeps_flat_image_compatibility() {
+        let image = assemble_program(
+            ".text\n_start: addi x1,x0,1\n.rodata\nmessage: .string \"ok\"\n.data\n.balign 8\nvalue: .word 0x1234\n.section .custom,\"aw\"\n.byte 9\n.bss",
+        )
+        .unwrap();
+        assert_eq!(image.text.len(), 13);
+        assert_eq!(image.symbols["_start"], 0);
+        assert_eq!(image.symbols["message"], 4);
+        assert_eq!(image.symbols["value"], 8);
+        assert_eq!(image.sections.len(), 5);
+        assert_eq!(image.sections[0].name, ".text");
+        assert_eq!(image.sections[0].flags, "ax");
+        assert_eq!(image.sections[0].address, 0);
+        assert_eq!(image.sections[0].bytes, [0x93, 0x00, 0x10, 0x00]);
+        assert_eq!(image.sections[1].name, ".rodata");
+        assert_eq!(image.sections[1].address, 4);
+        assert_eq!(image.sections[1].bytes, [b'o', b'k', 0]);
+        assert_eq!(image.sections[2].name, ".data");
+        assert_eq!(image.sections[2].flags, "aw");
+        assert_eq!(image.sections[2].address, 7);
+        assert_eq!(image.sections[2].alignment, 8);
+        assert_eq!(image.sections[2].bytes, [0, 0x34, 0x12, 0, 0]);
+        assert_eq!(image.sections[3].name, ".custom");
+        assert_eq!(image.sections[3].address, 12);
+        assert_eq!(image.sections[3].bytes, [9]);
+        assert_eq!(image.sections[4].name, ".bss");
+        assert_eq!(image.sections[4].address, 13);
+        assert!(image.sections[4].bytes.is_empty());
+        assert_eq!(image.listing[1].section, ".text");
+        assert_eq!(image.listing[2].section, ".rodata");
+        let section_bytes: Vec<u8> = image
+            .sections
+            .iter()
+            .flat_map(|section| section.bytes.iter().copied())
+            .collect();
+        assert_eq!(section_bytes, image.text);
+    }
+
+    #[test]
+    fn rejects_invalid_or_inconsistent_section_declarations() {
+        let error = assemble_program(".text ax\n.byte 1").unwrap_err();
+        assert_eq!(error.code, "ASM-SECTION-001");
+        let error = assemble_program(".section .custom,\"a\"\n.byte 1\n.section .custom,\"aw\"")
+            .unwrap_err();
+        assert_eq!(error.code, "ASM-SECTION-005");
+        let error = assemble_program(".section .custom, aw").unwrap_err();
+        assert_eq!(error.code, "ASM-SECTION-003");
     }
 
     #[test]

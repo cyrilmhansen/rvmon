@@ -295,6 +295,13 @@ impl Parser {
         };
 
         let mut operands = Vec::new();
+        if mnemonic.starts_with('.') && self.peek().is_none() {
+            return Ok(ParsedLine {
+                labels,
+                mnemonic: Some(mnemonic),
+                operands,
+            });
+        }
         operands.push(self.parse_operand()?);
         while self.peek().is_some() {
             let comma = self.take().expect("operand separator");

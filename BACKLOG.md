@@ -405,6 +405,23 @@ Une tâche est terminée seulement si sa condition de sortie est satisfaite.
 - **Parallélisable :** oui avec DIS-001; non avec une modification concurrente de `ObjectImage`.
 - **Paquet de contexte minimal :** SPEC §§9/11/12/23, `crates/assembler/src/lib.rs`, `TESTS.md`.
 
+### ASM-003C — Sections nommées et image multi-section aplatie — TERMINÉ
+
+- **Jalon / exigences :** M3; ASM-003, IO-003, IO-005, MEM-001.
+- **But :** reconnaître les sections V1, regrouper leurs bytes et conserver une image aplatie compatible avec le loader actuel.
+- **Non-but :** linker ELF, placement configurable, relocations inter-sections exportables et permissions runtime imposées par la machine.
+- **Entrées/sources :** SPEC §§9, 11 et 12 (sections, loader, formats); R4 directives `.text/.rodata/.data/.bss/.section`.
+- **Fichiers/modules :** `crates/assembler/src/parser.rs`, `crates/assembler/src/lib.rs`, `TESTS.md`.
+- **Étapes réalisées :** ajouter `SectionImage`; flags par section; sélection des sections built-in et custom; refus des flags contradictoires; bytes groupés et adresses de première émission; ajout du nom de section au listing; directives sans opérandes reconnues par le parser.
+- **Dépendances :** ASM-003B; aucun nouvel outil externe; le moniteur continue de charger `ObjectImage.text`.
+- **Tests :** programme intercalant `.text`, `.rodata`, `.data`, `.section` custom et `.bss`; symboles et adresses; flags; erreurs d’arité et de redéclaration.
+- **Critères de sortie :** image aplatie et sections contiennent les mêmes bytes dans l’ordre source; chaque listing porte la section active; un changement de section n’ajoute aucun byte.
+- **Cas limites et échecs :** section vide, sélection répétée, flags divergents, nom/flags non ASCII ou absents, labels sur ligne de section.
+- **Taille :** 5 points / 2–2,5 journées-agent, incertitude moyenne; équivalent indicatif 80k–180k tokens.
+- **Compétences/outils :** assembleur, layout de sections, API Rust.
+- **Parallélisable :** oui avec FP-001 et DIS-001; non avec une modification simultanée du layout `ObjectImage`.
+- **Paquet de contexte minimal :** SPEC §§9/11/12, R4 directives, `crates/assembler/src/parser.rs`, `crates/assembler/src/lib.rs`.
+
 ### ASM-003 — Directives, chaînes, macros et listing
 
 - **Jalon / exigences :** M3; ASM-001..015, IO-001..009.
