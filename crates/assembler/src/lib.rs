@@ -4,8 +4,8 @@ use std::collections::BTreeMap;
 
 use luna_diag::{Diagnostic, Result};
 use luna_isa::{
-    Addi, Branch, Jal, Jalr, Load, Lui, RType, Store, encode_addi, encode_branch, encode_jal,
-    encode_jalr, encode_load, encode_lui, encode_r, encode_store,
+    Addi, Branch, FRegisterRType, Jal, Jalr, Load, Lui, RType, Store, encode_addi, encode_branch,
+    encode_f_r, encode_jal, encode_jalr, encode_load, encode_lui, encode_r, encode_store,
 };
 
 mod expr;
@@ -62,6 +62,13 @@ fn register(name: &str) -> Result<u8> {
         "t6" => Ok(31),
         _ => Err(Diagnostic::error("ASM-REGISTER-001", "unknown register")),
     }
+}
+
+fn floating_register(name: &str) -> Result<u8> {
+    name.strip_prefix('f')
+        .and_then(|number| number.parse::<u8>().ok())
+        .filter(|number| *number < 32)
+        .ok_or_else(|| Diagnostic::error("ASM-FREGISTER-001", "invalid floating register"))
 }
 
 fn operand_text(operand: &Operand) -> Result<&str> {
@@ -198,13 +205,22 @@ fn assemble_parsed(
                 imm,
             })?
         }
+        "fadd.s" if parts.len() == 3 => encode_f_r(
+            "fadd.s",
+            FRegisterRType {
+                rd: floating_register(operand_text(&parts[0])?)?,
+                rs1: floating_register(operand_text(&parts[1])?)?,
+                rs2: floating_register(operand_text(&parts[2])?)?,
+                rm: 7,
+            },
+        )?,
         "" => {
             return Err(Diagnostic::error("ASM-OPERAND-001", "missing instruction"));
         }
         _ => {
             return Err(Diagnostic::error(
                 "ASM-BOOT-UNSUPPORTED",
-                "bootstrap assembler accepts addi, add, sub, lui, lw, sw, beq, bne, jal and jalr",
+                "bootstrap assembler accepts integer forms plus fadd.s",
             ));
         }
     };
@@ -401,6 +417,14 @@ mod tests {
     #[test]
     fn supports_abi_aliases() {
         assert!(assemble("addi ra,zero,1").is_ok());
+    }
+
+    #[test]
+    fn assembles_fadd_s_with_dynamic_rounding_mode() {
+        assert_eq!(
+            assemble("fadd.s f3,f1,f2").unwrap().text,
+            [0xd3, 0xf1, 0x20, 0x00]
+        );
     }
 
     #[test]

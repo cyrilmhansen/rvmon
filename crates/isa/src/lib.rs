@@ -68,6 +68,14 @@ pub struct Jalr {
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct FRegisterRType {
+    pub rd: u8,
+    pub rs1: u8,
+    pub rs2: u8,
+    pub rm: u8,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Instruction {
     Addi(Addi),
     Add(RType),
@@ -79,6 +87,7 @@ pub enum Instruction {
     Bne(Branch),
     Jal(Jal),
     Jalr(Jalr),
+    FAddS(FRegisterRType),
     Illegal(u32),
 }
 
@@ -124,6 +133,25 @@ pub fn encode_addi(addi: Addi) -> Result<u32> {
 
 pub fn encode_r(mnemonic: &str, instruction: RType) -> Result<u32> {
     encode_r_type(mnemonic, instruction)
+}
+
+pub fn encode_f_r(mnemonic: &str, instruction: FRegisterRType) -> Result<u32> {
+    if [instruction.rd, instruction.rs1, instruction.rs2]
+        .iter()
+        .any(|register| *register > 31)
+        || instruction.rm > 7
+    {
+        return Err(Diagnostic::error(
+            "ISA-OPERAND-001",
+            "floating register or rounding mode out of range",
+        ));
+    }
+    let opcode = generated_opcode(mnemonic)?;
+    Ok(opcode.match_value
+        | ((instruction.rs2 as u32) << 20)
+        | ((instruction.rs1 as u32) << 15)
+        | ((instruction.rm as u32) << 12)
+        | ((instruction.rd as u32) << 7))
 }
 
 pub fn encode_lui(instruction: Lui) -> Result<u32> {
@@ -338,6 +366,16 @@ pub fn decode(word: u32) -> Instruction {
                 });
             }
         }
+        if let Ok(opcode) = generated_opcode("fadd.s") {
+            if word & opcode.mask == opcode.match_value {
+                return Instruction::FAddS(FRegisterRType {
+                    rd: ((word >> 7) & 31) as u8,
+                    rs1: ((word >> 15) & 31) as u8,
+                    rs2: ((word >> 20) & 31) as u8,
+                    rm: ((word >> 12) & 7) as u8,
+                });
+            }
+        }
         Instruction::Illegal(word)
     }
 }
@@ -358,6 +396,7 @@ pub fn encode(instruction: Instruction) -> Result<u32> {
         Instruction::Bne(instruction) => encode_branch("bne", instruction),
         Instruction::Jal(instruction) => encode_jal(instruction),
         Instruction::Jalr(instruction) => encode_jalr(instruction),
+        Instruction::FAddS(instruction) => encode_f_r("fadd.s", instruction),
         Instruction::Illegal(_) => Err(Diagnostic::error(
             "ISA-ENCODE-001",
             "cannot encode an illegal instruction",
@@ -417,6 +456,18 @@ mod tests {
                 .iter()
                 .any(|opcode| opcode.mnemonic == "fadd.s")
         );
+    }
+
+    #[test]
+    fn fadd_s_encoding_round_trips_with_dynamic_rounding() {
+        let instruction = FRegisterRType {
+            rd: 1,
+            rs1: 2,
+            rs2: 3,
+            rm: 7,
+        };
+        let word = encode_f_r("fadd.s", instruction).unwrap();
+        assert_eq!(decode(word), Instruction::FAddS(instruction));
     }
 
     #[test]

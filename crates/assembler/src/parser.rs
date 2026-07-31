@@ -52,6 +52,10 @@ fn is_register_name(value: &str) -> bool {
         .strip_prefix('x')
         .and_then(|number| number.parse::<u8>().ok())
         .is_some_and(|number| number < 32)
+        || value
+            .strip_prefix('f')
+            .and_then(|number| number.parse::<u8>().ok())
+            .is_some_and(|number| number < 32)
         || matches!(
             value,
             "zero"

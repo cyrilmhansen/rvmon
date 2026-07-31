@@ -3,7 +3,7 @@
 use std::collections::BTreeMap;
 
 use luna_diag::{Diagnostic, Result};
-use luna_isa::{Addi, Branch, Instruction, Jal, Jalr, Load, Lui, RType, Store};
+use luna_isa::{Addi, Branch, FRegisterRType, Instruction, Jal, Jalr, Load, Lui, RType, Store};
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct DisassembledLine {
@@ -95,6 +95,14 @@ fn format_instruction(
             )
         }
         Instruction::Jalr(Jalr { rd, rs1, imm }) => format!("jalr x{rd},{imm}(x{rs1})"),
+        Instruction::FAddS(FRegisterRType {
+            rd,
+            rs1,
+            rs2,
+            rm: _,
+        }) => {
+            format!("fadd.s f{rd},f{rs1},f{rs2}")
+        }
         Instruction::Illegal(word) => format!(".word 0x{word:08x}"),
     }
 }
@@ -190,6 +198,7 @@ mod tests {
             "bne x1,x2,6",
             "jal x1,2048",
             "jalr x1,0(x4)",
+            "fadd.s f3,f1,f2",
         ] {
             let original = luna_assembler::assemble(source).unwrap().text;
             let line = disassemble_bytes(&original, 0, &BTreeMap::new())
