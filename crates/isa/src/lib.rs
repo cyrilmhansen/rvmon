@@ -81,6 +81,14 @@ pub enum FloatConversionKind {
     WuFromD,
     DFromW,
     DFromWu,
+    LFromS,
+    LuFromS,
+    SFromL,
+    SFromLu,
+    LFromD,
+    LuFromD,
+    DFromL,
+    DFromLu,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -188,6 +196,14 @@ pub fn encode_f_convert(instruction: FloatConversion) -> Result<u32> {
         FloatConversionKind::WuFromD => "fcvt.wu.d",
         FloatConversionKind::DFromW => "fcvt.d.w",
         FloatConversionKind::DFromWu => "fcvt.d.wu",
+        FloatConversionKind::LFromS => "fcvt.l.s",
+        FloatConversionKind::LuFromS => "fcvt.lu.s",
+        FloatConversionKind::SFromL => "fcvt.s.l",
+        FloatConversionKind::SFromLu => "fcvt.s.lu",
+        FloatConversionKind::LFromD => "fcvt.l.d",
+        FloatConversionKind::LuFromD => "fcvt.lu.d",
+        FloatConversionKind::DFromL => "fcvt.d.l",
+        FloatConversionKind::DFromLu => "fcvt.d.lu",
     };
     let opcode = generated_opcode(mnemonic)?;
     Ok(opcode.match_value
@@ -470,6 +486,14 @@ pub fn decode(word: u32) -> Instruction {
             ("fcvt.wu.d", FloatConversionKind::WuFromD),
             ("fcvt.d.w", FloatConversionKind::DFromW),
             ("fcvt.d.wu", FloatConversionKind::DFromWu),
+            ("fcvt.l.s", FloatConversionKind::LFromS),
+            ("fcvt.lu.s", FloatConversionKind::LuFromS),
+            ("fcvt.s.l", FloatConversionKind::SFromL),
+            ("fcvt.s.lu", FloatConversionKind::SFromLu),
+            ("fcvt.l.d", FloatConversionKind::LFromD),
+            ("fcvt.lu.d", FloatConversionKind::LuFromD),
+            ("fcvt.d.l", FloatConversionKind::DFromL),
+            ("fcvt.d.lu", FloatConversionKind::DFromLu),
         ] {
             if let Ok(opcode) = generated_opcode(mnemonic) {
                 if word & opcode.mask == opcode.match_value {
@@ -606,6 +630,14 @@ mod tests {
             ("fcvt.wu.d", FloatConversionKind::WuFromD),
             ("fcvt.d.w", FloatConversionKind::DFromW),
             ("fcvt.d.wu", FloatConversionKind::DFromWu),
+            ("fcvt.l.s", FloatConversionKind::LFromS),
+            ("fcvt.lu.s", FloatConversionKind::LuFromS),
+            ("fcvt.s.l", FloatConversionKind::SFromL),
+            ("fcvt.s.lu", FloatConversionKind::SFromLu),
+            ("fcvt.l.d", FloatConversionKind::LFromD),
+            ("fcvt.lu.d", FloatConversionKind::LuFromD),
+            ("fcvt.d.l", FloatConversionKind::DFromL),
+            ("fcvt.d.lu", FloatConversionKind::DFromLu),
         ] {
             let instruction = FloatConversion {
                 kind,

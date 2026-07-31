@@ -46,5 +46,5 @@ if [[ "$qemu_hex" != "$machine_hex" ]]; then
     exit 1
 fi
 
-printf 'QEMU %s independently matches 8 W integer/float conversion result-and-flag cases; PASS\n' \
+printf 'QEMU %s independently matches 13 W/L integer/float conversion result-and-flag cases; PASS\n' \
     "$actual_qemu"

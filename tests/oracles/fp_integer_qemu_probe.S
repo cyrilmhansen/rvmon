@@ -60,9 +60,44 @@ _start:
     csrr    t2, fflags
     sd      t2, 120(t1)
 
+    csrw    fflags, zero
+    flw     ft0, 0(t0)
+    fcvt.l.s t3, ft0
+    sd      t3, 128(t1)
+    csrr    t2, fflags
+    sd      t2, 136(t1)
+
+    csrw    fflags, zero
+    flw     ft0, 12(t0)
+    fcvt.lu.s t3, ft0
+    sd      t3, 144(t1)
+    csrr    t2, fflags
+    sd      t2, 152(t1)
+
+    csrw    fflags, zero
+    fld     ft0, 16(t0)
+    fcvt.l.d t3, ft0
+    sd      t3, 160(t1)
+    csrr    t2, fflags
+    sd      t2, 168(t1)
+
+    csrw    fflags, zero
+    li      t3, 0x8000000000000000
+    fcvt.d.l ft1, t3
+    fsd     ft1, 176(t1)
+    csrr    t2, fflags
+    sd      t2, 184(t1)
+
+    csrw    fflags, zero
+    li      t3, -1
+    fcvt.d.lu ft1, t3
+    fsd     ft1, 192(t1)
+    csrr    t2, fflags
+    sd      t2, 200(t1)
+
     li      a0, 1
     la      a1, output
-    li      a2, 128
+    li      a2, 208
     li      a7, 64
     ecall
 
@@ -82,4 +117,4 @@ inputs:
     .section .bss
     .balign 8
 output:
-    .space 128
+    .space 208

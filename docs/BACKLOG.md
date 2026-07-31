@@ -672,7 +672,7 @@ Une tâche est terminée seulement si sa condition de sortie est satisfaite.
 - **Étapes réalisées :** ajouter `FloatConversionKind` dans l’AST ISA; générer l’encodage depuis R2; assembler/désassembler les deux mnémotechniques; réutiliser l’arithmétique exacte pour les ties; préserver les flags et rejeter les modes réservés.
 - **Tests :** round-trip ISA, assembleur/désassembleur, binary64→binary32 RNE/RUP, binary32→binary64, infini négatif, sNaN et oracle QEMU indépendant.
 - **Acceptation :** 134 tests Cargo et `bash tools/check-fp-conversion-oracle.sh` passent; QEMU 11.0.2 concorde sur trois cas résultat/flags.
-- **Limites/échecs :** les variantes L des conversions entier↔flottant restent à venir; les payloads NaN non canoniques sont conservées seulement lorsque la future règle de conversion le permettra.
+- **Limites/échecs :** les conversions entier↔flottant W/L sont maintenant couvertes pour F/D; les payloads NaN non canoniques sont conservées seulement lorsque la règle de conversion le permet; binary16/binary128 restent hors exécution.
 - **Taille :** 4 points / 2 journées-agent, incertitude moyenne.
 - **Compétences/outils :** RISC-V F/D, IEEE 754, tables R2, QEMU, Rust.
 - **Parallélisable :** oui avec la préparation de FP-004; non avec une modification concurrente de l’AST `Instruction`.
@@ -685,7 +685,7 @@ Une tâche est terminée seulement si sa condition de sortie est satisfaite.
 - **Non-but :** Q runtime.
 - **Entrées/sources :** R1 D/Q; R2; DECISIONS D-005.
 - **Fichiers/modules :** `float`, `machine`, `isa`, profile.
-- **Étapes :** `fadd.d`, conversions de format et variantes W entier/flottant réalisées; variantes L, binary16/128 data; execute gate; diagnostics.
+- **Étapes :** `fadd.d`, conversions de format et variantes W/L entier/flottant réalisées; binary16/128 data; execute gate; diagnostics.
 - **Dépendances/bloqués :** FP-002, GEN-001; bloque M5.
 - **Tests :** D motifs/flags; Q decode/data; executing Q trap; matrix generated.
 - **Acceptation :** E2E 5/7 et les conversions de format/W sont disponibles; aucune extension non exécutée n’est présentée comme support.
@@ -704,11 +704,28 @@ Une tâche est terminée seulement si sa condition de sortie est satisfaite.
 - **Fichiers/modules :** `crates/isa`, `crates/assembler`, `crates/disassembler`, `crates/machine`, probe QEMU.
 - **Étapes réalisées :** ajouter les huit kinds de conversion dans les tables de dispatch; arrondir les fractions avec `rm/frm`; produire `NV` pour NaN/infini/dépassement et `NX` pour les résultats inexactes; appliquer les bornes signées/non signées et l’extension RV64 des résultats W.
 - **Tests :** 1.75, -1.75 sous RDN, 3.5 unsigned, -1 unsigned, +inf signed, -123, `0xffffffff` unsigned→float, `INT_MIN`; round-trip assembleur/désassembleur; oracle QEMU sur huit cas.
-- **Acceptation :** 137 tests Cargo et `bash tools/check-fp-integer-oracle.sh` passent; les huit motifs/flags concordent avec QEMU 11.0.2.
-- **Limites/échecs :** les variantes L RV64 restent à implémenter; les résultats NaN et les bornes supplémentaires doivent encore être ajoutés au corpus large IEEE.
+- **Acceptation :** 137 tests Cargo et `bash tools/check-fp-integer-oracle.sh` passent pour la tranche W; les huit motifs/flags concordent avec QEMU 11.0.2.
+- **Limites/échecs :** les variantes L sont traitées par FP-004B; les résultats NaN et les bornes supplémentaires doivent encore être ajoutés au corpus large IEEE.
+
 - **Taille :** 5 points / 2,5 journées-agent, incertitude moyenne.
 - **Compétences/outils :** psABI/ISA F/D, IEEE 754, conversions signées, QEMU, Rust.
 - **Parallélisable :** oui avec le corpus IEEE; non avec une modification concurrente de `FloatConversionKind`.
+- **Contexte minimal :** SPEC §§5/11.1/23/24, R2 `rv_f`/`rv_d`, `crates/machine/src/lib.rs`, oracle integer.
+
+### FP-004B — Conversions entières L RV64 — TERMINÉ
+
+- **Jalon / exigences :** M5; FP-007..011, FP-015..018, IO-004.
+- **But :** exécuter les huit formes RV64 `fcvt.l.s`, `fcvt.lu.s`, `fcvt.s.l`, `fcvt.s.lu`, `fcvt.l.d`, `fcvt.lu.d`, `fcvt.d.l`, `fcvt.d.lu` avec résultats, arrondis et `fflags` déterministes.
+- **Non-but :** binary16/binary128 exécutés, instructions Q/Zfh, et corpus exhaustif de toutes les opérations IEEE.
+- **Entrées/sources :** R1 §§11.1/11.2; R2 commit épinglé; QEMU 11.0.2 via D-016.
+- **Fichiers/modules :** `crates/isa`, `crates/assembler`, `crates/disassembler`, `crates/machine`, `crates/machine/examples/fp_integer_probe.rs`, `tests/oracles/fp_integer_qemu_probe.S`, `tools/check-fp-integer-oracle.sh`.
+- **Étapes réalisées :** ajouter les kinds L aux tables générées et aux dispatches encode/decode; accepter les classes de registres correctes; généraliser les conversions aux bornes signées/non signées 64 bits; conserver les résultats W sign-étendus; produire `NV`/`NX` conformément aux cas validés par QEMU.
+- **Tests :** arrondi de `1.75`, négatif unsigned, `i64::MIN`, `u64::MAX`, infini, round-trip assembleur/désassembleur et oracle externe.
+- **Acceptation :** 138 tests Cargo et `bash tools/check-fp-integer-oracle.sh` passent; QEMU 11.0.2 concorde sur treize cas W/L de résultat et flags.
+- **Limites/échecs :** les conversions L sont limitées aux sources F/D exécutées; les formats binary16/binary128 restent représentables mais non exécutables.
+- **Taille :** 4 points / 2 journées-agent, incertitude moyenne.
+- **Compétences/outils :** RISC-V F/D, IEEE 754, conversions signées, tables R2, QEMU, Rust.
+- **Parallélisable :** oui avec le corpus IEEE; non avec une modification concurrente de `FloatConversionKind` ou de la sémantique `fcsr`.
 - **Contexte minimal :** SPEC §§5/11.1/23/24, R2 `rv_f`/`rv_d`, `crates/machine/src/lib.rs`, oracle integer.
 
 ## M6–M8 — interface, debug, persistance

@@ -420,6 +420,46 @@ fn assemble_parsed(parsed: &ParsedLine, pc: u64, symbols: &SymbolValues) -> Resu
             rs1: register(operand_text(&parts[1])?)?,
             rm: 7,
         })?,
+        "fcvt.l.s" | "fcvt.lu.s" if parts.len() == 2 => encode_f_convert(FloatConversion {
+            kind: if mnemonic == "fcvt.l.s" {
+                FloatConversionKind::LFromS
+            } else {
+                FloatConversionKind::LuFromS
+            },
+            rd: register(operand_text(&parts[0])?)?,
+            rs1: floating_register(operand_text(&parts[1])?)?,
+            rm: 7,
+        })?,
+        "fcvt.s.l" | "fcvt.s.lu" if parts.len() == 2 => encode_f_convert(FloatConversion {
+            kind: if mnemonic == "fcvt.s.l" {
+                FloatConversionKind::SFromL
+            } else {
+                FloatConversionKind::SFromLu
+            },
+            rd: floating_register(operand_text(&parts[0])?)?,
+            rs1: register(operand_text(&parts[1])?)?,
+            rm: 7,
+        })?,
+        "fcvt.l.d" | "fcvt.lu.d" if parts.len() == 2 => encode_f_convert(FloatConversion {
+            kind: if mnemonic == "fcvt.l.d" {
+                FloatConversionKind::LFromD
+            } else {
+                FloatConversionKind::LuFromD
+            },
+            rd: register(operand_text(&parts[0])?)?,
+            rs1: floating_register(operand_text(&parts[1])?)?,
+            rm: 7,
+        })?,
+        "fcvt.d.l" | "fcvt.d.lu" if parts.len() == 2 => encode_f_convert(FloatConversion {
+            kind: if mnemonic == "fcvt.d.l" {
+                FloatConversionKind::DFromL
+            } else {
+                FloatConversionKind::DFromLu
+            },
+            rd: floating_register(operand_text(&parts[0])?)?,
+            rs1: register(operand_text(&parts[1])?)?,
+            rm: 7,
+        })?,
         "" => {
             return Err(Diagnostic::error("ASM-OPERAND-001", "missing instruction"));
         }
@@ -1980,6 +2020,14 @@ mod tests {
             "fcvt.wu.d x3,f1",
             "fcvt.d.w f3,x1",
             "fcvt.d.wu f3,x1",
+            "fcvt.l.s x3,f1",
+            "fcvt.lu.s x3,f1",
+            "fcvt.s.l f3,x1",
+            "fcvt.s.lu f3,x1",
+            "fcvt.l.d x3,f1",
+            "fcvt.lu.d x3,f1",
+            "fcvt.d.l f3,x1",
+            "fcvt.d.lu f3,x1",
         ] {
             assert_eq!(assemble(source).unwrap().text.len(), 4, "{source}");
         }
