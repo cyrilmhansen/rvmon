@@ -18,6 +18,12 @@ rvmonitor> step
 rvmonitor> regs
 ```
 
+La même démonstration peut être rejouée sans prompt avec le fichier fourni :
+
+```text
+$ cargo run -p luna-app -- --script examples/internal-first-step.rv
+```
+
 La commande `regs` affiche les registres entiers, les registres flottants et
 `fcsr`. La mémoire cible est isolée de la mémoire du processus hôte.
 
@@ -43,8 +49,8 @@ rvmonitor> history
 
 `break` est logique et s’arrête avant l’instruction. `continue` franchit le
 breakpoint courant une fois. Pour un programme multi-ligne, fournir le texte
-avec des retours à la ligne à l’API `BackendConsole::execute` ou utiliser un
-fichier de commandes lorsqu’il sera ajouté à l’interface interactive.
+avec des retours à la ligne à l’API `BackendConsole::execute` ou utiliser
+`--script` avec un fichier de commandes.
 
 ## 3. Mémoire, watchpoint et annulation
 
@@ -85,8 +91,17 @@ session loaded (...; target registers and memory unchanged)
 ```
 
 La session backend-générique ne promet donc pas de restaurer les registres ou
-la mémoire d’une cible distante. Cette restauration sera ajoutée uniquement
-aux backends qui exposeront explicitement un contrat d’instantané.
+la mémoire d’une cible distante. Les backends qui exposent explicitement le
+contrat d’instantané peuvent en revanche utiliser `snapshot` et `restore` :
+le backend Machine restaure l’état complet de façon déterministe, tandis que
+le backend QEMU indique actuellement que cette capacité n’est pas disponible.
+
+```text
+rvmonitor> snapshot /tmp/machine.rvt
+snapshot saved (...)
+rvmonitor> restore /tmp/machine.rvt
+snapshot restored
+```
 
 ## 5. Connecter QEMU
 
@@ -121,8 +136,11 @@ refusé avec un diagnostic au lieu de simuler un arrêt inexistant.
 Pour reproduire automatiquement cette session :
 
 ```text
-$ bash scripts/test-qemu-gdb-backend.sh
+$ cargo run -p luna-app -- --qemu-port 12351 --script examples/qemu-session.rv
 ```
+
+Le script d’intégration complet, qui lance aussi QEMU et vérifie les sorties,
+est `bash scripts/test-qemu-gdb-backend.sh`.
 
 ## 6. Diagnostic rapide
 

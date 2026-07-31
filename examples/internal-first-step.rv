@@ -1,0 +1,4 @@
+assemble addi x1,x0,1
+step
+regs
+quit

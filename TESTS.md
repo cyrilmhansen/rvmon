@@ -13,7 +13,7 @@ Validation locale complète :
     bash scripts/test-qemu-gdb-backend.sh
     git diff --check
 
-La suite actuelle exécute 79 tests unitaires/intégration répartis dans les crates. Les doc-tests compilent mais ne contiennent actuellement aucun cas. Le script QEMU ouvre en plus une session GDB RSP réelle, hors comptage Cargo.
+La suite actuelle exécute 80 tests unitaires/intégration répartis dans les crates. Les doc-tests compilent mais ne contiennent actuellement aucun cas. Le script QEMU ouvre en plus une session GDB RSP réelle, hors comptage Cargo.
 
 Démonstration M-mode/U-mode sous QEMU :
 
@@ -42,7 +42,7 @@ Moniteur texte interactif :
 | luna-asm-lexer | 2 | Labels, ponctuation, commentaires, chaînes et positions d’erreur. |
 | luna-assembler | 16 | AST, alias ABI, expressions, symboles, directives, alignement, fadd.s et fadd.d. |
 | luna-isa | 6 | Tables générées depuis R2, encodage/décodage entier et flottant. |
-| luna-machine | 11 | Exécution entière, branches, mémoire, tables de pointeurs ILP32, fadd.s, fadd.d, NaN-boxing, flags et contrat backend. |
+| luna-machine | 12 | Exécution entière, branches, mémoire, tables de pointeurs ILP32, fadd.s, fadd.d, NaN-boxing, flags, contrat backend et snapshot cible. |
 | luna-disassembler | 7 | Format canonique, symboles, opcodes illégaux, C rejeté et round-trip. |
 | luna-floatfmt | 3 | Bits hex exacts, décimal court, classes IEEE et NaN-box invalide. |
 | luna-monitor | 19 | assemble → step → regs, affichage flottant, run borné, vues mémoire hex/ASCII, édition/undo, console backend-générique, marques QuickJump, breakpoints, watchpoints, symboles, pile, historique et persistance. |
@@ -180,6 +180,12 @@ pas la mémoire cible. Les commandes `watch`, `rwatch`, `awatch`, `info watch`
 et `history` utilisent les `MemoryAccess` et l’historique borné retournés par
 le backend ; elles sont refusées proprement lorsque ces événements ne sont
 pas disponibles.
+
+Le contrat optionnel `TargetBackend::snapshot` permet une restauration de
+l’état cible complet lorsque le backend l’autorise. `luna-machine` sérialise
+registres, `fcsr`, PC, compteur d’instructions et mémoire dans un format
+déterministe ; QEMU retourne un diagnostic d’indisponibilité tant que le
+transport ne sait pas restaurer les registres.
 `luna-app --qemu-port PORT` sélectionne ce chemin et l’intègre à la boucle
 interactive ; la sonde live vérifie les registres, la RAM QEMU et le pas depuis
 le PC de reset. Les symboles multi-lignes et snapshots restent dans le profil

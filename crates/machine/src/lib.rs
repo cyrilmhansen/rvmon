@@ -14,6 +14,9 @@ pub const FFLAG_DZ: u32 = 1 << 1;
 pub const FFLAG_OF: u32 = 1 << 2;
 pub const FFLAG_UF: u32 = 1 << 3;
 pub const FFLAG_NX: u32 = 1 << 4;
+const SNAPSHOT_MAGIC: &[u8; 8] = b"RVMACH01";
+const SNAPSHOT_VERSION: u32 = 1;
+const MAX_SNAPSHOT_MEMORY: usize = 64 * 1024 * 1024;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Machine {
@@ -295,6 +298,153 @@ impl TargetBackend for Machine {
             instruction_count: self.instructions,
         })
     }
+
+    fn snapshot_size(&self) -> Option<usize> {
+        (self.memory.len() <= MAX_SNAPSHOT_MEMORY).then(|| machine_snapshot_size(self.memory.len()))
+    }
+
+    fn snapshot(
+        &mut self,
+        destination: &mut [u8],
+    ) -> std::result::Result<Option<usize>, Self::Error> {
+        if self.memory.len() > MAX_SNAPSHOT_MEMORY {
+            return Err(Diagnostic::error(
+                "MACHINE-SNAPSHOT-006",
+                "snapshot memory exceeds the 64 MiB limit",
+            ));
+        }
+        let size = machine_snapshot_size(self.memory.len());
+        if destination.len() < size {
+            return Err(Diagnostic::error(
+                "MACHINE-SNAPSHOT-001",
+                "snapshot destination is too small",
+            ));
+        }
+        let mut position = 0;
+        destination[position..position + 8].copy_from_slice(SNAPSHOT_MAGIC);
+        position += 8;
+        put_u32(destination, &mut position, SNAPSHOT_VERSION);
+        put_u64(destination, &mut position, self.memory.len() as u64);
+        for value in self.x {
+            put_u64(destination, &mut position, value);
+        }
+        for value in self.f {
+            put_u64(destination, &mut position, value);
+        }
+        put_u32(destination, &mut position, self.fcsr);
+        put_u64(destination, &mut position, self.pc);
+        put_u64(destination, &mut position, self.instructions);
+        for address in 0..self.memory.len() {
+            destination[position] = self.memory.load8(address as u64)?;
+            position += 1;
+        }
+        Ok(Some(size))
+    }
+
+    fn restore_snapshot(&mut self, source: &[u8]) -> std::result::Result<bool, Self::Error> {
+        if source.len() < 8 + 4 + 8 {
+            return Err(Diagnostic::error(
+                "MACHINE-SNAPSHOT-002",
+                "snapshot is truncated",
+            ));
+        }
+        if &source[..8] != SNAPSHOT_MAGIC {
+            return Err(Diagnostic::error(
+                "MACHINE-SNAPSHOT-003",
+                "snapshot magic is invalid",
+            ));
+        }
+        let mut position = 8;
+        if take_u32(source, &mut position)? != SNAPSHOT_VERSION {
+            return Err(Diagnostic::error(
+                "MACHINE-SNAPSHOT-004",
+                "snapshot version is unsupported",
+            ));
+        }
+        let memory_size = usize::try_from(take_u64(source, &mut position)?).map_err(|_| {
+            Diagnostic::error("MACHINE-SNAPSHOT-005", "invalid snapshot memory size")
+        })?;
+        if memory_size > MAX_SNAPSHOT_MEMORY {
+            return Err(Diagnostic::error(
+                "MACHINE-SNAPSHOT-006",
+                "snapshot memory exceeds the 64 MiB limit",
+            ));
+        }
+        let expected = machine_snapshot_size(memory_size);
+        if source.len() != expected {
+            return Err(Diagnostic::error(
+                "MACHINE-SNAPSHOT-007",
+                "snapshot length does not match its memory size",
+            ));
+        }
+        let mut x = [0u64; 32];
+        let mut f = [0u64; 32];
+        for value in &mut x {
+            *value = take_u64(source, &mut position)?;
+        }
+        for value in &mut f {
+            *value = take_u64(source, &mut position)?;
+        }
+        let fcsr = take_u32(source, &mut position)?;
+        let pc = take_u64(source, &mut position)?;
+        let instructions = take_u64(source, &mut position)?;
+        let memory_bytes = &source[position..position + memory_size];
+        let mut memory = Memory::new(memory_size);
+        for (address, byte) in memory_bytes.iter().copied().enumerate() {
+            memory.store8(address as u64, byte)?;
+        }
+        self.x = x;
+        self.f = f;
+        self.fcsr = fcsr;
+        self.pc = pc;
+        self.instructions = instructions;
+        self.memory = memory;
+        Ok(true)
+    }
+}
+
+fn machine_snapshot_size(memory_size: usize) -> usize {
+    8 + 4 + 8 + (32 * 8) + (32 * 8) + 4 + 8 + 8 + memory_size
+}
+
+fn put_u32(destination: &mut [u8], position: &mut usize, value: u32) {
+    destination[*position..*position + 4].copy_from_slice(&value.to_le_bytes());
+    *position += 4;
+}
+
+fn put_u64(destination: &mut [u8], position: &mut usize, value: u64) {
+    destination[*position..*position + 8].copy_from_slice(&value.to_le_bytes());
+    *position += 8;
+}
+
+fn take_u32(source: &[u8], position: &mut usize) -> Result<u32> {
+    let end = position
+        .checked_add(4)
+        .ok_or_else(|| Diagnostic::error("MACHINE-SNAPSHOT-008", "snapshot offset overflow"))?;
+    if end > source.len() {
+        return Err(Diagnostic::error(
+            "MACHINE-SNAPSHOT-002",
+            "snapshot is truncated",
+        ));
+    }
+    let value = u32::from_le_bytes(source[*position..end].try_into().unwrap());
+    *position = end;
+    Ok(value)
+}
+
+fn take_u64(source: &[u8], position: &mut usize) -> Result<u64> {
+    let end = position
+        .checked_add(8)
+        .ok_or_else(|| Diagnostic::error("MACHINE-SNAPSHOT-008", "snapshot offset overflow"))?;
+    if end > source.len() {
+        return Err(Diagnostic::error(
+            "MACHINE-SNAPSHOT-002",
+            "snapshot is truncated",
+        ));
+    }
+    let value = u64::from_le_bytes(source[*position..end].try_into().unwrap());
+    *position = end;
+    Ok(value)
 }
 
 fn boxed_f32(value: u64) -> u32 {
@@ -754,5 +904,27 @@ mod tests {
                 instruction_count: 3,
             }
         );
+    }
+
+    #[test]
+    fn target_backend_snapshot_roundtrips_complete_machine_state() {
+        let mut machine = Machine::new(32);
+        machine.pc = 8;
+        machine.instructions = 17;
+        machine.x[1] = 0x8000_0000;
+        machine.f[2] = 0x3ff0_0000_0000_0000;
+        machine.fcsr = 0x1f;
+        machine.memory.store8(12, 0xa5).unwrap();
+
+        let size = TargetBackend::snapshot_size(&machine).unwrap();
+        let mut bytes = vec![0u8; size];
+        assert_eq!(
+            TargetBackend::snapshot(&mut machine, &mut bytes).unwrap(),
+            Some(size)
+        );
+
+        let mut restored = Machine::new(1);
+        assert!(TargetBackend::restore_snapshot(&mut restored, &bytes).unwrap());
+        assert_eq!(restored, machine);
     }
 }

@@ -30,12 +30,13 @@ trap cleanup EXIT
 # keeps the first client session and that would consume the only RSP peer.
 sleep 0.2
 
-console_output=$(printf 'regs\nrwatch 0x80000000 4\nassemble-program _start: addi x1,x0,1\nsymbols\ndisasm _start 1\nwhere\nbreak 0x1000\ninfo break\nrun 1\ncontinue 1\nmemory 0x80000000 4\nstep\ndelete 1\nquit\n' \
-    | timeout 10s target/debug/luna-app --qemu-port "$port" 2>&1)
+console_output=$(timeout 10s target/debug/luna-app --qemu-port "$port" \
+    --script examples/qemu-session.rv 2>&1)
 printf '%s\n' "$console_output"
 grep -q '^RVMonitor QEMU backend on ' <<<"$console_output"
 grep -q '^pc=0x' <<<"$console_output"
 grep -q 'MON-DEBUG-109: backend does not expose memory access events' <<<"$console_output"
+grep -q 'MON-SNAPSHOT-102: backend does not authorize target-state snapshots' <<<"$console_output"
 grep -q '0x0000000000001000 _start' <<<"$console_output"
 grep -q 'addi x1,x0,1' <<<"$console_output"
 grep -q 'pc=0x0000000000001000 _start' <<<"$console_output"

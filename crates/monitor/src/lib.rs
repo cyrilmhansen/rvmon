@@ -1060,6 +1060,8 @@ where
             "awatch" => self.add_watchpoint(argument, None),
             "info" => self.info(argument),
             "history" | "trace" => self.show_history(argument),
+            "snapshot" => self.snapshot_file(argument),
+            "restore" => self.restore_snapshot_file(argument),
             "project-save" | "session-save" => self.save_session(argument),
             "project-load" | "session-load" => self.load_session(argument),
             "quit" | "exit" => Ok("bye".into()),
@@ -1710,6 +1712,65 @@ where
         ))
     }
 
+    fn snapshot_file(&mut self, argument: &str) -> Result<String> {
+        let path = persistence_path(argument, "MON-SNAPSHOT-101")?;
+        let size = self.backend.snapshot_size().ok_or_else(|| {
+            Diagnostic::error(
+                "MON-SNAPSHOT-102",
+                "backend does not authorize target-state snapshots",
+            )
+        })?;
+        if size > MAX_PERSISTED_BYTES {
+            return Err(Diagnostic::error(
+                "MON-SNAPSHOT-103",
+                "target snapshot exceeds size limit",
+            ));
+        }
+        let mut bytes = vec![0u8; size];
+        let written = self
+            .backend
+            .snapshot(&mut bytes)
+            .map_err(target_error)?
+            .ok_or_else(|| {
+                Diagnostic::error(
+                    "MON-SNAPSHOT-102",
+                    "backend does not authorize target-state snapshots",
+                )
+            })?;
+        if written > bytes.len() {
+            return Err(Diagnostic::error(
+                "MON-SNAPSHOT-104",
+                "backend returned an invalid snapshot length",
+            ));
+        }
+        fs::write(path, &bytes[..written]).map_err(|error| {
+            Diagnostic::error(
+                "MON-SNAPSHOT-105",
+                format!("cannot write snapshot: {error}"),
+            )
+        })?;
+        Ok(format!("target snapshot saved ({} bytes)", written))
+    }
+
+    fn restore_snapshot_file(&mut self, argument: &str) -> Result<String> {
+        let path = persistence_path(argument, "MON-SNAPSHOT-106")?;
+        let bytes = read_persistence_file(path)?;
+        if !self
+            .backend
+            .restore_snapshot(&bytes)
+            .map_err(target_error)?
+        {
+            return Err(Diagnostic::error(
+                "MON-SNAPSHOT-102",
+                "backend does not authorize target-state restoration",
+            ));
+        }
+        self.undo.clear();
+        self.history.clear();
+        self.next_history_sequence = 1;
+        Ok(format!("target snapshot restored ({} bytes)", bytes.len()))
+    }
+
     fn read_word(&mut self, address: u64) -> Result<u32> {
         let mut bytes = [0u8; 4];
         self.backend
@@ -1800,6 +1861,8 @@ fn backend_help() -> String {
         "awatch <addr> [w]    stop on target reads or writes",
         "info watch           list backend watchpoints",
         "history [count]      show bounded target execution history",
+        "snapshot <path>      save target state when supported",
+        "restore <path>       restore target state when supported",
         "project-save <path>  save session metadata (not target state)",
         "project-load <path>  restore session metadata (not target state)",
         "quit                 close the console",
@@ -2775,5 +2838,22 @@ mod tests {
             .unwrap();
         assert!(symbol_console.execute("info break").unwrap().contains("#1"));
         std::fs::remove_file(session_path).unwrap();
+
+        let snapshot_path = std::env::temp_dir().join(format!(
+            "rvmonitor-target-{}-{}.rvt",
+            std::process::id(),
+            876_543u64
+        ));
+        let snapshot_path_text = snapshot_path.to_string_lossy().into_owned();
+        symbol_console.backend.x[5] = 0x1234;
+        symbol_console
+            .execute(&format!("snapshot {snapshot_path_text}"))
+            .unwrap();
+        symbol_console.backend.x[5] = 0x5678;
+        symbol_console
+            .execute(&format!("restore {snapshot_path_text}"))
+            .unwrap();
+        assert_eq!(symbol_console.backend.x[5], 0x1234);
+        std::fs::remove_file(snapshot_path).unwrap();
     }
 }

@@ -89,6 +89,26 @@ pub trait TargetBackend {
     fn write_memory(&mut self, address: u64, source: &[u8]) -> Result<(), Self::Error>;
     fn step(&mut self) -> Result<ExecutionOutcome, Self::Error>;
     fn run(&mut self, max_steps: u64) -> Result<ExecutionOutcome, Self::Error>;
+
+    /// Returns the exact byte capacity needed by [`Self::snapshot`], or
+    /// `None` when this backend cannot provide target-state snapshots.
+    fn snapshot_size(&self) -> Option<usize> {
+        None
+    }
+
+    /// Writes a deterministic target-state snapshot into the caller buffer.
+    /// The result is `None` when snapshots are unsupported.
+    fn snapshot(&mut self, destination: &mut [u8]) -> Result<Option<usize>, Self::Error> {
+        let _ = destination;
+        Ok(None)
+    }
+
+    /// Restores target state and returns `false` when the backend does not
+    /// support restoration.
+    fn restore_snapshot(&mut self, source: &[u8]) -> Result<bool, Self::Error> {
+        let _ = source;
+        Ok(false)
+    }
 }
 
 #[repr(C)]

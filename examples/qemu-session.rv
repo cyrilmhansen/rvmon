@@ -1,0 +1,15 @@
+regs
+rwatch 0x80000000 4
+snapshot /tmp/rvmonitor-qemu.rvt
+assemble-program _start: addi x1,x0,1
+symbols
+disasm _start 1
+where
+break 0x1000
+info break
+run 1
+continue 1
+memory 0x80000000 4
+step
+delete 1
+quit
