@@ -35,6 +35,15 @@ name = "luna-diag"
 version = "0.1.0"
 
 [[package]]
+name = "luna-disassembler"
+version = "0.1.0"
+dependencies = [
+ "luna-assembler",
+ "luna-diag",
+ "luna-isa",
+]
+
+[[package]]
 name = "luna-isa"
 version = "0.1.0"
 dependencies = [
