@@ -39,7 +39,7 @@ SECTIONS
     .target_workspace (NOLOAD) : ALIGN(16)
     {
         _target_workspace_start = .;
-        . += 8K;
+        . += 4K;
         _target_workspace_end = .;
     } > RAM
 

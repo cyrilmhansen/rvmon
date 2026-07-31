@@ -76,6 +76,13 @@ impl MemoryUndo {
     }
 }
 
+#[derive(Clone, Copy)]
+enum MemoryWriteError {
+    Overflow,
+    OutsideRam,
+    ActiveBreakpoint,
+}
+
 #[panic_handler]
 fn panic(_info: &PanicInfo<'_>) -> ! {
     uart_write("\r\nRVMonitor panic\r\n");
@@ -143,6 +150,7 @@ fn monitor_loop(context: *mut TargetContext) -> ! {
             command if command.starts_with(b"setf ") => set_float_register(context, &command[5..]),
             command if command.starts_with(b"memory ") => print_memory(&command[7..]),
             command if command.starts_with(b"edit ") => edit_memory(context, &command[5..]),
+            command if command.starts_with(b"data ") => data_directive(context, &command[5..]),
             b"undo" => undo_memory(context),
             command if command.starts_with(b"assemble ") => {
                 assemble_command(context, &command[9..])
@@ -168,7 +176,7 @@ fn monitor_loop(context: *mut TargetContext) -> ! {
 
 fn print_help() {
     uart_write(
-        "help/? regs/registers setf <freg> <hex64> memory <addr> <length> edit <addr> <hex-bytes> undo assemble <addr> <instruction> assemble-program <addr> ... end symbols disasm <addr|label> <count> step/s continue/c break <addr|label> delete <n> info break quit/q\r\n",
+        "help/? regs/registers setf <freg> <hex64> memory <addr> <length> edit <addr> <hex-bytes> data <addr> <directive> <bits> undo assemble <addr> <instruction> assemble-program <addr> ... end symbols disasm <addr|label> <count> step/s continue/c break <addr|label> delete <n> info break quit/q\r\n",
     );
 }
 
@@ -261,24 +269,123 @@ fn edit_memory(context: *mut TargetContext, argument: &[u8]) {
         uart_write("error: edit expects 1..32 complete hexadecimal bytes\r\n");
         return;
     };
-    let Some(end) = address.checked_add(length as u64) else {
-        uart_write("error: edit range overflows\r\n");
+    if let Err(error) = write_memory_transaction(address, edited, length) {
+        match error {
+            MemoryWriteError::Overflow => uart_write("error: edit range overflows\r\n"),
+            MemoryWriteError::OutsideRam => {
+                uart_write("error: edit range is outside target RAM\r\n")
+            }
+            MemoryWriteError::ActiveBreakpoint => {
+                uart_write("error: edit overlaps an active breakpoint\r\n")
+            }
+        }
+        return;
+    }
+    uart_write("edited ");
+    uart_decimal(length as u64);
+    uart_write(" byte(s) at 0x");
+    uart_hex(address);
+    uart_write("\r\n");
+}
+
+fn data_directive(context: *mut TargetContext, argument: &[u8]) {
+    if unsafe { (*context).mcause } != StopReason::Breakpoint as u64 {
+        uart_write("error: target is not stopped at a breakpoint\r\n");
+        return;
+    }
+    let Some((address_bytes, rest)) = split_token_space(argument) else {
+        uart_write("error: data expects <hex-address> <directive> <bits>\r\n");
         return;
     };
-    if address < TARGET_RAM_START || end > TARGET_RAM_END {
-        uart_write("error: edit range is outside target RAM\r\n");
+    let Some((directive, value_bytes)) = split_token_space(rest) else {
+        uart_write("error: data expects <hex-address> <directive> <bits>\r\n");
         return;
+    };
+    let Some(address) = parse_hex(address_bytes) else {
+        uart_write("error: data address must be hexadecimal\r\n");
+        return;
+    };
+    let mut data = [0u8; MAX_EDIT_BYTES];
+    let Some(length) = encode_data_directive(directive, value_bytes, &mut data) else {
+        uart_write("error: unsupported directive or value; use exact integer/IEEE bits\r\n");
+        return;
+    };
+    if let Err(error) = write_memory_transaction(address, data, length) {
+        match error {
+            MemoryWriteError::Overflow => uart_write("error: data range overflows\r\n"),
+            MemoryWriteError::OutsideRam => {
+                uart_write("error: data range is outside target RAM\r\n")
+            }
+            MemoryWriteError::ActiveBreakpoint => {
+                uart_write("error: data overlaps an active breakpoint\r\n")
+            }
+        }
+        return;
+    }
+    uart_write("stored ");
+    uart_bytes(directive);
+    uart_write(" at 0x");
+    uart_hex(address);
+    uart_write(" (");
+    uart_decimal(length as u64);
+    uart_write(" byte(s))\r\n");
+}
+
+fn encode_data_directive(
+    directive: &[u8],
+    value: &[u8],
+    destination: &mut [u8; MAX_EDIT_BYTES],
+) -> Option<usize> {
+    let width = match directive {
+        b".byte" => 1,
+        b".half" | b".binary16" => 2,
+        b".word" | b".float" => 4,
+        b".dword" | b".double" => 8,
+        b".binary128" => 16,
+        _ => return None,
+    };
+    if width == 16 {
+        let length = parse_hex_bytes(value, destination)?;
+        if length != width {
+            return None;
+        }
+        destination[..width].reverse();
+        return Some(length);
+    }
+    let number = parse_hex(value).or_else(|| parse_decimal(value))?;
+    let limit = if width == 8 {
+        u64::MAX
+    } else {
+        (1u64 << (width * 8)) - 1
+    };
+    if number > limit {
+        return None;
+    }
+    for index in 0..width {
+        destination[index] = (number >> (index * 8)) as u8;
+    }
+    Some(width)
+}
+
+fn write_memory_transaction(
+    address: u64,
+    edited: [u8; MAX_EDIT_BYTES],
+    length: usize,
+) -> Result<(), MemoryWriteError> {
+    let Some(end) = address.checked_add(length as u64) else {
+        return Err(MemoryWriteError::Overflow);
+    };
+    if address < TARGET_RAM_START || end > TARGET_RAM_END {
+        return Err(MemoryWriteError::OutsideRam);
     }
     for offset in 0..length {
         let byte_address = address + offset as u64;
         if permanent_breakpoint_at(byte_address & !3).is_some()
             || temporary_breakpoint_at(byte_address & !3)
         {
-            uart_write("error: edit overlaps an active breakpoint\r\n");
-            return;
+            return Err(MemoryWriteError::ActiveBreakpoint);
         }
     }
-
     let mut original = [0u8; MAX_EDIT_BYTES];
     for offset in 0..length {
         original[offset] =
@@ -302,11 +409,7 @@ fn edit_memory(context: *mut TargetContext, argument: &[u8]) {
         );
     }
     flush_icache();
-    uart_write("edited ");
-    uart_decimal(length as u64);
-    uart_write(" byte(s) at 0x");
-    uart_hex(address);
-    uart_write("\r\n");
+    Ok(())
 }
 
 fn undo_memory(context: *mut TargetContext) {
@@ -1490,6 +1593,7 @@ fn parse_hex(input: &[u8]) -> Option<u64> {
 }
 
 fn parse_hex_bytes(input: &[u8], destination: &mut [u8; MAX_EDIT_BYTES]) -> Option<usize> {
+    let input = input.strip_prefix(b"0x").unwrap_or(input);
     if input.is_empty() || input.len() % 2 != 0 || input.len() / 2 > destination.len() {
         return None;
     }

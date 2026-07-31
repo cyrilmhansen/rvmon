@@ -75,7 +75,7 @@ La commande `help` affiche la grammaire actuellement implémentée :
 
 ```text
 rvmonitor> help
-help/? regs/registers setf <freg> <hex64> memory <addr> <length> edit <addr> <hex-bytes> undo assemble <addr> <instruction> assemble-program <addr> ... end symbols disasm <addr|label> <count> step/s continue/c break <addr|label> delete <n> info break quit/q
+help/? regs/registers setf <freg> <hex64> memory <addr> <length> edit <addr> <hex-bytes> data <addr> <directive> <bits> undo assemble <addr> <instruction> assemble-program <addr> ... end symbols disasm <addr|label> <count> step/s continue/c break <addr|label> delete <n> info break quit/q
 ```
 
 ### Lire les registres
@@ -126,6 +126,27 @@ undone 4 byte(s) at 0x0000000080010040
 Une nouvelle édition remplace l’annulation précédente. Les assemblages et les
 breakpoints invalident également cette annulation afin de ne jamais restaurer
 silencieusement des octets qui ne sont plus ceux de la transaction.
+
+### Écrire des directives de données exactes
+
+`data` écrit une valeur unique dans la RAM, en little-endian. `.float` et
+`.double` prennent les bits binary32/binary64 ; `.binary16` et `.binary128`
+prennent respectivement 4 et 32 chiffres hexadécimaux représentant le motif
+IEEE dans l’ordre numérique, puis l’écrivent en little-endian :
+
+```text
+rvmonitor> data 0x80010060 .float 0x3f800000
+stored .float at 0x0000000080010060 (4 byte(s))
+rvmonitor> memory 0x80010060 4
+0x0000000080010060: 00 00 80 3f                         |...|
+rvmonitor> data 0x80010060 .binary128 000102030405060708090a0b0c0d0e0f
+stored .binary128 at 0x0000000080010060 (16 byte(s))
+```
+
+Les directives disponibles dans cette tranche sont `.byte`, `.half`, `.word`,
+`.dword`, `.binary16`, `.float`, `.double` et `.binary128`. Les valeurs
+décimales sont acceptées pour les entiers ; les formats flottants exigent un
+motif hexadécimal exact, sans conversion flottante dépendante de l’hôte.
 
 ### Assembler et exécuter `addi`
 
