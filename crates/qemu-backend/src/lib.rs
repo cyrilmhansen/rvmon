@@ -26,8 +26,25 @@ impl Riscv64RegisterLayout {
         register_width: 8,
     };
 
+    /// Layout observed from QEMU's integer-only RV64 GDB target description.
+    pub const QEMU_INTEGER: Self = Self {
+        x_start: 0,
+        f_start: usize::MAX,
+        pc_index: 32,
+        register_width: 8,
+    };
+
+    fn has_float_registers(self) -> bool {
+        self.f_start != usize::MAX
+    }
+
     fn packet_length(self) -> usize {
-        (self.pc_index + 1) * self.register_width * 2
+        let highest_register = if self.has_float_registers() {
+            self.pc_index.max(self.f_start + 31)
+        } else {
+            self.pc_index
+        };
+        (highest_register + 1) * self.register_width * 2
     }
 }
 
@@ -70,11 +87,16 @@ impl<S: Read + Write> GdbRemote<S> {
     }
 
     pub fn with_layout(stream: S, layout: Riscv64RegisterLayout) -> Self {
+        let capabilities = if layout.has_float_registers() {
+            TargetCapabilities::RV64_BARE_METAL_V1
+        } else {
+            TargetCapabilities::RV64_INTEGER_BARE_METAL_V1
+        };
         Self {
             stream,
             context: TargetContext::empty(),
             layout,
-            capabilities: TargetCapabilities::RV64_BARE_METAL_V1,
+            capabilities,
             instruction_count: 0,
         }
     }
@@ -88,7 +110,11 @@ impl<S: Read + Write> GdbRemote<S> {
         layout: Riscv64RegisterLayout,
     ) -> Result<TargetContext, QemuError> {
         if packet.len() < layout.packet_length() || layout.register_width != 8 {
-            return Err(QemuError::Protocol("unsupported or truncated g packet"));
+            return Err(QemuError::Message(format!(
+                "unsupported or truncated g packet: {} bytes, need at least {}",
+                packet.len(),
+                layout.packet_length()
+            )));
         }
         let register = |index: usize| -> Result<u64, QemuError> {
             let start = index
@@ -101,7 +127,9 @@ impl<S: Read + Write> GdbRemote<S> {
         let mut context = TargetContext::empty();
         for index in 0..32 {
             context.x[index] = register(layout.x_start + index)?;
-            context.f[index] = register(layout.f_start + index)?;
+            if layout.has_float_registers() {
+                context.f[index] = register(layout.f_start + index)?;
+            }
         }
         context.pc = register(layout.pc_index)?;
         context.mepc = context.pc;
@@ -130,7 +158,14 @@ impl<S: Read + Write> GdbRemote<S> {
         while byte != b'$' {
             byte = self.read_byte()?;
         }
+        let response = self.read_packet_body()?;
+        self.acknowledge_packet()?;
+        Ok(response)
+    }
+
+    fn read_packet_body(&mut self) -> Result<Vec<u8>, QemuError> {
         let mut response = Vec::new();
+        let mut byte;
         loop {
             byte = self.read_byte()?;
             match byte {
@@ -151,9 +186,22 @@ impl<S: Read + Write> GdbRemote<S> {
         if received != expected {
             return Err(QemuError::Protocol("packet checksum mismatch"));
         }
+        Ok(response)
+    }
+
+    fn acknowledge_packet(&mut self) -> Result<(), QemuError> {
         self.stream.write_all(b"+")?;
         self.stream.flush()?;
-        Ok(response)
+        Ok(())
+    }
+
+    fn initialize(&mut self) -> Result<(), QemuError> {
+        // QEMU's TCP stub waits for the first RSP query rather than sending a
+        // packet immediately after accept. The '?' query is the portable GDB
+        // RSP synchronization point and returns the current stop reason.
+        let response = self.transact(b"?")?;
+        stop_reason(&response)?;
+        self.refresh_context()
     }
 
     fn read_byte(&mut self) -> Result<u8, QemuError> {
@@ -164,14 +212,24 @@ impl<S: Read + Write> GdbRemote<S> {
 
     fn refresh_context(&mut self) -> Result<(), QemuError> {
         let packet = self.transact(b"g")?;
-        self.context = Self::context_from_g_packet(&packet, self.layout)?;
+        self.context = match Self::context_from_g_packet(&packet, self.layout) {
+            Ok(context) => context,
+            Err(_) if packet.len() == Riscv64RegisterLayout::QEMU_INTEGER.packet_length() => {
+                self.layout = Riscv64RegisterLayout::QEMU_INTEGER;
+                self.capabilities = TargetCapabilities::RV64_INTEGER_BARE_METAL_V1;
+                Self::context_from_g_packet(&packet, self.layout)?
+            }
+            Err(error) => return Err(error),
+        };
         Ok(())
     }
 }
 
 impl GdbRemote<TcpStream> {
     pub fn connect(address: impl ToSocketAddrs) -> Result<Self, QemuError> {
-        Ok(Self::new(TcpStream::connect(address)?))
+        let mut backend = Self::new(TcpStream::connect(address)?);
+        backend.initialize()?;
+        Ok(backend)
     }
 }
 
@@ -353,6 +411,23 @@ mod tests {
     }
 
     #[test]
+    fn decodes_qemu_integer_register_packet_without_floating_registers() {
+        let mut bytes = vec![0u8; 33 * 8];
+        bytes[32 * 8..33 * 8].copy_from_slice(&0x1000u64.to_le_bytes());
+        let packet = bytes
+            .iter()
+            .flat_map(|byte| format!("{byte:02x}").into_bytes())
+            .collect::<Vec<_>>();
+        let context = GdbRemote::<MockStream>::context_from_g_packet(
+            &packet,
+            Riscv64RegisterLayout::QEMU_INTEGER,
+        )
+        .unwrap();
+        assert_eq!(context.pc, 0x1000);
+        assert_eq!(context.f[0], 0xffff_ffff_0000_0000);
+    }
+
+    #[test]
     fn reads_memory_with_framed_checksum_packet() {
         let stream = MockStream::new(&[b"aabbccdd"]);
         let mut backend = GdbRemote::new(stream);
@@ -399,5 +474,15 @@ mod tests {
             ExecutionOutcome::BudgetExhausted { .. }
         ));
         assert!(backend.into_inner().output.is_empty());
+    }
+
+    #[test]
+    fn initializes_qemu_with_stop_query_and_register_refresh() {
+        let regs = registers(0x8000_0050);
+        let stream = MockStream::new(&[b"S05", &regs]);
+        let mut backend = GdbRemote::new(stream);
+        backend.initialize().unwrap();
+        assert_eq!(backend.context().pc, 0x8000_0050);
+        assert!(backend.into_inner().output.starts_with(b"$?#3f+"));
     }
 }

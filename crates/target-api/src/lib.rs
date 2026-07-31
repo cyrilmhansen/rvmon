@@ -122,6 +122,16 @@ pub struct TargetCapabilities {
 }
 
 impl TargetCapabilities {
+    pub const RV64_INTEGER_BARE_METAL_V1: Self = Self {
+        xlen: 64,
+        flen: 0,
+        supports_f: false,
+        supports_d: false,
+        supports_compressed: false,
+        supports_watchpoints: false,
+        hart_count: 1,
+    };
+
     pub const RV64_BARE_METAL_V1: Self = Self {
         xlen: 64,
         flen: 64,

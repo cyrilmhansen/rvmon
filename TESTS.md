@@ -10,9 +10,10 @@ Validation locale complète :
     cargo test --workspace
     cargo build -p luna-guest-monitor --target riscv64gc-unknown-none-elf
     bash scripts/test-guest-monitor.sh
+    bash scripts/test-qemu-gdb-backend.sh
     git diff --check
 
-La suite actuelle exécute 76 tests unitaires/intégration répartis dans les crates. Les doc-tests compilent mais ne contiennent actuellement aucun cas.
+La suite actuelle exécute 78 tests unitaires/intégration répartis dans les crates. Les doc-tests compilent mais ne contiennent actuellement aucun cas. Le script QEMU ouvre en plus une session GDB RSP réelle, hors comptage Cargo.
 
 Démonstration M-mode/U-mode sous QEMU :
 
@@ -46,7 +47,7 @@ Moniteur texte interactif :
 | luna-floatfmt | 3 | Bits hex exacts, décimal court, classes IEEE et NaN-box invalide. |
 | luna-monitor | 18 | assemble → step → regs, affichage flottant, run borné, vues mémoire hex/ASCII, édition/undo, marques QuickJump, breakpoints, watchpoints, symboles, pile, historique et persistance. |
 | luna-target-api | 4 | Contexte de trap, capacités explicites RV64 bare-metal, codes `mcause`, contrat de layout, résultats et accès mémoire du backend commun. |
-| luna-qemu-backend | 5 | Framing GDB RSP, checksum, lecture mémoire, décodage registres RV64, stop reply et budget nul. |
+| luna-qemu-backend | 7 | Framing GDB RSP, checksum, lecture mémoire, layouts RV64 entier et F/D, stop reply, initialisation `?`, pas et budget nul. |
 | luna-guest-monitor | 0 | Image bare-metal, boot QEMU, PMP, transition M→U, trap `ebreak` et boucle UART; vérifié par smoke test QEMU. |
 | luna-app | 0 | Compilation du binaire et démonstration ; pas encore d’E2E terminal. |
 | luna-diag | 0 | Types utilisés par les autres crates ; pas de test dédié. |
@@ -158,16 +159,17 @@ des éléments persistés du replay.
 Le contrat `luna_target_api::TargetBackend` est la frontière commune entre le
 moniteur et une cible. Il expose les capacités, un `TargetContext`, des accès
 octet par octet, `step` et `run`, avec des résultats indépendants du transport.
-`luna-machine` l’implémente actuellement ; le backend QEMU bare-metal conserve
-son protocole UART local et sera adapté à ce contrat dans une tranche
-ultérieure.
+`luna-machine` et le backend QEMU l’implémentent.
 
 Le crate `luna-qemu-backend` fournit un adaptateur GDB Remote Protocol générique
 sur `Read + Write` et un constructeur TCP. La première tranche couvre les
-paquets `m`, `M`, `s` et `g`, les accusés de réception, l’échappement, les
-checksums et les stop replies. Le layout RV64 par défaut est explicite et
-injectable ; l’XML d’architecture GDB et la validation contre un QEMU live
-restent à brancher avant de déclarer le backend distant production-ready.
+paquets `?`, `m`, `M`, `s` et `g`, les accusés de réception, l’échappement, les
+checksums et les stop replies. Le layout RV64 est explicite et injectable. Le
+backend tente d’abord le layout x0..x31, f0..f31, pc, puis reconnaît le layout
+observé avec QEMU 11.0.2 dans cette image (x0..x31, pc) et expose alors
+honnêtement des capacités F/D désactivées. `bash
+scripts/test-qemu-gdb-backend.sh` valide ce chemin sur un QEMU live, avec
+lecture de la RAM à `0x80000000` puis un pas.
 
 Le crate `luna-guest-monitor` est une première tranche d’intégration hors
 `cargo test` : il est compilé pour `riscv64gc-unknown-none-elf`, mais les
@@ -201,7 +203,7 @@ breakpoint permanent et le breakpoint temporaire du pas-à-pas est refusée.
 | Intégration interne | Présent | Round-trips et chaîne monitor/machine. |
 | Différentiel externe | Absent | GNU, LLVM, Sail, Spike et SoftFloat ne sont pas branchés dans CI. |
 | Génératif/fuzzing | Absent | Aucun budget de fuzzing installé. |
-| E2E terminal | Partiel | Smoke test UART/QEMU automatisé ; protocole interactif complet encore absent. |
+| E2E terminal | Partiel | Smoke test UART/QEMU et session TCP GDB RSP automatisés ; protocole interactif complet encore absent. |
 | Multi-plateforme | Absent | Pas encore de matrice Linux/macOS/Windows et x86_64/arm64. |
 
 ## Limites actuelles
