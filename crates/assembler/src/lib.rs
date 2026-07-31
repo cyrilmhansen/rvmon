@@ -284,7 +284,7 @@ fn assemble_directive(parsed: &ParsedLine, pc: u64, symbols: &SymbolValues) -> R
         ".half" => data_values(&parsed.operands, 2, symbols),
         ".word" => data_values(&parsed.operands, 4, symbols),
         ".dword" => data_values(&parsed.operands, 8, symbols),
-        ".ascii" | ".asciz" => {
+        ".ascii" | ".asciz" | ".string" => {
             let mut bytes = Vec::new();
             for operand in &parsed.operands {
                 let OperandKind::String(value) = &operand.kind else {
@@ -294,7 +294,7 @@ fn assemble_directive(parsed: &ParsedLine, pc: u64, symbols: &SymbolValues) -> R
                     );
                 };
                 bytes.extend_from_slice(value.as_bytes());
-                if parsed.mnemonic.as_deref() == Some(".asciz") {
+                if matches!(parsed.mnemonic.as_deref(), Some(".asciz" | ".string")) {
                     bytes.push(0);
                 }
             }
@@ -309,19 +309,45 @@ fn assemble_directive(parsed: &ParsedLine, pc: u64, symbols: &SymbolValues) -> R
             }
             let exponent = immediate(&parsed.operands[0], symbols, 0, 63)?;
             let boundary = 1u64 << u32::try_from(exponent).unwrap();
-            let padding = (boundary - (pc % boundary)) % boundary;
-            Ok(vec![
-                0;
-                usize::try_from(padding).map_err(|_| {
-                    Diagnostic::error("ASM-DIRECTIVE-002", "alignment is too large")
-                })?
-            ])
+            alignment_padding(pc, boundary)
+        }
+        ".balign" => {
+            if parsed.operands.len() != 1 {
+                return Err(Diagnostic::error(
+                    "ASM-DIRECTIVE-001",
+                    ".balign expects one operand",
+                ));
+            }
+            let boundary = u64::try_from(immediate(
+                &parsed.operands[0],
+                symbols,
+                1,
+                i128::from(u64::MAX),
+            )?)
+            .map_err(|_| Diagnostic::error("ASM-DIRECTIVE-002", "alignment is too large"))?;
+            alignment_padding(pc, boundary)
         }
         _ => Err(Diagnostic::error(
             "ASM-DIRECTIVE-003",
             "unsupported directive",
         )),
     }
+}
+
+fn alignment_padding(pc: u64, boundary: u64) -> Result<Vec<u8>> {
+    if boundary == 0 {
+        return Err(Diagnostic::error(
+            "ASM-DIRECTIVE-002",
+            "alignment must be greater than zero",
+        ));
+    }
+    let padding = (boundary - (pc % boundary)) % boundary;
+    Ok(vec![
+        0;
+        usize::try_from(padding).map_err(|_| {
+            Diagnostic::error("ASM-DIRECTIVE-002", "alignment is too large")
+        })?
+    ])
 }
 
 fn data_values(operands: &[Operand], width: usize, symbols: &SymbolValues) -> Result<Vec<u8>> {
@@ -601,7 +627,7 @@ fn line_size(line: &ParsedLine, pc: u64, symbols: &SymbolValues) -> Result<u64> 
         ".half" => return Ok((line.operands.len() * 2) as u64),
         ".word" => return Ok((line.operands.len() * 4) as u64),
         ".dword" => return Ok((line.operands.len() * 8) as u64),
-        ".ascii" | ".asciz" => {
+        ".ascii" | ".asciz" | ".string" => {
             let mut size = 0u64;
             for operand in &line.operands {
                 let OperandKind::String(value) = &operand.kind else {
@@ -611,13 +637,14 @@ fn line_size(line: &ParsedLine, pc: u64, symbols: &SymbolValues) -> Result<u64> 
                     );
                 };
                 size += value.len() as u64;
-                if line.mnemonic.as_deref() == Some(".asciz") {
+                if matches!(line.mnemonic.as_deref(), Some(".asciz" | ".string")) {
                     size += 1;
                 }
             }
             return Ok(size);
         }
         ".align" => return Ok(assemble_directive(line, pc, symbols)?.len() as u64),
+        ".balign" => return Ok(assemble_directive(line, pc, symbols)?.len() as u64),
         _ => {}
     }
     Ok(4)
@@ -716,6 +743,23 @@ mod tests {
             assemble_program(".byte 1, 2+3\n.half 0x1234\n.byte 9\n.align 2\n.asciz \"ok\"")
                 .unwrap();
         assert_eq!(image.text, [1, 5, 0x34, 0x12, 9, 0, 0, 0, b'o', b'k', 0]);
+    }
+
+    #[test]
+    fn assembles_string_and_byte_alignment_directives() {
+        let image = assemble_program(".byte 1\n.balign 4\n.string \"ok\"").unwrap();
+        assert_eq!(image.text, [1, 0, 0, 0, b'o', b'k', 0]);
+
+        let image = assemble_program(".byte 1\n.balign 3\n.ascii \"ok\"").unwrap();
+        assert_eq!(image.text, [1, 0, 0, b'o', b'k']);
+    }
+
+    #[test]
+    fn rejects_invalid_byte_alignment_directives() {
+        let error = assemble_program(".balign 0").unwrap_err();
+        assert_eq!(error.code, "ASM-IMMEDIATE-001");
+        let error = assemble_program(".balign 4, 0").unwrap_err();
+        assert_eq!(error.code, "ASM-DIRECTIVE-001");
     }
 
     #[test]

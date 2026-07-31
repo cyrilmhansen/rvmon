@@ -371,6 +371,23 @@ Une tâche est terminée seulement si sa condition de sortie est satisfaite.
 - **Parallélisable :** oui avec DIS-001; non avec une modification simultanée du contrat `ObjectImage` ou des directives de données.
 - **Paquet de contexte minimal :** SPEC §§11–12/19, R4 directives, `crates/assembler/src/lib.rs`, `crates/assembler/src/expr.rs`.
 
+### ASM-003A — Compléter chaînes et alignement de données — TERMINÉ
+
+- **Jalon / exigences :** M3; ASM-003, ASM-009, IO-003.
+- **But :** fournir `.string` comme chaîne terminée par zéro et `.balign` comme alignement exprimé en octets, avec le même calcul en première et seconde passes.
+- **Non-but :** fill pattern de `.balign`, sections nommées, macros, includes et listing.
+- **Entrées/sources :** SPEC §11 (directives `.string`, `.align`, `.balign`) et §12 (image déterministe); R4, directives de données.
+- **Fichiers/modules :** `crates/assembler/src/lib.rs`, `TESTS.md`.
+- **Étapes réalisées :** alias `.string` vers le comportement nul-terminé; validation d’un unique opérande `.balign`; calcul de padding borné partagé par émission et sizing; diagnostics de plage et d’arité.
+- **Dépendances :** ASM-002B; aucune dépendance externe; prépare ASM-003 listing et sections sans modifier `ObjectImage`.
+- **Tests :** bytes exacts `.string`/`.ascii`; alignement à 4 et 3 octets; arité invalide et alignement nul; suite assembleur.
+- **Critères de sortie :** PC et symbole suivants voient exactement le même padding que l’image; `.string "ok"` produit `6f 6b 00`; `.balign N` ne remplit jamais au-delà de la prochaine frontière.
+- **Cas limites et échecs :** frontière déjà alignée, chaîne Unicode mesurée en octets UTF-8, opérande manquant ou supplémentaire, valeur zéro et dépassement d’alignement.
+- **Taille :** 3 points / 1–1,5 journée-agent, incertitude faible; équivalent indicatif 40k–100k tokens.
+- **Compétences/outils :** assembleur de données, arithmétique de plages, tests Rust.
+- **Parallélisable :** oui avec DIS-001 et FP-001; non avec une modification concurrente de la grammaire des directives.
+- **Paquet de contexte minimal :** SPEC §§11–12, R4 directives, `crates/assembler/src/lib.rs`, `TESTS.md`.
+
 ### ASM-003 — Directives, chaînes, macros et listing
 
 - **Jalon / exigences :** M3; ASM-001..015, IO-001..009.
