@@ -303,6 +303,23 @@ Une tâche est terminée seulement si sa condition de sortie est satisfaite.
 - **Parallélisable :** oui avec FP-001.
 - **Contexte minimal :** SPEC §§11/19.
 
+### ASM-001A — Stabiliser le lexer de la tranche M3 — TERMINÉ
+
+- **Jalon / exigences :** M3; ASM-001..004, ASM-009, ASM-015, REQ-PROD-004.
+- **But :** fournir au parseur des tokens distincts pour registres, nombres, chaînes et opérateurs de décalage, avec commentaires de ligne et positions diagnostiques stables.
+- **Non-but :** normalisation NFC, identifiants Unicode généraux, macros et émission binaire.
+- **Entrées/sources :** SPEC §11 (lexique, commentaires, registres, expressions) et §19 (diagnostics); R4 pour les formes de registres et expressions.
+- **Fichiers/modules :** `crates/asm-lexer/src/lib.rs`, `crates/assembler/src/parser.rs`, `crates/diag/src/lib.rs`.
+- **Étapes réalisées :** classification case-insensitive des registres `xN`/`fN` et alias ABI; commentaires `#`, `;`, `//` limités à la ligne; `<<`/`>>`; longueurs de spans en scalaires Unicode; longueur optionnelle des diagnostics; raccordement parser aux nouveaux tokens.
+- **Dépendances :** aucune nouvelle dépendance externe; bloque les évolutions parser qui supposeraient encore que tout registre est un `Identifier`.
+- **Tests :** cinq tests lexer et un test parser pour commentaires multilignes, alias, nombres, décalages, UTF-8, chaînes incomplètes et caractères invalides; `cargo test -p luna-asm-lexer -p luna-assembler`.
+- **Critères de sortie :** les tests ciblés sont verts; `ADDI X1,A0,1` et `imm(sp)` sont reconnus; une erreur lexicale expose code, ligne, colonne et longueur; le commentaire n’empêche pas la ligne suivante d’être tokenisée.
+- **Cas limites et échecs :** chaîne traversant une ligne, échappement inconnu, caractère inattendu, registre hors plage reste un identifiant et est rejeté plus loin par le parseur/assembleur.
+- **Taille :** 3 points / 1–1,5 journée-agent, incertitude faible; équivalent indicatif 40k–100k tokens.
+- **Compétences/outils :** Rust, lexing Unicode, diagnostics positionnés.
+- **Parallélisable :** oui avec DIS-001 et FP-001; non avec une modification concurrente de `TokenKind` ou de l’API `Diagnostic`.
+- **Paquet de contexte minimal :** SPEC §§11/19, `crates/asm-lexer/src/lib.rs`, `crates/assembler/src/parser.rs`, `crates/diag/src/lib.rs`.
+
 ### ASM-002 — Expressions, labels et deux passes
 
 - **Jalon / exigences :** M3; ASM-001..015, ABI-001.

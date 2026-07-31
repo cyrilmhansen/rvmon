@@ -29,6 +29,7 @@ pub enum OperandKind {
 impl Operand {
     fn atom(token: &Token) -> Result<Self> {
         let kind = match &token.kind {
+            TokenKind::Register(value) => OperandKind::Register(value.clone()),
             TokenKind::Identifier(value) if is_register_name(value) => {
                 OperandKind::Register(value.clone())
             }
@@ -145,23 +146,29 @@ impl Parser {
         };
         let mut operand = Operand::atom(&first_atom)?;
         pieces.push(match &first_atom.kind {
-            TokenKind::Identifier(value) | TokenKind::Number(value) => value.clone(),
+            TokenKind::Identifier(value)
+            | TokenKind::Register(value)
+            | TokenKind::Number(value) => value.clone(),
             TokenKind::String(_) => String::new(),
             _ => unreachable!("operand atom has a scalar token"),
         });
-        while let Some(Token {
-            kind: TokenKind::Operator(operator),
-            ..
-        }) = self.peek()
-        {
+        while let Some(token) = self.peek() {
+            let operator = match &token.kind {
+                TokenKind::Operator(operator) => operator.to_string(),
+                TokenKind::ShiftLeft => "<<".to_owned(),
+                TokenKind::ShiftRight => ">>".to_owned(),
+                _ => break,
+            };
             has_operator = true;
-            pieces.push(operator.to_string());
+            pieces.push(operator);
             self.take();
             let next = self
                 .take()
                 .ok_or_else(|| self.error_at("ASM-SYNTAX-003", "missing operand"))?;
             let next_value = match &next.kind {
-                TokenKind::Identifier(value) | TokenKind::Number(value) => value.clone(),
+                TokenKind::Identifier(value)
+                | TokenKind::Register(value)
+                | TokenKind::Number(value) => value.clone(),
                 _ => {
                     return Err(
                         Diagnostic::error("ASM-SYNTAX-005", "expected expression atom")
@@ -196,6 +203,7 @@ impl Parser {
                 .at(open.span.line, open.span.column)
         })?;
         let base_name = match base.kind {
+            TokenKind::Register(value) => value,
             TokenKind::Identifier(value) if is_register_name(&value) => value,
             _ => {
                 return Err(
@@ -339,5 +347,14 @@ mod tests {
         let line = parse_line("done:").unwrap();
         assert_eq!(line.labels, ["done"]);
         assert!(line.mnemonic.is_none());
+    }
+
+    #[test]
+    fn preserves_shift_operators_in_expressions() {
+        let line = parse_line(".word 1 << 3").unwrap();
+        assert_eq!(
+            line.operands[0].kind,
+            OperandKind::Expression("1<<3".into())
+        );
     }
 }

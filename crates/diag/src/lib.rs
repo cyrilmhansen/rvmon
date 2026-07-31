@@ -14,6 +14,7 @@ pub struct Diagnostic {
     pub message: String,
     pub line: Option<u32>,
     pub column: Option<u32>,
+    pub length: Option<u32>,
 }
 
 impl Diagnostic {
@@ -24,12 +25,20 @@ impl Diagnostic {
             message: message.into(),
             line: None,
             column: None,
+            length: None,
         }
     }
 
     pub fn at(mut self, line: u32, column: u32) -> Self {
         self.line = Some(line);
         self.column = Some(column);
+        self
+    }
+
+    pub fn at_len(mut self, line: u32, column: u32, length: u32) -> Self {
+        self.line = Some(line);
+        self.column = Some(column);
+        self.length = Some(length);
         self
     }
 }
