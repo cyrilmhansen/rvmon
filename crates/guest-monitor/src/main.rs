@@ -19,6 +19,7 @@ const TARGET_RAM_END: u64 = 0x8002_0000;
 const EBREAK_WORD: u32 = 0x0010_0073;
 const MAX_PERMANENT_BREAKPOINTS: usize = 4;
 const MAX_MEMORY_DUMP: u64 = 128;
+const MAX_SOURCE_LINES: usize = 16;
 
 global_asm!(include_str!("entry.S"));
 
@@ -50,6 +51,11 @@ pub extern "C" fn rust_main() -> ! {
     if capabilities.xlen == 64 && capabilities.flen == 64 {
         uart_write("capabilities: I M F D Zicsr Zifencei\r\n");
     }
+    uart_write("target workspace: 0x");
+    uart_hex(target_workspace_start());
+    uart_write("..0x");
+    uart_hex(target_workspace_end());
+    uart_write("\r\n");
     uart_write("target: entering U-mode\r\n");
     let target_stack = TARGET_STACK.as_ptr() as usize + TARGET_STACK.len();
     unsafe {
@@ -92,6 +98,9 @@ fn monitor_loop(context: *mut TargetContext) -> ! {
             command if command.starts_with(b"assemble ") => {
                 assemble_command(context, &command[9..])
             }
+            command if command.starts_with(b"assemble-program ") => {
+                assemble_program_command(context, &command[17..])
+            }
             b"step" | b"s" => step_target(context),
             b"continue" | b"c" => continue_target(context),
             command if command.starts_with(b"break ") => break_target(&command[6..]),
@@ -108,7 +117,7 @@ fn monitor_loop(context: *mut TargetContext) -> ! {
 
 fn print_help() {
     uart_write(
-        "help/? regs/registers memory <addr> <length> assemble <addr> addi <rd>,<rs1>,<imm> step/s continue/c break <addr> delete <n> info break quit/q\r\n",
+        "help/? regs/registers memory <addr> <length> assemble <addr> addi <rd>,<rs1>,<imm> assemble-program <addr> ... end step/s continue/c break <addr> delete <n> info break quit/q\r\n",
     );
 }
 
@@ -221,40 +230,16 @@ fn assemble_command(context: *mut TargetContext, argument: &[u8]) {
         uart_write("error: assemble expects <address> addi <rd>,<rs1>,<imm>\r\n");
         return;
     };
-    if !valid_target_word_address(address) {
-        uart_write("error: assemble address must be an aligned target RAM word\r\n");
+    if !valid_target_program_word_address(address) {
+        uart_write("error: assemble address must be an aligned target workspace word\r\n");
         return;
     }
     if permanent_breakpoint_at(address).is_some() || temporary_breakpoint_at(address) {
         uart_write("error: cannot assemble over an active breakpoint\r\n");
         return;
     }
-    let Some(operands) = source.strip_prefix(b"addi ") else {
-        uart_write("error: guest assembler currently supports only addi\r\n");
-        return;
-    };
-    let Some((rd_bytes, rest)) = split_once_comma(operands) else {
-        uart_write("error: addi expects <rd>,<rs1>,<imm>\r\n");
-        return;
-    };
-    let Some((rs1_bytes, imm_bytes)) = split_once_comma(rest) else {
-        uart_write("error: addi expects <rd>,<rs1>,<imm>\r\n");
-        return;
-    };
-    let Some(rd) = parse_register(rd_bytes.trim_ascii()) else {
-        uart_write("error: invalid destination register\r\n");
-        return;
-    };
-    let Some(rs1) = parse_register(rs1_bytes.trim_ascii()) else {
-        uart_write("error: invalid source register\r\n");
-        return;
-    };
-    let Some(imm) = parse_signed_decimal(imm_bytes.trim_ascii()) else {
-        uart_write("error: invalid addi immediate\r\n");
-        return;
-    };
-    let Some(word) = luna_isa_core::encode_addi(rd, rs1, imm) else {
-        uart_write("error: addi operands are out of range\r\n");
+    let Some(word) = parse_addi_source(source) else {
+        uart_write("error: expected addi <rd>,<rs1>,<imm> with valid operands\r\n");
         return;
     };
     if !target_store32(address, word) {
@@ -272,6 +257,107 @@ fn assemble_command(context: *mut TargetContext, argument: &[u8]) {
     uart_write(" = 0x");
     uart_hex(u64::from(word));
     uart_write("\r\n");
+}
+
+fn assemble_program_command(context: *mut TargetContext, argument: &[u8]) {
+    let Some(address) = parse_hex(argument.trim_ascii()) else {
+        uart_write("error: assemble-program expects a hexadecimal address\r\n");
+        return;
+    };
+    if !valid_target_program_word_address(address) {
+        uart_write("error: assemble-program address must be an aligned target workspace word\r\n");
+        return;
+    }
+
+    uart_write("source mode: enter addi lines, finish with end\r\n");
+    let mut lines = [[0u8; COMMAND_CAPACITY]; MAX_SOURCE_LINES];
+    let mut lengths = [0usize; MAX_SOURCE_LINES];
+    let mut count = 0usize;
+    let mut overflow = false;
+    let mut input = [0u8; COMMAND_CAPACITY];
+    loop {
+        uart_write("source> ");
+        let length = uart_read_line(&mut input);
+        let line = &input[..length];
+        if line == b"end" {
+            break;
+        }
+        if line.is_empty() {
+            continue;
+        }
+        if count == MAX_SOURCE_LINES {
+            overflow = true;
+            continue;
+        }
+        lines[count][..length].copy_from_slice(line);
+        lengths[count] = length;
+        count += 1;
+    }
+
+    if overflow {
+        uart_write("error: source program exceeds 16 instruction lines\r\n");
+        return;
+    }
+    if count == 0 {
+        uart_write("error: source program is empty\r\n");
+        return;
+    }
+    let Some(end_address) = address.checked_add((count as u64) * 4) else {
+        uart_write("error: source program address overflows\r\n");
+        return;
+    };
+    if end_address > TARGET_RAM_END {
+        uart_write("error: source program does not fit in target RAM\r\n");
+        return;
+    }
+
+    let mut words = [0u32; MAX_SOURCE_LINES];
+    for index in 0..count {
+        let Some(word) = parse_addi_source(&lines[index][..lengths[index]]) else {
+            uart_write("error: source line supports only valid addi syntax\r\n");
+            return;
+        };
+        let line_address = address + (index as u64) * 4;
+        if !valid_target_program_word_address(line_address) {
+            uart_write("error: source program exceeds target workspace\r\n");
+            return;
+        }
+        if permanent_breakpoint_at(line_address).is_some() || temporary_breakpoint_at(line_address)
+        {
+            uart_write("error: source overlaps an active breakpoint\r\n");
+            return;
+        }
+        words[index] = word;
+    }
+
+    for index in 0..count {
+        let line_address = address + (index as u64) * 4;
+        if !target_store32(line_address, words[index]) {
+            uart_write("error: cannot write assembled source program\r\n");
+            return;
+        }
+    }
+    flush_icache();
+    let context = unsafe { &mut *context };
+    context.pc = address;
+    context.mepc = address;
+    context.mcause = StopReason::Breakpoint as u64;
+    context.mtval = 0;
+    uart_write("assembled program: ");
+    uart_decimal(count as u64);
+    uart_write(" instruction(s) at 0x");
+    uart_hex(address);
+    uart_write("\r\n");
+}
+
+fn parse_addi_source(source: &[u8]) -> Option<u32> {
+    let operands = source.strip_prefix(b"addi ")?;
+    let (rd_bytes, rest) = split_once_comma(operands)?;
+    let (rs1_bytes, imm_bytes) = split_once_comma(rest)?;
+    let rd = parse_register(rd_bytes.trim_ascii())?;
+    let rs1 = parse_register(rs1_bytes.trim_ascii())?;
+    let imm = parse_signed_decimal(imm_bytes.trim_ascii())?;
+    luna_isa_core::encode_addi(rd, rs1, imm)
 }
 
 fn split_once_space(input: &[u8]) -> Option<(u64, &[u8])> {
@@ -663,6 +749,22 @@ fn valid_target_word_address(address: u64) -> bool {
             .is_some_and(|end| end <= TARGET_RAM_END)
 }
 
+fn valid_target_program_word_address(address: u64) -> bool {
+    valid_target_word_address(address)
+        && address >= target_workspace_start()
+        && address
+            .checked_add(4)
+            .is_some_and(|end| end <= target_workspace_end())
+}
+
+fn target_workspace_start() -> u64 {
+    core::ptr::addr_of!(_target_workspace_start) as u64
+}
+
+fn target_workspace_end() -> u64 {
+    core::ptr::addr_of!(_target_workspace_end) as u64
+}
+
 fn permanent_breakpoint_at(address: u64) -> Option<usize> {
     let mut slot = 0;
     while slot < MAX_PERMANENT_BREAKPOINTS {
@@ -804,6 +906,8 @@ unsafe extern "C" {
     fn resume_user(context: *mut TargetContext) -> !;
     fn target_entry() -> !;
     fn trap_entry();
+    static _target_workspace_start: u8;
+    static _target_workspace_end: u8;
 }
 
 fn uart_write(text: &str) {

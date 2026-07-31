@@ -15,10 +15,10 @@ terminal                           <-- commandes et diagnostics UART
 
 Ce binaire invité est actuellement un moniteur de démarrage et de débogage
 minimal. Il fournit déjà l’inspection des registres, la lecture mémoire et
-une commande `assemble` limitée à `addi`. Les vues désassemblées complètes,
-les symboles, l’éditeur multi-ligne et les snapshots restent à porter. Le
-programme U-mode de démonstration est lié dans l’image et sert à valider les
-traps, les breakpoints logiciels et le pas-à-pas.
+des commandes `assemble` et `assemble-program` limitées à `addi`. Les vues
+désassemblées complètes, les symboles, les directives et les snapshots restent
+à porter. Le programme U-mode de démonstration est lié dans l’image et sert à
+valider les traps, les breakpoints logiciels et le pas-à-pas.
 
 ## 1. Préparer les outils
 
@@ -57,6 +57,7 @@ La sortie initiale ressemble à ceci :
 RVMonitor 4B M-mode
 target: RV64 ILP32D U-mode, hart=1, C=off
 capabilities: I M F D Zicsr Zifencei
+target workspace: 0x000000008001.... ..0x000000008001....
 target: entering U-mode
 trap: breakpoint pc=0x000000008000....
 rvmonitor>
@@ -124,6 +125,29 @@ avec registres `x0` à `x31` et immédiat signé dans `[-2048, 2047]`. L’écri
 est refusée si l’adresse est hors RAM ou occupée par un breakpoint actif. Le
 portage de l’assembleur complet réutilisera le crate `luna-isa-core` généré
 depuis R2, sans table d’opcodes spécifique au guest.
+
+Pour plusieurs instructions, `assemble-program` ouvre un mode source borné.
+Chaque ligne est validée avant toute écriture ; `end` termine la saisie :
+
+```text
+rvmonitor> assemble-program 0x80010a30
+source mode: enter addi lines, finish with end
+source> addi x1,x0,1
+source> addi x1,x1,2
+source> end
+assembled program: 2 instruction(s) at 0x0000000080010a30
+rvmonitor> step
+trap: breakpoint pc=0x0000000080010a34
+rvmonitor> step
+trap: breakpoint pc=0x0000000080010a38
+rvmonitor> regs
+... x1=0x0000000000000003 ...
+```
+
+Le tampon accepte au maximum 16 lignes de 96 caractères. L’adresse de
+l’exemple doit correspondre à une zone RAM libre, qui ne recouvre ni le code,
+ni la pile, ni les données du moniteur ; le smoke test la calcule à partir de
+`_stack_top` avec `nm`.
 
 ### Exécuter une instruction
 
@@ -225,7 +249,7 @@ Le script :
 2. calcule une adresse de breakpoint avec `riscv64-linux-gnu-nm` ;
 3. démarre QEMU avec `-bios none`, `-kernel` et `-nographic` ;
 4. envoie `help`, `regs`, `memory`, `break`, `info break`, `continue`,
-   `step`, `delete` et `assemble` sur l’UART ;
+   `step`, `delete` et `assemble-program` sur l’UART ;
 5. vérifie les modifications de `x1`, l’encodage `addi` et les diagnostics de
    trap.
 
@@ -238,14 +262,14 @@ Les commandes suivantes appartiennent aujourd’hui au moniteur hôte ou au
 simulateur interne, pas encore au binaire exécuté dans QEMU :
 
 ```text
-assemble-program, disasm, edit, undo, watch, rwatch, symbols, history,
+disasm, edit, undo, watch, rwatch, symbols, history,
 project-save, project-load, snapshot, restore
 ```
 
-Le cycle d’une ligne existe désormais pour `addi`. La prochaine étape est le
-source buffer multi-ligne, puis les expressions, labels, directives et le
-désassembleur, en conservant le moniteur M-mode et le programme cible U-mode
-séparés.
+Le cycle d’une ligne et le source buffer multi-ligne existent désormais pour
+`addi`. La prochaine étape est la prise en charge des expressions, labels,
+directives et du désassembleur, en conservant le moniteur M-mode et le
+programme cible U-mode séparés.
 
 ## 6. Différence avec les deux autres parcours
 

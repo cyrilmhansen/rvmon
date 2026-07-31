@@ -204,14 +204,21 @@ permettant l’accès U-mode à la fenêtre basse contenant le MMIO UART et la R
 Le trap capture les registres entiers, flottants, `fcsr`, `mstatus`, `mepc`,
 `mcause` et `mtval`, puis s’arrête sur le prompt monitor.
 
+Le linker réserve une fenêtre `.target_workspace` distincte de l’image et de
+la pile du moniteur. Les commandes guest `assemble` et `assemble-program` ne
+peuvent écrire que dans cette fenêtre ; le smoke test récupère son adresse
+avec `_target_workspace_start` et `nm` pour éviter toute dépendance à une
+adresse fixe.
+
 Le smoke test résout `target_entry` dans l’image avec `riscv64-linux-gnu-nm`,
 pose un breakpoint permanent sur le `beq`, vérifie `info break`, exécute
 `continue` jusqu’à ce breakpoint, puis exécute un second `continue` pour
 franchir l’instruction originale et vérifier le réarmement. Il supprime ensuite
 le breakpoint et reprend deux pas temporaires. La séquence vérifie la
 restauration des mots, les instructions séquentielles, `beq`/`bne`, `jal` et
-`jalr` du profil actuellement émis. Il assemble enfin `addi x1,x0,1` à une
-adresse RAM libre, exécute un pas et vérifie `x1=1` ainsi que l’encodage exact.
+`jalr` du profil actuellement émis. Il assemble enfin deux lignes `addi` dans
+la fenêtre de travail réservée, exécute deux pas et vérifie `x1=3` ainsi que
+l’encodage partagé.
 
 Le backend QEMU limite volontairement la table à quatre breakpoints permanents
 numérotés de 1 à 4. Une adresse doit être un mot aligné de la fenêtre RAM cible.

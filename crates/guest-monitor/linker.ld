@@ -36,6 +36,13 @@ SECTIONS
         _stack_top = .;
     } > RAM
 
+    .target_workspace (NOLOAD) : ALIGN(16)
+    {
+        _target_workspace_start = .;
+        . += 16K;
+        _target_workspace_end = .;
+    } > RAM
+
     /DISCARD/ :
     {
         *(.eh_frame)
