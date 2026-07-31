@@ -2,7 +2,10 @@
 
 use luna_diag::{Diagnostic, Result};
 
-pub use luna_isa_core::{ADDI_MASK, ADDI_MATCH, GENERATED_OPCODES, Opcode};
+pub use luna_isa_core::{
+    ADDI_MASK, ADDI_MATCH, GENERATED_EXTENSIONS, GENERATED_OPCODE_COUNT, GENERATED_OPCODES,
+    GeneratedExtension, Opcode, R2_COMMIT, R2_OPCODE_TABLE_SHA256,
+};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Addi {

@@ -5,9 +5,17 @@
 pub struct Opcode {
     pub mnemonic: &'static str,
     pub extension: &'static str,
+    pub instruction_bits: u8,
     pub mask: u32,
     pub match_value: u32,
     pub fields: &'static [&'static str],
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct GeneratedExtension {
+    pub name: &'static str,
+    pub instruction_bits: u8,
+    pub instruction_count: usize,
 }
 
 include!(concat!(env!("OUT_DIR"), "/opcode.rs"));
@@ -138,8 +146,9 @@ pub fn encode_f_r(mnemonic: &str, rd: u8, rs1: u8, rs2: u8, rm: u8) -> Option<u3
 #[cfg(test)]
 mod tests {
     use super::{
-        R2_COMMIT, encode_addi, encode_auipc, encode_branch, encode_f_r, encode_jal, encode_jalr,
-        encode_load, encode_lui, encode_store,
+        GENERATED_EXTENSIONS, GENERATED_OPCODE_COUNT, GENERATED_OPCODES, R2_COMMIT,
+        R2_OPCODE_TABLE_SHA256, encode_addi, encode_auipc, encode_branch, encode_f_r, encode_jal,
+        encode_jalr, encode_load, encode_lui, encode_store,
     };
 
     #[test]
@@ -157,6 +166,17 @@ mod tests {
     #[test]
     fn encodes_control_flow_from_generated_opcodes() {
         assert_eq!(R2_COMMIT.len(), 40);
+        assert_eq!(R2_OPCODE_TABLE_SHA256.len(), 64);
+        assert_eq!(GENERATED_OPCODE_COUNT, GENERATED_OPCODES.len());
+        assert!(
+            GENERATED_EXTENSIONS
+                .iter()
+                .any(|extension| { extension.name == "rv_c" && extension.instruction_bits == 16 })
+        );
+        assert!(GENERATED_EXTENSIONS.iter().all(|extension| {
+            extension.instruction_count > 0
+                && (extension.instruction_bits == 16 || extension.instruction_bits == 32)
+        }));
         assert_eq!(encode_branch("beq", 1, 1, 8), Some(0x0010_8463));
         assert_eq!(encode_branch("bne", 1, 2, -8), Some(0xfe20_9ce3));
         assert_eq!(encode_jal(0, 12), Some(0x00c0_006f));

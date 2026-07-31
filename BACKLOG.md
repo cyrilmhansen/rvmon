@@ -129,6 +129,23 @@ Une tâche est terminée seulement si sa condition de sortie est satisfaite.
 - **Parallélisable :** non avec un autre générateur; oui avec BOOT-003.
 - **Contexte minimal :** SPEC §11, DECISIONS D-006.
 
+### GEN-002 — Publier les métadonnées profile-aware de la table générée — TERMINÉ
+
+- **Jalon / exigences :** M1; ENC-001..006, ISA-001..010, REQ-PROD-006.
+- **But :** rendre explicites dans l’artefact généré la largeur 16/32 bits, l’extension source, le nombre d’entrées et l’empreinte de la table.
+- **Non-but :** déclarer qu’une instruction est exécutable simplement parce qu’elle est présente dans R2 ; la matrice parse/assemble/execute reste séparée.
+- **Entrées/sources :** extraits R2 épinglés, profil `rv64imafd_zicsr_zifencei` avec C décodable mais émission désactivée, SPEC §§5/11/23.
+- **Fichiers/modules :** `crates/isa-core/build.rs`, `crates/isa-core/src/lib.rs`, `crates/isa/src/lib.rs`, `tools/check-r2.sh`, `TESTS.md`.
+- **Étapes réalisées :** ajouter `instruction_bits` à chaque opcode; générer `GeneratedExtension`; compter les entrées; calculer `R2_OPCODE_TABLE_SHA256`; vérifier l’artefact depuis le script de contrôle.
+- **Dépendances et tâches bloquées :** BOOT-005; le générateur complet des pseudos/imports et la comparaison exhaustive R1 restent dans GEN-001/BOOT-004.
+- **Tests :** `cargo test -p luna-isa-core -p luna-isa`; `bash tools/check-r2.sh`; vérification de longueur SHA et d’idempotence de génération.
+- **Critères de sortie :** tous les opcodes générés portent une largeur valide; chaque extension sélectionnée a un compte non nul; le hash déclaré égale le hash recalculé de la table.
+- **Cas limites et échecs :** artefact absent, hash divergent, extension sans entrée ou largeur autre que 16/32 → échec.
+- **Taille :** 4 points / 2 journées-agent, incertitude moyenne; équivalent indicatif 80k–160k tokens.
+- **Compétences/outils :** générateur Rust, SHA-256, ISA C/32 bits, Cargo build scripts.
+- **Parallélisable :** oui avec ASM-001 et FP-001; non avec une modification simultanée de l’artefact généré.
+- **Paquet de contexte minimal :** `crates/isa-core/build.rs`, `crates/isa-core/src/lib.rs`, `tools/check-r2.sh`, TEST_PLAN §3.
+
 ### ISA-001 — Implémenter encode/decode I minimal
 
 - **Jalon / exigences :** M1; ISA-001, REQ-PROD-002.

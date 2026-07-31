@@ -80,7 +80,8 @@ Les expressions couvrent la précédence, les bases décimale/hexadécimale/bina
 Le registre d’opcodes est produit depuis les extraits R2 épinglés. `bash
 tools/check-r2.sh` vérifie le SHA complet du commit, l’ensemble exact des
 fichiers attendus, leurs empreintes SHA-256 et déclenche la validation du
-générateur. Les tests vérifient ensuite la présence des données générées et
+générateur. Il vérifie aussi le SHA-256 de la table générée effectivement
+produite dans `OUT_DIR`. Les tests vérifient ensuite la présence des données générées et
 les round-trips des formes entières, de fadd.s et de fadd.d. Le générateur
 signale les recouvrements `mask/match` compressés dont la distinction dépend
 de contraintes d’opérandes R2 (`rd_n0`, etc.) ; un doublon exact reste une
