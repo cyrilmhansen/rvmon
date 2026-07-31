@@ -12,7 +12,7 @@ Validation locale complète :
     bash scripts/test-guest-monitor.sh
     git diff --check
 
-La suite actuelle exécute 56 tests unitaires/intégration répartis dans les crates. Les doc-tests compilent mais ne contiennent actuellement aucun cas.
+La suite actuelle exécute 59 tests unitaires/intégration répartis dans les crates. Les doc-tests compilent mais ne contiennent actuellement aucun cas.
 
 Démonstration M-mode/U-mode sous QEMU :
 
@@ -44,7 +44,7 @@ Moniteur texte interactif :
 | luna-machine | 11 | Exécution entière, branches, mémoire, tables de pointeurs ILP32, fadd.s, fadd.d, NaN-boxing, flags et contrat backend. |
 | luna-disassembler | 7 | Format canonique, symboles, opcodes illégaux, C rejeté et round-trip. |
 | luna-floatfmt | 3 | Bits hex exacts, décimal court, classes IEEE et NaN-box invalide. |
-| luna-monitor | 3 | assemble → step → regs, affichage flottant et run borné. |
+| luna-monitor | 6 | assemble → step → regs, affichage flottant, run borné, vues mémoire hex/ASCII, édition et undo. |
 | luna-target-api | 4 | Contexte de trap, capacités explicites RV64 bare-metal, codes `mcause`, contrat de layout et types du backend commun. |
 | luna-guest-monitor | 0 | Image bare-metal, boot QEMU, PMP, transition M→U, trap `ebreak` et boucle UART; vérifié par smoke test QEMU. |
 | luna-app | 0 | Compilation du binaire et démonstration ; pas encore d’E2E terminal. |
@@ -115,7 +115,13 @@ Les tests du moniteur utilisent son API déterministe, pas un terminal réel. Il
 2. assemble fadd.s, step, puis le motif flottant et fcsr ;
 3. run 3 sur une boucle et respect de la borne.
 
-Les commandes couvertes sont help, assemble, step, run, disasm, regs, reset et quit dans le moniteur hôte. Le backend QEMU couvre en plus `break`, `delete`, `info break` et `continue`, avec validation UART de l’arrêt sur breakpoint permanent et de son réarmement après un pas de franchissement. L’entrée/sortie interactive complète, les couleurs, le clavier, l’édition mémoire et l’annulation restent à tester.
+Les commandes couvertes sont help, assemble, step, run, disasm, regs, reset, memory/hex, view, edit, undo et quit dans le moniteur hôte. Le backend QEMU couvre en plus `break`, `delete`, `info break` et `continue`, avec validation UART de l’arrêt sur breakpoint permanent et de son réarmement après un pas de franchissement. L’entrée/sortie interactive complète, les couleurs, le clavier, les marques et l’édition mémoire QEMU restent à tester.
+
+La vue mémoire utilise 16 octets par ligne, affiche les octets exacts et
+remplace les caractères non imprimables par `.` dans la colonne ASCII. `edit`
+effectue une lecture de sauvegarde puis une écriture via `TargetBackend`; une
+erreur de plage ne modifie donc pas la mémoire. `undo` restaure au maximum les
+64 dernières éditions, avec une limite de 4096 octets par opération.
 
 ### Backend cible 4B
 

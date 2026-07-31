@@ -9,10 +9,22 @@ use luna_disassembler::disassemble_word;
 use luna_machine::{FFLAG_DZ, FFLAG_NV, FFLAG_NX, FFLAG_OF, FFLAG_UF, Machine};
 use luna_target_api::{ExecutionOutcome, TargetBackend};
 
+const DEFAULT_MEMORY_VIEW_BYTES: usize = 64;
+const MAX_MEMORY_VIEW_BYTES: usize = 4096;
+const MAX_EDIT_BYTES: usize = 4096;
+const MAX_UNDO_ENTRIES: usize = 64;
+
+struct MemoryEdit {
+    address: u64,
+    previous: Vec<u8>,
+}
+
 pub struct Monitor {
     pub machine: Machine,
     symbols: BTreeMap<u64, String>,
     max_run_steps: u64,
+    view_address: u64,
+    undo: Vec<MemoryEdit>,
 }
 
 impl Monitor {
@@ -21,6 +33,8 @@ impl Monitor {
             machine: Machine::new(memory_size),
             symbols: BTreeMap::new(),
             max_run_steps: 1000,
+            view_address: 0,
+            undo: Vec::new(),
         }
     }
 
@@ -39,9 +53,15 @@ impl Monitor {
             "step" | "s" => self.step(),
             "run" | "r" => self.run(argument),
             "disasm" | "d" => self.disassemble(argument),
+            "memory" | "mem" | "hex" | "ascii" => self.memory_view(argument),
+            "view" | "jump" => self.set_view(argument),
+            "edit" | "e" => self.edit_memory(argument),
+            "undo" | "u" => self.undo_memory(),
             "reset" => {
                 self.machine = Machine::new(self.machine.memory_size());
                 self.symbols.clear();
+                self.view_address = 0;
+                self.undo.clear();
                 Ok("machine reset".into())
             }
             "quit" | "exit" => Ok("bye".into()),
@@ -62,6 +82,7 @@ impl Monitor {
         let image = assemble(source)?;
         let address = self.machine.pc;
         self.machine.load(address, &image.text)?;
+        self.view_address = address;
         let word = image
             .text
             .get(..4)
@@ -74,7 +95,7 @@ impl Monitor {
 
     fn step(&mut self) -> Result<String> {
         let address = self.machine.pc;
-        let word = self.machine.memory.load32(address)?;
+        let word = self.read_word(address)?;
         let line = disassemble_word(address, word, &self.symbols);
         let outcome = TargetBackend::step(&mut self.machine)?;
         let pc_after = match outcome {
@@ -118,12 +139,20 @@ impl Monitor {
     }
 
     fn disassemble(&self, argument: &str) -> Result<String> {
-        let count = if argument.is_empty() {
-            4
-        } else {
-            argument.parse::<usize>().map_err(|_| {
-                Diagnostic::error("MON-DISASM-001", "disasm count must be an unsigned integer")
-            })?
+        let parts: Vec<_> = argument.split_whitespace().collect();
+        let (address, count) = match parts.as_slice() {
+            [] => (self.machine.pc, 4),
+            [count] => (self.machine.pc, parse_count(count, "MON-DISASM-001")?),
+            [address, count] => (
+                parse_address(address, "MON-DISASM-002")?,
+                parse_count(count, "MON-DISASM-001")?,
+            ),
+            _ => {
+                return Err(Diagnostic::error(
+                    "MON-DISASM-001",
+                    "disasm expects [count] or [address] [count]",
+                ));
+            }
         };
         let mut output = String::new();
         for index in 0..count {
@@ -131,16 +160,138 @@ impl Monitor {
                 .ok()
                 .and_then(|index| index.checked_mul(4))
                 .ok_or_else(|| Diagnostic::error("MON-DISASM-002", "address overflow"))?;
-            let address = self
-                .machine
-                .pc
+            let address = address
                 .checked_add(offset)
                 .ok_or_else(|| Diagnostic::error("MON-DISASM-002", "address overflow"))?;
-            let word = self.machine.memory.load32(address)?;
+            let word = self.read_word(address)?;
             let line = disassemble_word(address, word, &self.symbols);
             writeln!(output, "0x{address:016x}: {word:08x}  {}", line.text).unwrap();
         }
         Ok(output.trim_end().into())
+    }
+
+    fn read_word(&self, address: u64) -> Result<u32> {
+        let mut bytes = [0u8; 4];
+        TargetBackend::read_memory(&self.machine, address, &mut bytes)?;
+        Ok(u32::from_le_bytes(bytes))
+    }
+
+    fn set_view(&mut self, argument: &str) -> Result<String> {
+        let parts: Vec<_> = argument.split_whitespace().collect();
+        let [address] = parts.as_slice() else {
+            return Err(Diagnostic::error(
+                "MON-MEM-001",
+                "view expects one target address",
+            ));
+        };
+        self.view_address = parse_address(address, "MON-MEM-002")?;
+        Ok(format!("view=0x{:016x}", self.view_address))
+    }
+
+    fn memory_view(&mut self, argument: &str) -> Result<String> {
+        let parts: Vec<_> = argument.split_whitespace().collect();
+        let (address, count) = match parts.as_slice() {
+            [] => (self.view_address, DEFAULT_MEMORY_VIEW_BYTES),
+            [address] => (
+                parse_address(address, "MON-MEM-002")?,
+                DEFAULT_MEMORY_VIEW_BYTES,
+            ),
+            [address, count] => (
+                parse_address(address, "MON-MEM-002")?,
+                parse_count(count, "MON-MEM-003")?,
+            ),
+            _ => {
+                return Err(Diagnostic::error(
+                    "MON-MEM-001",
+                    "memory expects [address] [count]",
+                ));
+            }
+        };
+        if count > MAX_MEMORY_VIEW_BYTES {
+            return Err(Diagnostic::error(
+                "MON-MEM-004",
+                "memory view exceeds the 4096-byte interactive limit",
+            ));
+        }
+        let mut bytes = vec![0u8; count];
+        TargetBackend::read_memory(&self.machine, address, &mut bytes)?;
+        self.view_address = address;
+
+        let mut output = String::new();
+        for (row, chunk) in bytes.chunks(16).enumerate() {
+            let row_address = address
+                .checked_add((row * 16) as u64)
+                .ok_or_else(|| Diagnostic::error("MON-MEM-002", "address overflow"))?;
+            write!(output, "0x{row_address:016x}: ").unwrap();
+            for byte in chunk {
+                write!(output, "{byte:02x} ").unwrap();
+            }
+            for _ in chunk.len()..16 {
+                output.push_str("   ");
+            }
+            output.push_str("|");
+            for byte in chunk {
+                output.push(if (0x20..=0x7e).contains(byte) {
+                    *byte as char
+                } else {
+                    '.'
+                });
+            }
+            output.push('|');
+            output.push('\n');
+        }
+        Ok(output.trim_end().into())
+    }
+
+    fn edit_memory(&mut self, argument: &str) -> Result<String> {
+        let mut parts = argument.split_whitespace();
+        let address_text = parts.next().ok_or_else(|| {
+            Diagnostic::error("MON-MEM-005", "edit expects an address followed by bytes")
+        })?;
+        let address = parse_address(address_text, "MON-MEM-002")?;
+        let mut bytes = Vec::new();
+        for token in parts {
+            parse_byte_token(token, &mut bytes)?;
+            if bytes.len() > MAX_EDIT_BYTES {
+                return Err(Diagnostic::error(
+                    "MON-MEM-006",
+                    "edit exceeds the 4096-byte transaction limit",
+                ));
+            }
+        }
+        if bytes.is_empty() {
+            return Err(Diagnostic::error(
+                "MON-MEM-005",
+                "edit expects at least one byte",
+            ));
+        }
+        let mut previous = vec![0u8; bytes.len()];
+        TargetBackend::read_memory(&self.machine, address, &mut previous)?;
+        TargetBackend::write_memory(&mut self.machine, address, &bytes)?;
+        if self.undo.len() == MAX_UNDO_ENTRIES {
+            self.undo.remove(0);
+        }
+        self.undo.push(MemoryEdit { address, previous });
+        self.view_address = address;
+        Ok(format!(
+            "edited {} byte(s) at 0x{address:016x}",
+            bytes.len()
+        ))
+    }
+
+    fn undo_memory(&mut self) -> Result<String> {
+        let (address, previous) = self
+            .undo
+            .last()
+            .map(|edit| (edit.address, edit.previous.clone()))
+            .ok_or_else(|| Diagnostic::error("MON-MEM-007", "nothing to undo"))?;
+        TargetBackend::write_memory(&mut self.machine, address, &previous)?;
+        self.undo.pop();
+        self.view_address = address;
+        Ok(format!(
+            "undid {} byte(s) at 0x{address:016x}",
+            previous.len()
+        ))
     }
 
     fn registers(&self) -> Result<String> {
@@ -216,12 +367,51 @@ fn help() -> String {
         "assemble <source>    assemble and load one source line at pc",
         "step                 execute one instruction",
         "run [count]          execute up to count instructions (default 1000)",
-        "disasm [count]       show instructions from pc (default 4)",
+        "disasm [addr] [count] show instructions (default pc, 4)",
+        "memory [addr] [count] show hex and ASCII (default view, 64)",
+        "view <addr>          move memory view without changing pc",
+        "edit <addr> <bytes>  write bytes transactionally (hex)",
+        "undo                 undo the last memory edit",
         "regs                 show x/f registers and fcsr exactly",
         "reset                reset machine state",
         "quit                 leave the interactive monitor",
     ]
     .join("\n")
+}
+
+fn parse_address(value: &str, code: &'static str) -> Result<u64> {
+    let value = value.strip_prefix("0x").unwrap_or(value);
+    if value.is_empty() {
+        return Err(Diagnostic::error(code, "address is empty"));
+    }
+    if value.chars().all(|character| character.is_ascii_hexdigit()) {
+        u64::from_str_radix(value, 16)
+            .map_err(|_| Diagnostic::error(code, "address does not fit in 64 bits"))
+    } else {
+        Err(Diagnostic::error(code, "address must be hexadecimal"))
+    }
+}
+
+fn parse_count(value: &str, code: &'static str) -> Result<usize> {
+    value
+        .parse::<usize>()
+        .map_err(|_| Diagnostic::error(code, "count must be an unsigned decimal integer"))
+}
+
+fn parse_byte_token(token: &str, output: &mut Vec<u8>) -> Result<()> {
+    let token = token.strip_prefix("0x").unwrap_or(token);
+    if token.is_empty() || token.len() % 2 != 0 || !token.chars().all(|c| c.is_ascii_hexdigit()) {
+        return Err(Diagnostic::error(
+            "MON-MEM-008",
+            "bytes must be one or more even hexadecimal digits",
+        ));
+    }
+    for pair in token.as_bytes().chunks_exact(2) {
+        let text = std::str::from_utf8(pair).expect("ASCII hexadecimal token");
+        let byte = u8::from_str_radix(text, 16).expect("validated hexadecimal byte");
+        output.push(byte);
+    }
+    Ok(())
 }
 
 #[cfg(test)]
@@ -263,5 +453,41 @@ mod tests {
         let result = monitor.execute("run 3").unwrap();
         assert!(result.contains("ran 3 step(s)"));
         assert_eq!(monitor.machine.instructions, 3);
+    }
+
+    #[test]
+    fn memory_view_keeps_hex_ascii_and_pc_navigation_separate() {
+        let mut monitor = Monitor::new(128);
+        monitor.execute("assemble addi x1,x0,1").unwrap();
+        let output = monitor.execute("memory 0x0 4").unwrap();
+        assert!(output.contains("0x0000000000000000: 93 00 10 00"));
+        assert!(output.contains("|....|"));
+
+        monitor.execute("view 0x20").unwrap();
+        assert_eq!(monitor.machine.pc, 0);
+        assert!(monitor.execute("memory 4").is_ok());
+        assert_eq!(monitor.view_address, 4);
+    }
+
+    #[test]
+    fn memory_edit_and_undo_restore_bytes_through_backend() {
+        let mut monitor = Monitor::new(128);
+        monitor.execute("edit 0x10 deadbeef").unwrap();
+        assert_eq!(monitor.machine.memory.load32(0x10).unwrap(), 0xefbe_adde);
+        let edited = monitor.execute("memory 0x10 4").unwrap();
+        assert!(edited.contains("de ad be ef"));
+
+        let undo = monitor.execute("undo").unwrap();
+        assert!(undo.contains("undid 4 byte(s)"));
+        assert_eq!(monitor.machine.memory.load32(0x10).unwrap(), 0);
+        assert!(monitor.execute("undo").is_err());
+    }
+
+    #[test]
+    fn invalid_memory_edit_has_no_side_effect() {
+        let mut monitor = Monitor::new(128);
+        let error = monitor.execute("edit 0x10 123").unwrap_err();
+        assert_eq!(error.code, "MON-MEM-008");
+        assert_eq!(monitor.machine.memory.load32(0x10).unwrap(), 0);
     }
 }
