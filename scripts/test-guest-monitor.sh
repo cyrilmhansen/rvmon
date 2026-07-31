@@ -18,11 +18,13 @@ fi
 breakpoint_address="$(printf '0x%x' "$((16#$target_entry_hex + 12))")"
 assembly_address="$(printf '0x%x' "$((16#$workspace_start_hex + 0x100))")"
 assembly_address_full="$(printf '0x%016x' "$((16#$workspace_start_hex + 0x100))")"
+edit_address="$(printf '0x%x' "$((16#$workspace_start_hex + 0x40))")"
+edit_address_full="$(printf '0x%016x' "$((16#$workspace_start_hex + 0x40))")"
 
 set +e
 output="$({
-    printf 'help\nregs\nmemory 0x80000000 16\nbreak %s\ninfo break\ncontinue\nregs\ncontinue\ndelete 1\nstep\nregs\nstep\nregs\nassemble-program %s\n_start:\naddi x1,x0,1\nbeq x1,x1,next\naddi x1,x0,99\nnext:\nfadd.s f3,f1,f2\nfadd.d f6,f4,f5\naddi x1,x1,2\nend\nsymbols\ndisasm _start 6\nsetf f1 0xffffffff3f800000\nsetf f2 0xffffffff40000000\nsetf f4 0x3ff0000000000000\nsetf f5 0x4000000000000000\nbreak next\ninfo break\ndelete 1\nstep\nregs\nstep\nregs\nstep\nregs\nstep\nregs\nstep\nregs\nquit\n' \
-        "$breakpoint_address" "$assembly_address"
+    printf 'help\nregs\nmemory 0x80000000 16\nbreak %s\ninfo break\ncontinue\nregs\ncontinue\ndelete 1\nstep\nregs\nstep\nregs\nassemble-program %s\n_start:\naddi x1,x0,1\nbeq x1,x1,next\naddi x1,x0,99\nnext:\nfadd.s f3,f1,f2\nfadd.d f6,f4,f5\naddi x1,x1,2\nend\nedit %s deadbeef\nmemory %s 4\nundo\nmemory %s 4\nedit 0x8001ffff 0000\nsymbols\ndisasm _start 6\nsetf f1 0xffffffff3f800000\nsetf f2 0xffffffff40000000\nsetf f4 0x3ff0000000000000\nsetf f5 0x4000000000000000\nbreak next\ninfo break\ndelete 1\nstep\nregs\nstep\nregs\nstep\nregs\nstep\nregs\nstep\nregs\nquit\n' \
+        "$breakpoint_address" "$assembly_address" "$edit_address" "$edit_address" "$edit_address"
 } | timeout 5s qemu-system-riscv64 \
     -M virt \
     -bios none \
@@ -49,6 +51,11 @@ for expected in \
     'f31=0x' \
     'source mode: enter integer/control or fadd.s/fadd.d lines, finish with end' \
     "assembled program: 6 instruction(s) at $assembly_address_full" \
+    "edited 4 byte(s) at $edit_address_full" \
+    "$edit_address_full: de ad be ef" \
+    "undone 4 byte(s) at $edit_address_full" \
+    "$edit_address_full: 00 00 00 00" \
+    'error: edit range is outside target RAM' \
     '_start' \
     'next' \
     'addi x1,x0,1' \

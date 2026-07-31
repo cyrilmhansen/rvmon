@@ -49,7 +49,7 @@ Moniteur texte interactif :
 | luna-monitor | 19 | assemble → step → regs, affichage flottant, run borné, vues mémoire hex/ASCII, édition/undo, console backend-générique, marques QuickJump, breakpoints, watchpoints, symboles, pile, historique et persistance. |
 | luna-target-api | 4 | Contexte de trap, capacités explicites RV64 bare-metal, codes `mcause`, contrat de layout, résultats et accès mémoire du backend commun. |
 | luna-qemu-backend | 7 | Framing GDB RSP, checksum, lecture mémoire, layouts RV64 entier et F/D, stop reply, initialisation `?`, pas et budget nul. |
-| luna-guest-monitor | 0 | Image bare-metal, boot QEMU, PMP, transition M→U, contexte complet, lecture mémoire, assemblage invité entier/flottant, `setf`, NaN-boxing, trap `ebreak` et boucle UART; vérifié par smoke test QEMU. |
+| luna-guest-monitor | 0 | Image bare-metal, boot QEMU, PMP, transition M→U, contexte complet, lecture/édition mémoire transactionnelle, `undo`, assemblage invité entier/flottant, `setf`, NaN-boxing, trap `ebreak` et boucle UART; vérifié par smoke test QEMU. |
 | luna-app | 0 | Compilation du binaire et démonstration ; pas encore d’E2E terminal. |
 | luna-diag | 0 | Types utilisés par les autres crates ; pas de test dédié. |
 
@@ -219,9 +219,10 @@ le breakpoint et reprend deux pas temporaires. La séquence vérifie la
 restauration des mots, les instructions séquentielles, `beq`/`bne`, `jal` et
 `jalr` du profil actuellement émis. Il assemble enfin six lignes, dont une
 branche avec labels, une instruction ignorée et `fadd.s`/`fadd.d`, dans la
-fenêtre de travail réservée. Il vérifie `symbols`, `disasm`, `setf`, les motifs
-NaN-boxés et binary64, pose un breakpoint par label, exécute cinq pas et
-vérifie `x1=3`, `f3`, `f6` et `fcsr`.
+fenêtre de travail réservée. Il édite quatre octets, vérifie la vue mémoire et
+restaure la transaction par `undo`, puis vérifie `symbols`, `disasm`, `setf`,
+les motifs NaN-boxés et binary64, pose un breakpoint par label, exécute cinq
+pas et vérifie `x1=3`, `f3`, `f6` et `fcsr`.
 
 Le backend QEMU limite volontairement la table à quatre breakpoints permanents
 numérotés de 1 à 4. Une adresse doit être un mot aligné de la fenêtre RAM cible.

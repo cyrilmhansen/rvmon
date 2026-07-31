@@ -75,7 +75,7 @@ La commande `help` affiche la grammaire actuellement implémentée :
 
 ```text
 rvmonitor> help
-help/? regs/registers setf <freg> <hex64> memory <addr> <length> assemble <addr> <instruction> assemble-program <addr> ... end symbols disasm <addr|label> <count> step/s continue/c break <addr|label> delete <n> info break quit/q
+help/? regs/registers setf <freg> <hex64> memory <addr> <length> edit <addr> <hex-bytes> undo assemble <addr> <instruction> assemble-program <addr> ... end symbols disasm <addr|label> <count> step/s continue/c break <addr|label> delete <n> info break quit/q
 ```
 
 ### Lire les registres
@@ -106,6 +106,26 @@ rvmonitor> memory 0x80000000 16
 La longueur est décimale et limitée à 128 octets par commande. La lecture
 doit rester dans la RAM cible `[0x80000000, 0x80020000)`. Les adresses MMIO,
 les dépassements et les longueurs nulles sont refusés.
+
+### Modifier et annuler la mémoire
+
+`edit` reçoit une suite d’octets hexadécimaux, au maximum 32 octets. Toute la
+plage est validée avant écriture ; le guest conserve une seule transaction
+annulable. `undo` vérifie que les octets n’ont pas changé entre-temps avant de
+restaurer l’original :
+
+```text
+rvmonitor> edit 0x80010040 deadbeef
+edited 4 byte(s) at 0x0000000080010040
+rvmonitor> memory 0x80010040 4
+0x0000000080010040: de ad be ef                                     |....|
+rvmonitor> undo
+undone 4 byte(s) at 0x0000000080010040
+```
+
+Une nouvelle édition remplace l’annulation précédente. Les assemblages et les
+breakpoints invalident également cette annulation afin de ne jamais restaurer
+silencieusement des octets qui ne sont plus ceux de la transaction.
 
 ### Assembler et exécuter `addi`
 
@@ -296,8 +316,8 @@ Le script :
 1. construit l’ELF invité ;
 2. calcule une adresse de breakpoint avec `riscv64-linux-gnu-nm` ;
 3. démarre QEMU avec `-bios none`, `-kernel` et `-nographic` ;
-4. envoie `help`, `regs`, `memory`, `break`, `info break`, `continue`,
-   `step`, `delete` et `assemble-program` sur l’UART ;
+4. envoie `help`, `regs`, `memory`, `edit`, `undo`, `break`, `info break`,
+   `continue`, `step`, `delete` et `assemble-program` sur l’UART ;
 5. vérifie les modifications de `x1`, les motifs exacts de `f3`/`f6`,
    `fcsr`, les encodages flottants et les diagnostics de trap.
 
@@ -310,8 +330,7 @@ Les commandes suivantes appartiennent aujourd’hui au moniteur hôte ou au
 simulateur interne, pas encore au binaire exécuté dans QEMU :
 
 ```text
-edit, undo, watch, rwatch, history, project-save, project-load, snapshot,
-restore
+watch, rwatch, history, project-save, project-load, snapshot, restore
 ```
 
 Le cycle d’une ligne et le source buffer multi-ligne existent désormais pour

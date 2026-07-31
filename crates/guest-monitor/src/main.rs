@@ -20,6 +20,7 @@ const TARGET_RAM_END: u64 = 0x8002_0000;
 const EBREAK_WORD: u32 = 0x0010_0073;
 const MAX_PERMANENT_BREAKPOINTS: usize = 4;
 const MAX_MEMORY_DUMP: u64 = 128;
+const MAX_EDIT_BYTES: usize = 32;
 const MAX_SOURCE_LINES: usize = 16;
 const MAX_SYMBOLS: usize = 8;
 const SYMBOL_NAME_CAPACITY: usize = 16;
@@ -32,6 +33,7 @@ static mut PERMANENT_BREAKPOINTS: [Breakpoint; MAX_PERMANENT_BREAKPOINTS] =
     [Breakpoint::disabled(); MAX_PERMANENT_BREAKPOINTS];
 static mut STEPPED_PERMANENT_BREAKPOINT: u8 = u8::MAX;
 static mut SYMBOLS: [GuestSymbol; MAX_SYMBOLS] = [GuestSymbol::empty(); MAX_SYMBOLS];
+static mut MEMORY_UNDO: MemoryUndo = MemoryUndo::empty();
 static TARGET_STACK: [u8; 8192] = [0; 8192];
 
 #[derive(Clone, Copy)]
@@ -49,6 +51,27 @@ impl GuestSymbol {
             length: 0,
             address: 0,
             enabled: false,
+        }
+    }
+}
+
+#[derive(Clone, Copy)]
+struct MemoryUndo {
+    address: u64,
+    length: usize,
+    original: [u8; MAX_EDIT_BYTES],
+    edited: [u8; MAX_EDIT_BYTES],
+    valid: bool,
+}
+
+impl MemoryUndo {
+    const fn empty() -> Self {
+        Self {
+            address: 0,
+            length: 0,
+            original: [0; MAX_EDIT_BYTES],
+            edited: [0; MAX_EDIT_BYTES],
+            valid: false,
         }
     }
 }
@@ -119,6 +142,8 @@ fn monitor_loop(context: *mut TargetContext) -> ! {
             b"regs" | b"registers" => print_registers(context),
             command if command.starts_with(b"setf ") => set_float_register(context, &command[5..]),
             command if command.starts_with(b"memory ") => print_memory(&command[7..]),
+            command if command.starts_with(b"edit ") => edit_memory(context, &command[5..]),
+            b"undo" => undo_memory(context),
             command if command.starts_with(b"assemble ") => {
                 assemble_command(context, &command[9..])
             }
@@ -143,7 +168,7 @@ fn monitor_loop(context: *mut TargetContext) -> ! {
 
 fn print_help() {
     uart_write(
-        "help/? regs/registers setf <freg> <hex64> memory <addr> <length> assemble <addr> <instruction> assemble-program <addr> ... end symbols disasm <addr|label> <count> step/s continue/c break <addr|label> delete <n> info break quit/q\r\n",
+        "help/? regs/registers setf <freg> <hex64> memory <addr> <length> edit <addr> <hex-bytes> undo assemble <addr> <instruction> assemble-program <addr> ... end symbols disasm <addr|label> <count> step/s continue/c break <addr|label> delete <n> info break quit/q\r\n",
     );
 }
 
@@ -216,6 +241,114 @@ fn set_float_register(context: *mut TargetContext, argument: &[u8]) {
     uart_write("=0x");
     uart_hex(value);
     uart_write("\r\n");
+}
+
+fn edit_memory(context: *mut TargetContext, argument: &[u8]) {
+    if unsafe { (*context).mcause } != StopReason::Breakpoint as u64 {
+        uart_write("error: target is not stopped at a breakpoint\r\n");
+        return;
+    }
+    let Some((address_bytes, data_bytes)) = split_token_space(argument) else {
+        uart_write("error: edit expects <hex-address> <hex-bytes>\r\n");
+        return;
+    };
+    let Some(address) = parse_hex(address_bytes) else {
+        uart_write("error: edit address must be hexadecimal\r\n");
+        return;
+    };
+    let mut edited = [0u8; MAX_EDIT_BYTES];
+    let Some(length) = parse_hex_bytes(data_bytes, &mut edited) else {
+        uart_write("error: edit expects 1..32 complete hexadecimal bytes\r\n");
+        return;
+    };
+    let Some(end) = address.checked_add(length as u64) else {
+        uart_write("error: edit range overflows\r\n");
+        return;
+    };
+    if address < TARGET_RAM_START || end > TARGET_RAM_END {
+        uart_write("error: edit range is outside target RAM\r\n");
+        return;
+    }
+    for offset in 0..length {
+        let byte_address = address + offset as u64;
+        if permanent_breakpoint_at(byte_address & !3).is_some()
+            || temporary_breakpoint_at(byte_address & !3)
+        {
+            uart_write("error: edit overlaps an active breakpoint\r\n");
+            return;
+        }
+    }
+
+    let mut original = [0u8; MAX_EDIT_BYTES];
+    for offset in 0..length {
+        original[offset] =
+            unsafe { core::ptr::read_volatile((address + offset as u64) as *const u8) };
+    }
+    for offset in 0..length {
+        unsafe {
+            core::ptr::write_volatile((address + offset as u64) as *mut u8, edited[offset]);
+        }
+    }
+    unsafe {
+        core::ptr::write_volatile(
+            core::ptr::addr_of_mut!(MEMORY_UNDO),
+            MemoryUndo {
+                address,
+                length,
+                original,
+                edited,
+                valid: true,
+            },
+        );
+    }
+    flush_icache();
+    uart_write("edited ");
+    uart_decimal(length as u64);
+    uart_write(" byte(s) at 0x");
+    uart_hex(address);
+    uart_write("\r\n");
+}
+
+fn undo_memory(context: *mut TargetContext) {
+    if unsafe { (*context).mcause } != StopReason::Breakpoint as u64 {
+        uart_write("error: target is not stopped at a breakpoint\r\n");
+        return;
+    }
+    let undo = unsafe { core::ptr::read_volatile(core::ptr::addr_of!(MEMORY_UNDO)) };
+    if !undo.valid {
+        uart_write("error: no memory edit to undo\r\n");
+        return;
+    }
+    for offset in 0..undo.length {
+        let current =
+            unsafe { core::ptr::read_volatile((undo.address + offset as u64) as *const u8) };
+        if current != undo.edited[offset] {
+            clear_memory_undo();
+            uart_write("error: edited memory changed; undo refused\r\n");
+            return;
+        }
+    }
+    for offset in 0..undo.length {
+        unsafe {
+            core::ptr::write_volatile(
+                (undo.address + offset as u64) as *mut u8,
+                undo.original[offset],
+            );
+        }
+    }
+    clear_memory_undo();
+    flush_icache();
+    uart_write("undone ");
+    uart_decimal(undo.length as u64);
+    uart_write(" byte(s) at 0x");
+    uart_hex(undo.address);
+    uart_write("\r\n");
+}
+
+fn clear_memory_undo() {
+    unsafe {
+        core::ptr::write_volatile(core::ptr::addr_of_mut!(MEMORY_UNDO), MemoryUndo::empty());
+    }
 }
 
 fn print_memory(argument: &[u8]) {
@@ -469,9 +602,10 @@ fn assemble_command(context: *mut TargetContext, argument: &[u8]) {
     }
     let empty_symbols = [GuestSymbol::empty(); MAX_SYMBOLS];
     let Some(word) = parse_source_instruction(source, address, &empty_symbols) else {
-        uart_write("error: expected addi, beq, bne, jal or jalr with valid operands\r\n");
+        uart_write("error: expected supported instruction with valid operands\r\n");
         return;
     };
+    clear_memory_undo();
     if !target_store32(address, word) {
         uart_write("error: cannot write assembled instruction\r\n");
         return;
@@ -602,6 +736,7 @@ fn assemble_program_command(context: *mut TargetContext, argument: &[u8]) {
         word_count += 1;
     }
 
+    clear_memory_undo();
     for index in 0..word_count {
         if !target_store32(word_addresses[index], words[index]) {
             uart_write("error: cannot write assembled source program\r\n");
@@ -967,6 +1102,7 @@ fn break_target(argument: &[u8]) {
         uart_write("error: permanent breakpoint table is full\r\n");
         return;
     };
+    clear_memory_undo();
     if !target_store32(address, EBREAK_WORD) {
         uart_write("error: cannot write breakpoint address\r\n");
         return;
@@ -1010,6 +1146,7 @@ fn delete_breakpoint(argument: &[u8]) {
         uart_write("error: breakpoint memory was modified; refusing to restore it\r\n");
         return;
     }
+    clear_memory_undo();
     if !target_store32(breakpoint.address, breakpoint.original_word) {
         uart_write("error: cannot restore breakpoint memory\r\n");
         return;
@@ -1099,6 +1236,7 @@ fn install_temporary_breakpoint(address: u64) -> bool {
     let Some(original_word) = target_load32(address) else {
         return false;
     };
+    clear_memory_undo();
     if !target_store32(address, EBREAK_WORD) {
         return false;
     }
@@ -1349,6 +1487,24 @@ fn parse_hex(input: &[u8]) -> Option<u64> {
         value = value.checked_mul(16)?.checked_add(u64::from(digit))?;
     }
     Some(value)
+}
+
+fn parse_hex_bytes(input: &[u8], destination: &mut [u8; MAX_EDIT_BYTES]) -> Option<usize> {
+    if input.is_empty() || input.len() % 2 != 0 || input.len() / 2 > destination.len() {
+        return None;
+    }
+    for (index, pair) in input.chunks_exact(2).enumerate() {
+        destination[index] = (parse_hex_nibble(pair[0])? << 4) | parse_hex_nibble(pair[1])?;
+    }
+    Some(input.len() / 2)
+}
+
+fn parse_hex_nibble(byte: u8) -> Option<u8> {
+    match byte {
+        b'0'..=b'9' => Some(byte - b'0'),
+        b'a'..=b'f' => Some(byte - b'a' + 10),
+        _ => None,
+    }
 }
 
 fn parse_decimal(input: &[u8]) -> Option<u64> {
