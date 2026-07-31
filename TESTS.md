@@ -115,7 +115,7 @@ Les tests du moniteur utilisent son API déterministe, pas un terminal réel. Il
 2. assemble fadd.s, step, puis le motif flottant et fcsr ;
 3. run 3 sur une boucle et respect de la borne.
 
-Les commandes couvertes sont help, assemble, step, run, disasm, regs, reset et quit. L’entrée/sortie interactive, les couleurs, le clavier, l’édition mémoire et l’annulation restent à tester.
+Les commandes couvertes sont help, assemble, step, run, disasm, regs, reset et quit dans le moniteur hôte. Le backend QEMU couvre en plus `break`, `delete`, `info break` et `continue`, avec validation UART de l’arrêt sur breakpoint permanent et de son réarmement après un pas de franchissement. L’entrée/sortie interactive complète, les couleurs, le clavier, l’édition mémoire et l’annulation restent à tester.
 
 ### Backend cible 4B
 
@@ -128,11 +128,19 @@ permettant l’accès U-mode à la fenêtre basse contenant le MMIO UART et la R
 Le trap capture les registres entiers, flottants, `fcsr`, `mstatus`, `mepc`,
 `mcause` et `mtval`, puis s’arrête sur le prompt monitor.
 
-Le smoke test envoie `help`, `regs`, `step`, `regs`, `step`, `regs`, puis
-`quit`. Il vérifie que `step` pose un breakpoint temporaire après une
-instruction, restaure son mot original et suit aussi une branche `beq`, avec
-`x1` qui progresse de 1 à 2. Le mécanisme couvre les instructions séquentielles,
-`beq`/`bne`, `jal` et `jalr` du profil actuellement émis.
+Le smoke test résout `target_entry` dans l’image avec `riscv64-linux-gnu-nm`,
+pose un breakpoint permanent sur le `beq`, vérifie `info break`, exécute
+`continue` jusqu’à ce breakpoint, puis exécute un second `continue` pour
+franchir l’instruction originale et vérifier le réarmement. Il supprime ensuite
+le breakpoint et reprend deux pas temporaires. La séquence vérifie la
+restauration des mots, les instructions séquentielles, `beq`/`bne`, `jal` et
+`jalr` du profil actuellement émis.
+
+Le backend QEMU limite volontairement la table à quatre breakpoints permanents
+numérotés de 1 à 4. Une adresse doit être un mot aligné de la fenêtre RAM cible.
+Un breakpoint permanent conserve son instruction originale et est réinstallé
+après le franchissement logiciel d’une instruction. Une collision entre un
+breakpoint permanent et le breakpoint temporaire du pas-à-pas est refusée.
 
 ## Pyramide actuelle
 

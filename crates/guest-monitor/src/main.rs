@@ -17,11 +17,15 @@ const COMMAND_CAPACITY: usize = 32;
 const TARGET_RAM_START: u64 = 0x8000_0000;
 const TARGET_RAM_END: u64 = 0x8002_0000;
 const EBREAK_WORD: u32 = 0x0010_0073;
+const MAX_PERMANENT_BREAKPOINTS: usize = 4;
 
 global_asm!(include_str!("entry.S"));
 
 static mut CONTEXT: TargetContext = TargetContext::empty();
 static mut TEMPORARY_BREAKPOINT: Breakpoint = Breakpoint::disabled();
+static mut PERMANENT_BREAKPOINTS: [Breakpoint; MAX_PERMANENT_BREAKPOINTS] =
+    [Breakpoint::disabled(); MAX_PERMANENT_BREAKPOINTS];
+static mut STEPPED_PERMANENT_BREAKPOINT: u8 = u8::MAX;
 static TARGET_STACK: [u8; 8192] = [0; 8192];
 
 #[panic_handler]
@@ -56,9 +60,15 @@ pub extern "C" fn rust_main() -> ! {
 pub extern "C" fn rust_trap(context: *mut TargetContext) -> ! {
     let context = unsafe { &mut *context };
     restore_temporary_breakpoint();
+    restore_stepped_permanent_breakpoint();
     uart_write("trap: ");
     if context.mcause == StopReason::Breakpoint as u64 {
-        uart_write("breakpoint");
+        if let Some(slot) = permanent_breakpoint_at(context.mepc) {
+            uart_write("breakpoint #");
+            uart_decimal((slot + 1) as u64);
+        } else {
+            uart_write("breakpoint");
+        }
     } else {
         uart_write("mcause=0x");
         uart_hex(context.mcause);
@@ -79,6 +89,9 @@ fn monitor_loop(context: *mut TargetContext) -> ! {
             b"regs" | b"registers" => print_registers(context),
             b"step" | b"s" => step_target(context),
             b"continue" | b"c" => continue_target(context),
+            command if command.starts_with(b"break ") => break_target(&command[6..]),
+            command if command.starts_with(b"delete ") => delete_breakpoint(&command[7..]),
+            b"info break" | b"info b" => print_breakpoints(),
             b"quit" | b"exit" | b"q" => {
                 uart_write("bye\r\n");
             }
@@ -89,7 +102,9 @@ fn monitor_loop(context: *mut TargetContext) -> ! {
 }
 
 fn print_help() {
-    uart_write("help/?  regs/registers  step/s  continue/c  quit/q\r\n");
+    uart_write(
+        "help/? regs/registers step/s continue/c break <addr> delete <n> info break quit/q\r\n",
+    );
 }
 
 fn print_registers(context: *mut TargetContext) {
@@ -121,6 +136,13 @@ fn step_target(context: *mut TargetContext) -> ! {
         }
     };
     let instruction_pc = if current_word == EBREAK_WORD {
+        if let Some(slot) = permanent_breakpoint_at(current_pc) {
+            if !prepare_permanent_breakpoint_step(context, slot) {
+                uart_write("error: cannot step over permanent breakpoint\r\n");
+                monitor_loop(context);
+            }
+            unsafe { resume_user(context as *mut TargetContext) }
+        }
         match current_pc.checked_add(4) {
             Some(address) => address,
             None => {
@@ -165,6 +187,15 @@ fn continue_target(context: *mut TargetContext) -> ! {
         uart_write("error: target is not stopped at a breakpoint\r\n");
         monitor_loop(context);
     }
+    if target_load32(context.pc) == Some(EBREAK_WORD) {
+        if let Some(slot) = permanent_breakpoint_at(context.pc) {
+            if !prepare_permanent_breakpoint_step(context, slot) {
+                uart_write("error: cannot continue over permanent breakpoint\r\n");
+                monitor_loop(context);
+            }
+            unsafe { resume_user(context as *mut TargetContext) }
+        }
+    }
     let resume_pc = match target_load32(context.pc) {
         Some(EBREAK_WORD) => match context.pc.checked_add(4) {
             Some(address) => address,
@@ -182,6 +213,116 @@ fn continue_target(context: *mut TargetContext) -> ! {
     context.pc = resume_pc;
     context.mepc = resume_pc;
     unsafe { resume_user(context as *mut TargetContext) }
+}
+
+fn break_target(argument: &[u8]) {
+    let Some(address) = parse_hex(argument) else {
+        uart_write("error: break expects an address such as 0x80000010\r\n");
+        return;
+    };
+    if !valid_target_word_address(address) {
+        uart_write("error: breakpoint address must be an aligned target RAM word\r\n");
+        return;
+    }
+    if let Some(slot) = permanent_breakpoint_at(address) {
+        uart_write("breakpoint #");
+        uart_decimal((slot + 1) as u64);
+        uart_write(" already enabled\r\n");
+        return;
+    }
+    if temporary_breakpoint_at(address) {
+        uart_write("error: address is used by the temporary step breakpoint\r\n");
+        return;
+    }
+    let Some(original_word) = target_load32(address) else {
+        uart_write("error: cannot read breakpoint address\r\n");
+        return;
+    };
+    let Some(slot) = first_free_permanent_breakpoint() else {
+        uart_write("error: permanent breakpoint table is full\r\n");
+        return;
+    };
+    if !target_store32(address, EBREAK_WORD) {
+        uart_write("error: cannot write breakpoint address\r\n");
+        return;
+    }
+    flush_icache();
+    let breakpoint = Breakpoint {
+        address,
+        original_word,
+        enabled: true,
+    };
+    unsafe {
+        core::ptr::write_volatile(
+            core::ptr::addr_of_mut!(PERMANENT_BREAKPOINTS[slot]),
+            breakpoint,
+        );
+    }
+    uart_write("breakpoint #");
+    uart_decimal((slot + 1) as u64);
+    uart_write(" set at 0x");
+    uart_hex(address);
+    uart_write("\r\n");
+}
+
+fn delete_breakpoint(argument: &[u8]) {
+    let Some(number) = parse_decimal(argument) else {
+        uart_write("error: delete expects a breakpoint number\r\n");
+        return;
+    };
+    if number == 0 || number > MAX_PERMANENT_BREAKPOINTS as u64 {
+        uart_write("error: breakpoint number is out of range\r\n");
+        return;
+    }
+    let slot = (number - 1) as usize;
+    let breakpoint =
+        unsafe { core::ptr::read_volatile(core::ptr::addr_of!(PERMANENT_BREAKPOINTS[slot])) };
+    if !breakpoint.enabled {
+        uart_write("error: breakpoint is not enabled\r\n");
+        return;
+    }
+    if target_load32(breakpoint.address) != Some(EBREAK_WORD) {
+        uart_write("error: breakpoint memory was modified; refusing to restore it\r\n");
+        return;
+    }
+    if !target_store32(breakpoint.address, breakpoint.original_word) {
+        uart_write("error: cannot restore breakpoint memory\r\n");
+        return;
+    }
+    flush_icache();
+    unsafe {
+        core::ptr::write_volatile(
+            core::ptr::addr_of_mut!(PERMANENT_BREAKPOINTS[slot]),
+            Breakpoint::disabled(),
+        );
+    }
+    uart_write("breakpoint #");
+    uart_decimal(number);
+    uart_write(" deleted\r\n");
+}
+
+fn print_breakpoints() {
+    uart_write("breakpoints:\r\n");
+    let mut found = false;
+    let mut slot = 0;
+    while slot < MAX_PERMANENT_BREAKPOINTS {
+        let breakpoint =
+            unsafe { core::ptr::read_volatile(core::ptr::addr_of!(PERMANENT_BREAKPOINTS[slot])) };
+        if breakpoint.enabled {
+            found = true;
+            uart_write("  #");
+            uart_decimal((slot + 1) as u64);
+            uart_write(" addr=0x");
+            uart_hex(breakpoint.address);
+            uart_write(" original=0x");
+            uart_hex(u64::from(breakpoint.original_word));
+            uart_write("\r\n");
+        }
+        slot += 1;
+    }
+    if !found {
+        uart_write("  none\r\n");
+    }
 }
 
 // This is deliberately only the control-flow successor calculation needed by
@@ -227,6 +368,9 @@ fn next_execution_pc(context: &TargetContext, pc: u64, word: u32) -> Option<u64>
 }
 
 fn install_temporary_breakpoint(address: u64) -> bool {
+    if permanent_breakpoint_at(address).is_some() {
+        return false;
+    }
     let Some(original_word) = target_load32(address) else {
         return false;
     };
@@ -261,6 +405,58 @@ fn restore_temporary_breakpoint() {
     }
 }
 
+fn prepare_permanent_breakpoint_step(context: &mut TargetContext, slot: usize) -> bool {
+    let breakpoint =
+        unsafe { core::ptr::read_volatile(core::ptr::addr_of!(PERMANENT_BREAKPOINTS[slot])) };
+    if !breakpoint.enabled || breakpoint.original_word == EBREAK_WORD {
+        return false;
+    }
+    let Some(stop_pc) = next_execution_pc(context, context.pc, breakpoint.original_word) else {
+        return false;
+    };
+    if stop_pc == context.pc || !valid_target_word_address(stop_pc) {
+        return false;
+    }
+    if !target_store32(breakpoint.address, breakpoint.original_word) {
+        return false;
+    }
+    flush_icache();
+    unsafe {
+        core::ptr::write_volatile(
+            core::ptr::addr_of_mut!(STEPPED_PERMANENT_BREAKPOINT),
+            slot as u8,
+        );
+    }
+    if permanent_breakpoint_at(stop_pc).is_none() && !install_temporary_breakpoint(stop_pc) {
+        restore_stepped_permanent_breakpoint();
+        return false;
+    }
+    context.mepc = context.pc;
+    true
+}
+
+fn restore_stepped_permanent_breakpoint() {
+    let slot =
+        unsafe { core::ptr::read_volatile(core::ptr::addr_of!(STEPPED_PERMANENT_BREAKPOINT)) };
+    if slot == u8::MAX {
+        return;
+    }
+    let slot = usize::from(slot);
+    let breakpoint =
+        unsafe { core::ptr::read_volatile(core::ptr::addr_of!(PERMANENT_BREAKPOINTS[slot])) };
+    if breakpoint.enabled && target_load32(breakpoint.address) == Some(breakpoint.original_word) {
+        if target_store32(breakpoint.address, EBREAK_WORD) {
+            flush_icache();
+        }
+    }
+    unsafe {
+        core::ptr::write_volatile(
+            core::ptr::addr_of_mut!(STEPPED_PERMANENT_BREAKPOINT),
+            u8::MAX,
+        );
+    }
+}
+
 fn target_load32(address: u64) -> Option<u32> {
     if !valid_target_word_address(address) {
         return None;
@@ -282,6 +478,37 @@ fn valid_target_word_address(address: u64) -> bool {
         && address
             .checked_add(4)
             .is_some_and(|end| end <= TARGET_RAM_END)
+}
+
+fn permanent_breakpoint_at(address: u64) -> Option<usize> {
+    let mut slot = 0;
+    while slot < MAX_PERMANENT_BREAKPOINTS {
+        let breakpoint =
+            unsafe { core::ptr::read_volatile(core::ptr::addr_of!(PERMANENT_BREAKPOINTS[slot])) };
+        if breakpoint.enabled && breakpoint.address == address {
+            return Some(slot);
+        }
+        slot += 1;
+    }
+    None
+}
+
+fn temporary_breakpoint_at(address: u64) -> bool {
+    let breakpoint = unsafe { core::ptr::read_volatile(core::ptr::addr_of!(TEMPORARY_BREAKPOINT)) };
+    breakpoint.enabled && breakpoint.address == address
+}
+
+fn first_free_permanent_breakpoint() -> Option<usize> {
+    let mut slot = 0;
+    while slot < MAX_PERMANENT_BREAKPOINTS {
+        let breakpoint =
+            unsafe { core::ptr::read_volatile(core::ptr::addr_of!(PERMANENT_BREAKPOINTS[slot])) };
+        if !breakpoint.enabled {
+            return Some(slot);
+        }
+        slot += 1;
+    }
+    None
 }
 
 fn flush_icache() {
@@ -322,6 +549,55 @@ fn uart_hex(value: u64) {
             b'a' + digit - 10
         });
     }
+}
+
+fn uart_decimal(mut value: u64) {
+    let mut digits = [0u8; 20];
+    let mut length = 0;
+    if value == 0 {
+        uart_put(b'0');
+        return;
+    }
+    while value != 0 {
+        digits[length] = b'0' + (value % 10) as u8;
+        length += 1;
+        value /= 10;
+    }
+    while length != 0 {
+        length -= 1;
+        uart_put(digits[length]);
+    }
+}
+
+fn parse_hex(input: &[u8]) -> Option<u64> {
+    let input = input.strip_prefix(b"0x").unwrap_or(input);
+    if input.is_empty() {
+        return None;
+    }
+    let mut value = 0u64;
+    for &byte in input {
+        let digit = match byte {
+            b'0'..=b'9' => byte - b'0',
+            b'a'..=b'f' => byte - b'a' + 10,
+            _ => return None,
+        };
+        value = value.checked_mul(16)?.checked_add(u64::from(digit))?;
+    }
+    Some(value)
+}
+
+fn parse_decimal(input: &[u8]) -> Option<u64> {
+    if input.is_empty() {
+        return None;
+    }
+    let mut value = 0u64;
+    for &byte in input {
+        if !byte.is_ascii_digit() {
+            return None;
+        }
+        value = value.checked_mul(10)?.checked_add(u64::from(byte - b'0'))?;
+    }
+    Some(value)
 }
 
 unsafe extern "C" {
