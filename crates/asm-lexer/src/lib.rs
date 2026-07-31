@@ -89,7 +89,7 @@ fn is_number_literal(value: &str) -> bool {
     }
     value
         .bytes()
-        .all(|byte| byte.is_ascii_digit() || byte == b'_')
+        .all(|byte| byte.is_ascii_digit() || matches!(byte, b'_' | b'\''))
         && value.bytes().any(|byte| byte.is_ascii_digit())
 }
 
@@ -234,7 +234,7 @@ pub fn tokenize(source: &str) -> Result<Vec<Token>> {
             character if character.is_ascii_alphanumeric() || "_.$".contains(character) => {
                 let mut value = String::from(character);
                 while let Some(next) = chars.peek().copied() {
-                    if next.is_ascii_alphanumeric() || "_.$".contains(next) {
+                    if next.is_ascii_alphanumeric() || "_.$'".contains(next) {
                         value.push(next);
                         chars.next();
                     } else {

@@ -27,7 +27,8 @@ pub fn references_symbol(source: &str) -> bool {
         .char_indices()
         .chain(std::iter::once((source.len(), ' ')))
     {
-        let is_atom = character.is_ascii_alphanumeric() || matches!(character, '_' | '.' | '$');
+        let is_atom =
+            character.is_ascii_alphanumeric() || matches!(character, '_' | '.' | '$' | '\'');
         if is_atom && start.is_none() {
             start = Some(index);
         } else if !is_atom {
@@ -109,7 +110,7 @@ impl<'a> Parser<'a> {
         }
         let start = self.cursor;
         while let Some(next) = self.source[self.cursor..].chars().next() {
-            if next.is_ascii_alphanumeric() || matches!(next, '_' | '.' | '$') {
+            if next.is_ascii_alphanumeric() || matches!(next, '_' | '.' | '$' | '\'') {
                 self.cursor += next.len_utf8();
             } else {
                 break;
@@ -167,9 +168,18 @@ fn parse_integer(atom: &str) -> Option<i128> {
         } else if let Some(value) = atom.strip_prefix("0o").or_else(|| atom.strip_prefix("0O")) {
             (8, value)
         } else {
-            return atom.parse().ok();
+            return atom
+                .chars()
+                .filter(|character| !matches!(character, '_' | '\''))
+                .collect::<String>()
+                .parse()
+                .ok();
         };
-    u128::from_str_radix(digits, radix)
+    let digits = digits
+        .chars()
+        .filter(|character| !matches!(character, '_' | '\''))
+        .collect::<String>();
+    u128::from_str_radix(&digits, radix)
         .ok()
         .and_then(|value| i128::try_from(value).ok())
 }
@@ -223,6 +233,7 @@ mod tests {
         let symbols = BTreeMap::new();
         assert_eq!(evaluate("-(1 << 3)", &symbols).unwrap(), -8);
         assert_eq!(evaluate("~0xff", &symbols).unwrap(), -256);
+        assert_eq!(evaluate("1'000 + 0x1_0", &symbols).unwrap(), 1_016);
     }
     #[test]
     fn reports_unknown_symbols_and_division_by_zero() {

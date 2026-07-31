@@ -337,6 +337,23 @@ Une tâche est terminée seulement si sa condition de sortie est satisfaite.
 - **Parallélisable :** oui avec DIS-001; dépend ASM-001.
 - **Contexte minimal :** SPEC §11, R4 relocations.
 
+### ASM-002A — Stabiliser les portées de symboles et les littéraux — TERMINÉ
+
+- **Jalon / exigences :** M3; ASM-001, ASM-002, ASM-005, ASM-009, ASM-015.
+- **But :** rendre la collecte de symboles déterministe sur deux passes, avec labels locaux `.L*` liés au dernier label global, détection des doublons et séparateurs de chiffres conformes à la grammaire.
+- **Non-but :** relocations ELF exportables, `.equ`, macros et relaxation.
+- **Entrées/sources :** SPEC §11 (labels, expressions, deux passes) et §19 (codes d’erreur); R4, sections expressions/relocations et syntaxe des littéraux.
+- **Fichiers/modules :** `crates/assembler/src/expr.rs`, `crates/assembler/src/lib.rs`, `crates/asm-lexer/src/lib.rs`, `TESTS.md`.
+- **Étapes réalisées :** séparer les clés internes `global::.Llocal`; maintenir la portée pendant les passes; fournir les alias locaux au contexte d’évaluation; refuser un local avant tout global et les doublons; accepter `_` et `'` dans les entiers décimaux et basés.
+- **Dépendances :** ASM-001A; aucun nouvel outil externe; bloque les relocations locales qui supposeraient une table de symboles non déterministe.
+- **Tests :** précédence et littéraux séparés; réutilisation d’un même `.Ldone` sous deux globaux; local sans portée; doublon global; suite assembleur complète.
+- **Critères de sortie :** les mêmes bytes sont produits sur les références globales et locales; deux portées locales ne se collisionnent pas; les erreurs `ASM-LABEL-001/002` sont stables; le total de tests documenté correspond à l’exécution Cargo.
+- **Cas limites et échecs :** local au début du fichier, local dupliqué dans une portée, symbole inconnu en seconde passe, débordement d’expression et séparation mal placée restent des erreurs explicites.
+- **Taille :** 4 points / 1,5–2 journées-agent, incertitude moyenne; équivalent indicatif 60k–140k tokens.
+- **Compétences/outils :** parseurs, tables de symboles, arithmétique signée 128 bits, tests Rust.
+- **Parallélisable :** oui avec DIS-001; non avec une modification simultanée de `ObjectImage.symbols` ou de la grammaire des labels.
+- **Paquet de contexte minimal :** SPEC §11, `crates/assembler/src/expr.rs`, `crates/assembler/src/lib.rs`, `crates/asm-lexer/src/lib.rs`, tests assembleur.
+
 ### ASM-003 — Directives, chaînes, macros et listing
 
 - **Jalon / exigences :** M3; ASM-001..015, IO-001..009.

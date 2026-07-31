@@ -340,15 +340,13 @@ fn data_values(
 pub fn assemble_program(source: &str) -> Result<ObjectImage> {
     let lines: Vec<_> = source.lines().map(parse_line).collect::<Result<_>>()?;
     let mut symbols = BTreeMap::new();
+    let mut current_global = None;
     let mut pc = 0u64;
     for line in &lines {
-        for label in &line.labels {
-            if symbols.insert(label.clone(), pc).is_some() {
-                return Err(Diagnostic::error("ASM-LABEL-002", "duplicate label"));
-            }
-        }
+        define_labels(&line.labels, pc, &mut symbols, &mut current_global)?;
         if line.mnemonic.is_some() {
-            let size = line_size(line, pc, &symbols)?;
+            let scoped = scoped_symbols(&symbols, current_global.as_deref());
+            let size = line_size(line, pc, &scoped)?;
             pc = pc
                 .checked_add(size)
                 .ok_or_else(|| Diagnostic::error("ASM-ADDRESS-001", "program is too large"))?;
@@ -356,13 +354,16 @@ pub fn assemble_program(source: &str) -> Result<ObjectImage> {
     }
 
     let mut text = Vec::new();
+    let mut current_global = None;
     pc = 0;
     for line in lines {
+        update_scope(&line.labels, &mut current_global)?;
         if line.mnemonic.is_none() {
             continue;
         }
-        let resolved = resolve_control_label(line, pc, &symbols)?;
-        let image = assemble_parsed(&resolved, pc, &symbols)?;
+        let scoped = scoped_symbols(&symbols, current_global.as_deref());
+        let resolved = resolve_control_label(line, pc, &scoped)?;
+        let image = assemble_parsed(&resolved, pc, &scoped)?;
         text.extend_from_slice(&image.text);
         pc += image.text.len() as u64;
     }
@@ -372,6 +373,73 @@ pub fn assemble_program(source: &str) -> Result<ObjectImage> {
         entry,
         symbols,
     })
+}
+
+fn is_local_label(label: &str) -> bool {
+    label.starts_with(".L")
+}
+
+fn local_symbol_key(scope: &str, label: &str) -> String {
+    format!("{scope}::{label}")
+}
+
+fn define_labels(
+    labels: &[String],
+    pc: u64,
+    symbols: &mut BTreeMap<String, u64>,
+    current_global: &mut Option<String>,
+) -> Result<()> {
+    for label in labels {
+        let key = if is_local_label(label) {
+            let Some(scope) = current_global.as_deref() else {
+                return Err(Diagnostic::error(
+                    "ASM-LABEL-001",
+                    "local label requires a preceding global label",
+                ));
+            };
+            local_symbol_key(scope, label)
+        } else {
+            current_global.replace(label.clone());
+            label.clone()
+        };
+        if symbols.insert(key, pc).is_some() {
+            return Err(Diagnostic::error("ASM-LABEL-002", "duplicate label"));
+        }
+    }
+    Ok(())
+}
+
+fn update_scope(labels: &[String], current_global: &mut Option<String>) -> Result<()> {
+    for label in labels {
+        if is_local_label(label) {
+            if current_global.is_none() {
+                return Err(Diagnostic::error(
+                    "ASM-LABEL-001",
+                    "local label requires a preceding global label",
+                ));
+            }
+        } else {
+            current_global.replace(label.clone());
+        }
+    }
+    Ok(())
+}
+
+fn scoped_symbols(
+    symbols: &BTreeMap<String, u64>,
+    current_global: Option<&str>,
+) -> BTreeMap<String, u64> {
+    let mut scoped = symbols.clone();
+    let Some(global) = current_global else {
+        return scoped;
+    };
+    let prefix = format!("{global}::");
+    for (key, value) in symbols {
+        if let Some(local) = key.strip_prefix(&prefix) {
+            scoped.insert(local.to_owned(), *value);
+        }
+    }
+    scoped
 }
 
 fn line_size(line: &ParsedLine, pc: u64, symbols: &BTreeMap<String, u64>) -> Result<u64> {
@@ -509,6 +577,29 @@ mod tests {
     fn preserves_numeric_control_offsets_after_origin() {
         let image = assemble_program("addi x1,x0,1\nbeq x1,x1,4").unwrap();
         assert_eq!(&image.text[4..8], &[0x63, 0x82, 0x10, 0x00]);
+    }
+
+    #[test]
+    fn resolves_local_labels_per_global_scope() {
+        let image = assemble_program(
+            "_start: jal ra,.Ldone\n        .word .Ldone\n.Ldone: addi x1,x0,1\nnext:   jal ra,.Ldone\n.Ldone: addi x2,x0,2",
+        )
+        .unwrap();
+        assert_eq!(image.symbols["_start::.Ldone"], 8);
+        assert_eq!(image.symbols["next::.Ldone"], 16);
+        assert_eq!(image.text.len(), 20);
+    }
+
+    #[test]
+    fn rejects_local_label_without_global_scope() {
+        let error = assemble_program(".Lloop: addi x1,x0,1").unwrap_err();
+        assert_eq!(error.code, "ASM-LABEL-001");
+    }
+
+    #[test]
+    fn rejects_duplicate_global_labels() {
+        let error = assemble_program("value: .byte 1\nvalue: .byte 2").unwrap_err();
+        assert_eq!(error.code, "ASM-LABEL-002");
     }
 
     #[test]
