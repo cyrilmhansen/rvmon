@@ -15,6 +15,8 @@ use luna_isa::Instruction;
 use luna_machine::{FFLAG_DZ, FFLAG_NV, FFLAG_NX, FFLAG_OF, FFLAG_UF, Machine};
 use luna_target_api::{ExecutionOutcome, MemoryAccess, MemoryAccessKind, StopEvent, TargetBackend};
 
+mod command;
+
 const DEFAULT_MEMORY_VIEW_BYTES: usize = 64;
 const MAX_MEMORY_VIEW_BYTES: usize = 4096;
 const MAX_EDIT_BYTES: usize = 4096;
@@ -114,14 +116,12 @@ impl Monitor {
     }
 
     pub fn execute(&mut self, command: &str) -> Result<String> {
-        let command = command.trim();
-        if command.is_empty() {
+        let Some(command) = command::parse(command)? else {
             return Ok(String::new());
-        }
-        let (name, argument) = command
-            .split_once(char::is_whitespace)
-            .map_or((command, ""), |(name, argument)| (name, argument.trim()));
-        match name.to_ascii_lowercase().as_str() {
+        };
+        let name = command.name.to_ascii_lowercase();
+        let argument = command.raw_arguments.as_str();
+        match name.as_str() {
             "help" | "?" => Ok(help()),
             "regs" | "registers" => self.registers(),
             "assemble" | "a" => self.assemble(argument),
@@ -168,8 +168,8 @@ impl Monitor {
             }
             "quit" | "exit" => Ok("bye".into()),
             _ => Err(Diagnostic::error(
-                "MON-CMD-001",
-                format!("unknown command: {name}; use help"),
+                "CMD-001",
+                format!("unknown command: {}; use help", command.name),
             )),
         }
     }
@@ -1070,14 +1070,12 @@ where
     }
 
     pub fn execute(&mut self, command: &str) -> Result<String> {
-        let command = command.trim();
-        if command.is_empty() {
+        let Some(command) = command::parse(command)? else {
             return Ok(String::new());
-        }
-        let (name, argument) = command
-            .split_once(char::is_whitespace)
-            .map_or((command, ""), |(name, argument)| (name, argument.trim()));
-        match name.to_ascii_lowercase().as_str() {
+        };
+        let name = command.name.to_ascii_lowercase();
+        let argument = command.raw_arguments.as_str();
+        match name.as_str() {
             "help" | "?" => Ok(backend_help()),
             "assemble" | "a" => self.assemble(argument),
             "assemble-program" | "load" => self.assemble_program(argument),
@@ -1107,8 +1105,8 @@ where
             "project-load" | "session-load" => self.load_session(argument),
             "quit" | "exit" => Ok("bye".into()),
             _ => Err(Diagnostic::error(
-                "MON-CMD-101",
-                format!("unknown backend command: {name}; use help"),
+                "CMD-001",
+                format!("unknown backend command: {}; use help", command.name),
             )),
         }
     }
@@ -2624,6 +2622,23 @@ mod tests {
                 .unwrap()
                 .contains("x01=0x0000000000000001")
         );
+    }
+
+    #[test]
+    fn malformed_or_unknown_commands_do_not_mutate_target_state() {
+        let mut monitor = Monitor::new(128);
+        monitor.machine.x[1] = 0x55;
+        monitor.machine.pc = 0x10;
+
+        let error = monitor.execute("unknown-command 1").unwrap_err();
+        assert_eq!(error.code, "CMD-001");
+        assert_eq!(monitor.machine.x[1], 0x55);
+        assert_eq!(monitor.machine.pc, 0x10);
+
+        let error = monitor.execute("memory \"unterminated").unwrap_err();
+        assert_eq!(error.code, "CMD-003");
+        assert_eq!(monitor.machine.x[1], 0x55);
+        assert_eq!(monitor.machine.pc, 0x10);
     }
 
     #[test]

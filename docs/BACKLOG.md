@@ -797,6 +797,23 @@ Une tâche est terminée seulement si sa condition de sortie est satisfaite.
 
 ## M6–M8 — interface, debug, persistance
 
+### CMD-001A — Stabiliser le parseur partagé des lignes de commande — TERMINÉ
+
+- **Jalon / exigences :** M6; CMD-001, CMD-003, REQ-PROD-005.
+- **But :** fournir un découpage déterministe commun à `Monitor` et `BackendConsole`, sans laisser une commande mal formée muter la cible.
+- **Non-but :** évaluer encore les expressions 128 bits, valider les plages par commande, ou construire le frontend terminal.
+- **Entrées/sources :** SPEC §10/19; DECISIONS D-001/D-007.
+- **Fichiers/modules :** `crates/monitor/src/command.rs`, `crates/monitor/src/lib.rs`.
+- **Étapes réalisées :** parser le nom ASCII et la queue brute; tokenizer espaces/guillemets/échappements; exposer tokens et argument original; limiter une ligne à 64 KiB; utiliser les diagnostics `CMD-001`, `CMD-003` et `CMD-006`.
+- **Dépendances/bloqués :** aucun; prépare CMD-001 et doit précéder l’AST des expressions et la validation contextuelle.
+- **Tests :** lignes vides, alias `?`, queue assembleur préservée, guillemets, échappements, noms invalides, commande inconnue et absence d’effet de bord.
+- **Critères de sortie :** les deux consoles passent par le même parseur; une commande inconnue ou mal quotée est rejetée avant toute opération cible; la suite `cargo test -p luna-monitor` passe.
+- **Cas limites et échecs :** ligne de 64 KiB acceptée selon la limite, dépassement rejeté; guillemet ou échappement final produit `CMD-003`; Unicode dans le nom refusé.
+- **Taille :** 2 points / 1 journée-agent, incertitude faible.
+- **Compétences/outils :** Rust, parsing déterministe, diagnostics.
+- **Parallélisable :** oui avec le modèle mémoire MON-001; non avec une modification concurrente du contrat de dispatch.
+- **Paquet de contexte minimal :** SPEC §10/19, `crates/monitor/src/lib.rs`, `docs/TESTS.md`.
+
 ### CMD-001 — Parser commandes et expressions contrôlées
 
 - **Jalon / exigences :** M6; CMD-001..005, REQ-PROD-005.
