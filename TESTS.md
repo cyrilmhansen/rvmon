@@ -20,8 +20,8 @@ Démonstration M-mode/U-mode sous QEMU :
       -kernel target/riscv64gc-unknown-none-elf/debug/luna-guest-monitor \
       -nographic
 
-La commande doit afficher le passage en U-mode, `target: before ebreak`, puis
-`trap: breakpoint` avec l’adresse du `ebreak`. La terminaison par timeout est
+La commande doit afficher le passage en U-mode, puis `trap: breakpoint` avec
+l’adresse du `ebreak`. La terminaison par timeout est
 attendue car le prompt de trap est volontairement bloquant dans cette tranche.
 
 Démonstration minimale :
@@ -128,11 +128,11 @@ permettant l’accès U-mode à la fenêtre basse contenant le MMIO UART et la R
 Le trap capture les registres entiers, flottants, `fcsr`, `mstatus`, `mepc`,
 `mcause` et `mtval`, puis s’arrête sur le prompt monitor.
 
-Le smoke test envoie `help`, `regs`, `step`, `regs`, puis `quit`. Il vérifie
-que `step` restaure le contexte et atteint le second `ebreak`, avec `x1` qui
-progresse de 1 à 2. Cette commande est une reprise jusqu’au prochain
-`ebreak` logiciel explicite ; le pas-à-pas générique par breakpoint temporaire
-reste une étape ultérieure.
+Le smoke test envoie `help`, `regs`, `step`, `regs`, `step`, `regs`, puis
+`quit`. Il vérifie que `step` pose un breakpoint temporaire après une
+instruction, restaure son mot original et suit aussi une branche `beq`, avec
+`x1` qui progresse de 1 à 2. Le mécanisme couvre les instructions séquentielles,
+`beq`/`bne`, `jal` et `jalr` du profil actuellement émis.
 
 ## Pyramide actuelle
 
@@ -143,7 +143,7 @@ reste une étape ultérieure.
 | Intégration interne | Présent | Round-trips et chaîne monitor/machine. |
 | Différentiel externe | Absent | GNU, LLVM, Sail, Spike et SoftFloat ne sont pas branchés dans CI. |
 | Génératif/fuzzing | Absent | Aucun budget de fuzzing installé. |
-| E2E terminal | Partiel | Le mode existe, mais le protocole stdin n’est pas automatisé ; smoke boot QEMU présent. |
+| E2E terminal | Partiel | Smoke test UART/QEMU automatisé ; protocole interactif complet encore absent. |
 | Multi-plateforme | Absent | Pas encore de matrice Linux/macOS/Windows et x86_64/arm64. |
 
 ## Limites actuelles
@@ -156,7 +156,7 @@ Les tests ne prouvent pas encore :
 - toutes les règles de payload NaN ;
 - les oracles indépendants GNU/LLVM/Sail/Spike/SoftFloat ;
 - C, A, V et les CSR/privilèges complets ;
-- breakpoints, watchpoints, snapshots, édition mémoire et annulation ;
+- breakpoints permanents, watchpoints, snapshots, édition mémoire et annulation ;
 - la reproductibilité cross-platform ;
 - les performances, quotas, fuzzing et corpus de non-régression à grande échelle.
 

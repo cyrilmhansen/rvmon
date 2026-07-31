@@ -133,6 +133,8 @@ target_entry:
     addi x1, x0, 1
     ebreak
     addi x1, x1, 1
+    beq x1, x1, 8
+    ebreak
     ebreak
 target_halt:
     wfi

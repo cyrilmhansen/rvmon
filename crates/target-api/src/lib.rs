@@ -49,6 +49,16 @@ pub struct Breakpoint {
     pub enabled: bool,
 }
 
+impl Breakpoint {
+    pub const fn disabled() -> Self {
+        Self {
+            address: 0,
+            original_word: 0,
+            enabled: false,
+        }
+    }
+}
+
 #[repr(C)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct TargetCapabilities {

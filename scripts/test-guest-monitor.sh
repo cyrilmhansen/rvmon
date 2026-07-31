@@ -5,7 +5,7 @@ cargo build -p luna-guest-monitor --target riscv64gc-unknown-none-elf >/dev/null
 
 set +e
 output="$({
-    printf 'help\nregs\nstep\nregs\nquit\n'
+    printf 'help\nregs\nstep\nregs\nstep\nregs\nquit\n'
 } | timeout 5s qemu-system-riscv64 \
     -M virt \
     -bios none \

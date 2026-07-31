@@ -1,9 +1,10 @@
 #![no_std]
 #![no_main]
 
-use core::arch::global_asm;
+use core::arch::{asm, global_asm};
 use core::panic::PanicInfo;
 
+use luna_target_api::Breakpoint;
 use luna_target_api::StopReason;
 use luna_target_api::TargetCapabilities;
 use luna_target_api::TargetContext;
@@ -13,10 +14,14 @@ const UART_LSR: usize = 5;
 const UART_LSR_DATA_READY: u8 = 1 << 0;
 const UART_LSR_EMPTY: u8 = 1 << 5;
 const COMMAND_CAPACITY: usize = 32;
+const TARGET_RAM_START: u64 = 0x8000_0000;
+const TARGET_RAM_END: u64 = 0x8002_0000;
+const EBREAK_WORD: u32 = 0x0010_0073;
 
 global_asm!(include_str!("entry.S"));
 
 static mut CONTEXT: TargetContext = TargetContext::empty();
+static mut TEMPORARY_BREAKPOINT: Breakpoint = Breakpoint::disabled();
 static TARGET_STACK: [u8; 8192] = [0; 8192];
 
 #[panic_handler]
@@ -49,7 +54,8 @@ pub extern "C" fn rust_main() -> ! {
 
 #[unsafe(no_mangle)]
 pub extern "C" fn rust_trap(context: *mut TargetContext) -> ! {
-    let context = unsafe { &*context };
+    let context = unsafe { &mut *context };
+    restore_temporary_breakpoint();
     uart_write("trap: ");
     if context.mcause == StopReason::Breakpoint as u64 {
         uart_write("breakpoint");
@@ -71,7 +77,8 @@ fn monitor_loop(context: *mut TargetContext) -> ! {
         match &line[..length] {
             b"help" | b"?" => print_help(),
             b"regs" | b"registers" => print_registers(context),
-            b"step" | b"s" | b"continue" | b"c" => resume_after_breakpoint(context),
+            b"step" | b"s" => step_target(context),
+            b"continue" | b"c" => continue_target(context),
             b"quit" | b"exit" | b"q" => {
                 uart_write("bye\r\n");
             }
@@ -98,22 +105,189 @@ fn print_registers(context: *mut TargetContext) {
     uart_write("\r\n");
 }
 
-fn resume_after_breakpoint(context: *mut TargetContext) -> ! {
+fn step_target(context: *mut TargetContext) -> ! {
     let context = unsafe { &mut *context };
     if context.mcause != StopReason::Breakpoint as u64 {
         uart_write("error: target is not stopped at a breakpoint\r\n");
         monitor_loop(context);
     }
-    let next_pc = match context.pc.checked_add(4) {
-        Some(next_pc) => next_pc,
+
+    let current_pc = context.pc;
+    let current_word = match target_load32(current_pc) {
+        Some(word) => word,
         None => {
-            uart_write("error: breakpoint pc overflow\r\n");
+            uart_write("error: current pc is outside target RAM\r\n");
             monitor_loop(context);
         }
     };
-    context.pc = next_pc;
-    context.mepc = next_pc;
+    let instruction_pc = if current_word == EBREAK_WORD {
+        match current_pc.checked_add(4) {
+            Some(address) => address,
+            None => {
+                uart_write("error: breakpoint pc overflow\r\n");
+                monitor_loop(context);
+            }
+        }
+    } else {
+        current_pc
+    };
+    let instruction_word = match target_load32(instruction_pc) {
+        Some(word) => word,
+        None => {
+            uart_write("error: instruction pc is outside target RAM\r\n");
+            monitor_loop(context);
+        }
+    };
+    if instruction_word == EBREAK_WORD {
+        context.pc = instruction_pc;
+        context.mepc = instruction_pc;
+        unsafe { resume_user(context as *mut TargetContext) }
+    }
+    let stop_pc = match next_execution_pc(context, instruction_pc, instruction_word) {
+        Some(address) => address,
+        None => {
+            uart_write("error: unsupported control-flow instruction for step\r\n");
+            monitor_loop(context);
+        }
+    };
+    if !install_temporary_breakpoint(stop_pc) {
+        uart_write("error: cannot install temporary breakpoint\r\n");
+        monitor_loop(context);
+    }
+    context.pc = instruction_pc;
+    context.mepc = instruction_pc;
     unsafe { resume_user(context as *mut TargetContext) }
+}
+
+fn continue_target(context: *mut TargetContext) -> ! {
+    let context = unsafe { &mut *context };
+    if context.mcause != StopReason::Breakpoint as u64 {
+        uart_write("error: target is not stopped at a breakpoint\r\n");
+        monitor_loop(context);
+    }
+    let resume_pc = match target_load32(context.pc) {
+        Some(EBREAK_WORD) => match context.pc.checked_add(4) {
+            Some(address) => address,
+            None => {
+                uart_write("error: breakpoint pc overflow\r\n");
+                monitor_loop(context);
+            }
+        },
+        Some(_) => context.pc,
+        None => {
+            uart_write("error: current pc is outside target RAM\r\n");
+            monitor_loop(context);
+        }
+    };
+    context.pc = resume_pc;
+    context.mepc = resume_pc;
+    unsafe { resume_user(context as *mut TargetContext) }
+}
+
+// This is deliberately only the control-flow successor calculation needed by
+// the temporary-breakpoint stepper. The instruction registry remains owned by
+// the generated host-side ISA tables; this is not a second opcode table.
+fn next_execution_pc(context: &TargetContext, pc: u64, word: u32) -> Option<u64> {
+    match word & 0x7f {
+        0x63 => {
+            let rs1 = ((word >> 15) & 0x1f) as usize;
+            let rs2 = ((word >> 20) & 0x1f) as usize;
+            let immediate = (((word >> 31) & 1) << 12)
+                | (((word >> 25) & 0x3f) << 5)
+                | (((word >> 8) & 0xf) << 1)
+                | (((word >> 7) & 1) << 11);
+            let immediate = ((immediate as i32) << 19 >> 19) as i64 as u64;
+            let taken = match (word >> 12) & 0x7 {
+                0b000 => context.x[rs1] == context.x[rs2],
+                0b001 => context.x[rs1] != context.x[rs2],
+                _ => return None,
+            };
+            Some(if taken {
+                pc.wrapping_add(immediate)
+            } else {
+                pc.wrapping_add(4)
+            })
+        }
+        0x6f => {
+            let immediate = (((word >> 31) & 1) << 20)
+                | (((word >> 21) & 0x3ff) << 1)
+                | (((word >> 20) & 1) << 11)
+                | (((word >> 12) & 0xff) << 12);
+            let immediate = ((immediate as i32) << 11 >> 11) as i64 as u64;
+            Some(pc.wrapping_add(immediate))
+        }
+        0x67 if (word >> 12) & 0x7 == 0 => {
+            let rs1 = ((word >> 15) & 0x1f) as usize;
+            let immediate = (word as i32 >> 20) as i64 as u64;
+            Some(context.x[rs1].wrapping_add(immediate) & !1)
+        }
+        0x67 => None,
+        _ => pc.checked_add(4),
+    }
+}
+
+fn install_temporary_breakpoint(address: u64) -> bool {
+    let Some(original_word) = target_load32(address) else {
+        return false;
+    };
+    if !target_store32(address, EBREAK_WORD) {
+        return false;
+    }
+    flush_icache();
+    let breakpoint = Breakpoint {
+        address,
+        original_word,
+        enabled: true,
+    };
+    unsafe {
+        core::ptr::write_volatile(core::ptr::addr_of_mut!(TEMPORARY_BREAKPOINT), breakpoint);
+    }
+    true
+}
+
+fn restore_temporary_breakpoint() {
+    let breakpoint = unsafe { core::ptr::read_volatile(core::ptr::addr_of!(TEMPORARY_BREAKPOINT)) };
+    if breakpoint.enabled {
+        if target_store32(breakpoint.address, breakpoint.original_word) {
+            flush_icache();
+        }
+        unsafe {
+            core::ptr::write_volatile(
+                core::ptr::addr_of_mut!(TEMPORARY_BREAKPOINT),
+                Breakpoint::disabled(),
+            );
+        }
+        uart_write("step: temporary breakpoint restored\r\n");
+    }
+}
+
+fn target_load32(address: u64) -> Option<u32> {
+    if !valid_target_word_address(address) {
+        return None;
+    }
+    Some(unsafe { core::ptr::read_volatile(address as *const u32) })
+}
+
+fn target_store32(address: u64, word: u32) -> bool {
+    if !valid_target_word_address(address) {
+        return false;
+    }
+    unsafe { core::ptr::write_volatile(address as *mut u32, word) };
+    true
+}
+
+fn valid_target_word_address(address: u64) -> bool {
+    address % 4 == 0
+        && address >= TARGET_RAM_START
+        && address
+            .checked_add(4)
+            .is_some_and(|end| end <= TARGET_RAM_END)
+}
+
+fn flush_icache() {
+    unsafe {
+        asm!("fence.i", options(nostack));
+    }
 }
 
 fn uart_read_line(buffer: &mut [u8; COMMAND_CAPACITY]) -> usize {
