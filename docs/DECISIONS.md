@@ -106,8 +106,9 @@ prévue par le profil, la seconde viole la reproductibilité et la séparation
 parse/assemble/decode/execute.
 
 **Coût :** le registre généré augmente et les outils doivent distinguer
-`GeneratedInstruction` de `Illegal`; l’assemblage textuel complet des
-opérandes Zfh/Q reste une tranche ultérieure explicitement versionnée.
+`GeneratedInstruction` de `Illegal`; l’assemblage des formes réelles passe par
+les champs générés, tandis que les pseudo-instructions et le désassemblage
+canonique des opérandes restent une tranche ultérieure explicitement versionnée.
 
 ## D-016 — Oracle sémantique F/D par probe QEMU versionné
 

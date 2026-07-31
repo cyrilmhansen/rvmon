@@ -10,9 +10,9 @@ use luna_diag::{Diagnostic, Result};
 use luna_floatfmt::{FloatFormat, parse_float_literal};
 use luna_isa::{
     Addi, Branch, FRegisterRType, FloatConversion, FloatConversionKind, FloatMove, FloatMoveKind,
-    Jal, Jalr, Load, Lui, RType, Store, encode_addi, encode_branch, encode_f_convert,
-    encode_f_move, encode_f_r, encode_jal, encode_jalr, encode_load, encode_r, encode_store,
-    encode_u,
+    GeneratedInstruction, Instruction, Jal, Jalr, Load, Lui, RType, Store, encode_addi,
+    encode_branch, encode_f_convert, encode_f_move, encode_f_r, encode_jal, encode_jalr,
+    encode_load, encode_r, encode_store, encode_u, generated_opcodes,
 };
 
 mod expr;
@@ -482,12 +482,15 @@ fn assemble_parsed(parsed: &ParsedLine, pc: u64, symbols: &SymbolValues) -> Resu
         "" => {
             return Err(Diagnostic::error("ASM-OPERAND-001", "missing instruction"));
         }
-        _ => {
-            return Err(Diagnostic::error(
-                "ASM-BOOT-UNSUPPORTED",
-                "bootstrap assembler accepts integer forms plus fadd and format-conversion forms",
-            ));
-        }
+        _ => match encode_generated_instruction(mnemonic, parts, symbols)? {
+            Some(word) => word,
+            None => {
+                return Err(Diagnostic::error(
+                    "ASM-BOOT-UNSUPPORTED",
+                    "instruction is absent from the generated R2 profile or has unsupported operands",
+                ));
+            }
+        },
     };
     Ok(ObjectImage {
         text: word.to_le_bytes().to_vec(),
@@ -497,6 +500,189 @@ fn assemble_parsed(parsed: &ParsedLine, pc: u64, symbols: &SymbolValues) -> Resu
         listing: Vec::new(),
         sections: Vec::new(),
     })
+}
+
+fn encode_generated_instruction(
+    mnemonic: &str,
+    parts: &[Operand],
+    symbols: &SymbolValues,
+) -> Result<Option<u32>> {
+    let Some(opcode) = generated_opcodes()
+        .iter()
+        .find(|opcode| opcode.mnemonic == mnemonic && opcode.instruction_bits == 32)
+    else {
+        return Ok(None);
+    };
+    let memory = parts.iter().find_map(|part| match &part.kind {
+        OperandKind::Memory { .. } => Some(part),
+        _ => None,
+    });
+    let mut word = opcode.match_value;
+    if let Some(memory) = memory {
+        if parts.len() != 2 {
+            return Err(generated_operand_error(
+                mnemonic,
+                "memory form expects one register and imm(register)",
+            ));
+        }
+        let OperandKind::Memory { offset, base } = &memory.kind else {
+            unreachable!("memory was found above");
+        };
+        let offset = expr::evaluate(offset, symbols)
+            .map_err(|error| error.at(memory.span.line, memory.span.column))?;
+        let offset = i16::try_from(offset).map_err(|_| {
+            generated_operand_error(mnemonic, "memory immediate out of range")
+                .at(memory.span.line, memory.span.column)
+        })?;
+        let base = register(base)?;
+        let source = &parts[0];
+        for field in opcode.fields {
+            let value = match *field {
+                "rd" => u32::from(generated_register(source, true, mnemonic)?),
+                "rs1" => u32::from(base),
+                "rs2" => u32::from(generated_register(source, true, mnemonic)?),
+                "imm12" => signed_field_value(offset, 12, mnemonic)?,
+                "imm12hi" => (offset as i32 as u32 >> 5) & 0x7f,
+                "imm12lo" => offset as i32 as u32 & 0x1f,
+                other => {
+                    return Err(generated_operand_error(
+                        mnemonic,
+                        &format!("unsupported generated memory field {other}"),
+                    ));
+                }
+            };
+            word |= encode_generated_field(field, value, mnemonic)?;
+        }
+    } else {
+        let mut operand_index = 0usize;
+        for field in opcode.fields {
+            if *field == "rm" && operand_index == parts.len() {
+                word |= encode_generated_field(field, 7, mnemonic)?;
+                continue;
+            }
+            let Some(operand) = parts.get(operand_index) else {
+                return Err(generated_operand_error(
+                    mnemonic,
+                    "missing generated operand",
+                ));
+            };
+            let value = match *field {
+                "rd" | "rs1" | "rs2" | "rs3" => u32::from(generated_register(
+                    operand,
+                    generated_register_is_float(mnemonic, field),
+                    mnemonic,
+                )?),
+                "rm" => {
+                    let value = immediate(operand, symbols, 0, 7)?;
+                    u32::try_from(value).unwrap()
+                }
+                "imm12" => signed_field_value(
+                    i16::try_from(immediate(operand, symbols, -2048, 2047)?).unwrap(),
+                    12,
+                    mnemonic,
+                )?,
+                other => {
+                    return Err(generated_operand_error(
+                        mnemonic,
+                        &format!("unsupported generated field {other}"),
+                    ));
+                }
+            };
+            word |= encode_generated_field(field, value, mnemonic)?;
+            operand_index += 1;
+        }
+        if operand_index != parts.len() {
+            return Err(generated_operand_error(
+                mnemonic,
+                "too many generated operands",
+            ));
+        }
+    }
+    Ok(Some(luna_isa::encode(Instruction::Generated(
+        GeneratedInstruction {
+            mnemonic: opcode.mnemonic,
+            word,
+        },
+    ))?))
+}
+
+fn generated_operand_error(mnemonic: &str, message: &str) -> Diagnostic {
+    Diagnostic::error(
+        "ASM-GENERATED-OPERAND-001",
+        format!("{mnemonic}: {message}"),
+    )
+}
+
+fn generated_register(operand: &Operand, float: bool, _mnemonic: &str) -> Result<u8> {
+    let text = operand_text(operand)?;
+    if float {
+        floating_register(text)
+    } else {
+        register(text)
+    }
+}
+
+fn generated_register_is_float(mnemonic: &str, field: &str) -> bool {
+    if mnemonic.starts_with("fcvt.") {
+        let formats: Vec<_> = mnemonic.split('.').collect();
+        let format = if field == "rd" {
+            formats.get(1).copied()
+        } else {
+            formats.get(2).copied()
+        };
+        return format.is_some_and(|format| matches!(format, "s" | "d" | "h" | "q"));
+    }
+    if mnemonic.starts_with("fmv.x.") && field == "rd" {
+        return false;
+    }
+    if mnemonic.starts_with("fmv.") && mnemonic.ends_with(".x") && field == "rs1" {
+        return false;
+    }
+    if matches!(
+        mnemonic.split('.').next(),
+        Some("fclass" | "feq" | "flt" | "fle")
+    ) && field == "rd"
+    {
+        return false;
+    }
+    if matches!(mnemonic, "flh" | "flq") && field == "rs1" {
+        return false;
+    }
+    if matches!(mnemonic, "fsh" | "fsq") && field == "rs1" {
+        return false;
+    }
+    true
+}
+
+fn signed_field_value(value: i16, width: u32, mnemonic: &str) -> Result<u32> {
+    let value = i32::from(value);
+    let minimum = -(1i32 << (width - 1));
+    let maximum = (1i32 << (width - 1)) - 1;
+    if !(minimum..=maximum).contains(&value) {
+        return Err(generated_operand_error(
+            mnemonic,
+            "signed field out of range",
+        ));
+    }
+    Ok(value as u32 & ((1u32 << width) - 1))
+}
+
+fn encode_generated_field(field: &str, value: u32, mnemonic: &str) -> Result<u32> {
+    let (shift, width) = match field {
+        "rd" => (7, 5),
+        "rs1" => (15, 5),
+        "rs2" => (20, 5),
+        "rs3" => (27, 5),
+        "rm" => (12, 3),
+        "imm12" => (20, 12),
+        "imm12hi" => (25, 7),
+        "imm12lo" => (7, 5),
+        _ => return Err(generated_operand_error(mnemonic, "unknown generated field")),
+    };
+    if value >= (1u32 << width) {
+        return Err(generated_operand_error(mnemonic, "field value is too wide"));
+    }
+    Ok(value << shift)
 }
 
 fn encode_u_instruction(mnemonic: &str, instruction: Lui) -> Result<u32> {
@@ -2014,6 +2200,33 @@ mod tests {
             assemble("fadd.d f3,f1,f2").unwrap().text,
             [0xd3, 0xf1, 0x20, 0x02]
         );
+    }
+
+    #[test]
+    fn assembles_generated_zfh_and_q_register_and_memory_forms() {
+        for (source, mnemonic) in [
+            ("fadd.h f3,f1,f2", "fadd.h"),
+            ("fmv.h.x f3,x1", "fmv.h.x"),
+            ("flh f3,8(x1)", "flh"),
+            ("fsh f3,8(x1)", "fsh"),
+            ("fadd.q f3,f1,f2,0", "fadd.q"),
+            ("flq f3,8(x1)", "flq"),
+            ("fsq f3,8(x1)", "fsq"),
+        ] {
+            let image = assemble(source).unwrap();
+            let word = u32::from_le_bytes(image.text.try_into().unwrap());
+            let opcode = luna_isa::generated_opcodes()
+                .iter()
+                .find(|opcode| opcode.mnemonic == mnemonic)
+                .unwrap();
+            assert_eq!(word & opcode.mask, opcode.match_value, "{source}");
+        }
+    }
+
+    #[test]
+    fn rejects_generated_float_instruction_with_integer_register() {
+        let error = assemble("fadd.h x3,f1,f2").unwrap_err();
+        assert_eq!(error.code, "ASM-FREGISTER-001");
     }
 
     #[test]
