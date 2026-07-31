@@ -20,6 +20,7 @@ const MAX_HISTORY_ENTRIES: usize = 4096;
 const MAX_PERSISTED_BYTES: usize = 64 * 1024 * 1024;
 const SNAPSHOT_MAGIC: &[u8; 8] = b"RVSNAP01";
 const PROJECT_MAGIC: &[u8; 8] = b"RVPROJ01";
+const SESSION_MAGIC: &[u8; 8] = b"RVSESS01";
 const PERSISTENCE_VERSION: u32 = 1;
 
 struct MemoryEdit {
@@ -62,6 +63,16 @@ struct DecodedSnapshot {
     next_breakpoint_id: u64,
     next_watchpoint_id: u64,
     view_address: u64,
+}
+
+struct DecodedBackendSession {
+    source_text: String,
+    symbols: BTreeMap<u64, String>,
+    view_address: u64,
+    breakpoints: BTreeMap<u64, BackendBreakpoint>,
+    watchpoints: BTreeMap<u64, Watchpoint>,
+    next_breakpoint_id: u64,
+    next_watchpoint_id: u64,
 }
 
 pub struct Monitor {
@@ -983,6 +994,7 @@ impl Monitor {
 /// eventual full debugger UI.
 pub struct BackendConsole<B> {
     pub backend: B,
+    source_text: String,
     symbols: BTreeMap<u64, String>,
     view_address: u64,
     undo: Vec<MemoryEdit>,
@@ -1004,6 +1016,7 @@ where
         let view_address = backend.context().pc;
         Self {
             backend,
+            source_text: String::new(),
             symbols: BTreeMap::new(),
             view_address,
             undo: Vec::new(),
@@ -1047,6 +1060,8 @@ where
             "awatch" => self.add_watchpoint(argument, None),
             "info" => self.info(argument),
             "history" | "trace" => self.show_history(argument),
+            "project-save" | "session-save" => self.save_session(argument),
+            "project-load" | "session-load" => self.load_session(argument),
             "quit" | "exit" => Ok("bye".into()),
             _ => Err(Diagnostic::error(
                 "MON-CMD-101",
@@ -1067,6 +1082,7 @@ where
         self.backend
             .write_memory(address, &image.text)
             .map_err(target_error)?;
+        self.source_text = source.to_string();
         self.view_address = address;
         Ok(format!(
             "loaded {} byte(s) at 0x{address:016x}",
@@ -1086,6 +1102,7 @@ where
         self.backend
             .write_memory(base, &image.text)
             .map_err(target_error)?;
+        self.source_text = source.to_string();
         let mut symbols = BTreeMap::new();
         for (name, offset) in image.symbols {
             let address = base
@@ -1309,11 +1326,11 @@ where
         let (address, count) = match parts.as_slice() {
             [] => (self.view_address, DEFAULT_MEMORY_VIEW_BYTES),
             [address] => (
-                parse_address(address, "MON-MEM-101")?,
+                self.resolve_address(address, "MON-MEM-101")?,
                 DEFAULT_MEMORY_VIEW_BYTES,
             ),
             [address, count] => (
-                parse_address(address, "MON-MEM-101")?,
+                self.resolve_address(address, "MON-MEM-101")?,
                 parse_count(count, "MON-MEM-102")?,
             ),
             _ => {
@@ -1345,7 +1362,7 @@ where
                 "view expects one target address",
             ));
         };
-        self.view_address = parse_address(address, "MON-MEM-105")?;
+        self.view_address = self.resolve_address(address, "MON-MEM-105")?;
         Ok(format!("view=0x{:016x}", self.view_address))
     }
 
@@ -1354,7 +1371,7 @@ where
         let address = parts
             .next()
             .ok_or_else(|| Diagnostic::error("MON-MEM-106", "edit expects an address and bytes"))
-            .and_then(|value| parse_address(value, "MON-MEM-101"))?;
+            .and_then(|value| self.resolve_address(value, "MON-MEM-101"))?;
         let mut bytes = Vec::new();
         for token in parts {
             parse_byte_token(token, &mut bytes)?;
@@ -1406,7 +1423,7 @@ where
                 "break expects one target address",
             ));
         };
-        let address = parse_address(address_text, "MON-DEBUG-101")?;
+        let address = self.resolve_address(address_text, "MON-DEBUG-101")?;
         if address & 3 != 0 {
             return Err(Diagnostic::error(
                 "MON-DEBUG-102",
@@ -1626,6 +1643,73 @@ where
         Ok(output.trim_end().into())
     }
 
+    fn save_session(&self, argument: &str) -> Result<String> {
+        let path = persistence_path(argument, "MON-SESSION-001")?;
+        let mut writer = ByteWriter::new(SESSION_MAGIC);
+        writer.u32(PERSISTENCE_VERSION);
+        writer.string(&self.source_text)?;
+        writer.u64(self.view_address);
+        writer.u64(self.next_breakpoint_id);
+        writer.u64(self.next_watchpoint_id);
+        writer.map_u64_string(&self.symbols)?;
+        writer.u32(
+            u32::try_from(self.breakpoints.len())
+                .map_err(|_| Diagnostic::error("MON-SESSION-002", "too many breakpoints"))?,
+        );
+        for breakpoint in self.breakpoints.values() {
+            writer.u64(breakpoint.id);
+            writer.u64(breakpoint.address);
+        }
+        writer.u32(
+            u32::try_from(self.watchpoints.len())
+                .map_err(|_| Diagnostic::error("MON-SESSION-003", "too many watchpoints"))?,
+        );
+        for watchpoint in self.watchpoints.values() {
+            writer.u64(watchpoint.id);
+            writer.u64(watchpoint.address);
+            writer.u64(watchpoint.width);
+            writer.u8(match watchpoint.kind {
+                None => 0,
+                Some(MemoryAccessKind::Read) => 1,
+                Some(MemoryAccessKind::Write) => 2,
+            });
+        }
+        let bytes = writer.finish();
+        if bytes.len() > MAX_PERSISTED_BYTES {
+            return Err(Diagnostic::error(
+                "MON-SESSION-004",
+                "session exceeds size limit",
+            ));
+        }
+        fs::write(path, &bytes).map_err(|error| {
+            Diagnostic::error("MON-SESSION-005", format!("cannot write session: {error}"))
+        })?;
+        Ok(format!(
+            "session saved ({} bytes; target state unchanged)",
+            bytes.len()
+        ))
+    }
+
+    fn load_session(&mut self, argument: &str) -> Result<String> {
+        let path = persistence_path(argument, "MON-SESSION-006")?;
+        let bytes = read_persistence_file(path)?;
+        let decoded = decode_backend_session(&bytes)?;
+        self.source_text = decoded.source_text;
+        self.symbols = decoded.symbols;
+        self.view_address = decoded.view_address;
+        self.breakpoints = decoded.breakpoints;
+        self.watchpoints = decoded.watchpoints;
+        self.next_breakpoint_id = decoded.next_breakpoint_id;
+        self.next_watchpoint_id = decoded.next_watchpoint_id;
+        self.undo.clear();
+        self.history.clear();
+        self.next_history_sequence = 1;
+        Ok(format!(
+            "session loaded ({} bytes; target registers and memory unchanged)",
+            bytes.len()
+        ))
+    }
+
     fn read_word(&mut self, address: u64) -> Result<u32> {
         let mut bytes = [0u8; 4];
         self.backend
@@ -1716,6 +1800,8 @@ fn backend_help() -> String {
         "awatch <addr> [w]    stop on target reads or writes",
         "info watch           list backend watchpoints",
         "history [count]      show bounded target execution history",
+        "project-save <path>  save session metadata (not target state)",
+        "project-load <path>  restore session metadata (not target state)",
         "quit                 close the console",
     ]
     .join("\n")
@@ -2006,6 +2092,103 @@ impl<'a> ByteReader<'a> {
             ))
         }
     }
+}
+
+fn decode_backend_session(bytes: &[u8]) -> Result<DecodedBackendSession> {
+    if bytes.len() > MAX_PERSISTED_BYTES {
+        return Err(Diagnostic::error(
+            "MON-SESSION-007",
+            "session exceeds size limit",
+        ));
+    }
+    let mut reader = ByteReader::new(bytes, SESSION_MAGIC)?;
+    if reader.u32()? != PERSISTENCE_VERSION {
+        return Err(Diagnostic::error(
+            "MON-SESSION-008",
+            "unsupported session version",
+        ));
+    }
+    let source_text = reader.string()?;
+    let view_address = reader.u64()?;
+    let next_breakpoint_id = reader.u64()?;
+    let next_watchpoint_id = reader.u64()?;
+
+    let symbol_count = checked_count(reader.u32()?, "session symbol table")?;
+    let mut symbols = BTreeMap::new();
+    for _ in 0..symbol_count {
+        let address = reader.u64()?;
+        let name = reader.string()?;
+        if symbols.insert(address, name).is_some() {
+            return Err(Diagnostic::error(
+                "MON-SESSION-009",
+                "duplicate session symbol address",
+            ));
+        }
+    }
+
+    let breakpoint_count = checked_count(reader.u32()?, "session breakpoint table")?;
+    let mut breakpoints = BTreeMap::new();
+    for _ in 0..breakpoint_count {
+        let id = reader.u64()?;
+        let address = reader.u64()?;
+        if address & 3 != 0
+            || breakpoints
+                .insert(address, BackendBreakpoint { id, address })
+                .is_some()
+        {
+            return Err(Diagnostic::error(
+                "MON-SESSION-010",
+                "invalid or duplicate session breakpoint",
+            ));
+        }
+    }
+
+    let watchpoint_count = checked_count(reader.u32()?, "session watchpoint table")?;
+    let mut watchpoints = BTreeMap::new();
+    for _ in 0..watchpoint_count {
+        let id = reader.u64()?;
+        let address = reader.u64()?;
+        let width = reader.u64()?;
+        let kind = match reader.u8()? {
+            0 => None,
+            1 => Some(MemoryAccessKind::Read),
+            2 => Some(MemoryAccessKind::Write),
+            _ => {
+                return Err(Diagnostic::error(
+                    "MON-SESSION-011",
+                    "invalid session watchpoint kind",
+                ));
+            }
+        };
+        if !matches!(width, 1 | 2 | 4 | 8)
+            || watchpoints
+                .insert(
+                    id,
+                    Watchpoint {
+                        address,
+                        width,
+                        kind,
+                        id,
+                    },
+                )
+                .is_some()
+        {
+            return Err(Diagnostic::error(
+                "MON-SESSION-012",
+                "invalid or duplicate session watchpoint",
+            ));
+        }
+    }
+    reader.finish()?;
+    Ok(DecodedBackendSession {
+        source_text,
+        symbols,
+        view_address,
+        breakpoints,
+        watchpoints,
+        next_breakpoint_id,
+        next_watchpoint_id,
+    })
 }
 
 fn decode_snapshot(bytes: &[u8]) -> Result<DecodedSnapshot> {
@@ -2575,5 +2758,22 @@ mod tests {
                 .unwrap()
                 .contains("jal x0,func")
         );
+
+        let session_path = std::env::temp_dir().join(format!(
+            "rvmonitor-session-{}-{}.rvs",
+            std::process::id(),
+            765_432u64
+        ));
+        let session_path_text = session_path.to_string_lossy().into_owned();
+        symbol_console.execute("break 0").unwrap();
+        symbol_console
+            .execute(&format!("project-save {session_path_text}"))
+            .unwrap();
+        symbol_console.execute("delete 1").unwrap();
+        symbol_console
+            .execute(&format!("project-load {session_path_text}"))
+            .unwrap();
+        assert!(symbol_console.execute("info break").unwrap().contains("#1"));
+        std::fs::remove_file(session_path).unwrap();
     }
 }
