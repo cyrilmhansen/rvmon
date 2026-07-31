@@ -9,8 +9,9 @@ use std::path::{Path, PathBuf};
 use luna_diag::{Diagnostic, Result};
 use luna_floatfmt::{FloatFormat, parse_float_literal};
 use luna_isa::{
-    Addi, Branch, FRegisterRType, Jal, Jalr, Load, Lui, RType, Store, encode_addi, encode_branch,
-    encode_f_r, encode_jal, encode_jalr, encode_load, encode_r, encode_store, encode_u,
+    Addi, Branch, FRegisterRType, FloatConversion, FloatConversionKind, Jal, Jalr, Load, Lui,
+    RType, Store, encode_addi, encode_branch, encode_f_convert, encode_f_r, encode_jal,
+    encode_jalr, encode_load, encode_r, encode_store, encode_u,
 };
 
 mod expr;
@@ -367,13 +368,25 @@ fn assemble_parsed(parsed: &ParsedLine, pc: u64, symbols: &SymbolValues) -> Resu
                 rm: 7,
             },
         )?,
+        "fcvt.s.d" if parts.len() == 2 => encode_f_convert(FloatConversion {
+            kind: FloatConversionKind::SFromD,
+            rd: floating_register(operand_text(&parts[0])?)?,
+            rs1: floating_register(operand_text(&parts[1])?)?,
+            rm: 7,
+        })?,
+        "fcvt.d.s" if parts.len() == 2 => encode_f_convert(FloatConversion {
+            kind: FloatConversionKind::DFromS,
+            rd: floating_register(operand_text(&parts[0])?)?,
+            rs1: floating_register(operand_text(&parts[1])?)?,
+            rm: 7,
+        })?,
         "" => {
             return Err(Diagnostic::error("ASM-OPERAND-001", "missing instruction"));
         }
         _ => {
             return Err(Diagnostic::error(
                 "ASM-BOOT-UNSUPPORTED",
-                "bootstrap assembler accepts integer forms plus fadd.s and fadd.d",
+                "bootstrap assembler accepts integer forms plus fadd and format-conversion forms",
             ));
         }
     };
@@ -1901,6 +1914,18 @@ mod tests {
         assert_eq!(
             assemble("fadd.d f3,f1,f2").unwrap().text,
             [0xd3, 0xf1, 0x20, 0x02]
+        );
+    }
+
+    #[test]
+    fn assembles_float_format_conversions_with_dynamic_rounding_mode() {
+        assert_eq!(
+            assemble("fcvt.s.d f3,f1").unwrap().text,
+            [0xd3, 0xf1, 0x10, 0x40]
+        );
+        assert_eq!(
+            assemble("fcvt.d.s f3,f1").unwrap().text,
+            [0xd3, 0xf1, 0x00, 0x42]
         );
     }
 

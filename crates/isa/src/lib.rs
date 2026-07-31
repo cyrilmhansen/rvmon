@@ -70,6 +70,20 @@ pub struct FRegisterRType {
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum FloatConversionKind {
+    SFromD,
+    DFromS,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct FloatConversion {
+    pub kind: FloatConversionKind,
+    pub rd: u8,
+    pub rs1: u8,
+    pub rm: u8,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Instruction {
     Addi(Addi),
     Add(RType),
@@ -86,6 +100,7 @@ pub enum Instruction {
     Jalr(Jalr),
     FAddS(FRegisterRType),
     FAddD(FRegisterRType),
+    FloatConversion(FloatConversion),
     Illegal(u32),
 }
 
@@ -142,6 +157,24 @@ pub fn encode_f_r(mnemonic: &str, instruction: FRegisterRType) -> Result<u32> {
     let opcode = generated_opcode(mnemonic)?;
     Ok(opcode.match_value
         | ((instruction.rs2 as u32) << 20)
+        | ((instruction.rs1 as u32) << 15)
+        | ((instruction.rm as u32) << 12)
+        | ((instruction.rd as u32) << 7))
+}
+
+pub fn encode_f_convert(instruction: FloatConversion) -> Result<u32> {
+    if instruction.rd > 31 || instruction.rs1 > 31 || instruction.rm > 7 {
+        return Err(Diagnostic::error(
+            "ISA-OPERAND-001",
+            "floating register or rounding mode out of range",
+        ));
+    }
+    let mnemonic = match instruction.kind {
+        FloatConversionKind::SFromD => "fcvt.s.d",
+        FloatConversionKind::DFromS => "fcvt.d.s",
+    };
+    let opcode = generated_opcode(mnemonic)?;
+    Ok(opcode.match_value
         | ((instruction.rs1 as u32) << 15)
         | ((instruction.rm as u32) << 12)
         | ((instruction.rd as u32) << 7))
@@ -410,6 +443,21 @@ pub fn decode(word: u32) -> Instruction {
                 });
             }
         }
+        for (mnemonic, kind) in [
+            ("fcvt.s.d", FloatConversionKind::SFromD),
+            ("fcvt.d.s", FloatConversionKind::DFromS),
+        ] {
+            if let Ok(opcode) = generated_opcode(mnemonic) {
+                if word & opcode.mask == opcode.match_value {
+                    return Instruction::FloatConversion(FloatConversion {
+                        kind,
+                        rd: ((word >> 7) & 31) as u8,
+                        rs1: ((word >> 15) & 31) as u8,
+                        rm: ((word >> 12) & 7) as u8,
+                    });
+                }
+            }
+        }
         Instruction::Illegal(word)
     }
 }
@@ -435,6 +483,7 @@ pub fn encode(instruction: Instruction) -> Result<u32> {
         Instruction::Jalr(instruction) => encode_jalr(instruction),
         Instruction::FAddS(instruction) => encode_f_r("fadd.s", instruction),
         Instruction::FAddD(instruction) => encode_f_r("fadd.d", instruction),
+        Instruction::FloatConversion(instruction) => encode_f_convert(instruction),
         Instruction::Illegal(_) => Err(Diagnostic::error(
             "ISA-ENCODE-001",
             "cannot encode an illegal instruction",
@@ -518,6 +567,30 @@ mod tests {
         };
         let word = encode_f_r("fadd.d", instruction).unwrap();
         assert_eq!(decode(word), Instruction::FAddD(instruction));
+    }
+
+    #[test]
+    fn format_conversions_round_trip_from_generated_opcodes() {
+        for (mnemonic, kind) in [
+            ("fcvt.s.d", FloatConversionKind::SFromD),
+            ("fcvt.d.s", FloatConversionKind::DFromS),
+        ] {
+            let instruction = FloatConversion {
+                kind,
+                rd: 3,
+                rs1: 1,
+                rm: 7,
+            };
+            let word = encode_f_convert(instruction).unwrap();
+            assert_eq!(decode(word), Instruction::FloatConversion(instruction));
+            assert_eq!(
+                generated_opcodes()
+                    .iter()
+                    .find(|opcode| opcode.mnemonic == mnemonic)
+                    .map(|opcode| word & opcode.mask == opcode.match_value),
+                Some(true)
+            );
+        }
     }
 
     #[test]

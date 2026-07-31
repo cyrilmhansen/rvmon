@@ -4,8 +4,8 @@ use std::collections::BTreeMap;
 
 use luna_diag::{Diagnostic, Result};
 use luna_isa::{
-    Addi, Branch, FRegisterRType, GENERATED_OPCODES, Instruction, Jal, Jalr, Load, Lui, RType,
-    Store,
+    Addi, Branch, FRegisterRType, FloatConversion, FloatConversionKind, GENERATED_OPCODES,
+    Instruction, Jal, Jalr, Load, Lui, RType, Store,
 };
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -486,6 +486,18 @@ fn format_instruction(
         }) => {
             format!("fadd.d f{rd},f{rs1},f{rs2}")
         }
+        Instruction::FloatConversion(FloatConversion {
+            kind: FloatConversionKind::SFromD,
+            rd,
+            rs1,
+            rm: _,
+        }) => format!("fcvt.s.d f{rd},f{rs1}"),
+        Instruction::FloatConversion(FloatConversion {
+            kind: FloatConversionKind::DFromS,
+            rd,
+            rs1,
+            rm: _,
+        }) => format!("fcvt.d.s f{rd},f{rs1}"),
         Instruction::Illegal(word) => format!(".word 0x{word:08x}"),
     }
 }
@@ -645,6 +657,8 @@ mod tests {
             "jalr x1,0(x4)",
             "fadd.s f3,f1,f2",
             "fadd.d f3,f1,f2",
+            "fcvt.s.d f3,f1",
+            "fcvt.d.s f3,f1",
         ] {
             let original = luna_assembler::assemble(source).unwrap().text;
             let line = disassemble_bytes(&original, 0, &BTreeMap::new())

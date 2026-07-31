@@ -2,7 +2,7 @@
 
 use luna_diag::{Diagnostic, Result};
 use luna_floatfmt::{FloatDisplay, binary64, boxed_binary32};
-use luna_isa::{Instruction, decode};
+use luna_isa::{FloatConversionKind, Instruction, decode};
 use luna_memory::Memory;
 use luna_target_api::{
     ExecutionOutcome, MemoryAccess, MemoryAccessKind, TargetBackend, TargetCapabilities,
@@ -233,6 +233,38 @@ impl Machine {
                     rounding_mode,
                 );
                 self.f[instruction.rd as usize] = result;
+                self.fcsr |= flags;
+            }
+            Instruction::FloatConversion(instruction) => {
+                let rounding_mode = if instruction.rm == 7 {
+                    self.frm()
+                } else {
+                    instruction.rm
+                };
+                if !is_valid_rounding_mode(rounding_mode) {
+                    return Err(Diagnostic::error(
+                        "TRAP-FP-RM-001",
+                        "reserved floating-point rounding mode",
+                    ));
+                }
+                let (result, flags) = match instruction.kind {
+                    FloatConversionKind::SFromD => convert_binary(
+                        self.f[instruction.rs1 as usize],
+                        FORMAT_D,
+                        FORMAT_S,
+                        rounding_mode,
+                    ),
+                    FloatConversionKind::DFromS => convert_binary(
+                        boxed_f32(self.f[instruction.rs1 as usize]) as u64,
+                        FORMAT_S,
+                        FORMAT_D,
+                        rounding_mode,
+                    ),
+                };
+                self.f[instruction.rd as usize] = match instruction.kind {
+                    FloatConversionKind::SFromD => 0xffff_ffff_0000_0000 | (result & 0xffff_ffff),
+                    FloatConversionKind::DFromS => result,
+                };
                 self.fcsr |= flags;
             }
             Instruction::Illegal(_) => {
@@ -656,6 +688,43 @@ fn add_d(left: u64, right: u64, rounding_mode: u8) -> (u64, u32) {
     add_binary(left, right, FORMAT_D, rounding_mode)
 }
 
+fn convert_binary(
+    value: u64,
+    source: BinaryFormat,
+    destination: BinaryFormat,
+    rounding_mode: u8,
+) -> (u64, u32) {
+    if is_nan_binary(value, source) {
+        return (
+            destination.canonical_nan,
+            if is_signaling_nan_binary(value, source) {
+                FFLAG_NV
+            } else {
+                0
+            },
+        );
+    }
+    if is_infinite_binary(value, source) {
+        return (
+            if value & source.sign_mask != 0 {
+                destination.sign_mask | destination.exponent_mask
+            } else {
+                destination.exponent_mask
+            },
+            0,
+        );
+    }
+    let negative = value & source.sign_mask != 0;
+    let (significand, exponent) = finite_components(value, source);
+    round_binary(
+        BigUint::from_u64(significand),
+        exponent,
+        negative,
+        destination,
+        rounding_mode,
+    )
+}
+
 fn add_binary(left: u64, right: u64, format: BinaryFormat, rounding_mode: u8) -> (u64, u32) {
     let left_nan = is_nan_binary(left, format);
     let right_nan = is_nan_binary(right, format);
@@ -837,7 +906,7 @@ fn overflow_result(negative: bool, format: BinaryFormat, rounding_mode: u8) -> (
 
 fn is_nan_binary(value: u64, format: BinaryFormat) -> bool {
     value & format.exponent_mask == format.exponent_mask
-        && value & (format.exponent_mask - (1u64 << format.fraction_bits)) != 0
+        && value & ((1u64 << format.fraction_bits) - 1) != 0
 }
 
 fn is_signaling_nan_binary(value: u64, format: BinaryFormat) -> bool {
@@ -1301,6 +1370,82 @@ mod tests {
         machine.step().unwrap();
         assert_ne!(machine.fflags() & FFLAG_NV as u8, 0);
         assert_eq!(machine.f[3], 0x7ff8_0000_0000_0000);
+    }
+
+    fn execute_conversion(
+        kind: luna_isa::FloatConversionKind,
+        value: u64,
+        rounding_mode: u8,
+        frm: u8,
+    ) -> (u64, u8) {
+        let mut machine = Machine::new(64);
+        machine.f[1] = match kind {
+            luna_isa::FloatConversionKind::SFromD => value,
+            luna_isa::FloatConversionKind::DFromS => 0xffff_ffff_0000_0000 | (value & 0xffff_ffff),
+        };
+        machine.fcsr = u32::from(frm) << 5;
+        let word = luna_isa::encode_f_convert(luna_isa::FloatConversion {
+            kind,
+            rd: 3,
+            rs1: 1,
+            rm: rounding_mode,
+        })
+        .unwrap();
+        machine.load(0, &word.to_le_bytes()).unwrap();
+        machine.step().unwrap();
+        (machine.f[3], machine.fflags())
+    }
+
+    #[test]
+    fn executes_float_format_conversions_with_exact_bits_and_rounding() {
+        let (result, flags) = execute_conversion(
+            luna_isa::FloatConversionKind::SFromD,
+            1.5f64.to_bits(),
+            7,
+            ROUND_RNE,
+        );
+        assert_eq!(result, 0xffff_ffff_3fc0_0000);
+        assert_eq!(flags, 0);
+
+        let halfway = 0x3ff0_0000_1000_0000;
+        let (rne, rne_flags) =
+            execute_conversion(luna_isa::FloatConversionKind::SFromD, halfway, ROUND_RNE, 0);
+        let (rup, rup_flags) =
+            execute_conversion(luna_isa::FloatConversionKind::SFromD, halfway, ROUND_RUP, 0);
+        assert_eq!(rne, 0xffff_ffff_3f80_0000);
+        assert_eq!(rup, 0xffff_ffff_3f80_0001);
+        assert_eq!(rne_flags, FFLAG_NX as u8);
+        assert_eq!(rup_flags, FFLAG_NX as u8);
+
+        let (result, flags) = execute_conversion(
+            luna_isa::FloatConversionKind::DFromS,
+            1.5f32.to_bits() as u64,
+            7,
+            ROUND_RNE,
+        );
+        assert_eq!(result, 1.5f64.to_bits());
+        assert_eq!(flags, 0);
+    }
+
+    #[test]
+    fn format_conversion_handles_infinities_and_signaling_nan() {
+        let (negative_infinity, flags) = execute_conversion(
+            luna_isa::FloatConversionKind::SFromD,
+            f64::NEG_INFINITY.to_bits(),
+            ROUND_RNE,
+            0,
+        );
+        assert_eq!(negative_infinity, 0xffff_ffff_ff80_0000);
+        assert_eq!(flags, 0);
+
+        let (nan, flags) = execute_conversion(
+            luna_isa::FloatConversionKind::DFromS,
+            0x7f80_0001,
+            ROUND_RNE,
+            0,
+        );
+        assert_eq!(nan, 0x7ff8_0000_0000_0000);
+        assert_eq!(flags, FFLAG_NV as u8);
     }
 
     #[test]

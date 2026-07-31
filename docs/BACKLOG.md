@@ -662,6 +662,22 @@ Une tâche est terminée seulement si sa condition de sortie est satisfaite.
 - **Parallélisable :** oui avec la préparation des conversions et la documentation; non avec une modification concurrente du modèle `fcsr`.
 - **Contexte minimal :** SPEC §§5/8/11.1/24, `crates/machine/src/lib.rs`, `tests/oracles/fp_qemu_probe.S`, `norms/oracles/manifest.toml`.
 
+### FP-003A — Conversions de format F/D — TERMINÉ
+
+- **Jalon / exigences :** M5; FP-003..006, FP-012..018, IO-004.
+- **But :** implémenter `fcvt.s.d` et `fcvt.d.s` avec bits exacts, NaN-boxing, modes d’arrondi et flags.
+- **Non-but :** conversions entier↔flottant, binary16/binary128 exécutés, et instructions Q/Zfh.
+- **Entrées/sources :** R1 §§11.1/11.2; R2 commit épinglé; QEMU 11.0.2 via D-016.
+- **Fichiers/modules :** `crates/isa`, `crates/assembler`, `crates/disassembler`, `crates/machine`, probe QEMU.
+- **Étapes réalisées :** ajouter `FloatConversionKind` dans l’AST ISA; générer l’encodage depuis R2; assembler/désassembler les deux mnémotechniques; réutiliser l’arithmétique exacte pour les ties; préserver les flags et rejeter les modes réservés.
+- **Tests :** round-trip ISA, assembleur/désassembleur, binary64→binary32 RNE/RUP, binary32→binary64, infini négatif, sNaN et oracle QEMU indépendant.
+- **Acceptation :** 134 tests Cargo et `bash tools/check-fp-conversion-oracle.sh` passent; QEMU 11.0.2 concorde sur trois cas résultat/flags.
+- **Limites/échecs :** les conversions entier↔flottant restent FP-004; les payloads NaN non canoniques sont conservées seulement lorsque la future règle de conversion le permettra.
+- **Taille :** 4 points / 2 journées-agent, incertitude moyenne.
+- **Compétences/outils :** RISC-V F/D, IEEE 754, tables R2, QEMU, Rust.
+- **Parallélisable :** oui avec la préparation de FP-004; non avec une modification concurrente de l’AST `Instruction`.
+- **Contexte minimal :** SPEC §§5/11.1/13/23, R2 `rv_f`/`rv_d`, `crates/isa/src/lib.rs`, oracle de conversion.
+
 ### FP-003 — Étendre D et refuser proprement Q/Zfh exécutable
 
 - **Jalon / exigences :** M5; F/D/Zfh/Q matrix.
@@ -669,10 +685,10 @@ Une tâche est terminée seulement si sa condition de sortie est satisfaite.
 - **Non-but :** Q runtime.
 - **Entrées/sources :** R1 D/Q; R2; DECISIONS D-005.
 - **Fichiers/modules :** `float`, `machine`, `isa`, profile.
-- **Étapes :** `fadd.d` puis conversions nécessaires; binary16/128 data; execute gate; diagnostics.
+- **Étapes :** `fadd.d` et conversions de format réalisées; conversions entier/flottant, binary16/128 data; execute gate; diagnostics.
 - **Dépendances/bloqués :** FP-002, GEN-001; bloque M5.
 - **Tests :** D motifs/flags; Q decode/data; executing Q trap; matrix generated.
-- **Acceptation :** E2E 5/7 et aucune extension non exécutée n’est présentée comme support.
+- **Acceptation :** E2E 5/7 et les conversions de format sont disponibles; aucune extension non exécutée n’est présentée comme support.
 - **Limites/échecs :** wrong FLEN, invalid Q opcode, Zfh instruction → explicit unsupported.
 - **Taille :** 5 points / 2,5 j, incertitude moyenne.
 - **Compétences/outils :** IEEE/RISC-V D/Q.
