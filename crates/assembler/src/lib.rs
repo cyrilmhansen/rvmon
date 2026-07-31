@@ -2,12 +2,14 @@
 
 use std::collections::BTreeMap;
 
-use luna_asm_lexer::tokenize;
 use luna_diag::{Diagnostic, Result};
 use luna_isa::{
     Addi, Branch, Jal, Jalr, Load, Lui, RType, Store, encode_addi, encode_branch, encode_jal,
     encode_jalr, encode_load, encode_lui, encode_r, encode_store,
 };
+
+mod parser;
+pub use parser::{Operand, OperandKind, ParsedLine, parse_line};
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ObjectImage {
@@ -27,69 +29,121 @@ fn register(name: &str) -> Result<u8> {
     match name {
         "zero" => Ok(0),
         "ra" => Ok(1),
+        "sp" => Ok(2),
+        "gp" => Ok(3),
+        "tp" => Ok(4),
+        "t0" => Ok(5),
+        "t1" => Ok(6),
+        "t2" => Ok(7),
+        "s0" | "fp" => Ok(8),
+        "s1" => Ok(9),
+        "a0" => Ok(10),
+        "a1" => Ok(11),
+        "a2" => Ok(12),
+        "a3" => Ok(13),
+        "a4" => Ok(14),
+        "a5" => Ok(15),
+        "a6" => Ok(16),
+        "a7" => Ok(17),
+        "s2" => Ok(18),
+        "s3" => Ok(19),
+        "s4" => Ok(20),
+        "s5" => Ok(21),
+        "s6" => Ok(22),
+        "s7" => Ok(23),
+        "s8" => Ok(24),
+        "s9" => Ok(25),
+        "s10" => Ok(26),
+        "s11" => Ok(27),
+        "t3" => Ok(28),
+        "t4" => Ok(29),
+        "t5" => Ok(30),
+        "t6" => Ok(31),
         _ => Err(Diagnostic::error("ASM-REGISTER-001", "unknown register")),
     }
 }
 
-fn memory_operand(value: &str) -> Result<(i16, u8)> {
-    let (immediate, base) = value.split_once('(').ok_or_else(|| {
-        Diagnostic::error("ASM-MEMORY-001", "memory operand must be imm(register)")
+fn operand_text(operand: &Operand) -> Result<&str> {
+    match &operand.kind {
+        OperandKind::Register(value) | OperandKind::Integer(value) | OperandKind::Symbol(value) => {
+            Ok(value)
+        }
+        _ => Err(
+            Diagnostic::error("ASM-OPERAND-002", "expected a scalar operand")
+                .at(operand.span.line, operand.span.column),
+        ),
+    }
+}
+
+fn memory_operand(operand: &Operand) -> Result<(i16, u8)> {
+    let OperandKind::Memory { offset, base } = &operand.kind else {
+        return Err(
+            Diagnostic::error("ASM-MEMORY-001", "memory operand must be imm(register)")
+                .at(operand.span.line, operand.span.column),
+        );
+    };
+    let immediate = offset.parse::<i16>().map_err(|_| {
+        Diagnostic::error("ASM-IMMEDIATE-001", "invalid memory immediate")
+            .at(operand.span.line, operand.span.column)
     })?;
-    let base = base
-        .strip_suffix(')')
-        .ok_or_else(|| Diagnostic::error("ASM-MEMORY-001", "missing closing parenthesis"))?;
-    let immediate = immediate
-        .parse::<i16>()
-        .map_err(|_| Diagnostic::error("ASM-IMMEDIATE-001", "invalid memory immediate"))?;
     Ok((immediate, register(base)?))
 }
 
 pub fn assemble(source: &str) -> Result<ObjectImage> {
-    let line = source.split('#').next().unwrap_or("").trim();
-    tokenize(line)?;
-    let mut words = line.splitn(2, char::is_whitespace);
-    let mnemonic = words.next().unwrap_or("");
-    let operands = words.next().unwrap_or("").trim();
-    let parts: Vec<_> = operands.split(',').map(str::trim).collect();
+    let parsed = parse_line(source)?;
+    if !parsed.labels.is_empty() {
+        return Err(Diagnostic::error(
+            "ASM-LABEL-003",
+            "labels are only valid when assembling a program",
+        ));
+    }
+    assemble_parsed(&parsed)
+}
+
+fn assemble_parsed(parsed: &ParsedLine) -> Result<ObjectImage> {
+    let mnemonic = parsed.mnemonic.as_deref().unwrap_or("");
+    let parts = &parsed.operands;
     let word = match mnemonic {
         "addi" if parts.len() == 3 => encode_addi(Addi {
-            rd: register(parts[0])?,
-            rs1: register(parts[1])?,
-            imm: parts[2]
-                .parse::<i16>()
-                .map_err(|_| Diagnostic::error("ASM-IMMEDIATE-001", "invalid signed immediate"))?,
+            rd: register(operand_text(&parts[0])?)?,
+            rs1: register(operand_text(&parts[1])?)?,
+            imm: operand_text(&parts[2])?.parse::<i16>().map_err(|_| {
+                Diagnostic::error("ASM-IMMEDIATE-001", "invalid signed immediate")
+                    .at(parts[2].span.line, parts[2].span.column)
+            })?,
         })?,
         "add" | "sub" if parts.len() == 3 => encode_r(
             mnemonic,
             RType {
-                rd: register(parts[0])?,
-                rs1: register(parts[1])?,
-                rs2: register(parts[2])?,
+                rd: register(operand_text(&parts[0])?)?,
+                rs1: register(operand_text(&parts[1])?)?,
+                rs2: register(operand_text(&parts[2])?)?,
             },
         )?,
         "lui" if parts.len() == 2 => encode_lui(Lui {
-            rd: register(parts[0])?,
-            imm20: parts[1]
-                .parse::<u32>()
-                .map_err(|_| Diagnostic::error("ASM-IMMEDIATE-001", "invalid U immediate"))?,
+            rd: register(operand_text(&parts[0])?)?,
+            imm20: operand_text(&parts[1])?.parse::<u32>().map_err(|_| {
+                Diagnostic::error("ASM-IMMEDIATE-001", "invalid U immediate")
+                    .at(parts[1].span.line, parts[1].span.column)
+            })?,
         })?,
         "lw" if parts.len() == 2 => {
-            let (imm, rs1) = memory_operand(parts[1])?;
+            let (imm, rs1) = memory_operand(&parts[1])?;
             encode_load(
                 "lw",
                 Load {
-                    rd: register(parts[0])?,
+                    rd: register(operand_text(&parts[0])?)?,
                     rs1,
                     imm,
                 },
             )?
         }
         "sw" if parts.len() == 2 => {
-            let (imm, rs1) = memory_operand(parts[1])?;
+            let (imm, rs1) = memory_operand(&parts[1])?;
             encode_store(
                 "sw",
                 Store {
-                    rs2: register(parts[0])?,
+                    rs2: register(operand_text(&parts[0])?)?,
                     rs1,
                     imm,
                 },
@@ -98,28 +152,33 @@ pub fn assemble(source: &str) -> Result<ObjectImage> {
         "beq" | "bne" if parts.len() == 3 => encode_branch(
             mnemonic,
             Branch {
-                rs1: register(parts[0])?,
-                rs2: register(parts[1])?,
-                imm: parts[2].parse::<i16>().map_err(|_| {
+                rs1: register(operand_text(&parts[0])?)?,
+                rs2: register(operand_text(&parts[1])?)?,
+                imm: operand_text(&parts[2])?.parse::<i16>().map_err(|_| {
                     Diagnostic::error("ASM-IMMEDIATE-001", "invalid branch immediate")
+                        .at(parts[2].span.line, parts[2].span.column)
                 })?,
             },
         )?,
         "jal" if parts.len() == 2 => encode_jal(Jal {
-            rd: register(parts[0])?,
-            imm: parts[1]
-                .parse::<i32>()
-                .map_err(|_| Diagnostic::error("ASM-IMMEDIATE-001", "invalid jump immediate"))?,
+            rd: register(operand_text(&parts[0])?)?,
+            imm: operand_text(&parts[1])?.parse::<i32>().map_err(|_| {
+                Diagnostic::error("ASM-IMMEDIATE-001", "invalid jump immediate")
+                    .at(parts[1].span.line, parts[1].span.column)
+            })?,
         })?,
         "jalr" if parts.len() == 2 => {
-            let (imm, rs1) = memory_operand(parts[1])?;
+            let (imm, rs1) = memory_operand(&parts[1])?;
             encode_jalr(Jalr {
-                rd: register(parts[0])?,
+                rd: register(operand_text(&parts[0])?)?,
                 rs1,
                 imm,
             })?
         }
         "" => return Err(Diagnostic::error("ASM-OPERAND-001", "missing instruction")),
+        _ if mnemonic.is_empty() => {
+            return Err(Diagnostic::error("ASM-OPERAND-001", "missing instruction"));
+        }
         _ => {
             return Err(Diagnostic::error(
                 "ASM-BOOT-UNSUPPORTED",
@@ -135,25 +194,16 @@ pub fn assemble(source: &str) -> Result<ObjectImage> {
 }
 
 pub fn assemble_program(source: &str) -> Result<ObjectImage> {
+    let lines: Vec<_> = source.lines().map(parse_line).collect::<Result<_>>()?;
     let mut symbols = BTreeMap::new();
     let mut pc = 0u64;
-    for raw_line in source.lines() {
-        let mut line = raw_line.split('#').next().unwrap_or("").trim();
-        while let Some((label, rest)) = line.split_once(':') {
-            let label = label.trim();
-            if label.is_empty()
-                || !label
-                    .chars()
-                    .all(|character| character.is_ascii_alphanumeric() || "_.$".contains(character))
-            {
-                return Err(Diagnostic::error("ASM-LABEL-001", "invalid label"));
-            }
-            if symbols.insert(label.to_string(), pc).is_some() {
+    for line in &lines {
+        for label in &line.labels {
+            if symbols.insert(label.clone(), pc).is_some() {
                 return Err(Diagnostic::error("ASM-LABEL-002", "duplicate label"));
             }
-            line = rest.trim();
         }
-        if !line.is_empty() {
+        if line.mnemonic.is_some() {
             pc = pc
                 .checked_add(4)
                 .ok_or_else(|| Diagnostic::error("ASM-ADDRESS-001", "program is too large"))?;
@@ -162,16 +212,12 @@ pub fn assemble_program(source: &str) -> Result<ObjectImage> {
 
     let mut text = Vec::new();
     pc = 0;
-    for raw_line in source.lines() {
-        let mut line = raw_line.split('#').next().unwrap_or("").trim();
-        while let Some((_, rest)) = line.split_once(':') {
-            line = rest.trim();
-        }
-        if line.is_empty() {
+    for line in lines {
+        if line.mnemonic.is_none() {
             continue;
         }
         let resolved = resolve_control_label(line, pc, &symbols)?;
-        let image = assemble(&resolved)?;
+        let image = assemble_parsed(&resolved)?;
         text.extend_from_slice(&image.text);
         pc += 4;
     }
@@ -183,29 +229,29 @@ pub fn assemble_program(source: &str) -> Result<ObjectImage> {
     })
 }
 
-fn resolve_control_label(line: &str, pc: u64, symbols: &BTreeMap<String, u64>) -> Result<String> {
-    let mut words = line.splitn(2, char::is_whitespace);
-    let mnemonic = words.next().unwrap_or("");
-    let operands = words.next().unwrap_or("");
-    let mut parts: Vec<_> = operands.split(',').map(str::trim).collect();
-    let index = match mnemonic {
-        "beq" | "bne" => Some(2),
-        "jal" => Some(1),
+fn resolve_control_label(
+    mut line: ParsedLine,
+    pc: u64,
+    symbols: &BTreeMap<String, u64>,
+) -> Result<ParsedLine> {
+    let index = match line.mnemonic.as_deref() {
+        Some("beq") | Some("bne") => Some(2),
+        Some("jal") => Some(1),
         _ => None,
     };
     if let Some(index) = index {
-        if let Some(label) = parts.get(index).copied() {
-            if label.parse::<i64>().is_err() {
+        if let Some(operand) = line.operands.get_mut(index) {
+            if let OperandKind::Symbol(label) = &operand.kind {
                 let target = symbols.get(label).ok_or_else(|| {
                     Diagnostic::error("ASM-SYMBOL-001", format!("unknown symbol: {label}"))
+                        .at(operand.span.line, operand.span.column)
                 })?;
                 let offset = *target as i64 - pc as i64;
-                parts[index] = Box::leak(offset.to_string().into_boxed_str());
-                return Ok(format!("{} {}", mnemonic, parts.join(",")));
+                operand.kind = OperandKind::Integer(offset.to_string());
             }
         }
     }
-    Ok(line.to_string())
+    Ok(line)
 }
 
 #[cfg(test)]
