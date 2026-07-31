@@ -1,0 +1,164 @@
+schema_version = 1
+manifest_kind = "external-source-provenance"
+project = "rvmonitor"
+generated_at = "2026-07-31"
+
+# This manifest records provenance and licensing state. It does not imply that
+# an external document is redistributed by this repository.
+external_documents_archived = false
+policy = "Reference-only sources must be downloaded and redistributed only after their licence and permission have been verified. Local hashes below apply only to files committed in this repository."
+
+[[source]]
+id = "R1"
+title = "RISC-V Instruction Set Manual, Volume I, Unprivileged Architecture"
+authority = "normative"
+version = "20260120"
+status = "ratified"
+source_url = "https://docs.riscv.org/reference/home/index.html"
+retrieved_at = ""
+commit = ""
+license_status = "not independently archived or verified in this repository"
+redistribution = "reference-only; do not vendor without licence verification"
+local_artifact = false
+local_paths = []
+sha256 = ""
+used_for = ["ISA semantics", "instruction length", "floating-point architectural state", "privilege and trap references"]
+notes = "R1 is the semantic authority. The URL is retained for reproducible retrieval, not as proof that a local copy is present."
+
+[[source]]
+id = "R2"
+title = "riscv-opcodes"
+authority = "encoding-data"
+version = "pinned commit"
+status = "pinned"
+source_url = "https://github.com/riscv/riscv-opcodes"
+retrieved_at = "2026-07-31"
+commit = "c6edca7d8c3f92694963a0a0baeb511930fb2af4"
+commit_url = "https://github.com/riscv/riscv-opcodes/commit/c6edca7d8c3f92694963a0a0baeb511930fb2af4"
+license_status = "BSD-3-Clause"
+redistribution = "pinned extracts are committed under norms/r2; the complete upstream repository is not vendored"
+local_artifact = true
+local_paths = ["norms/manifest.toml", "norms/r2/SHA256SUMS", "norms/r2/rv_i", "norms/r2/extensions/"]
+sha256 = "b35738c9b0eae7ecacf51110b1faafe66edc4491cf9bee607653aa3c75239473"
+used_for = ["generated masks and matches", "instruction fields", "extension metadata"]
+notes = "The hash is for the committed norms/r2/SHA256SUMS index; individual extract hashes are checked by tools/check-r2.sh."
+
+[[source]]
+id = "R3"
+title = "RISC-V ELF psABI specification"
+authority = "development-experimental"
+version = "development snapshot"
+status = "development-experimental"
+source_url = "https://github.com/riscv-non-isa/riscv-elf-psabi-doc"
+retrieved_at = "2026-07-31"
+commit = "76b837ec964509f4bac11c66e5d7106b6a1e626a"
+commit_url = "https://github.com/riscv-non-isa/riscv-elf-psabi-doc/commit/76b837ec964509f4bac11c66e5d7106b6a1e626a"
+license_status = "CC-BY-4.0"
+redistribution = "commit is referenced but the full upstream snapshot is not vendored"
+local_artifact = false
+local_paths = []
+sha256 = ""
+used_for = ["RV64ILP32 calling convention", "type sizes and alignment", "sign-extended pointers", "ELF ABI interpretation"]
+notes = "R3 is never presented as ratified. CONFLICT-ABI-001 and the local policy are recorded in docs/DECISIONS.md."
+
+[[source]]
+id = "R4"
+title = "RISC-V Assembly Programmer's Manual"
+authority = "dialect-reference"
+version = "repository snapshot not pinned"
+status = "non-ratified dialect reference"
+source_url = "https://github.com/riscv-non-isa/riscv-asm-manual"
+retrieved_at = ""
+commit = ""
+license_status = "CC-BY-4.0"
+redistribution = "reference-only; upstream snapshot not vendored"
+local_artifact = false
+local_paths = []
+sha256 = ""
+used_for = ["assembly dialect", "directives", "pseudo-instruction syntax", "relocation terminology"]
+notes = "R4 does not override R1 or the generated R2 encoding data."
+
+[[source]]
+id = "R5"
+title = "Sail RISC-V model"
+authority = "semantic-oracle"
+version = "repository snapshot not pinned"
+status = "oracle"
+source_url = "https://github.com/riscv/sail-riscv"
+retrieved_at = ""
+commit = ""
+license_status = "BSD-2-Clause"
+redistribution = "reference-only; upstream snapshot not vendored"
+local_artifact = false
+local_paths = []
+sha256 = ""
+used_for = ["differential semantic testing when coverage is available"]
+notes = "R5 is an oracle and never replaces R1 as the normative authority."
+
+[[source]]
+id = "A1-AMINET"
+title = "ASM-One package page"
+authority = "historical-interaction"
+version = "package metadata"
+status = "reference-only"
+source_url = "https://aminet.net/package/dev/asm/ASM-One"
+retrieved_at = ""
+commit = ""
+license_status = "not verified"
+redistribution = "do not vendor package contents without permission verification"
+local_artifact = false
+local_paths = []
+sha256 = ""
+used_for = ["historical product scope", "interaction vocabulary"]
+notes = "Aminet metadata is not an authority for RISC-V semantics."
+
+[[source]]
+id = "A1-MANUAL"
+title = "ASM-One 1.02 Manual"
+authority = "historical-interaction"
+version = "1.02"
+status = "reference-only"
+source_url = "https://archive.org/stream/AsmOne1.02Manual/Asm-One1.02Manual_djvu.txt"
+retrieved_at = ""
+commit = ""
+license_status = "not verified"
+redistribution = "do not vendor text without permission verification"
+local_artifact = false
+local_paths = []
+sha256 = ""
+used_for = ["monitor workflow", "editor and debugger interaction", "chapters 6-9"]
+notes = "The manual is not copied into this repository."
+
+[[source]]
+id = "A2"
+title = "Mastering Amiga Assembler, Devpac 3 / MonAm sections"
+authority = "historical-interaction"
+version = "edition not identified"
+status = "reference-only"
+source_url = ""
+retrieved_at = ""
+commit = ""
+license_status = "not verified"
+redistribution = "do not vendor text without permission verification"
+local_artifact = false
+local_paths = []
+sha256 = ""
+used_for = ["historical monitor and debugger interaction"]
+notes = "The original specification names this source but provides no stable URL or local copy."
+
+[[source]]
+id = "C1"
+title = "RISC-V Instruction Set Summary"
+authority = "navigation-index"
+version = "four-page summary"
+status = "index-only"
+source_url = ""
+retrieved_at = ""
+commit = ""
+license_status = "not verified"
+redistribution = "reference-only"
+local_artifact = false
+local_paths = []
+sha256 = ""
+used_for = ["navigation only"]
+notes = "C1 cannot settle normative conflicts and its URL was not supplied in the source package."

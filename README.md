@@ -2,6 +2,10 @@
 
 Bootstrap implementation of the first vertical slice described in `docs/PLAN.md`.
 
+La provenance des normes, oracles et références historiques est indexée dans
+[`docs/SOURCES.toml`](docs/SOURCES.toml). Les documents externes ne sont pas
+redistribués par défaut.
+
 ```text
 cargo test --workspace
 cargo run -p luna-app
