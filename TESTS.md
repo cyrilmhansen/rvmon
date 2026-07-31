@@ -15,7 +15,7 @@ Validation locale complète :
     bash scripts/test-qemu-gdb-backend.sh
     git diff --check
 
-La suite actuelle exécute 99 tests unitaires/intégration répartis dans les crates. Les doc-tests compilent mais ne contiennent actuellement aucun cas. Le script QEMU ouvre en plus une session GDB RSP réelle, hors comptage Cargo.
+La suite actuelle exécute 105 tests unitaires/intégration répartis dans les crates. Les doc-tests compilent mais ne contiennent actuellement aucun cas. Le script QEMU ouvre en plus une session GDB RSP réelle, hors comptage Cargo.
 
 Démonstration M-mode/U-mode sous QEMU :
 
@@ -42,7 +42,7 @@ Moniteur texte interactif :
 | luna-abi | 2 | Extension de signe des pointeurs 32 bits et idempotence. |
 | luna-memory | 3 | Little-endian, transactions atomiques et rollback après erreur. |
 | luna-asm-lexer | 5 | Registres numériques/ABI, commentaires, décalages, chaînes UTF-8 et positions d’erreur. |
-| luna-assembler | 30 | AST, alias ABI, expressions, symboles globaux/locaux, sections, `.equ/.set`, chaînes, alignement, listing texte, fadd.s et fadd.d. |
+| luna-assembler | 33 | AST, alias ABI, expressions, symboles globaux/locaux, sections, `.equ/.set`, chaînes, alignement, macros paramétrées bornées, listing texte, fadd.s et fadd.d. |
 | luna-isa-core | 3 | Encodeurs `addi`, branches, sauts et `fadd.s`/`fadd.d` sans allocation, depuis les tables R2 partagées avec le guest ; commit R2 et champs générés validés. |
 | luna-isa | 6 | Tables générées depuis R2, encodage/décodage entier et flottant via `luna-isa-core`. |
 | luna-machine | 13 | Exécution entière, branches, mémoire, tables de pointeurs ILP32, fadd.s, fadd.d, NaN-boxing, flags, contrat backend et snapshot cible. |
@@ -82,6 +82,15 @@ Les formes assembleur testées sont :
     .byte, .half, .word, .dword, .ascii, .asciz, .string, .align, .balign
 
 Les expressions couvrent la précédence, les bases décimale/hexadécimale/binaire, les opérateurs unaires, les décalages, les symboles en avant et les débordements. Un test vérifie qu’un offset numérique de branche reste un offset après pc = 0.
+
+Les macros paramétrées sont expansées avant le lexer avec `.macro NAME params` et
+`.endm`/`.endmacro`. Les substitutions `\\param` et `$param`, les macros
+imbriquées et les arguments séparés par des virgules de niveau supérieur sont
+testés. L’expansion est bornée à 256 définitions, 4096 lignes par corps,
+32 paramètres, 32 niveaux et 65536 lignes produites; la récursion, l’arité
+incorrecte et les définitions incomplètes ont des codes `ASM-MACRO-*` stables.
+Le listing conserve le numéro de ligne du corps macro ayant produit les bytes.
+Les inclusions de fichiers et le conditionnel restent hors de cette tranche.
 
 ### ISA et encodages
 

@@ -439,6 +439,23 @@ Une tâche est terminée seulement si sa condition de sortie est satisfaite.
 - **Parallélisable :** oui avec DIS-001; non avec une modification concurrente de `ListingEntry`.
 - **Paquet de contexte minimal :** SPEC §§12/20/21/23, `crates/assembler/src/lib.rs`, `TESTS.md`.
 
+### ASM-003E — Macros paramétrées bornées — TERMINÉ
+
+- **Jalon / exigences :** M3; ASM-003, ASM-009, ASM-015, IO-005.
+- **But :** fournir une expansion déterministe de macros paramétrées avant le lexer, avec imbrication bornée, substitutions explicites et conservation de l’origine source dans le listing.
+- **Non-but :** inclusions de fichiers, conditionnel `.if`, génération de fichiers, réécriture de labels locaux et compatibilité complète avec les syntaxes de macros GNU/LLVM.
+- **Entrées/sources :** SPEC §11 (macros, diagnostics, passes et compatibilité de dialecte), §12 (listing/export reproductible), §18 (isolation des chemins); R4 pour le dialecte de directives; décision locale versionnée du préprocesseur RVMonitor.
+- **Fichiers/modules :** `crates/assembler/src/lib.rs`, `TESTS.md`, `BACKLOG.md`.
+- **Étapes réalisées :** reconnaître `.macro NAME params` et `.endm`/`.endmacro`; accepter `\\param` et `$param`; séparer les arguments par virgules de niveau supérieur; développer récursivement les macros imbriquées; refuser la récursion et les arités incorrectes; borner définitions, corps, paramètres, profondeur et lignes produites; conserver la ligne source du corps dans `ListingEntry`.
+- **Dépendances :** ASM-003D et ASM-002B; aucune dépendance externe; bloque le conditionnel qui devra réutiliser le même environnement de symboles; les inclusions restent une tranche distincte avec sandbox de chemins.
+- **Tests :** macro paramétrée `addi`; macro imbriquée; arguments avec virgules; mapping de ligne du listing; récursion, arité incorrecte et définition non terminée; suite assembleur complète.
+- **Critères de sortie :** un programme contenant une définition et un appel produit exactement les bytes de son corps; les macros imbriquées restent dans les quotas; les erreurs `ASM-MACRO-002/003/004/005/006` sont déterministes; aucun fichier hôte n’est lu.
+- **Cas limites et échecs :** nom ou paramètre invalide, paramètre dupliqué, macro vide, commentaire dans une définition, chaîne contenant un séparateur, profondeur maximale et source produite au-delà du quota.
+- **Taille :** 5 points / 2–2,5 journées-agent, incertitude moyenne; équivalent indicatif 80k–180k tokens.
+- **Compétences/outils :** préprocesseurs, analyse lexicale bornée, diagnostics Rust, tests de quotas et de reproductibilité.
+- **Parallélisable :** oui avec DIS-001 et FP-001; non avec une modification concurrente de la structure `ListingEntry` ou de la grammaire des directives.
+- **Paquet de contexte minimal :** SPEC §§11–12/18/19/23, R4 directives et macros, `crates/assembler/src/lib.rs`, `TESTS.md`.
+
 ### ASM-003 — Directives, chaînes, macros et listing
 
 - **Jalon / exigences :** M3; ASM-001..015, IO-001..009.

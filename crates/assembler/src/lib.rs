@@ -1,5 +1,6 @@
 #![forbid(unsafe_code)]
 
+use std::cmp::Reverse;
 use std::collections::{BTreeMap, BTreeSet};
 use std::fmt::Write as _;
 
@@ -79,6 +80,24 @@ struct SectionState {
 }
 
 type SymbolValues = BTreeMap<String, i128>;
+
+const MAX_MACRO_DEFINITIONS: usize = 256;
+const MAX_MACRO_BODY_LINES: usize = 4096;
+const MAX_MACRO_PARAMETERS: usize = 32;
+const MAX_MACRO_DEPTH: usize = 32;
+const MAX_EXPANDED_LINES: usize = 65_536;
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+struct ExpandedLine {
+    text: String,
+    source_line: u32,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+struct MacroDefinition {
+    parameters: Vec<String>,
+    body: Vec<ExpandedLine>,
+}
 
 fn register(name: &str) -> Result<u8> {
     if let Some(number) = name.strip_prefix('x') {
@@ -541,11 +560,291 @@ fn section_alignment_requirement(line: &ParsedLine, symbols: &SymbolValues) -> R
     }
 }
 
+fn strip_macro_comment(source: &str) -> &str {
+    let bytes = source.as_bytes();
+    let mut in_string = false;
+    let mut escaped = false;
+    let mut index = 0;
+    while index < bytes.len() {
+        let byte = bytes[index];
+        if in_string {
+            if escaped {
+                escaped = false;
+            } else if byte == b'\\' {
+                escaped = true;
+            } else if byte == b'"' {
+                in_string = false;
+            }
+            index += 1;
+            continue;
+        }
+        if byte == b'"' {
+            in_string = true;
+            index += 1;
+            continue;
+        }
+        if byte == b'#' || byte == b';' || (byte == b'/' && bytes.get(index + 1) == Some(&b'/')) {
+            return &source[..index];
+        }
+        index += 1;
+    }
+    source
+}
+
+fn macro_words(source: &str) -> Vec<String> {
+    source
+        .split(|character: char| character.is_ascii_whitespace() || character == ',')
+        .filter(|word| !word.is_empty())
+        .map(str::to_owned)
+        .collect()
+}
+
+fn valid_macro_identifier(identifier: &str) -> bool {
+    let mut characters = identifier.chars();
+    let Some(first) = characters.next() else {
+        return false;
+    };
+    (first.is_ascii_alphabetic() || matches!(first, '_' | '.' | '$'))
+        && characters.all(|character| {
+            character.is_ascii_alphanumeric() || matches!(character, '_' | '.' | '$')
+        })
+}
+
+fn macro_header(source: &str) -> Option<&str> {
+    let source = strip_macro_comment(source).trim_start();
+    let prefix = source.get(..6)?;
+    if !prefix.eq_ignore_ascii_case(".macro") {
+        return None;
+    }
+    let rest = &source[6..];
+    if rest
+        .chars()
+        .next()
+        .is_some_and(|character| !character.is_ascii_whitespace())
+    {
+        return None;
+    }
+    Some(rest.trim())
+}
+
+fn is_end_macro(source: &str) -> bool {
+    let source = strip_macro_comment(source).trim();
+    source.eq_ignore_ascii_case(".endm") || source.eq_ignore_ascii_case(".endmacro")
+}
+
+fn macro_invocation(source: &str) -> Option<(String, &str)> {
+    let source = strip_macro_comment(source).trim_start();
+    let end = source
+        .find(|character: char| character.is_ascii_whitespace() || character == ',')
+        .unwrap_or(source.len());
+    let name = &source[..end];
+    valid_macro_identifier(name).then(|| (name.to_ascii_lowercase(), source[end..].trim()))
+}
+
+fn macro_arguments(source: &str) -> Vec<String> {
+    let source = source.trim();
+    if source.is_empty() {
+        return Vec::new();
+    }
+    if !source.contains(',') {
+        return vec![source.to_owned()];
+    }
+    let mut arguments = Vec::new();
+    let mut start = 0;
+    let mut depth = 0usize;
+    let mut in_string = false;
+    let mut escaped = false;
+    for (index, character) in source.char_indices() {
+        if in_string {
+            if escaped {
+                escaped = false;
+            } else if character == '\\' {
+                escaped = true;
+            } else if character == '"' {
+                in_string = false;
+            }
+            continue;
+        }
+        match character {
+            '"' => in_string = true,
+            '(' => depth = depth.saturating_add(1),
+            ')' => depth = depth.saturating_sub(1),
+            ',' if depth == 0 => {
+                arguments.push(source[start..index].trim().to_owned());
+                start = index + character.len_utf8();
+            }
+            _ => {}
+        }
+    }
+    arguments.push(source[start..].trim().to_owned());
+    arguments
+}
+
+fn substitute_macro_line(body: &str, parameters: &[String], arguments: &[String]) -> String {
+    let mut replacements: Vec<_> = parameters.iter().zip(arguments).collect();
+    replacements.sort_by_key(|(parameter, _)| Reverse(parameter.len()));
+    let mut result = body.to_owned();
+    for (parameter, argument) in replacements {
+        result = result.replace(&format!("\\{parameter}"), argument);
+        result = result.replace(&format!("${parameter}"), argument);
+    }
+    result
+}
+
+fn expand_macro_line(
+    line: ExpandedLine,
+    macros: &BTreeMap<String, MacroDefinition>,
+    stack: &mut Vec<String>,
+    output: &mut Vec<ExpandedLine>,
+) -> Result<()> {
+    let Some((name, arguments_source)) = macro_invocation(&line.text) else {
+        if output.len() >= MAX_EXPANDED_LINES {
+            return Err(Diagnostic::error(
+                "ASM-MACRO-005",
+                "expanded source exceeds macro line quota",
+            ));
+        }
+        output.push(line);
+        return Ok(());
+    };
+    let Some(definition) = macros.get(&name) else {
+        if output.len() >= MAX_EXPANDED_LINES {
+            return Err(Diagnostic::error(
+                "ASM-MACRO-005",
+                "expanded source exceeds macro line quota",
+            ));
+        }
+        output.push(line);
+        return Ok(());
+    };
+    if stack.iter().any(|active| active == &name) {
+        return Err(Diagnostic::error(
+            "ASM-MACRO-004",
+            "recursive macro invocation",
+        ));
+    }
+    if stack.len() >= MAX_MACRO_DEPTH {
+        return Err(Diagnostic::error(
+            "ASM-MACRO-005",
+            "macro expansion depth quota exceeded",
+        ));
+    }
+    let arguments = macro_arguments(arguments_source);
+    if arguments.len() != definition.parameters.len() {
+        return Err(Diagnostic::error(
+            "ASM-MACRO-003",
+            "macro argument count does not match parameters",
+        ));
+    }
+    stack.push(name.clone());
+    for body_line in &definition.body {
+        let expanded = ExpandedLine {
+            text: substitute_macro_line(&body_line.text, &definition.parameters, &arguments),
+            source_line: body_line.source_line,
+        };
+        expand_macro_line(expanded, macros, stack, output)?;
+    }
+    stack.pop();
+    Ok(())
+}
+
+fn expand_macros(source: &str) -> Result<Vec<ExpandedLine>> {
+    let mut macros = BTreeMap::new();
+    let mut active: Option<(String, Vec<String>, Vec<ExpandedLine>)> = None;
+    let mut retained = Vec::new();
+    for (index, raw_line) in source.lines().enumerate() {
+        let source_line = u32::try_from(index + 1).unwrap_or(u32::MAX);
+        let control_text = strip_macro_comment(raw_line);
+        let text = raw_line.trim_end().to_owned();
+        if active.is_some() {
+            if is_end_macro(control_text) {
+                let (name, parameters, body) = active.take().expect("active macro");
+                macros.insert(name, MacroDefinition { parameters, body });
+                continue;
+            }
+            if macro_header(control_text).is_some() {
+                return Err(Diagnostic::error(
+                    "ASM-MACRO-006",
+                    "nested macro definitions are not supported",
+                ));
+            }
+            let (_, _, body) = active.as_mut().expect("active macro");
+            if body.len() >= MAX_MACRO_BODY_LINES {
+                return Err(Diagnostic::error(
+                    "ASM-MACRO-005",
+                    "macro body exceeds line quota",
+                ));
+            }
+            body.push(ExpandedLine { text, source_line });
+            continue;
+        }
+        if let Some(header) = macro_header(control_text) {
+            let words = macro_words(header);
+            let Some((name, parameters)) = words.split_first() else {
+                return Err(Diagnostic::error("ASM-MACRO-001", "macro name is missing"));
+            };
+            if !valid_macro_identifier(name) || parameters.len() > MAX_MACRO_PARAMETERS {
+                return Err(Diagnostic::error(
+                    "ASM-MACRO-001",
+                    "invalid macro name or parameter list",
+                ));
+            }
+            let parameters: Vec<_> = parameters
+                .iter()
+                .map(|parameter| parameter.to_ascii_lowercase())
+                .collect();
+            if parameters
+                .iter()
+                .any(|parameter| !valid_macro_identifier(parameter))
+                || parameters.windows(2).any(|pair| pair[0] == pair[1])
+            {
+                return Err(Diagnostic::error(
+                    "ASM-MACRO-001",
+                    "invalid or duplicate macro parameter",
+                ));
+            }
+            if macros.contains_key(&name.to_ascii_lowercase()) || active.is_some() {
+                return Err(Diagnostic::error(
+                    "ASM-MACRO-002",
+                    "duplicate macro definition",
+                ));
+            }
+            if macros.len() >= MAX_MACRO_DEFINITIONS {
+                return Err(Diagnostic::error(
+                    "ASM-MACRO-005",
+                    "macro definition quota exceeded",
+                ));
+            }
+            active = Some((name.to_ascii_lowercase(), parameters, Vec::new()));
+            continue;
+        }
+        if is_end_macro(control_text) {
+            return Err(Diagnostic::error(
+                "ASM-MACRO-002",
+                "unexpected macro terminator",
+            ));
+        }
+        retained.push(ExpandedLine { text, source_line });
+    }
+    if active.is_some() {
+        return Err(Diagnostic::error(
+            "ASM-MACRO-002",
+            "unterminated macro definition",
+        ));
+    }
+    let mut output = Vec::new();
+    let mut stack = Vec::new();
+    for line in retained {
+        expand_macro_line(line, &macros, &mut stack, &mut output)?;
+    }
+    Ok(output)
+}
+
 pub fn assemble_program(source: &str) -> Result<ObjectImage> {
-    let source_lines: Vec<&str> = source.lines().collect();
-    let lines: Vec<_> = source_lines
+    let expanded_source = expand_macros(source)?;
+    let lines: Vec<_> = expanded_source
         .iter()
-        .map(|line| parse_line(line))
+        .map(|line| parse_line(&line.text))
         .collect::<Result<_>>()?;
     let mut symbols = BTreeMap::new();
     let mut values = SymbolValues::new();
@@ -603,10 +902,10 @@ pub fn assemble_program(source: &str) -> Result<ObjectImage> {
             sections[current_section].address.get_or_insert(pc);
             let section_name = sections[current_section].name.clone();
             listing.push(ListingEntry {
-                source_line: u32::try_from(line_index + 1).unwrap_or(u32::MAX),
+                source_line: expanded_source[line_index].source_line,
                 address: pc,
                 section: section_name,
-                source: source_lines[line_index].to_owned(),
+                source: expanded_source[line_index].text.clone(),
                 bytes: Vec::new(),
             });
             continue;
@@ -615,10 +914,10 @@ pub fn assemble_program(source: &str) -> Result<ObjectImage> {
         let section_name = sections[current_section].name.clone();
         if line.mnemonic.is_none() {
             listing.push(ListingEntry {
-                source_line: u32::try_from(line_index + 1).unwrap_or(u32::MAX),
+                source_line: expanded_source[line_index].source_line,
                 address: pc,
                 section: section_name,
-                source: source_lines[line_index].to_owned(),
+                source: expanded_source[line_index].text.clone(),
                 bytes: Vec::new(),
             });
             continue;
@@ -632,20 +931,20 @@ pub fn assemble_program(source: &str) -> Result<ObjectImage> {
                 &mut emit_values,
             )?;
             listing.push(ListingEntry {
-                source_line: u32::try_from(line_index + 1).unwrap_or(u32::MAX),
+                source_line: expanded_source[line_index].source_line,
                 address: pc,
                 section: section_name,
-                source: source_lines[line_index].to_owned(),
+                source: expanded_source[line_index].text.clone(),
                 bytes: Vec::new(),
             });
             continue;
         }
         if line.mnemonic.as_deref() == Some(".equ") {
             listing.push(ListingEntry {
-                source_line: u32::try_from(line_index + 1).unwrap_or(u32::MAX),
+                source_line: expanded_source[line_index].source_line,
                 address: pc,
                 section: section_name,
-                source: source_lines[line_index].to_owned(),
+                source: expanded_source[line_index].text.clone(),
                 bytes: Vec::new(),
             });
             continue;
@@ -660,10 +959,10 @@ pub fn assemble_program(source: &str) -> Result<ObjectImage> {
         }
         sections[current_section].bytes.extend_from_slice(&bytes);
         listing.push(ListingEntry {
-            source_line: u32::try_from(line_index + 1).unwrap_or(u32::MAX),
+            source_line: expanded_source[line_index].source_line,
             address: pc,
             section: section_name,
-            source: source_lines[line_index].to_owned(),
+            source: expanded_source[line_index].text.clone(),
             bytes: bytes.clone(),
         });
         text.extend_from_slice(&bytes);
@@ -1182,5 +1481,42 @@ mod tests {
     fn rejects_data_overflow() {
         let error = assemble(".byte 256").unwrap_err();
         assert_eq!(error.code, "ASM-IMMEDIATE-001");
+    }
+
+    #[test]
+    fn expands_parameterized_macros_and_keeps_body_source_lines() {
+        let image = assemble_program(
+            ".macro inc rd\n  addi \\rd,\\rd,1\n.endm\n_start: addi x1,x0,0\ninc x1",
+        )
+        .unwrap();
+        assert_eq!(image.text, [0x93, 0x00, 0x00, 0x00, 0x93, 0x80, 0x10, 0x00]);
+        assert_eq!(image.listing.last().unwrap().source_line, 2);
+        assert_eq!(image.listing.last().unwrap().source, "  addi x1,x1,1");
+    }
+
+    #[test]
+    fn expands_nested_macros_with_comma_arguments() {
+        let image = assemble_program(
+            ".macro inc rd\n  addi \\rd,\\rd,1\n.endm\n.macro twice rd\n  inc \\rd\n  inc \\rd\n.endm\ntwice x1",
+        )
+        .unwrap();
+        assert_eq!(image.text.len(), 8);
+
+        let image =
+            assemble_program(".macro load rd, value\n  addi \\rd,x0,\\value\n.endm\nload x2, 7")
+                .unwrap();
+        assert_eq!(image.text, [0x13, 0x01, 0x70, 0x00]);
+    }
+
+    #[test]
+    fn rejects_invalid_macro_structure_and_expansion() {
+        let error = assemble_program(".macro inc rd\n addi \\rd,\\rd,1\n.endm\ninc").unwrap_err();
+        assert_eq!(error.code, "ASM-MACRO-003");
+
+        let error = assemble_program(".macro loop\n loop\n.endm\nloop").unwrap_err();
+        assert_eq!(error.code, "ASM-MACRO-004");
+
+        let error = assemble_program(".macro broken\n addi x1,x0,1").unwrap_err();
+        assert_eq!(error.code, "ASM-MACRO-002");
     }
 }
