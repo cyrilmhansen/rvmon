@@ -138,8 +138,8 @@ pub fn encode_f_r(mnemonic: &str, rd: u8, rs1: u8, rs2: u8, rm: u8) -> Option<u3
 #[cfg(test)]
 mod tests {
     use super::{
-        encode_addi, encode_auipc, encode_branch, encode_f_r, encode_jal, encode_jalr, encode_load,
-        encode_lui, encode_store,
+        R2_COMMIT, encode_addi, encode_auipc, encode_branch, encode_f_r, encode_jal, encode_jalr,
+        encode_load, encode_lui, encode_store,
     };
 
     #[test]
@@ -156,6 +156,7 @@ mod tests {
 
     #[test]
     fn encodes_control_flow_from_generated_opcodes() {
+        assert_eq!(R2_COMMIT.len(), 40);
         assert_eq!(encode_branch("beq", 1, 1, 8), Some(0x0010_8463));
         assert_eq!(encode_branch("bne", 1, 2, -8), Some(0xfe20_9ce3));
         assert_eq!(encode_jal(0, 12), Some(0x00c0_006f));

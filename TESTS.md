@@ -7,6 +7,7 @@ Ce document décrit le périmètre effectivement couvert par les tests présents
 Validation locale complète :
 
     cargo fmt --all
+    bash tools/check-r2.sh
     cargo test --workspace
     cargo build -p luna-guest-monitor --target riscv64gc-unknown-none-elf
     bash scripts/test-guest-monitor.sh
@@ -41,7 +42,7 @@ Moniteur texte interactif :
 | luna-memory | 2 | Little-endian, transactions atomiques et rollback après erreur. |
 | luna-asm-lexer | 2 | Labels, ponctuation, commentaires, chaînes et positions d’erreur. |
 | luna-assembler | 16 | AST, alias ABI, expressions, symboles, directives, alignement, fadd.s et fadd.d. |
-| luna-isa-core | 3 | Encodeurs `addi`, branches, sauts et `fadd.s`/`fadd.d` sans allocation, depuis les tables R2 partagées avec le guest. |
+| luna-isa-core | 3 | Encodeurs `addi`, branches, sauts et `fadd.s`/`fadd.d` sans allocation, depuis les tables R2 partagées avec le guest ; commit R2 et champs générés validés. |
 | luna-isa | 6 | Tables générées depuis R2, encodage/décodage entier et flottant via `luna-isa-core`. |
 | luna-machine | 12 | Exécution entière, branches, mémoire, tables de pointeurs ILP32, fadd.s, fadd.d, NaN-boxing, flags, contrat backend et snapshot cible. |
 | luna-disassembler | 7 | Format canonique, symboles, opcodes illégaux, C rejeté et round-trip. |
@@ -75,7 +76,14 @@ Les expressions couvrent la précédence, les bases décimale/hexadécimale/bina
 
 ### ISA et encodages
 
-Le registre d’opcodes est produit depuis l’extrait R2 épinglé. Les tests vérifient la présence des données générées et les round-trips des formes entières, de fadd.s et de fadd.d.
+Le registre d’opcodes est produit depuis les extraits R2 épinglés. `bash
+tools/check-r2.sh` vérifie le SHA complet du commit, l’ensemble exact des
+fichiers attendus, leurs empreintes SHA-256 et déclenche la validation du
+générateur. Les tests vérifient ensuite la présence des données générées et
+les round-trips des formes entières, de fadd.s et de fadd.d. Le générateur
+signale les recouvrements `mask/match` compressés dont la distinction dépend
+de contraintes d’opérandes R2 (`rd_n0`, etc.) ; un doublon exact reste une
+erreur bloquante.
 
 Cette vérification ne remplace pas encore une comparaison indépendante avec GNU, LLVM, Sail, Spike ou SoftFloat.
 

@@ -22,4 +22,6 @@ The implementation is intentionally not yet the complete monitor. Native
 QEMU watchpoints, full target-state snapshots, richer terminal UI, and broader
 ISA coverage remain backlog work. Normative source identities are recorded in
 `norms/manifest.toml`; the current bootstrap uses only the pinned `rv_i`
-extract while the full generator is being built.
+extract for the bootstrap path while the profile generator validates all
+selected R2 extracts. Run `bash tools/check-r2.sh` to verify provenance,
+hashes, and generator inputs before changing ISA data.

@@ -76,6 +76,23 @@ Une tâche est terminée seulement si sa condition de sortie est satisfaite.
 - **Parallélisable :** oui avec BOOT-003; GEN-001 dépend de lui.
 - **Contexte minimal :** SPEC §11, DECISIONS D-006.
 
+### BOOT-005 — Vérifier la provenance et les champs des extraits R2 — TERMINÉ
+
+- **Jalon / exigences :** M0/M1; ENC-001..006, REQ-PROD-006.
+- **But :** rendre reproductible et fail-closed la consommation des extraits R2 avant génération des tables.
+- **Non-but :** prétendre avoir comparé la sémantique R1 complète ou ajouter manuellement un opcode.
+- **Entrées/sources :** `norms/manifest.toml`; commit R2 complet; extraits `norms/r2/extensions/*`; R2 README sur les champs mask/match.
+- **Fichiers/modules :** `crates/isa-core/build.rs`, `norms/r2/SHA256SUMS`, `tools/check-r2.sh`, `TESTS.md`, `README.md`.
+- **Étapes réalisées :** valider les plages 0..31, valeurs représentables et chevauchements de champs; propager le SHA R2 dans l’artefact généré; comparer les empreintes et l’ensemble exact des fichiers; déclencher le build du générateur depuis le contrôle.
+- **Dépendances et tâches bloquées :** BOOT-003; GEN-001 peut maintenant évoluer sans accepter une entrée corrompue; le contrôle R2↔R1 complet reste à faire dans BOOT-004.
+- **Tests :** `bash tools/check-r2.sh`; `cargo test -p luna-isa-core`; mutation manuelle d’un extrait attendue en échec via SHA-256.
+- **Critères de sortie :** contrôle vert sur l’arbre propre; commit R2 de 40 caractères exposé par `R2_COMMIT`; toute absence, modification ou incohérence de source provoque une erreur.
+- **Cas limites et échecs :** champ inversé, bit >31, valeur hors largeur, champ fixe chevauché, commit court ou fichier ajouté → échec explicite.
+- **Taille :** 3 points / 1,5 journée-agent, incertitude faible; équivalent indicatif 60k–120k tokens.
+- **Compétences/outils :** Rust build scripts, R2, SHA-256, shell reproductible.
+- **Parallélisable :** oui avec ASM-001 et FP-001; non avec une modification simultanée de `build.rs`.
+- **Paquet de contexte minimal :** SPEC §4/§11, `crates/isa-core/build.rs`, `norms/manifest.toml`, `tools/check-r2.sh`.
+
 ## M1 — ISA générée
 
 ### GEN-001 — Générer tables profile-aware et artefacts hashés
