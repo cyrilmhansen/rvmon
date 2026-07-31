@@ -15,7 +15,7 @@ Validation locale complète :
     bash scripts/test-qemu-gdb-backend.sh
     git diff --check
 
-La suite actuelle exécute 95 tests unitaires/intégration répartis dans les crates. Les doc-tests compilent mais ne contiennent actuellement aucun cas. Le script QEMU ouvre en plus une session GDB RSP réelle, hors comptage Cargo.
+La suite actuelle exécute 96 tests unitaires/intégration répartis dans les crates. Les doc-tests compilent mais ne contiennent actuellement aucun cas. Le script QEMU ouvre en plus une session GDB RSP réelle, hors comptage Cargo.
 
 Démonstration M-mode/U-mode sous QEMU :
 
@@ -42,7 +42,7 @@ Moniteur texte interactif :
 | luna-abi | 2 | Extension de signe des pointeurs 32 bits et idempotence. |
 | luna-memory | 3 | Little-endian, transactions atomiques et rollback après erreur. |
 | luna-asm-lexer | 5 | Registres numériques/ABI, commentaires, décalages, chaînes UTF-8 et positions d’erreur. |
-| luna-assembler | 26 | AST, alias ABI, expressions, symboles globaux/locaux, `.equ/.set`, chaînes, alignement, fadd.s et fadd.d. |
+| luna-assembler | 27 | AST, alias ABI, expressions, symboles globaux/locaux, `.equ/.set`, chaînes, alignement, listing, fadd.s et fadd.d. |
 | luna-isa-core | 3 | Encodeurs `addi`, branches, sauts et `fadd.s`/`fadd.d` sans allocation, depuis les tables R2 partagées avec le guest ; commit R2 et champs générés validés. |
 | luna-isa | 6 | Tables générées depuis R2, encodage/décodage entier et flottant via `luna-isa-core`. |
 | luna-machine | 13 | Exécution entière, branches, mémoire, tables de pointeurs ILP32, fadd.s, fadd.d, NaN-boxing, flags, contrat backend et snapshot cible. |
@@ -68,6 +68,8 @@ Les tests mémoire couvrent les transactions de bytes et le little-endian 32 bit
 Le lexer et le parser testent les labels avec ou sans instruction, les registres entiers/flottants, les alias ABI, les opérandes imm(registre), les expressions et les diagnostics syntaxiques. Les positions du lexer sont 1-based et comptées en scalaires Unicode ; les diagnostics lexicaux peuvent en outre fournir une longueur de surlignage.
 
 L’assembleur en deux passes distingue les labels globaux des labels locaux `.L*`. Un label local est exposé dans l’image sous la clé canonique `global::.Llocal`, mais une référence source `.Llocal` est résolue dans la portée du dernier label global. Les littéraux entiers acceptent les séparateurs `_` et `'` sans les conserver dans la valeur évaluée.
+
+Chaque `ObjectImage` contient aussi un listing déterministe : numéro de ligne 1-based, adresse de début, source originale et bytes émis. Les labels seuls, `.equ` et `.set` produisent une entrée vide à l’adresse courante; les directives d’alignement portent les bytes de padding.
 
 Les formes assembleur testées sont :
 

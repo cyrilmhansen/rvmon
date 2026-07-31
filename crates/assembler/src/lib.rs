@@ -18,6 +18,15 @@ pub struct ObjectImage {
     pub entry: u64,
     pub symbols: BTreeMap<String, u64>,
     pub constants: BTreeMap<String, i128>,
+    pub listing: Vec<ListingEntry>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct ListingEntry {
+    pub source_line: u32,
+    pub address: u64,
+    pub source: String,
+    pub bytes: Vec<u8>,
 }
 
 type SymbolValues = BTreeMap<String, i128>;
@@ -118,7 +127,14 @@ pub fn assemble(source: &str) -> Result<ObjectImage> {
             ".equ and .set require program assembly",
         ));
     }
-    assemble_parsed(&parsed, 0, &BTreeMap::new())
+    let mut image = assemble_parsed(&parsed, 0, &BTreeMap::new())?;
+    image.listing.push(ListingEntry {
+        source_line: 1,
+        address: 0,
+        source: source.to_owned(),
+        bytes: image.text.clone(),
+    });
+    Ok(image)
 }
 
 fn assemble_parsed(parsed: &ParsedLine, pc: u64, symbols: &SymbolValues) -> Result<ObjectImage> {
@@ -130,6 +146,7 @@ fn assemble_parsed(parsed: &ParsedLine, pc: u64, symbols: &SymbolValues) -> Resu
             entry: 0,
             symbols: BTreeMap::new(),
             constants: BTreeMap::new(),
+            listing: Vec::new(),
         });
     }
     let word = match mnemonic {
@@ -247,6 +264,7 @@ fn assemble_parsed(parsed: &ParsedLine, pc: u64, symbols: &SymbolValues) -> Resu
         entry: 0,
         symbols: BTreeMap::new(),
         constants: BTreeMap::new(),
+        listing: Vec::new(),
     })
 }
 
@@ -364,7 +382,11 @@ fn data_values(operands: &[Operand], width: usize, symbols: &SymbolValues) -> Re
 }
 
 pub fn assemble_program(source: &str) -> Result<ObjectImage> {
-    let lines: Vec<_> = source.lines().map(parse_line).collect::<Result<_>>()?;
+    let source_lines: Vec<&str> = source.lines().collect();
+    let lines: Vec<_> = source_lines
+        .iter()
+        .map(|line| parse_line(line))
+        .collect::<Result<_>>()?;
     let mut symbols = BTreeMap::new();
     let mut values = SymbolValues::new();
     let mut constants = BTreeMap::new();
@@ -399,6 +421,7 @@ pub fn assemble_program(source: &str) -> Result<ObjectImage> {
     }
 
     let mut text = Vec::new();
+    let mut listing = Vec::with_capacity(lines.len());
     let mut emit_values: SymbolValues = symbols
         .iter()
         .map(|(name, address)| (name.clone(), i128::from(*address)))
@@ -406,9 +429,15 @@ pub fn assemble_program(source: &str) -> Result<ObjectImage> {
     emit_values.extend(equ_values);
     let mut current_global = None;
     pc = 0;
-    for line in lines {
+    for (line_index, line) in lines.into_iter().enumerate() {
         update_scope(&line.labels, &mut current_global)?;
         if line.mnemonic.is_none() {
+            listing.push(ListingEntry {
+                source_line: u32::try_from(line_index + 1).unwrap_or(u32::MAX),
+                address: pc,
+                source: source_lines[line_index].to_owned(),
+                bytes: Vec::new(),
+            });
             continue;
         }
         if line.mnemonic.as_deref() == Some(".set") {
@@ -419,16 +448,35 @@ pub fn assemble_program(source: &str) -> Result<ObjectImage> {
                 &equ_names,
                 &mut emit_values,
             )?;
+            listing.push(ListingEntry {
+                source_line: u32::try_from(line_index + 1).unwrap_or(u32::MAX),
+                address: pc,
+                source: source_lines[line_index].to_owned(),
+                bytes: Vec::new(),
+            });
             continue;
         }
         if line.mnemonic.as_deref() == Some(".equ") {
+            listing.push(ListingEntry {
+                source_line: u32::try_from(line_index + 1).unwrap_or(u32::MAX),
+                address: pc,
+                source: source_lines[line_index].to_owned(),
+                bytes: Vec::new(),
+            });
             continue;
         }
         let scoped = scoped_symbols(&emit_values, current_global.as_deref());
         let resolved = resolve_control_label(line, pc, &scoped)?;
         let image = assemble_parsed(&resolved, pc, &scoped)?;
-        text.extend_from_slice(&image.text);
-        pc += image.text.len() as u64;
+        let bytes = image.text;
+        listing.push(ListingEntry {
+            source_line: u32::try_from(line_index + 1).unwrap_or(u32::MAX),
+            address: pc,
+            source: source_lines[line_index].to_owned(),
+            bytes: bytes.clone(),
+        });
+        text.extend_from_slice(&bytes);
+        pc += bytes.len() as u64;
     }
     let entry = symbols.get("_start").copied().unwrap_or(0);
     Ok(ObjectImage {
@@ -436,6 +484,7 @@ pub fn assemble_program(source: &str) -> Result<ObjectImage> {
         entry,
         symbols,
         constants,
+        listing,
     })
 }
 
@@ -684,6 +733,35 @@ mod tests {
             [0x93, 0x00, 0x10, 0x00]
         );
     }
+
+    #[test]
+    fn produces_a_source_address_bytes_listing() {
+        let image =
+            assemble_program("_start: addi x1,x0,1\n.equ VALUE, 7\n.balign 8\n.string \"ok\"")
+                .unwrap();
+        assert_eq!(image.listing.len(), 4);
+        assert_eq!(image.listing[0].source_line, 1);
+        assert_eq!(image.listing[0].address, 0);
+        assert_eq!(image.listing[0].source, "_start: addi x1,x0,1");
+        assert_eq!(image.listing[0].bytes, [0x93, 0x00, 0x10, 0x00]);
+        assert_eq!(image.listing[1].address, 4);
+        assert!(image.listing[1].bytes.is_empty());
+        assert_eq!(image.listing[2].address, 4);
+        assert_eq!(image.listing[2].bytes, [0, 0, 0, 0]);
+        assert_eq!(image.listing[3].address, 8);
+        assert_eq!(image.listing[3].bytes, [b'o', b'k', 0]);
+        let listed_bytes: Vec<u8> = image
+            .listing
+            .iter()
+            .flat_map(|entry| entry.bytes.iter().copied())
+            .collect();
+        assert_eq!(listed_bytes, image.text);
+
+        let single = assemble("addi x1,x0,1").unwrap();
+        assert_eq!(single.listing[0].source_line, 1);
+        assert_eq!(single.listing[0].bytes, single.text);
+    }
+
     #[test]
     fn supports_abi_aliases() {
         assert!(assemble("addi ra,zero,1").is_ok());

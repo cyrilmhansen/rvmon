@@ -388,6 +388,23 @@ Une tâche est terminée seulement si sa condition de sortie est satisfaite.
 - **Parallélisable :** oui avec DIS-001 et FP-001; non avec une modification concurrente de la grammaire des directives.
 - **Paquet de contexte minimal :** SPEC §§11–12, R4 directives, `crates/assembler/src/lib.rs`, `TESTS.md`.
 
+### ASM-003B — Produire un listing source-adresse-bytes — TERMINÉ
+
+- **Jalon / exigences :** M3; ASM-003, IO-005, DBG-001.
+- **But :** conserver dans `ObjectImage` un listing déterministe pour corréler chaque ligne source avec son adresse et les bytes effectivement émis.
+- **Non-but :** format de listing texte final, couleurs UI, sections nommées et expansion de macros.
+- **Entrées/sources :** SPEC §§9, 11, 12 et 23 (contrat assembler/listing/reproductibilité); R4 pour les directives.
+- **Fichiers/modules :** `crates/assembler/src/lib.rs`, `TESTS.md`.
+- **Étapes réalisées :** ajouter `ListingEntry`; capturer source originale et numéros 1-based; produire une entrée pour instructions, données, alignements et directives sans bytes; rendre le mode mono-ligne cohérent.
+- **Dépendances :** ASM-003A; aucun nouvel outil externe; l’interface pourra consommer le listing sans reparcourir le source.
+- **Tests :** adresses successives avec `.equ`, `.balign`, `.string`; bytes exacts; entrée vide pour directive sans émission; listing de `assemble` mono-ligne.
+- **Critères de sortie :** chaque ligne source conserve son adresse de départ; les lignes sans émission n’avancent pas le PC; les bytes du listing concaténés égalent `ObjectImage.text`.
+- **Cas limites et échecs :** padding, chaîne terminée, ligne label-only et source vide; une erreur d’assemblage ne retourne pas de listing partiel.
+- **Taille :** 3 points / 1–1,5 journée-agent, incertitude faible; équivalent indicatif 40k–100k tokens.
+- **Compétences/outils :** API Rust, invariants de mapping source/bytes, tests déterministes.
+- **Parallélisable :** oui avec DIS-001; non avec une modification concurrente de `ObjectImage`.
+- **Paquet de contexte minimal :** SPEC §§9/11/12/23, `crates/assembler/src/lib.rs`, `TESTS.md`.
+
 ### ASM-003 — Directives, chaînes, macros et listing
 
 - **Jalon / exigences :** M3; ASM-001..015, IO-001..009.
