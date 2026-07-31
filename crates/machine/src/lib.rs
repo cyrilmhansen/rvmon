@@ -232,7 +232,7 @@ impl TargetBackend for Machine {
     type Error = Diagnostic;
 
     fn capabilities(&self) -> TargetCapabilities {
-        TargetCapabilities::RV64_BARE_METAL_V1
+        TargetCapabilities::RV64_BARE_METAL_TRACE_V1
     }
 
     fn context(&self) -> TargetContext {

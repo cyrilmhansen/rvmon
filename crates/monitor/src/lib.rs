@@ -32,6 +32,7 @@ struct BackendBreakpoint {
     address: u64,
 }
 
+#[derive(Clone, Copy)]
 struct Watchpoint {
     address: u64,
     width: u64,
@@ -986,6 +987,10 @@ pub struct BackendConsole<B> {
     undo: Vec<MemoryEdit>,
     breakpoints: BTreeMap<u64, BackendBreakpoint>,
     next_breakpoint_id: u64,
+    watchpoints: BTreeMap<u64, Watchpoint>,
+    next_watchpoint_id: u64,
+    history: Vec<HistoryEntry>,
+    next_history_sequence: u64,
     max_run_steps: u64,
 }
 
@@ -1002,6 +1007,10 @@ where
             undo: Vec::new(),
             breakpoints: BTreeMap::new(),
             next_breakpoint_id: 1,
+            watchpoints: BTreeMap::new(),
+            next_watchpoint_id: 1,
+            history: Vec::new(),
+            next_history_sequence: 1,
             max_run_steps: 1000,
         }
     }
@@ -1027,7 +1036,11 @@ where
             "undo" | "u" => self.undo_edit(),
             "break" | "b" => self.add_breakpoint(argument),
             "delete" | "del" => self.delete_breakpoint(argument),
+            "watch" => self.add_watchpoint(argument, Some(MemoryAccessKind::Write)),
+            "rwatch" => self.add_watchpoint(argument, Some(MemoryAccessKind::Read)),
+            "awatch" => self.add_watchpoint(argument, None),
             "info" => self.info(argument),
+            "history" | "trace" => self.show_history(argument),
             "quit" | "exit" => Ok("bye".into()),
             _ => Err(Diagnostic::error(
                 "MON-CMD-101",
@@ -1059,6 +1072,24 @@ where
         let pc_before = self.backend.context().pc;
         let word = self.read_word(pc_before)?;
         let outcome = self.backend.step().map_err(target_error)?;
+        if let ExecutionOutcome::Retired {
+            pc_after,
+            memory_access,
+            ..
+        } = outcome
+        {
+            self.record_retired(pc_before, pc_after, word, memory_access);
+            if let Some(access) = memory_access {
+                if let Some(watchpoint) = self.watchpoint_hit(access) {
+                    return Ok(format_watchpoint_stop(
+                        watchpoint,
+                        access,
+                        self.backend.context().pc,
+                        self.next_history_sequence.saturating_sub(1),
+                    ));
+                }
+            }
+        }
         Ok(format_backend_console_step(pc_before, word, outcome))
     }
 
@@ -1086,10 +1117,28 @@ where
                     ));
                 }
             }
+            let word = self.read_word(pc)?;
             let outcome = self.backend.step().map_err(target_error)?;
             executed = executed.saturating_add(1);
             match outcome {
-                ExecutionOutcome::Retired { .. } => bypass = false,
+                ExecutionOutcome::Retired {
+                    pc_after,
+                    memory_access,
+                    ..
+                } => {
+                    self.record_retired(pc, pc_after, word, memory_access);
+                    bypass = false;
+                    if let Some(access) = memory_access {
+                        if let Some(watchpoint) = self.watchpoint_hit(access) {
+                            return Ok(format_watchpoint_stop(
+                                watchpoint,
+                                access,
+                                self.backend.context().pc,
+                                self.next_history_sequence.saturating_sub(1),
+                            ));
+                        }
+                    }
+                }
                 ExecutionOutcome::Stopped(event) => {
                     return Ok(format_backend_stop(event));
                 }
@@ -1260,13 +1309,24 @@ where
 
     fn delete_breakpoint(&mut self, argument: &str) -> Result<String> {
         let parts: Vec<_> = argument.split_whitespace().collect();
-        let [id_text] = parts.as_slice() else {
-            return Err(Diagnostic::error(
-                "MON-DEBUG-104",
-                "delete expects one breakpoint id",
-            ));
+        let (kind, id_text) = match parts.as_slice() {
+            [id] => ("break", *id),
+            [kind, id] if *kind == "break" || *kind == "breakpoint" => ("break", *id),
+            [kind, id] if *kind == "watch" || *kind == "watchpoint" => ("watch", *id),
+            _ => {
+                return Err(Diagnostic::error(
+                    "MON-DEBUG-104",
+                    "delete expects <id>, break <id>, or watch <id>",
+                ));
+            }
         };
         let id = parse_count(id_text, "MON-DEBUG-105")? as u64;
+        if kind == "watch" {
+            self.watchpoints
+                .remove(&id)
+                .ok_or_else(|| Diagnostic::error("MON-DEBUG-113", "watchpoint does not exist"))?;
+            return Ok(format!("watchpoint #{id} deleted"));
+        }
         let address = self
             .breakpoints
             .iter()
@@ -1277,6 +1337,12 @@ where
     }
 
     fn info(&self, argument: &str) -> Result<String> {
+        if argument == "watch" || argument == "watchpoints" {
+            return self.info_watchpoints();
+        }
+        if argument == "history" || argument == "trace" {
+            return Ok(format!("history: {} entr(ies)", self.history.len()));
+        }
         if !argument.is_empty() && argument != "break" && argument != "breakpoints" {
             return Err(Diagnostic::error(
                 "MON-DEBUG-107",
@@ -1294,6 +1360,149 @@ where
                 breakpoint.id, breakpoint.address
             )
             .unwrap();
+        }
+        Ok(output.trim_end().into())
+    }
+
+    fn add_watchpoint(&mut self, argument: &str, kind: Option<MemoryAccessKind>) -> Result<String> {
+        if !self.backend.capabilities().supports_watchpoints {
+            return Err(Diagnostic::error(
+                "MON-DEBUG-109",
+                "backend does not expose memory access events for watchpoints",
+            ));
+        }
+        let parts: Vec<_> = argument.split_whitespace().collect();
+        let (address_text, width) = match parts.as_slice() {
+            [address] => (*address, 1),
+            [address, width] => (
+                *address,
+                width.parse::<u64>().map_err(|_| {
+                    Diagnostic::error("MON-DEBUG-110", "watch width must be an unsigned integer")
+                })?,
+            ),
+            _ => {
+                return Err(Diagnostic::error(
+                    "MON-DEBUG-110",
+                    "watch expects <address> [width]",
+                ));
+            }
+        };
+        if !matches!(width, 1 | 2 | 4 | 8) {
+            return Err(Diagnostic::error(
+                "MON-DEBUG-110",
+                "watch width must be 1, 2, 4, or 8 bytes",
+            ));
+        }
+        let address = parse_address(address_text, "MON-DEBUG-111")?;
+        let id = self.next_watchpoint_id;
+        self.next_watchpoint_id = id
+            .checked_add(1)
+            .ok_or_else(|| Diagnostic::error("MON-DEBUG-112", "watchpoint id exhausted"))?;
+        self.watchpoints.insert(
+            id,
+            Watchpoint {
+                address,
+                width,
+                kind,
+                id,
+            },
+        );
+        let mode = match kind {
+            Some(MemoryAccessKind::Read) => "read",
+            Some(MemoryAccessKind::Write) => "write",
+            None => "access",
+        };
+        Ok(format!(
+            "watchpoint #{id} set ({mode}) at 0x{address:016x} width={width}"
+        ))
+    }
+
+    fn info_watchpoints(&self) -> Result<String> {
+        if self.watchpoints.is_empty() {
+            return Ok("watchpoints: none".into());
+        }
+        let mut output = String::from("watchpoints:\n");
+        for watchpoint in self.watchpoints.values() {
+            let mode = match watchpoint.kind {
+                Some(MemoryAccessKind::Read) => "read",
+                Some(MemoryAccessKind::Write) => "write",
+                None => "access",
+            };
+            writeln!(
+                output,
+                "  #{} {mode} at 0x{:016x} width={}",
+                watchpoint.id, watchpoint.address, watchpoint.width
+            )
+            .unwrap();
+        }
+        Ok(output.trim_end().into())
+    }
+
+    fn watchpoint_hit(&self, access: MemoryAccess) -> Option<&Watchpoint> {
+        let access_end = access.address.checked_add(u64::from(access.width))?;
+        self.watchpoints.values().find(|watchpoint| {
+            let watch_end = watchpoint.address.checked_add(watchpoint.width);
+            let kind_matches = watchpoint.kind.is_none() || watchpoint.kind == Some(access.kind);
+            kind_matches
+                && watch_end.is_some_and(|watch_end| {
+                    access.address < watch_end && watchpoint.address < access_end
+                })
+        })
+    }
+
+    fn record_retired(
+        &mut self,
+        pc_before: u64,
+        pc_after: u64,
+        word: u32,
+        memory_access: Option<MemoryAccess>,
+    ) {
+        if self.history.len() == MAX_HISTORY_ENTRIES {
+            self.history.remove(0);
+        }
+        let sequence = self.next_history_sequence;
+        self.next_history_sequence = sequence.saturating_add(1);
+        self.history.push(HistoryEntry {
+            sequence,
+            pc_before,
+            pc_after,
+            instruction: format!(".word 0x{word:08x}"),
+            memory_access,
+        });
+    }
+
+    fn show_history(&self, argument: &str) -> Result<String> {
+        let requested = if argument.is_empty() {
+            16
+        } else {
+            parse_count(argument, "MON-HIST-101")?
+        };
+        let count = requested.min(256).min(self.history.len());
+        if count == 0 {
+            return Ok("history: empty".into());
+        }
+        let start = self.history.len() - count;
+        let mut output = String::from("history:\n");
+        for entry in &self.history[start..] {
+            write!(
+                output,
+                "  #{:06}  0x{:016x} -> 0x{:016x}  {}",
+                entry.sequence, entry.pc_before, entry.pc_after, entry.instruction
+            )
+            .unwrap();
+            if let Some(access) = entry.memory_access {
+                let kind = match access.kind {
+                    MemoryAccessKind::Read => "read",
+                    MemoryAccessKind::Write => "write",
+                };
+                write!(
+                    output,
+                    " [{kind} 0x{:016x}/{}]",
+                    access.address, access.width
+                )
+                .unwrap();
+            }
+            output.push('\n');
         }
         Ok(output.trim_end().into())
     }
@@ -1374,6 +1583,11 @@ fn backend_help() -> String {
         "break <addr>         stop before a target address",
         "delete <id>          remove a backend breakpoint",
         "info break           list backend breakpoints",
+        "watch <addr> [w]     stop on target memory writes",
+        "rwatch <addr> [w]    stop on target memory reads",
+        "awatch <addr> [w]    stop on target reads or writes",
+        "info watch           list backend watchpoints",
+        "history [count]      show bounded target execution history",
         "quit                 close the console",
     ]
     .join("\n")
@@ -2181,5 +2395,37 @@ mod tests {
         console.execute("edit 0 13 00 20 00").unwrap();
         console.execute("undo").unwrap();
         assert_eq!(console.execute("memory 0 4").unwrap(), original);
+
+        let mut memory_console = BackendConsole::new(Machine::new(128));
+        memory_console.execute("assemble lw x1,8(x0)").unwrap();
+        memory_console.execute("edit 8 44 33 22 11").unwrap();
+        assert!(
+            memory_console
+                .execute("rwatch 8 4")
+                .unwrap()
+                .contains("watchpoint #1")
+        );
+        assert!(
+            memory_console
+                .execute("run 1")
+                .unwrap()
+                .contains("watchpoint #1")
+        );
+        assert!(
+            memory_console
+                .execute("history")
+                .unwrap()
+                .contains("read 0x0000000000000008/4")
+        );
+        assert!(
+            memory_console
+                .execute("info watch")
+                .unwrap()
+                .contains("#1 read")
+        );
+        assert_eq!(
+            memory_console.execute("delete watch 1").unwrap(),
+            "watchpoint #1 deleted"
+        );
     }
 }

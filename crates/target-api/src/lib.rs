@@ -117,6 +117,8 @@ pub struct TargetCapabilities {
     pub supports_f: bool,
     pub supports_d: bool,
     pub supports_compressed: bool,
+    /// The backend emits memory access events suitable for monitor watchpoints.
+    /// This may be a native debug feature or an execution trace.
     pub supports_watchpoints: bool,
     pub hart_count: u16,
 }
@@ -140,6 +142,13 @@ impl TargetCapabilities {
         supports_compressed: false,
         supports_watchpoints: false,
         hart_count: 1,
+    };
+
+    /// Host-observable memory access trace is available for monitor-level
+    /// watchpoint emulation, even when the target has no native debug unit.
+    pub const RV64_BARE_METAL_TRACE_V1: Self = Self {
+        supports_watchpoints: true,
+        ..Self::RV64_BARE_METAL_V1
     };
 }
 

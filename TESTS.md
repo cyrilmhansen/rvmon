@@ -131,9 +131,9 @@ capture l’adresse de la vue courante, tandis que `mark name address` l’assoc
 navigation et de vue, et `reset` supprime les marques.
 
 Le moniteur hôte implémente des breakpoints logiques et des watchpoints sur
-lectures, écritures ou les deux. `supports_watchpoints` décrit la capacité
-native du backend ; cette tranche fournit une émulation logicielle côté
-moniteur hôte. Un breakpoint arrête avant l’instruction ;
+lectures, écritures ou les deux. `supports_watchpoints` indique que le
+backend expose des événements d’accès utilisables par le moniteur, par unité
+de debug native ou par trace d’exécution. Un breakpoint arrête avant l’instruction ;
 `continue` franchit celui qui se trouve au PC courant une seule fois. Un
 watchpoint arrête après l’instruction et rapporte l’accès mémoire observé. La
 machine expose ces accès dans `ExecutionOutcome`; un backend qui ne peut pas
@@ -175,12 +175,14 @@ lecture de la RAM à `0x80000000` puis un pas.
 communes `assemble`, `step`, `run`, `continue`, `regs`, `memory`, `view`,
 `edit`, `undo`, `break`, `delete` et `info break`. Ses breakpoints sont
 logiques côté moniteur : ils arrêtent avant l’appel au backend et ne modifient
-pas la mémoire cible.
+pas la mémoire cible. Les commandes `watch`, `rwatch`, `awatch`, `info watch`
+et `history` utilisent les `MemoryAccess` et l’historique borné retournés par
+le backend ; elles sont refusées proprement lorsque ces événements ne sont
+pas disponibles.
 `luna-app --qemu-port PORT` sélectionne ce chemin et l’intègre à la boucle
 interactive ; la sonde live vérifie les registres, la RAM QEMU et le pas depuis
-le PC de reset. Les symboles multi-lignes, snapshots et watchpoints restent
-dans le profil `Monitor` historique jusqu’à leur migration explicite vers le
-contrat backend.
+le PC de reset. Les symboles multi-lignes et snapshots restent dans le profil
+`Monitor` historique jusqu’à leur migration explicite vers le contrat backend.
 
 Le crate `luna-guest-monitor` est une première tranche d’intégration hors
 `cargo test` : il est compilé pour `riscv64gc-unknown-none-elf`, mais les
