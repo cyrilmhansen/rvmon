@@ -524,6 +524,23 @@ Une tâche est terminée seulement si sa condition de sortie est satisfaite.
 - **Parallélisable :** oui avec FP-001 et ASM-003; non avec une modification concurrente du format `DisassembledItem`.
 - **Paquet de contexte minimal :** SPEC §§13–15/23, R1/R2, `crates/disassembler/src/lib.rs`, `TESTS.md`.
 
+### DIS-001B — Intégrer les régions mixtes dans les consoles — TERMINÉ
+
+- **Jalon / exigences :** M3/M6; DIS-001..006, MEM-001..012, CMD-001..005, REQ-PROD-005.
+- **But :** exposer le désassemblage code/données dans les consoles locale et backend sans modifier la commande `disasm` historique.
+- **Non-but :** détection automatique des frontières, persistance des marques de type code/data, support C 16 bits ou édition de la carte par interface graphique.
+- **Entrées/sources :** SPEC §§10, 13–15 (commandes, désassemblage et vues mémoire), §20 (limites interactives), §23 (tests interactifs); contrat `luna-disassembler::disassemble_regions`; décision locale de syntaxe `disasm-mixed [addr] code:n,data:n,...`.
+- **Fichiers/modules :** `crates/monitor/src/lib.rs`, `TESTS.md`, `BACKLOG.md`.
+- **Étapes réalisées :** ajouter la commande `disasm-mixed` et les alias `mixed`/`dm`; parser les segments code/data et leur taille; lire une plage bornée via `TargetBackend`; rendre instructions et `.byte` dans un format commun; mettre à jour l’adresse de vue sans modifier le PC; exposer l’aide dans les deux consoles.
+- **Dépendances :** DIS-001A et `TargetBackend`; aucune dépendance externe; prépare une future carte de régions persistée et l’intégration QEMU/guest.
+- **Tests :** commande locale code/data/code; commande backend code/data/code; données non décodées; affichage des deux instructions et de l’adresse de vue; suite workspace.
+- **Critères de sortie :** `mixed 0 c:4,d:3,c:4` produit les deux instructions et une directive `.byte`; les lectures restent limitées à 4096 octets; la commande historique `disasm` conserve son résultat.
+- **Cas limites et échecs :** segment inconnu, longueur nulle, spécification vide, taille supérieure à la limite, code tronqué et adresse de lecture hors mémoire.
+- **Taille :** 3 points / 1–1,5 journée-agent, incertitude faible; équivalent indicatif 40k–100k tokens.
+- **Compétences/outils :** commandes interactives, backend générique, formatage déterministe, tests Rust.
+- **Parallélisable :** oui avec FP-001; non avec une modification concurrente de la syntaxe des commandes mémoire/désassemblage.
+- **Paquet de contexte minimal :** SPEC §§10/13–15/20/23, `crates/monitor/src/lib.rs`, `crates/disassembler/src/lib.rs`, `TESTS.md`.
+
 ### DIS-001 — Désassembleur canonique et symbolisation
 
 - **Jalon / exigences :** M3; DIS-001..006, MEM-001..012.

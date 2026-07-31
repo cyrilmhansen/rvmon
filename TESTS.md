@@ -15,7 +15,7 @@ Validation locale complète :
     bash scripts/test-qemu-gdb-backend.sh
     git diff --check
 
-La suite actuelle exécute 115 tests unitaires/intégration répartis dans les crates. Les doc-tests compilent mais ne contiennent actuellement aucun cas. Le script QEMU ouvre en plus une session GDB RSP réelle, hors comptage Cargo.
+La suite actuelle exécute 117 tests unitaires/intégration répartis dans les crates. Les doc-tests compilent mais ne contiennent actuellement aucun cas. Le script QEMU ouvre en plus une session GDB RSP réelle, hors comptage Cargo.
 
 Démonstration M-mode/U-mode sous QEMU :
 
@@ -48,7 +48,7 @@ Moniteur texte interactif :
 | luna-machine | 13 | Exécution entière, branches, mémoire, tables de pointeurs ILP32, fadd.s, fadd.d, NaN-boxing, flags, contrat backend et snapshot cible. |
 | luna-disassembler | 10 | Format canonique, symboles, opcodes illégaux, régions code/données explicites, C rejeté et round-trip. |
 | luna-floatfmt | 3 | Bits hex exacts, décimal court, classes IEEE et NaN-box invalide. |
-| luna-monitor | 19 | assemble → step → regs, affichage flottant, run borné, vues mémoire hex/ASCII, édition/undo, console backend-générique, marques QuickJump, breakpoints, watchpoints, symboles, pile, historique et persistance. |
+| luna-monitor | 21 | assemble → step → regs, affichage flottant, run borné, vues mémoire hex/ASCII, désassemblage mixte code/données, édition/undo, console backend-générique, marques QuickJump, breakpoints, watchpoints, symboles, pile, historique et persistance. |
 | luna-target-api | 4 | Contexte de trap, capacités explicites RV64 bare-metal, codes `mcause`, contrat de layout, résultats et accès mémoire du backend commun. |
 | luna-qemu-backend | 7 | Framing GDB RSP, checksum, lecture mémoire, layouts RV64 entier et F/D, stop reply, initialisation `?`, pas et budget nul. |
 | luna-guest-monitor | 0 | Image bare-metal, boot QEMU, PMP, transition M→U, lecture/édition mémoire transactionnelle, `undo`, directives exactes `.word`/`.float`/`.binary128`, assemblage invité entier/flottant, `setf`, NaN-boxing et traps; vérifié par smoke test QEMU. |
@@ -174,13 +174,19 @@ Les tests du moniteur utilisent son API déterministe, pas un terminal réel. Il
 2. assemble fadd.s, step, puis le motif flottant et fcsr ;
 3. run 3 sur une boucle et respect de la borne.
 
-Les commandes couvertes sont help, assemble, step, run, disasm, regs, reset, memory/hex, view, edit, undo et quit dans le moniteur hôte. Le backend QEMU couvre en plus `break`, `delete`, `info break` et `continue`, avec validation UART de l’arrêt sur breakpoint permanent et de son réarmement après un pas de franchissement. L’entrée/sortie interactive complète, les couleurs, le clavier, les marques et l’édition mémoire QEMU restent à tester.
+Les commandes couvertes sont help, assemble, step, run, disasm, disasm-mixed, regs, reset, memory/hex, view, edit, undo et quit dans le moniteur hôte. Le backend QEMU couvre en plus `break`, `delete`, `info break` et `continue`, avec validation UART de l’arrêt sur breakpoint permanent et de son réarmement après un pas de franchissement. L’entrée/sortie interactive complète, les couleurs, le clavier, les marques et l’édition mémoire QEMU restent à tester.
 
 La vue mémoire utilise 16 octets par ligne, affiche les octets exacts et
 remplace les caractères non imprimables par `.` dans la colonne ASCII. `edit`
 effectue une lecture de sauvegarde puis une écriture via `TargetBackend`; une
 erreur de plage ne modifie donc pas la mémoire. `undo` restaure au maximum les
 64 dernières éditions, avec une limite de 4096 octets par opération.
+
+La commande `disasm-mixed [addr] code:n,data:n,...` (alias `mixed`) lit une plage
+bornée depuis la cible et applique les marques fournies par l’utilisateur.
+Les régions `code` sont affichées comme instructions; les régions `data` comme
+`.byte` et ne sont jamais décodées. La syntaxe exige une couverture contiguë
+implicitement construite par les longueurs et reste limitée à 4096 octets.
 
 Les marques sont des noms ASCII stables de 32 octets maximum. `mark name`
 capture l’adresse de la vue courante, tandis que `mark name address` l’associe

@@ -7,7 +7,10 @@ use std::path::Path;
 
 use luna_assembler::{assemble, assemble_program as assemble_source_program};
 use luna_diag::{Diagnostic, Result};
-use luna_disassembler::disassemble_word;
+use luna_disassembler::{
+    DisassembledItem, DisassemblyRegion, DisassemblyRegionKind, disassemble_regions,
+    disassemble_word,
+};
 use luna_isa::Instruction;
 use luna_machine::{FFLAG_DZ, FFLAG_NV, FFLAG_NX, FFLAG_OF, FFLAG_UF, Machine};
 use luna_target_api::{ExecutionOutcome, MemoryAccess, MemoryAccessKind, StopEvent, TargetBackend};
@@ -127,6 +130,7 @@ impl Monitor {
             "run" | "r" => self.run(argument),
             "continue" | "c" => self.continue_target(argument),
             "disasm" | "d" => self.disassemble(argument),
+            "disasm-mixed" | "mixed" | "dm" => self.disassemble_mixed(argument),
             "memory" | "mem" | "hex" | "ascii" => self.memory_view(argument),
             "view" | "jump" => self.set_view(argument),
             "edit" | "e" => self.edit_memory(argument),
@@ -594,6 +598,34 @@ impl Monitor {
         Ok(output.trim_end().into())
     }
 
+    fn disassemble_mixed(&mut self, argument: &str) -> Result<String> {
+        let parts: Vec<_> = argument.split_whitespace().collect();
+        let (address, spec) = match parts.as_slice() {
+            [spec] => (self.machine.pc, *spec),
+            [address, spec] => (
+                self.resolve_address(address, "MON-DISASM-MIXED-001")?,
+                *spec,
+            ),
+            _ => {
+                return Err(Diagnostic::error(
+                    "MON-DISASM-MIXED-001",
+                    "disasm-mixed expects [addr] code:n,data:n,...",
+                ));
+            }
+        };
+        let regions = parse_mixed_regions(spec, "MON-DISASM-MIXED-002")?;
+        let total = regions.iter().try_fold(0usize, |total, region| {
+            total.checked_add(region.length).ok_or_else(|| {
+                Diagnostic::error("MON-DISASM-MIXED-003", "mixed view size overflows")
+            })
+        })?;
+        let mut bytes = vec![0u8; total];
+        TargetBackend::read_memory(&mut self.machine, address, &mut bytes)?;
+        let items = disassemble_regions(&bytes, address, &regions, &self.symbols)?;
+        self.view_address = address;
+        Ok(format_mixed_disassembly(&items))
+    }
+
     fn read_word(&mut self, address: u64) -> Result<u32> {
         let mut bytes = [0u8; 4];
         TargetBackend::read_memory(&mut self.machine, address, &mut bytes)?;
@@ -1047,6 +1079,7 @@ where
             "continue" | "c" => self.continue_target(argument),
             "regs" | "registers" => Ok(self.registers()),
             "disasm" | "d" => self.disassemble(argument),
+            "disasm-mixed" | "mixed" | "dm" => self.disassemble_mixed(argument),
             "symbols" => self.show_symbols(),
             "where" => Ok(self.show_location()),
             "memory" | "mem" | "hex" | "ascii" => self.memory(argument),
@@ -1281,6 +1314,42 @@ where
             writeln!(output, "0x{address:016x}: {word:08x}  {}", line.text).unwrap();
         }
         Ok(output.trim_end().into())
+    }
+
+    fn disassemble_mixed(&mut self, argument: &str) -> Result<String> {
+        let parts: Vec<_> = argument.split_whitespace().collect();
+        let (address, spec) = match parts.as_slice() {
+            [spec] => (self.backend.context().pc, *spec),
+            [address, spec] => (
+                self.resolve_address(address, "MON-DISASM-MIXED-101")?,
+                *spec,
+            ),
+            _ => {
+                return Err(Diagnostic::error(
+                    "MON-DISASM-MIXED-101",
+                    "disasm-mixed expects [addr] code:n,data:n,...",
+                ));
+            }
+        };
+        let regions = parse_mixed_regions(spec, "MON-DISASM-MIXED-102")?;
+        let total = regions.iter().try_fold(0usize, |total, region| {
+            total.checked_add(region.length).ok_or_else(|| {
+                Diagnostic::error("MON-DISASM-MIXED-103", "mixed view size overflows")
+            })
+        })?;
+        if total > MAX_MEMORY_VIEW_BYTES {
+            return Err(Diagnostic::error(
+                "MON-DISASM-MIXED-103",
+                "mixed disassembly exceeds the 4096-byte interactive limit",
+            ));
+        }
+        let mut bytes = vec![0u8; total];
+        self.backend
+            .read_memory(address, &mut bytes)
+            .map_err(target_error)?;
+        let items = disassemble_regions(&bytes, address, &regions, &self.symbols)?;
+        self.view_address = address;
+        Ok(format_mixed_disassembly(&items))
     }
 
     fn show_symbols(&self) -> Result<String> {
@@ -1787,6 +1856,81 @@ fn target_error<E: std::fmt::Debug>(error: E) -> Diagnostic {
     )
 }
 
+fn parse_mixed_regions(spec: &str, code: &'static str) -> Result<Vec<DisassemblyRegion>> {
+    if spec.is_empty() {
+        return Err(Diagnostic::error(
+            code,
+            "mixed specification cannot be empty",
+        ));
+    }
+    let mut offset = 0usize;
+    let mut regions = Vec::new();
+    for part in spec.split(',') {
+        let Some((kind, length)) = part.split_once(':') else {
+            return Err(Diagnostic::error(
+                code,
+                "mixed regions use code:n or data:n",
+            ));
+        };
+        let kind = match kind.to_ascii_lowercase().as_str() {
+            "c" | "code" => DisassemblyRegionKind::Code,
+            "d" | "data" => DisassemblyRegionKind::Data,
+            _ => {
+                return Err(Diagnostic::error(
+                    code,
+                    "mixed region kind must be code or data",
+                ));
+            }
+        };
+        let length = parse_count(length, code)?;
+        if length == 0 {
+            return Err(Diagnostic::error(
+                code,
+                "mixed region length must be positive",
+            ));
+        }
+        offset = offset
+            .checked_add(length)
+            .ok_or_else(|| Diagnostic::error(code, "mixed specification size overflows"))?;
+        if offset > MAX_MEMORY_VIEW_BYTES {
+            return Err(Diagnostic::error(
+                code,
+                "mixed disassembly exceeds the 4096-byte interactive limit",
+            ));
+        }
+        regions.push(DisassemblyRegion {
+            offset: offset - length,
+            length,
+            kind,
+        });
+    }
+    Ok(regions)
+}
+
+fn format_mixed_disassembly(items: &[DisassembledItem]) -> String {
+    let mut output = String::new();
+    for item in items {
+        match item {
+            DisassembledItem::Instruction(line) => {
+                writeln!(
+                    output,
+                    "0x{:016x}: {:08x}  {}",
+                    line.address, line.word, line.text
+                )
+                .unwrap();
+            }
+            DisassembledItem::Data(line) => {
+                write!(output, "0x{:016x}: ", line.address).unwrap();
+                for byte in &line.bytes {
+                    write!(output, "{byte:02x} ").unwrap();
+                }
+                writeln!(output, " {}", line.text).unwrap();
+            }
+        }
+    }
+    output.trim_end().into()
+}
+
 fn format_backend_console_step(
     pc: u64,
     word: u32,
@@ -1847,6 +1991,7 @@ fn backend_help() -> String {
         "continue [count]     resume, bypassing a breakpoint at current pc",
         "regs                 show target registers and capabilities",
         "disasm [addr] [n]    disassemble target words with symbols",
+        "disasm-mixed [addr] c:n,d:n,...  disassemble marked code/data",
         "symbols              list loaded symbols",
         "where                show pc, nearest symbol and memory view",
         "memory [addr] [n]    show target memory as hex/ASCII",
@@ -1953,6 +2098,7 @@ fn help() -> String {
         "project-save <path>  save source plus state",
         "project-load <path>  restore a project",
         "regs                 show x/f registers and fcsr exactly",
+        "disasm-mixed [addr] c:n,d:n,...  disassemble marked code/data",
         "reset                reset machine state",
         "quit                 leave the interactive monitor",
     ]
@@ -2493,6 +2639,26 @@ mod tests {
     }
 
     #[test]
+    fn mixed_disassembly_command_marks_data_without_decoding_it() {
+        let mut monitor = Monitor::new(128);
+        monitor.execute("assemble addi x1,x0,1").unwrap();
+        monitor.execute("edit 4 de ad be").unwrap();
+        monitor.execute("edit 7 13 01 20 00").unwrap();
+        let output = monitor.execute("disasm-mixed 0 c:4,d:3,c:4").unwrap();
+        assert!(output.contains("addi x1,x0,1"));
+        assert!(output.contains(".byte 0xde,0xad,0xbe"));
+        assert!(output.contains("addi x2,x0,2"));
+        assert_eq!(monitor.view_address, 0);
+        assert_eq!(
+            monitor
+                .execute("disasm-mixed 0 c:4,data:0")
+                .unwrap_err()
+                .code,
+            "MON-DISASM-MIXED-002"
+        );
+    }
+
+    #[test]
     fn memory_edit_and_undo_restore_bytes_through_backend() {
         let mut monitor = Monitor::new(128);
         monitor.execute("edit 0x10 deadbeef").unwrap();
@@ -2731,6 +2897,19 @@ mod tests {
         assert!(monitor.execute("symbols").unwrap().contains("done"));
         assert!(monitor.execute("where").unwrap().contains("_start"));
         std::fs::remove_file(path).unwrap();
+    }
+
+    #[test]
+    fn backend_console_exposes_mixed_disassembly() {
+        let mut console = BackendConsole::new(Machine::new(128));
+        console.execute("assemble addi x1,x0,1").unwrap();
+        console.execute("edit 4 de ad be").unwrap();
+        console.execute("edit 7 13 01 20 00").unwrap();
+        let output = console.execute("mixed 0 code:4,data:3,code:4").unwrap();
+        assert!(output.contains("addi x1,x0,1"));
+        assert!(output.contains(".byte 0xde,0xad,0xbe"));
+        assert!(output.contains("addi x2,x0,2"));
+        assert_eq!(console.view_address, 0);
     }
 
     #[test]
