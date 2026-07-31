@@ -250,6 +250,23 @@ Une tâche est terminée seulement si sa condition de sortie est satisfaite.
 - **Parallélisable :** non, intégration.
 - **Contexte minimal :** règle utilisateur 7, SPEC scénario 1.
 
+### GUEST-001 — Couvrir le moniteur interne par un E2E UART QEMU — TERMINÉ
+
+- **Jalon / exigences :** M2/M5/M7; REQ-PROD-001..005, ISA-001..003, FP-001..006, DBG-001..006, ISO-001..004.
+- **But :** vérifier dans une image bare-metal réelle la chaîne source → assemblage invité → mémoire cible → pas-à-pas → registres, avec les opérations flottantes et les transferts de bits déjà exposés par le backend.
+- **Non-but :** livrer l’interface terminal complète, les snapshots invités, le backend GDB externe ou le support de toute la grammaire assembleur hôte.
+- **Entrées/sources :** SPEC §§5, 8, 10, 14, 16, 18, 23 et 24; R1 Unprivileged ISA; R2 commit épinglé et artefacts générés; `docs/TUTORIAL-GUEST.md`.
+- **Fichiers/modules :** `crates/guest-monitor/src/main.rs`, `scripts/test-guest-monitor.sh`, `docs/TESTS.md`, `docs/TUTORIAL-GUEST.md`.
+- **Étapes réalisées :** parser et désassembleur invités pour `fmv.w.x`, `fmv.x.w`, `fmv.d.x` et `fmv.x.d` via `GENERATED_OPCODES`; scénario UART avec adresses découvertes par `nm`; contrôles des branches, breakpoints, édition/annulation mémoire, directives exactes, `fadd.s`, `fadd.d`, NaN-boxing et transferts de bits.
+- **Dépendances et tâches bloquées :** image guest et artefacts R2 existants; la parité complète des commandes, les watches et les snapshots restent différés.
+- **Tests :** `bash scripts/test-guest-monitor.sh`; le script compile l’image, lance QEMU avec timeout borné et vérifie les sorties UART et motifs de registres exacts.
+- **Critères de sortie :** le script passe depuis un arbre propre sans adresse codée en dur; huit instructions source sont assemblées; `f3`, `f6`, `f7`, `x8` et `x1` correspondent aux motifs attendus; l’annulation restaure chaque écriture testée.
+- **Cas limites et échecs :** fenêtre de travail hors RAM refusée; instruction sautée non exécutée; source non supportée diagnostiquée; timeout ou absence de symbole provoque un échec non ambigu.
+- **Taille :** 3 points / 1,5 journée-agent, incertitude faible; équivalent indicatif 60k–120k tokens.
+- **Compétences/outils :** Rust `no_std`, RISC-V F/D, QEMU virt, UART, `nm`, shell POSIX.
+- **Parallélisable :** oui avec la documentation et les oracles; non avec une modification simultanée du protocole UART guest.
+- **Paquet de contexte minimal :** `crates/guest-monitor/src/main.rs`, `scripts/test-guest-monitor.sh`, `docs/TESTS.md`, `docs/TUTORIAL-GUEST.md`, SPEC §§8/10/16/18/24.
+
 ## M3 — assembleur et désassembleur
 
 ### ISA-003 — Étendre la tranche RV64 aux loads/stores 64 bits — TERMINÉ

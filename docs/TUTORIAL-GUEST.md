@@ -16,8 +16,9 @@ terminal                           <-- commandes et diagnostics UART
 Ce binaire invité est actuellement un moniteur de démarrage et de débogage
 minimal. Il fournit déjà l’inspection des registres, la lecture mémoire et
 des commandes `assemble` et `assemble-program` limitées à `addi`, `lui`,
-`beq`, `bne`, `jal`, `jalr`, `ld`, `sd`, `fadd.s` et `fadd.d`. Les vues
-les directives et les snapshots restent à porter. Le programme U-mode de
+`beq`, `bne`, `jal`, `jalr`, `ld`, `sd`, `fadd.s`, `fadd.d`, `fmv.w.x` et
+`fmv.x.w`. Les vues, les directives et les snapshots restent à porter. Le
+programme U-mode de
 démonstration est lié dans l’image et sert à valider les traps, les
 breakpoints logiciels et le pas-à-pas.
 
@@ -176,7 +177,7 @@ Chaque ligne est validée avant toute écriture ; `end` termine la saisie :
 
 ```text
 rvmonitor> assemble-program 0x80010a30
-source mode: enter integer/control, lui/auipc, ld/sd or fadd.s/fadd.d lines, finish with end
+source mode: enter integer/control, lui/auipc, ld/sd, fadd.s/fadd.d or fmv lines, finish with end
 source> _start:
 source> addi x1,x0,1
 source> beq x1,x1,next
@@ -214,7 +215,7 @@ Le tampon accepte au maximum 16 lignes de 96 caractères et huit labels. Les
 labels ASCII (`a-z`, chiffres, `_`, `.` et `$`) occupent l’adresse courante
 sans produire d’instruction. L’adresse de l’exemple doit correspondre à une
 zone RAM libre, qui ne recouvre ni le code, ni la pile, ni les données du
-moniteur ; le smoke test la calcule à partir de `_target_workspace_start` avec
+moniteur ; le test E2E la calcule à partir de `_target_workspace_start` avec
 `nm`.
 
 ### Exécuter une instruction
@@ -328,11 +329,11 @@ le terminal hôte.
 
 ## 4. Session complète reproductible
 
-Le smoke test fourni automatise une session UART et vérifie les sorties :
+Le test E2E fourni automatise une session UART et vérifie les sorties :
 
 ```text
 $ bash scripts/test-guest-monitor.sh
-guest monitor QEMU smoke test passed
+guest monitor QEMU end-to-end test passed
 ```
 
 Le script :
@@ -343,7 +344,8 @@ Le script :
 4. envoie `help`, `regs`, `memory`, `edit`, `undo`, `break`, `info break`,
    `continue`, `step`, `delete` et `assemble-program` sur l’UART ;
 5. vérifie les modifications de `x1`, les motifs exacts de `f3`/`f6`,
-   `fcsr`, les encodages flottants et les diagnostics de trap.
+   les transferts `fmv.w.x`/`fmv.x.w` et leur NaN-boxing, `fcsr`, les
+   encodages flottants et les diagnostics de trap.
 
 Pour observer la même session manuellement, démarrer QEMU dans un terminal,
 puis saisir les commandes une par une dans son terminal UART.

@@ -616,6 +616,38 @@ fn print_disassembled_word(address: u64, word: u32) {
             return;
         }
     }
+    for (mnemonic, rd_float, rs1_float) in [
+        ("fmv.w.x", true, false),
+        ("fmv.x.w", false, true),
+        ("fmv.d.x", true, false),
+        ("fmv.x.d", false, true),
+    ] {
+        let Some(opcode) = GENERATED_OPCODES
+            .iter()
+            .find(|opcode| opcode.mnemonic == mnemonic)
+        else {
+            continue;
+        };
+        if word & opcode.mask != opcode.match_value {
+            continue;
+        }
+        uart_write(mnemonic);
+        uart_write(" ");
+        if rd_float {
+            uart_write("f");
+        } else {
+            uart_write("x");
+        }
+        uart_decimal(u64::from((word >> 7) & 31));
+        uart_write(",");
+        if rs1_float {
+            uart_write("f");
+        } else {
+            uart_write("x");
+        }
+        uart_decimal(u64::from((word >> 15) & 31));
+        return;
+    }
     if word & 0x7f == 0x63 {
         let mnemonic = match (word >> 12) & 0x7 {
             0b000 => "beq",
@@ -773,7 +805,7 @@ fn assemble_program_command(context: *mut TargetContext, argument: &[u8]) {
     }
 
     uart_write(
-        "source mode: enter integer/control, ld/sd or fadd.s/fadd.d lines, finish with end\r\n",
+        "source mode: enter integer/control, ld/sd, fadd.s/fadd.d or fmv lines, finish with end\r\n",
     );
     let mut lines = [[0u8; COMMAND_CAPACITY]; MAX_SOURCE_LINES];
     let mut lengths = [0usize; MAX_SOURCE_LINES];
@@ -863,7 +895,7 @@ fn assemble_program_command(context: *mut TargetContext, argument: &[u8]) {
         }
         let Some(word) = parse_source_instruction(line, line_address, &staged_symbols) else {
             uart_write(
-                "error: source line supports integer/control, ld/sd or fadd.s/fadd.d syntax\r\n",
+                "error: source line supports integer/control, ld/sd, fadd.s/fadd.d or fmv syntax\r\n",
             );
             return;
         };
@@ -942,6 +974,18 @@ fn parse_source_instruction(
     }
     if let Some(operands) = source.strip_prefix(b"fadd.d ") {
         return parse_fadd_operands("fadd.d", operands);
+    }
+    for (mnemonic, rd_float, rs1_float) in [
+        ("fmv.w.x", true, false),
+        ("fmv.x.w", false, true),
+        ("fmv.d.x", true, false),
+        ("fmv.x.d", false, true),
+    ] {
+        if let Some(operands) = source.strip_prefix(mnemonic.as_bytes()) {
+            if let Some(operands) = operands.strip_prefix(b" ") {
+                return parse_float_move_operands(mnemonic, operands, rd_float, rs1_float);
+            }
+        }
     }
     None
 }
@@ -1033,6 +1077,29 @@ fn parse_fadd_operands(mnemonic: &str, operands: &[u8]) -> Option<u32> {
         (value <= 7).then_some(value as u8)?
     };
     luna_isa_core::encode_f_r(mnemonic, rd, rs1, rs2, rm)
+}
+
+fn parse_float_move_operands(
+    mnemonic: &str,
+    operands: &[u8],
+    rd_float: bool,
+    rs1_float: bool,
+) -> Option<u32> {
+    let (rd_bytes, rs1_bytes) = split_once_comma(operands)?;
+    let rd = if rd_float {
+        parse_float_register(rd_bytes.trim_ascii())?
+    } else {
+        parse_register(rd_bytes.trim_ascii())?
+    };
+    let rs1 = if rs1_float {
+        parse_float_register(rs1_bytes.trim_ascii())?
+    } else {
+        parse_register(rs1_bytes.trim_ascii())?
+    };
+    let opcode = GENERATED_OPCODES
+        .iter()
+        .find(|opcode| opcode.mnemonic == mnemonic)?;
+    Some(opcode.match_value | ((rs1 as u32) << 15) | ((rd as u32) << 7))
 }
 
 fn split_once_left_paren(input: &[u8]) -> Option<(&[u8], &[u8])> {

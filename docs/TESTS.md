@@ -55,7 +55,7 @@ Moniteur texte interactif :
 | luna-monitor | 23 | assemble → step → regs, affichage flottant, run borné, vues mémoire hex/ASCII, désassemblage mixte code/données/C, édition/undo, console backend-générique, marques QuickJump, breakpoints, watchpoints, symboles, pile, historique et persistance. |
 | luna-target-api | 4 | Contexte de trap, capacités explicites RV64 bare-metal, codes `mcause`, contrat de layout, résultats et accès mémoire du backend commun. |
 | luna-qemu-backend | 7 | Framing GDB RSP, checksum, lecture mémoire, layouts RV64 entier et F/D, stop reply, initialisation `?`, pas et budget nul. |
-| luna-guest-monitor | 0 | Image bare-metal, boot QEMU, PMP, transition M→U, lecture/édition mémoire transactionnelle, `undo`, directives exactes `.word`/`.float`/`.binary128`, assemblage invité entier/flottant, `setf`, NaN-boxing et traps; vérifié par smoke test QEMU. |
+| luna-guest-monitor | 0 | Image bare-metal, boot QEMU, PMP, transition M→U, lecture/édition mémoire transactionnelle, `undo`, directives exactes `.word`/`.float`/`.binary128`, assemblage invité entier/flottant, `setf`, NaN-boxing, `fmv.w.x`/`fmv.x.w` et traps; vérifié par E2E UART QEMU. |
 | luna-app | 0 | Compilation du binaire et démonstration ; pas encore d’E2E terminal. |
 | luna-diag | 0 | Types utilisés par les autres crates ; pas de test dédié. |
 
@@ -287,18 +287,19 @@ Le trap capture les registres entiers, flottants, `fcsr`, `mstatus`, `mepc`,
 
 Le linker réserve une fenêtre `.target_workspace` distincte de l’image et de
 la pile du moniteur. Les commandes guest `assemble` et `assemble-program` ne
-peuvent écrire que dans cette fenêtre ; le smoke test récupère son adresse
+peuvent écrire que dans cette fenêtre ; le test E2E récupère son adresse
 avec `_target_workspace_start` et `nm` pour éviter toute dépendance à une
 adresse fixe.
 
-Le smoke test résout `target_entry` dans l’image avec `riscv64-linux-gnu-nm`,
+Le test E2E résout `target_entry` dans l’image avec `riscv64-linux-gnu-nm`,
 pose un breakpoint permanent sur le `beq`, vérifie `info break`, exécute
 `continue` jusqu’à ce breakpoint, puis exécute un second `continue` pour
 franchir l’instruction originale et vérifier le réarmement. Il supprime ensuite
 le breakpoint et reprend deux pas temporaires. La séquence vérifie la
 restauration des mots, les instructions séquentielles, `beq`/`bne`, `jal` et
-`jalr` du profil actuellement émis. Il assemble enfin six lignes, dont une
-branche avec labels, une instruction ignorée et `fadd.s`/`fadd.d`, dans la
+`jalr` du profil actuellement émis. Il assemble enfin huit lignes, dont une
+branche avec labels, une instruction ignorée, `fadd.s`/`fadd.d` et les
+transferts `fmv.w.x`/`fmv.x.w`, dans la
 fenêtre de travail réservée. Il édite quatre octets, vérifie la vue mémoire et
 restaure la transaction par `undo`, écrit `.word`, `.float` et `.binary128` en
 motifs exacts puis annule chaque écriture. Il vérifie ensuite `symbols`,
