@@ -7,7 +7,7 @@ use luna_assembler::assemble;
 use luna_diag::{Diagnostic, Result};
 use luna_disassembler::disassemble_word;
 use luna_machine::{FFLAG_DZ, FFLAG_NV, FFLAG_NX, FFLAG_OF, FFLAG_UF, Machine};
-use luna_target_api::{ExecutionOutcome, TargetBackend};
+use luna_target_api::{ExecutionOutcome, MemoryAccess, MemoryAccessKind, StopEvent, TargetBackend};
 
 const DEFAULT_MEMORY_VIEW_BYTES: usize = 64;
 const MAX_MEMORY_VIEW_BYTES: usize = 4096;
@@ -19,6 +19,13 @@ struct MemoryEdit {
     previous: Vec<u8>,
 }
 
+struct Watchpoint {
+    address: u64,
+    width: u64,
+    kind: Option<MemoryAccessKind>,
+    id: u64,
+}
+
 pub struct Monitor {
     pub machine: Machine,
     symbols: BTreeMap<u64, String>,
@@ -26,6 +33,10 @@ pub struct Monitor {
     view_address: u64,
     undo: Vec<MemoryEdit>,
     marks: BTreeMap<String, u64>,
+    breakpoints: BTreeMap<u64, u64>,
+    watchpoints: BTreeMap<u64, Watchpoint>,
+    next_breakpoint_id: u64,
+    next_watchpoint_id: u64,
 }
 
 impl Monitor {
@@ -37,6 +48,10 @@ impl Monitor {
             view_address: 0,
             undo: Vec::new(),
             marks: BTreeMap::new(),
+            breakpoints: BTreeMap::new(),
+            watchpoints: BTreeMap::new(),
+            next_breakpoint_id: 1,
+            next_watchpoint_id: 1,
         }
     }
 
@@ -54,6 +69,7 @@ impl Monitor {
             "assemble" | "a" => self.assemble(argument),
             "step" | "s" => self.step(),
             "run" | "r" => self.run(argument),
+            "continue" | "c" => self.continue_target(argument),
             "disasm" | "d" => self.disassemble(argument),
             "memory" | "mem" | "hex" | "ascii" => self.memory_view(argument),
             "view" | "jump" => self.set_view(argument),
@@ -62,12 +78,20 @@ impl Monitor {
             "mark" => self.mark(argument),
             "marks" => self.list_marks(),
             "unmark" => self.unmark(argument),
+            "break" | "b" => self.add_breakpoint(argument),
+            "watch" => self.add_watchpoint(argument, Some(MemoryAccessKind::Write)),
+            "rwatch" => self.add_watchpoint(argument, Some(MemoryAccessKind::Read)),
+            "awatch" => self.add_watchpoint(argument, None),
+            "delete" | "del" => self.delete_debug_item(argument),
+            "info" => self.info_debug(argument),
             "reset" => {
                 self.machine = Machine::new(self.machine.memory_size());
                 self.symbols.clear();
                 self.view_address = 0;
                 self.undo.clear();
                 self.marks.clear();
+                self.breakpoints.clear();
+                self.watchpoints.clear();
                 Ok("machine reset".into())
             }
             "quit" | "exit" => Ok("bye".into()),
@@ -116,32 +140,70 @@ impl Monitor {
     }
 
     fn run(&mut self, argument: &str) -> Result<String> {
-        let limit = if argument.is_empty() {
-            self.max_run_steps
-        } else {
-            argument.parse::<u64>().map_err(|_| {
-                Diagnostic::error("MON-RUN-001", "run count must be an unsigned integer")
-            })?
-        };
+        let limit = parse_run_limit(argument, self.max_run_steps)?;
+        self.run_with_limit(limit, false)
+    }
+
+    fn continue_target(&mut self, argument: &str) -> Result<String> {
+        let limit = parse_run_limit(argument, self.max_run_steps)?;
+        self.run_with_limit(limit, true)
+    }
+
+    fn run_with_limit(&mut self, limit: u64, bypass_current_breakpoint: bool) -> Result<String> {
         let start = self.machine.instructions;
-        match TargetBackend::run(&mut self.machine, limit)? {
-            ExecutionOutcome::BudgetExhausted {
-                pc,
-                instruction_count,
-            } => Ok(format!(
-                "ran {} step(s); pc=0x{pc:016x}; total={instruction_count}",
-                instruction_count - start
-            )),
-            ExecutionOutcome::Stopped(event) => Ok(format!(
-                "stopped: {:?} at pc=0x{:016x}; total={}",
-                event.reason, event.pc, event.instruction_count
-            )),
-            ExecutionOutcome::Retired { pc_after, .. } => Ok(format!(
-                "ran {} step(s); pc=0x{pc_after:016x}; total={}",
-                self.machine.instructions - start,
-                self.machine.instructions
-            )),
+        let mut bypass =
+            bypass_current_breakpoint && self.breakpoints.contains_key(&self.machine.pc);
+        for _ in 0..limit {
+            if !bypass {
+                if let Some(id) = self.breakpoints.get(&self.machine.pc) {
+                    return Ok(format!(
+                        "stopped: breakpoint #{id} at pc=0x{:016x}; total={}",
+                        self.machine.pc, self.machine.instructions
+                    ));
+                }
+            }
+            let outcome = TargetBackend::step(&mut self.machine)?;
+            match outcome {
+                ExecutionOutcome::Retired {
+                    pc_after,
+                    memory_access,
+                    ..
+                } => {
+                    bypass = false;
+                    if let Some(access) = memory_access {
+                        if let Some(watchpoint) = self.watchpoint_hit(access) {
+                            return Ok(format_watchpoint_stop(
+                                watchpoint,
+                                access,
+                                self.machine.pc,
+                                self.machine.instructions,
+                            ));
+                        }
+                    }
+                    if self.machine.pc != pc_after {
+                        return Err(Diagnostic::error(
+                            "MON-DEBUG-001",
+                            "backend returned an inconsistent program counter",
+                        ));
+                    }
+                }
+                ExecutionOutcome::Stopped(event) => {
+                    return Ok(format_backend_stop(event));
+                }
+                ExecutionOutcome::BudgetExhausted { .. } => {
+                    return Err(Diagnostic::error(
+                        "MON-DEBUG-002",
+                        "step backend returned a run-only outcome",
+                    ));
+                }
+            }
         }
+        Ok(format!(
+            "ran {} step(s); pc=0x{:016x}; total={}",
+            self.machine.instructions - start,
+            self.machine.pc,
+            self.machine.instructions
+        ))
     }
 
     fn disassemble(&self, argument: &str) -> Result<String> {
@@ -352,6 +414,174 @@ impl Monitor {
         parse_address(value, code)
     }
 
+    fn add_breakpoint(&mut self, argument: &str) -> Result<String> {
+        let parts: Vec<_> = argument.split_whitespace().collect();
+        let [address_text] = parts.as_slice() else {
+            return Err(Diagnostic::error(
+                "MON-DBG-001",
+                "break expects one address",
+            ));
+        };
+        let address = self.resolve_address(address_text, "MON-DBG-002")?;
+        if address % 4 != 0 {
+            return Err(Diagnostic::error(
+                "MON-DBG-003",
+                "breakpoint address must be 4-byte aligned for the current profile",
+            ));
+        }
+        if let Some(id) = self.breakpoints.get(&address) {
+            return Ok(format!("breakpoint #{id} already enabled"));
+        }
+        let id = self.next_breakpoint_id;
+        self.next_breakpoint_id = id
+            .checked_add(1)
+            .ok_or_else(|| Diagnostic::error("MON-DBG-004", "breakpoint id exhausted"))?;
+        self.breakpoints.insert(address, id);
+        Ok(format!("breakpoint #{id} set at 0x{address:016x}"))
+    }
+
+    fn add_watchpoint(&mut self, argument: &str, kind: Option<MemoryAccessKind>) -> Result<String> {
+        let parts: Vec<_> = argument.split_whitespace().collect();
+        let (address_text, width) = match parts.as_slice() {
+            [address] => (*address, 1),
+            [address, width] => (
+                *address,
+                width.parse::<u64>().map_err(|_| {
+                    Diagnostic::error("MON-DBG-006", "watch width must be an unsigned integer")
+                })?,
+            ),
+            _ => {
+                return Err(Diagnostic::error(
+                    "MON-DBG-005",
+                    "watch expects <address> [width]",
+                ));
+            }
+        };
+        if !matches!(width, 1 | 2 | 4 | 8) {
+            return Err(Diagnostic::error(
+                "MON-DBG-006",
+                "watch width must be 1, 2, 4, or 8 bytes",
+            ));
+        }
+        let address = self.resolve_address(address_text, "MON-DBG-007")?;
+        let id = self.next_watchpoint_id;
+        self.next_watchpoint_id = id
+            .checked_add(1)
+            .ok_or_else(|| Diagnostic::error("MON-DBG-008", "watchpoint id exhausted"))?;
+        self.watchpoints.insert(
+            id,
+            Watchpoint {
+                address,
+                width,
+                kind,
+                id,
+            },
+        );
+        let mode = match kind {
+            Some(MemoryAccessKind::Read) => "read",
+            Some(MemoryAccessKind::Write) => "write",
+            None => "access",
+        };
+        Ok(format!(
+            "watchpoint #{id} set ({mode}) at 0x{address:016x} width={width}"
+        ))
+    }
+
+    fn delete_debug_item(&mut self, argument: &str) -> Result<String> {
+        let parts: Vec<_> = argument.split_whitespace().collect();
+        let (kind, id_text) = match parts.as_slice() {
+            [id] => ("break", *id),
+            [kind, id] if *kind == "break" || *kind == "watch" => (*kind, *id),
+            _ => {
+                return Err(Diagnostic::error(
+                    "MON-DBG-009",
+                    "delete expects [break|watch] <number>",
+                ));
+            }
+        };
+        let id = id_text.parse::<u64>().map_err(|_| {
+            Diagnostic::error(
+                "MON-DBG-010",
+                "debug item number must be an unsigned integer",
+            )
+        })?;
+        if kind == "watch" {
+            if self.watchpoints.remove(&id).is_none() {
+                return Err(Diagnostic::error(
+                    "MON-DBG-011",
+                    "watchpoint does not exist",
+                ));
+            }
+            return Ok(format!("watchpoint #{id} deleted"));
+        }
+        let address = self
+            .breakpoints
+            .iter()
+            .find_map(|(address, current_id)| (*current_id == id).then_some(*address))
+            .ok_or_else(|| Diagnostic::error("MON-DBG-012", "breakpoint does not exist"))?;
+        self.breakpoints.remove(&address);
+        Ok(format!("breakpoint #{id} deleted"))
+    }
+
+    fn info_debug(&self, argument: &str) -> Result<String> {
+        match argument.trim() {
+            "break" | "breakpoints" | "b" => self.info_breakpoints(),
+            "watch" | "watchpoints" | "w" => self.info_watchpoints(),
+            "" => Err(Diagnostic::error(
+                "MON-DBG-013",
+                "info expects break or watch",
+            )),
+            _ => Err(Diagnostic::error(
+                "MON-DBG-013",
+                "info expects break or watch",
+            )),
+        }
+    }
+
+    fn info_breakpoints(&self) -> Result<String> {
+        if self.breakpoints.is_empty() {
+            return Ok("breakpoints: none".into());
+        }
+        let mut output = String::from("breakpoints:\n");
+        for (address, id) in &self.breakpoints {
+            writeln!(output, "  #{id} addr=0x{address:016x}").unwrap();
+        }
+        Ok(output.trim_end().into())
+    }
+
+    fn info_watchpoints(&self) -> Result<String> {
+        if self.watchpoints.is_empty() {
+            return Ok("watchpoints: none".into());
+        }
+        let mut output = String::from("watchpoints:\n");
+        for watchpoint in self.watchpoints.values() {
+            let mode = match watchpoint.kind {
+                Some(MemoryAccessKind::Read) => "read",
+                Some(MemoryAccessKind::Write) => "write",
+                None => "access",
+            };
+            writeln!(
+                output,
+                "  #{} {mode} addr=0x{:016x} width={}",
+                watchpoint.id, watchpoint.address, watchpoint.width
+            )
+            .unwrap();
+        }
+        Ok(output.trim_end().into())
+    }
+
+    fn watchpoint_hit(&self, access: MemoryAccess) -> Option<&Watchpoint> {
+        let access_end = access.address.checked_add(u64::from(access.width))?;
+        self.watchpoints.values().find(|watchpoint| {
+            let watch_end = watchpoint.address.checked_add(watchpoint.width);
+            let kind_matches = watchpoint.kind.is_none() || watchpoint.kind == Some(access.kind);
+            kind_matches
+                && watch_end.is_some_and(|watch_end| {
+                    access.address < watch_end && watchpoint.address < access_end
+                })
+        })
+    }
+
     fn registers(&self) -> Result<String> {
         let mut output = String::new();
         output.push_str("integer registers\n");
@@ -419,12 +649,45 @@ fn format_flags(flags: u8) -> String {
     }
 }
 
+fn parse_run_limit(argument: &str, default: u64) -> Result<u64> {
+    if argument.is_empty() {
+        return Ok(default);
+    }
+    argument
+        .parse::<u64>()
+        .map_err(|_| Diagnostic::error("MON-RUN-001", "run count must be an unsigned integer"))
+}
+
+fn format_backend_stop(event: StopEvent) -> String {
+    format!(
+        "stopped: {:?} at pc=0x{:016x}; total={}",
+        event.reason, event.pc, event.instruction_count
+    )
+}
+
+fn format_watchpoint_stop(
+    watchpoint: &Watchpoint,
+    access: MemoryAccess,
+    pc: u64,
+    instruction_count: u64,
+) -> String {
+    let mode = match access.kind {
+        MemoryAccessKind::Read => "read",
+        MemoryAccessKind::Write => "write",
+    };
+    format!(
+        "stopped: watchpoint #{} at pc=0x{pc:016x}; {mode} addr=0x{:016x} width={}; total={instruction_count}",
+        watchpoint.id, access.address, access.width
+    )
+}
+
 fn help() -> String {
     [
         "help                 show commands",
         "assemble <source>    assemble and load one source line at pc",
         "step                 execute one instruction",
         "run [count]          execute up to count instructions (default 1000)",
+        "continue [count]     resume, bypassing a breakpoint at current pc",
         "disasm [addr] [count] show instructions (default pc, 4)",
         "memory [addr] [count] show hex and ASCII (default view, 64)",
         "view <addr>          move memory view without changing pc",
@@ -433,6 +696,12 @@ fn help() -> String {
         "mark <name> [addr]   name the current or specified address",
         "marks                list named addresses",
         "unmark <name>        remove a named address",
+        "break <addr>         add a logical breakpoint",
+        "delete [kind] <id>   delete breakpoint or watchpoint",
+        "info break|watch     list debugger stops",
+        "watch <addr> [w]     stop on memory writes",
+        "rwatch <addr> [w]    stop on memory reads",
+        "awatch <addr> [w]    stop on reads or writes",
         "regs                 show x/f registers and fcsr exactly",
         "reset                reset machine state",
         "quit                 leave the interactive monitor",
@@ -621,5 +890,73 @@ mod tests {
         assert_eq!(monitor.execute("marks").unwrap(), "marks: none");
         assert_eq!(monitor.execute("undo").unwrap_err().code, "MON-MEM-007");
         assert_eq!(monitor.machine.memory.load8(0x10).unwrap(), 0);
+    }
+
+    #[test]
+    fn host_breakpoint_stops_before_instruction_and_continue_bypasses_it() {
+        let mut monitor = Monitor::new(128);
+        monitor.execute("assemble addi x1,x0,1").unwrap();
+        let breakpoint = monitor.execute("break 0x0").unwrap();
+        assert!(breakpoint.contains("breakpoint #1"));
+        assert!(
+            monitor
+                .execute("run 3")
+                .unwrap()
+                .contains("stopped: breakpoint #1")
+        );
+        assert_eq!(monitor.machine.x[1], 0);
+
+        assert!(
+            monitor
+                .execute("continue 1")
+                .unwrap()
+                .contains("ran 1 step(s)")
+        );
+        assert_eq!(monitor.machine.x[1], 1);
+        assert!(
+            monitor
+                .execute("info break")
+                .unwrap()
+                .contains("#1 addr=0x0000000000000000")
+        );
+        assert!(
+            monitor
+                .execute("delete 1")
+                .unwrap()
+                .contains("breakpoint #1 deleted")
+        );
+    }
+
+    #[test]
+    fn write_watchpoint_stops_after_store_and_reports_access() {
+        let mut monitor = Monitor::new(128);
+        monitor.execute("assemble sw x2,0(x1)").unwrap();
+        monitor.machine.x[1] = 0x10;
+        monitor.machine.x[2] = 0x1122_3344;
+        monitor.execute("watch 0x10 4").unwrap();
+
+        let stopped = monitor.execute("run 1").unwrap();
+        assert!(stopped.contains("stopped: watchpoint #1"));
+        assert!(stopped.contains("write addr=0x0000000000000010 width=4"));
+        assert_eq!(monitor.machine.memory.load32(0x10).unwrap(), 0x1122_3344);
+    }
+
+    #[test]
+    fn read_and_access_watchpoints_are_listed_and_deleted_separately() {
+        let mut monitor = Monitor::new(128);
+        monitor.execute("assemble lw x3,0(x1)").unwrap();
+        monitor.machine.x[1] = 0x10;
+        monitor.machine.memory.store32(0x10, 0x8000_0001).unwrap();
+        monitor.execute("rwatch 0x10 4").unwrap();
+        monitor.execute("awatch 0x20").unwrap();
+
+        let info = monitor.execute("info watch").unwrap();
+        assert!(info.contains("#1 read addr=0x0000000000000010 width=4"));
+        assert!(info.contains("#2 access addr=0x0000000000000020 width=1"));
+        let stopped = monitor.execute("run 1").unwrap();
+        assert!(stopped.contains("read addr=0x0000000000000010 width=4"));
+        assert_eq!(monitor.machine.x[3], 0xffff_ffff_8000_0001);
+        monitor.execute("delete watch 1").unwrap();
+        assert!(!monitor.execute("info watch").unwrap().contains("#1 read"));
     }
 }

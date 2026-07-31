@@ -12,7 +12,7 @@ Validation locale complète :
     bash scripts/test-guest-monitor.sh
     git diff --check
 
-La suite actuelle exécute 62 tests unitaires/intégration répartis dans les crates. Les doc-tests compilent mais ne contiennent actuellement aucun cas.
+La suite actuelle exécute 65 tests unitaires/intégration répartis dans les crates. Les doc-tests compilent mais ne contiennent actuellement aucun cas.
 
 Démonstration M-mode/U-mode sous QEMU :
 
@@ -44,8 +44,8 @@ Moniteur texte interactif :
 | luna-machine | 11 | Exécution entière, branches, mémoire, tables de pointeurs ILP32, fadd.s, fadd.d, NaN-boxing, flags et contrat backend. |
 | luna-disassembler | 7 | Format canonique, symboles, opcodes illégaux, C rejeté et round-trip. |
 | luna-floatfmt | 3 | Bits hex exacts, décimal court, classes IEEE et NaN-box invalide. |
-| luna-monitor | 9 | assemble → step → regs, affichage flottant, run borné, vues mémoire hex/ASCII, édition/undo et marques QuickJump. |
-| luna-target-api | 4 | Contexte de trap, capacités explicites RV64 bare-metal, codes `mcause`, contrat de layout et types du backend commun. |
+| luna-monitor | 12 | assemble → step → regs, affichage flottant, run borné, vues mémoire hex/ASCII, édition/undo, marques QuickJump, breakpoints et watchpoints. |
+| luna-target-api | 4 | Contexte de trap, capacités explicites RV64 bare-metal, codes `mcause`, contrat de layout, résultats et accès mémoire du backend commun. |
 | luna-guest-monitor | 0 | Image bare-metal, boot QEMU, PMP, transition M→U, trap `ebreak` et boucle UART; vérifié par smoke test QEMU. |
 | luna-app | 0 | Compilation du binaire et démonstration ; pas encore d’E2E terminal. |
 | luna-diag | 0 | Types utilisés par les autres crates ; pas de test dédié. |
@@ -127,6 +127,16 @@ Les marques sont des noms ASCII stables de 32 octets maximum. `mark name`
 capture l’adresse de la vue courante, tandis que `mark name address` l’associe
 à une adresse explicite. La notation `@name` est acceptée par les commandes de
 navigation et de vue, et `reset` supprime les marques.
+
+Le moniteur hôte implémente des breakpoints logiques et des watchpoints sur
+lectures, écritures ou les deux. `supports_watchpoints` décrit la capacité
+native du backend ; cette tranche fournit une émulation logicielle côté
+moniteur hôte. Un breakpoint arrête avant l’instruction ;
+`continue` franchit celui qui se trouve au PC courant une seule fois. Un
+watchpoint arrête après l’instruction et rapporte l’accès mémoire observé. La
+machine expose ces accès dans `ExecutionOutcome`; un backend qui ne peut pas
+les fournir doit déclarer cette capacité comme non supportée au lieu de les
+inventer.
 
 ### Backend cible 4B
 

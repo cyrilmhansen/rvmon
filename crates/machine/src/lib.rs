@@ -4,7 +4,10 @@ use luna_diag::{Diagnostic, Result};
 use luna_floatfmt::{FloatDisplay, binary64, boxed_binary32};
 use luna_isa::{Instruction, decode};
 use luna_memory::Memory;
-use luna_target_api::{ExecutionOutcome, TargetBackend, TargetCapabilities, TargetContext};
+use luna_target_api::{
+    ExecutionOutcome, MemoryAccess, MemoryAccessKind, TargetBackend, TargetCapabilities,
+    TargetContext,
+};
 
 pub const FFLAG_NV: u32 = 1 << 0;
 pub const FFLAG_DZ: u32 = 1 << 1;
@@ -27,6 +30,7 @@ pub struct StepResult {
     pub pc_before: u64,
     pub pc_after: u64,
     pub instruction: Instruction,
+    pub memory_access: Option<MemoryAccess>,
 }
 
 impl Machine {
@@ -77,6 +81,7 @@ impl Machine {
         let pc_before = self.pc;
         let word = self.memory.load32(self.pc)?;
         let instruction = decode(word);
+        let mut memory_access = None;
         match instruction {
             Instruction::Addi(addi) => {
                 let value = self.x[addi.rs1 as usize].wrapping_add(addi.imm as i64 as u64);
@@ -108,6 +113,11 @@ impl Machine {
                 let address =
                     self.x[instruction.rs1 as usize].wrapping_add(instruction.imm as i64 as u64);
                 let value = self.memory.load32(address)? as i32 as i64 as u64;
+                memory_access = Some(MemoryAccess {
+                    kind: MemoryAccessKind::Read,
+                    address,
+                    width: 4,
+                });
                 if instruction.rd != 0 {
                     self.x[instruction.rd as usize] = value;
                 }
@@ -117,6 +127,11 @@ impl Machine {
                     self.x[instruction.rs1 as usize].wrapping_add(instruction.imm as i64 as u64);
                 self.memory
                     .store32(address, self.x[instruction.rs2 as usize] as u32)?;
+                memory_access = Some(MemoryAccess {
+                    kind: MemoryAccessKind::Write,
+                    address,
+                    width: 4,
+                });
             }
             Instruction::Beq(instruction) => {
                 if self.x[instruction.rs1 as usize] == self.x[instruction.rs2 as usize] {
@@ -208,6 +223,7 @@ impl Machine {
             pc_before,
             pc_after: self.pc,
             instruction,
+            memory_access,
         })
     }
 }
@@ -266,6 +282,7 @@ impl TargetBackend for Machine {
         Ok(ExecutionOutcome::Retired {
             pc_before: result.pc_before,
             pc_after: result.pc_after,
+            memory_access: result.memory_access,
         })
     }
 
@@ -726,6 +743,7 @@ mod tests {
             ExecutionOutcome::Retired {
                 pc_before: 0,
                 pc_after: 4,
+                memory_access: None,
             }
         );
         assert_eq!(machine.x[1], 1);

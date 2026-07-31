@@ -49,10 +49,30 @@ pub struct StopEvent {
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum MemoryAccessKind {
+    Read,
+    Write,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct MemoryAccess {
+    pub kind: MemoryAccessKind,
+    pub address: u64,
+    pub width: u8,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum ExecutionOutcome {
-    Retired { pc_before: u64, pc_after: u64 },
+    Retired {
+        pc_before: u64,
+        pc_after: u64,
+        memory_access: Option<MemoryAccess>,
+    },
     Stopped(StopEvent),
-    BudgetExhausted { pc: u64, instruction_count: u64 },
+    BudgetExhausted {
+        pc: u64,
+        instruction_count: u64,
+    },
 }
 
 /// Stable boundary between the monitor/debugger and a target implementation.
