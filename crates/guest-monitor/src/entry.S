@@ -16,9 +16,9 @@ _start:
 install_trap:
     csrw mtvec, a0
     csrw mscratch, a1
-    # V1 exposes the low physical window through PMP to the U-mode target.
-    # TOR [0, 0x80020000) covers the QEMU virt UART and the 128 KiB target RAM.
-    li t1, 0x20008000
+    # Expose the QEMU virt UART and the complete 64 MiB target RAM.
+    # TOR [0, 0x84000000), encoded as the physical address divided by four.
+    li t1, 0x21000000
     csrw pmpaddr0, t1
     li t1, 0x0f
     csrw pmpcfg0, t1

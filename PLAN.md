@@ -17,6 +17,11 @@ historique arrière et polish terminal. Hypothèse : 2 agents de code à temps
 plein, 1 agent validation/revue à temps partiel ; les fourchettes ne sont pas
 des dates calendaires.
 
+Le guest QEMU de référence utilise une RAM physique de 64 MiB avec des régions
+distinctes pour image fixe, code cible et données cible. Cette extension ne
+change pas le budget de la machine hôte sparse ; elle prépare les tests de
+pointeurs, pile et données éloignées.
+
 ### Conversion indicative en tokens GPT-5.6 Luna High
 
 Une journée-agent n’est pas une quantité de tokens fixe : elle inclut les

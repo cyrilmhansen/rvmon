@@ -81,6 +81,17 @@ Le mot “support” est interdit sans les colonnes ci-dessus.
 
 Un hart virtuel est constitué de `x[32]:u64`, `pc:u64`, `f[32]:u64`, `fcsr:u32`, mémoire, périphériques et compteur d’instructions. `x0` reste zéro. Les CSR visibles V1 sont `fflags`, `frm`, `fcsr` et les CSR nécessaires à `Zicsr`; les CSR privilégiés sont absents et toute tentative produit `TRAP_CSR_UNIMPLEMENTED`. Mode U seulement ; pas de MMU, interruptions ou concurrence V1. Les traps sont des arrêts structurés avec cause, PC, adresse fautive et instruction.
 
+Pour le déploiement guest QEMU de référence, la RAM cible est explicitement
+`[0x80000000,0x84000000)` (64 MiB). L’image fixe du moniteur, sa pile et ses
+données occupent le bas de cette RAM ; le linker réserve ensuite le workspace
+de code cible `[0x81000000,0x81010000)` (64 KiB) et une zone de variables cible
+`[0x82000000,0x82100000)` (1 MiB). `assemble` et `assemble-program` n’écrivent
+que dans le workspace de code ; les directives `data` n’écrivent que dans la
+zone de variables. Les trous entre ces régions sont volontairement réservés
+pour rendre visible la séparation moniteur/code/données et ne constituent pas
+des alias physiques. Le PMP M-mode expose au programme U-mode la fenêtre
+nécessaire jusqu’à `0x84000000` ; MMIO UART reste hors de cette RAM.
+
 Mémoire little-endian, pages logiques de 4 KiB, taille configurable par projet mais bornée à 256 MiB. RAM `0x00000000..ram_end`; pile réservée au sommet et croissant vers les adresses basses ; MMIO `0xffff0000..0xffffffff`, lecture/écriture via périphériques déterministes explicitement déclarés. Adresse non mappée, accès hors limites, instruction mal alignée et accès mal aligné suivent R1, chapitre Load/Store et exceptions ; V1 lève un trap plutôt que de simuler une extension hôte.
 
 Le profil expérimental `RV64IMAFD_Zicsr_Zifencei-BE` est une variante de

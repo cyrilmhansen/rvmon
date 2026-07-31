@@ -16,7 +16,7 @@ const UART_LSR_DATA_READY: u8 = 1 << 0;
 const UART_LSR_EMPTY: u8 = 1 << 5;
 const COMMAND_CAPACITY: usize = 96;
 const TARGET_RAM_START: u64 = 0x8000_0000;
-const TARGET_RAM_END: u64 = 0x8002_0000;
+const TARGET_RAM_END: u64 = 0x8400_0000;
 const EBREAK_WORD: u32 = 0x0010_0073;
 const MAX_PERMANENT_BREAKPOINTS: usize = 4;
 const MAX_MEMORY_DUMP: u64 = 128;
@@ -108,6 +108,11 @@ pub extern "C" fn rust_main() -> ! {
     uart_hex(target_workspace_start());
     uart_write("..0x");
     uart_hex(target_workspace_end());
+    uart_write("\r\n");
+    uart_write("target data: 0x");
+    uart_hex(target_data_start());
+    uart_write("..0x");
+    uart_hex(target_data_end());
     uart_write("\r\n");
     uart_write("target: entering U-mode\r\n");
     let target_stack = TARGET_STACK.as_ptr() as usize + TARGET_STACK.len();
@@ -310,6 +315,10 @@ fn data_directive(context: *mut TargetContext, argument: &[u8]) {
         uart_write("error: unsupported directive or value; use exact integer/IEEE bits\r\n");
         return;
     };
+    if !valid_target_data_range(address, length) {
+        uart_write("error: data range is outside target data region\r\n");
+        return;
+    }
     if let Err(error) = write_memory_transaction(address, data, length) {
         match error {
             MemoryWriteError::Overflow => uart_write("error: data range overflows\r\n"),
@@ -1516,12 +1525,27 @@ fn valid_target_program_word_address(address: u64) -> bool {
             .is_some_and(|end| end <= target_workspace_end())
 }
 
+fn valid_target_data_range(address: u64, length: usize) -> bool {
+    address >= target_data_start()
+        && address
+            .checked_add(length as u64)
+            .is_some_and(|end| end <= target_data_end())
+}
+
 fn target_workspace_start() -> u64 {
     core::ptr::addr_of!(_target_workspace_start) as u64
 }
 
 fn target_workspace_end() -> u64 {
     core::ptr::addr_of!(_target_workspace_end) as u64
+}
+
+fn target_data_start() -> u64 {
+    core::ptr::addr_of!(_target_data_start) as u64
+}
+
+fn target_data_end() -> u64 {
+    core::ptr::addr_of!(_target_data_end) as u64
 }
 
 fn permanent_breakpoint_at(address: u64) -> Option<usize> {
@@ -1695,6 +1719,8 @@ unsafe extern "C" {
     fn trap_entry();
     static _target_workspace_start: u8;
     static _target_workspace_end: u8;
+    static _target_data_start: u8;
+    static _target_data_end: u8;
 }
 
 fn uart_write(text: &str) {

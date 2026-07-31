@@ -12,6 +12,7 @@ cargo build -p luna-app >/dev/null
 
 qemu-system-riscv64 \
     -M virt \
+    -m 64M \
     -cpu max \
     -bios none \
     -kernel target/riscv64gc-unknown-none-elf/debug/luna-guest-monitor \

@@ -16,7 +16,7 @@ terminal                           <-- commandes et diagnostics UART
 Ce binaire invité est actuellement un moniteur de démarrage et de débogage
 minimal. Il fournit déjà l’inspection des registres, la lecture mémoire et
 des commandes `assemble` et `assemble-program` limitées à `addi`, `beq`,
-`bne`, `jal`, `jalr`, `fadd.s` et `fadd.d`. Les vues
+`bne`, `jal`, `jalr`, `ld`, `sd`, `fadd.s` et `fadd.d`. Les vues
 les directives et les snapshots restent à porter. Le programme U-mode de
 démonstration est lié dans l’image et sert à valider les traps, les
 breakpoints logiciels et le pas-à-pas.
@@ -47,6 +47,7 @@ Démarrer QEMU sans BIOS, avec l’ELF comme noyau :
 ```text
 $ qemu-system-riscv64 \
     -M virt \
+    -m 64M \
     -bios none \
     -kernel target/riscv64gc-unknown-none-elf/debug/luna-guest-monitor \
     -nographic
@@ -58,7 +59,8 @@ La sortie initiale ressemble à ceci :
 RVMonitor 4B M-mode
 target: RV64 ILP32D U-mode, hart=1, C=off
 capabilities: I M F D Zicsr Zifencei
-target workspace: 0x000000008001.... ..0x000000008001....
+target workspace: 0x0000000081000000..0x0000000081010000
+target data: 0x0000000082000000..0x0000000082100000
 target: entering U-mode
 trap: breakpoint pc=0x000000008000....
 rvmonitor>
@@ -104,7 +106,7 @@ rvmonitor> memory 0x80000000 16
 ```
 
 La longueur est décimale et limitée à 128 octets par commande. La lecture
-doit rester dans la RAM cible `[0x80000000, 0x80020000)`. Les adresses MMIO,
+doit rester dans la RAM cible `[0x80000000, 0x84000000)`. Les adresses MMIO,
 les dépassements et les longueurs nulles sont refusés.
 
 ### Modifier et annuler la mémoire
@@ -129,18 +131,19 @@ silencieusement des octets qui ne sont plus ceux de la transaction.
 
 ### Écrire des directives de données exactes
 
-`data` écrit une valeur unique dans la RAM, en little-endian. `.float` et
+`data` écrit une valeur unique dans la zone de données cible
+`[0x82000000,0x82100000)`, en little-endian. `.float` et
 `.double` prennent les bits binary32/binary64 ; `.binary16` et `.binary128`
 prennent respectivement 4 et 32 chiffres hexadécimaux représentant le motif
 IEEE dans l’ordre numérique, puis l’écrivent en little-endian :
 
 ```text
-rvmonitor> data 0x80010060 .float 0x3f800000
-stored .float at 0x0000000080010060 (4 byte(s))
-rvmonitor> memory 0x80010060 4
-0x0000000080010060: 00 00 80 3f                         |...|
-rvmonitor> data 0x80010060 .binary128 000102030405060708090a0b0c0d0e0f
-stored .binary128 at 0x0000000080010060 (16 byte(s))
+rvmonitor> data 0x82000060 .float 0x3f800000
+stored .float at 0x0000000082000060 (4 byte(s))
+rvmonitor> memory 0x82000060 4
+0x0000000082000060: 00 00 80 3f                         |...|
+rvmonitor> data 0x82000060 .binary128 000102030405060708090a0b0c0d0e0f
+stored .binary128 at 0x0000000082000060 (16 byte(s))
 ```
 
 Les directives disponibles dans cette tranche sont `.byte`, `.half`, `.word`,
