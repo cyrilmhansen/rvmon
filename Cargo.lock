@@ -44,6 +44,10 @@ dependencies = [
 ]
 
 [[package]]
+name = "luna-floatfmt"
+version = "0.1.0"
+
+[[package]]
 name = "luna-isa"
 version = "0.1.0"
 dependencies = [
@@ -55,6 +59,7 @@ name = "luna-machine"
 version = "0.1.0"
 dependencies = [
  "luna-diag",
+ "luna-floatfmt",
  "luna-isa",
  "luna-memory",
 ]

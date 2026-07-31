@@ -1,6 +1,7 @@
 #![forbid(unsafe_code)]
 
 use luna_diag::{Diagnostic, Result};
+use luna_floatfmt::{FloatDisplay, binary64, boxed_binary32};
 use luna_isa::{Instruction, decode};
 use luna_memory::Memory;
 
@@ -51,6 +52,20 @@ impl Machine {
 
     pub fn frm(&self) -> u8 {
         ((self.fcsr >> 5) & 0x7) as u8
+    }
+
+    pub fn format_f32(&self, register: u8) -> Result<FloatDisplay> {
+        let value = self.f.get(register as usize).ok_or_else(|| {
+            Diagnostic::error("FP-REGISTER-001", "floating register out of range")
+        })?;
+        Ok(boxed_binary32(*value))
+    }
+
+    pub fn format_f64(&self, register: u8) -> Result<FloatDisplay> {
+        let value = self.f.get(register as usize).ok_or_else(|| {
+            Diagnostic::error("FP-REGISTER-001", "floating register out of range")
+        })?;
+        Ok(binary64(*value))
     }
 
     pub fn step(&mut self) -> Result<StepResult> {
@@ -147,6 +162,25 @@ impl Machine {
                 self.f[instruction.rd as usize] = 0xffff_ffff_0000_0000 | u64::from(result);
                 self.fcsr |= flags;
             }
+            Instruction::FAddD(instruction) => {
+                let rounding_mode = if instruction.rm == 7 {
+                    self.frm()
+                } else {
+                    instruction.rm
+                };
+                if rounding_mode != 0 {
+                    return Err(Diagnostic::error(
+                        "TRAP-FP-RM-001",
+                        "only round-to-nearest-even is implemented for fadd.d",
+                    ));
+                }
+                let (result, flags) = add_d(
+                    self.f[instruction.rs1 as usize],
+                    self.f[instruction.rs2 as usize],
+                );
+                self.f[instruction.rd as usize] = result;
+                self.fcsr |= flags;
+            }
             Instruction::Illegal(_) => {
                 return Err(Diagnostic::error(
                     "TRAP-ILLEGAL-INSTRUCTION",
@@ -224,6 +258,51 @@ fn is_signaling_nan(value: u32) -> bool {
 
 fn is_infinite(value: u32) -> bool {
     value & 0x7fff_ffff == 0x7f80_0000
+}
+
+fn add_d(left: u64, right: u64) -> (u64, u32) {
+    let left_nan = is_nan_d(left);
+    let right_nan = is_nan_d(right);
+    if (left_nan && is_signaling_nan_d(left)) || (right_nan && is_signaling_nan_d(right)) {
+        return (0x7ff8_0000_0000_0000, FFLAG_NV);
+    }
+    if left_nan || right_nan {
+        return (0x7ff8_0000_0000_0000, 0);
+    }
+    if is_infinite_d(left) && is_infinite_d(right) && ((left ^ right) & (1 << 63) != 0) {
+        return (0x7ff8_0000_0000_0000, FFLAG_NV);
+    }
+    let left_value = f64::from_bits(left);
+    let right_value = f64::from_bits(right);
+    let result = left_value + right_value;
+    if result.is_infinite() && left_value.is_finite() && right_value.is_finite() {
+        return (result.to_bits(), FFLAG_OF | FFLAG_NX);
+    }
+    let inexact = result.is_finite()
+        && (result - left_value != right_value || result - right_value != left_value);
+    let underflow = inexact && result.abs() < f64::MIN_POSITIVE;
+    (
+        result.to_bits(),
+        if underflow {
+            FFLAG_UF | FFLAG_NX
+        } else if inexact {
+            FFLAG_NX
+        } else {
+            0
+        },
+    )
+}
+
+fn is_nan_d(value: u64) -> bool {
+    value & 0x7ff0_0000_0000_0000 == 0x7ff0_0000_0000_0000 && value & 0x000f_ffff_ffff_ffff != 0
+}
+
+fn is_signaling_nan_d(value: u64) -> bool {
+    is_nan_d(value) && value & 0x0008_0000_0000_0000 == 0
+}
+
+fn is_infinite_d(value: u64) -> bool {
+    value & 0x7fff_ffff_ffff_ffff == 0x7ff0_0000_0000_0000
 }
 
 #[cfg(test)]
@@ -407,5 +486,62 @@ mod tests {
         machine.step().unwrap();
         assert_eq!(machine.f[3] as u32, 0x7fc0_0000);
         assert_eq!(machine.fflags(), 0);
+    }
+
+    #[test]
+    fn executes_fadd_d_and_formats_exact_register_bits() {
+        let mut machine = Machine::new(64);
+        machine.f[1] = 1.5f64.to_bits();
+        machine.f[2] = 2.25f64.to_bits();
+        let word = luna_isa::encode_f_r(
+            "fadd.d",
+            luna_isa::FRegisterRType {
+                rd: 3,
+                rs1: 1,
+                rs2: 2,
+                rm: 7,
+            },
+        )
+        .unwrap();
+        machine.load(0, &word.to_le_bytes()).unwrap();
+        machine.step().unwrap();
+        assert_eq!(machine.f[3], 3.75f64.to_bits());
+        assert_eq!(
+            machine.format_f64(3).unwrap().exact_hex,
+            "0x400e000000000000"
+        );
+        assert_eq!(machine.format_f64(3).unwrap().shortest_decimal, "3.75");
+        assert_eq!(
+            machine.format_f32(3).unwrap().class,
+            luna_floatfmt::FloatClass::InvalidBox
+        );
+    }
+
+    #[test]
+    fn fadd_d_sets_inexact_and_invalid_flags() {
+        let mut machine = Machine::new(128);
+        machine.f[1] = 1.0f64.to_bits();
+        machine.f[2] = 0x0000_0000_0000_0001;
+        let word = luna_isa::encode_f_r(
+            "fadd.d",
+            luna_isa::FRegisterRType {
+                rd: 3,
+                rs1: 1,
+                rs2: 2,
+                rm: 7,
+            },
+        )
+        .unwrap();
+        machine.load(0, &word.to_le_bytes()).unwrap();
+        machine.step().unwrap();
+        assert_ne!(machine.fflags() & FFLAG_NX as u8, 0);
+
+        machine.pc = 4;
+        machine.f[1] = f64::INFINITY.to_bits();
+        machine.f[2] = f64::NEG_INFINITY.to_bits();
+        machine.load(4, &word.to_le_bytes()).unwrap();
+        machine.step().unwrap();
+        assert_ne!(machine.fflags() & FFLAG_NV as u8, 0);
+        assert_eq!(machine.f[3], 0x7ff8_0000_0000_0000);
     }
 }

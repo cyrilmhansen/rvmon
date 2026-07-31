@@ -88,6 +88,7 @@ pub enum Instruction {
     Jal(Jal),
     Jalr(Jalr),
     FAddS(FRegisterRType),
+    FAddD(FRegisterRType),
     Illegal(u32),
 }
 
@@ -376,6 +377,16 @@ pub fn decode(word: u32) -> Instruction {
                 });
             }
         }
+        if let Ok(opcode) = generated_opcode("fadd.d") {
+            if word & opcode.mask == opcode.match_value {
+                return Instruction::FAddD(FRegisterRType {
+                    rd: ((word >> 7) & 31) as u8,
+                    rs1: ((word >> 15) & 31) as u8,
+                    rs2: ((word >> 20) & 31) as u8,
+                    rm: ((word >> 12) & 7) as u8,
+                });
+            }
+        }
         Instruction::Illegal(word)
     }
 }
@@ -397,6 +408,7 @@ pub fn encode(instruction: Instruction) -> Result<u32> {
         Instruction::Jal(instruction) => encode_jal(instruction),
         Instruction::Jalr(instruction) => encode_jalr(instruction),
         Instruction::FAddS(instruction) => encode_f_r("fadd.s", instruction),
+        Instruction::FAddD(instruction) => encode_f_r("fadd.d", instruction),
         Instruction::Illegal(_) => Err(Diagnostic::error(
             "ISA-ENCODE-001",
             "cannot encode an illegal instruction",
@@ -468,6 +480,18 @@ mod tests {
         };
         let word = encode_f_r("fadd.s", instruction).unwrap();
         assert_eq!(decode(word), Instruction::FAddS(instruction));
+    }
+
+    #[test]
+    fn fadd_d_encoding_round_trips_with_dynamic_rounding() {
+        let instruction = FRegisterRType {
+            rd: 4,
+            rs1: 5,
+            rs2: 6,
+            rm: 7,
+        };
+        let word = encode_f_r("fadd.d", instruction).unwrap();
+        assert_eq!(decode(word), Instruction::FAddD(instruction));
     }
 
     #[test]

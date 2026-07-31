@@ -214,13 +214,22 @@ fn assemble_parsed(
                 rm: 7,
             },
         )?,
+        "fadd.d" if parts.len() == 3 => encode_f_r(
+            "fadd.d",
+            FRegisterRType {
+                rd: floating_register(operand_text(&parts[0])?)?,
+                rs1: floating_register(operand_text(&parts[1])?)?,
+                rs2: floating_register(operand_text(&parts[2])?)?,
+                rm: 7,
+            },
+        )?,
         "" => {
             return Err(Diagnostic::error("ASM-OPERAND-001", "missing instruction"));
         }
         _ => {
             return Err(Diagnostic::error(
                 "ASM-BOOT-UNSUPPORTED",
-                "bootstrap assembler accepts integer forms plus fadd.s",
+                "bootstrap assembler accepts integer forms plus fadd.s and fadd.d",
             ));
         }
     };
@@ -424,6 +433,14 @@ mod tests {
         assert_eq!(
             assemble("fadd.s f3,f1,f2").unwrap().text,
             [0xd3, 0xf1, 0x20, 0x00]
+        );
+    }
+
+    #[test]
+    fn assembles_fadd_d_with_dynamic_rounding_mode() {
+        assert_eq!(
+            assemble("fadd.d f3,f1,f2").unwrap().text,
+            [0xd3, 0xf1, 0x20, 0x02]
         );
     }
 

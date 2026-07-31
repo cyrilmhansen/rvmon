@@ -103,6 +103,14 @@ fn format_instruction(
         }) => {
             format!("fadd.s f{rd},f{rs1},f{rs2}")
         }
+        Instruction::FAddD(FRegisterRType {
+            rd,
+            rs1,
+            rs2,
+            rm: _,
+        }) => {
+            format!("fadd.d f{rd},f{rs1},f{rs2}")
+        }
         Instruction::Illegal(word) => format!(".word 0x{word:08x}"),
     }
 }
@@ -199,6 +207,7 @@ mod tests {
             "jal x1,2048",
             "jalr x1,0(x4)",
             "fadd.s f3,f1,f2",
+            "fadd.d f3,f1,f2",
         ] {
             let original = luna_assembler::assemble(source).unwrap().text;
             let line = disassemble_bytes(&original, 0, &BTreeMap::new())
