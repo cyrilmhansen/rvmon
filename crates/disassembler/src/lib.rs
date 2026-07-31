@@ -3,7 +3,10 @@
 use std::collections::BTreeMap;
 
 use luna_diag::{Diagnostic, Result};
-use luna_isa::{Addi, Branch, FRegisterRType, Instruction, Jal, Jalr, Load, Lui, RType, Store};
+use luna_isa::{
+    Addi, Branch, FRegisterRType, GENERATED_OPCODES, Instruction, Jal, Jalr, Load, Lui, RType,
+    Store,
+};
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct DisassembledLine {
@@ -26,6 +29,11 @@ pub struct DisassemblyRegion {
     pub kind: DisassemblyRegionKind,
 }
 
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct DisassemblyOptions {
+    pub enable_compressed: bool,
+}
+
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct DataLine {
     pub address: u64,
@@ -34,8 +42,17 @@ pub struct DataLine {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
+pub struct CompressedLine {
+    pub address: u64,
+    pub bits: u16,
+    pub text: String,
+    pub legal: bool,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub enum DisassembledItem {
     Instruction(DisassembledLine),
+    Compressed(CompressedLine),
     Data(DataLine),
 }
 
@@ -104,6 +121,22 @@ pub fn disassemble_regions(
     regions: &[DisassemblyRegion],
     symbols: &BTreeMap<u64, String>,
 ) -> Result<Vec<DisassembledItem>> {
+    disassemble_regions_with_options(
+        bytes,
+        origin,
+        regions,
+        symbols,
+        DisassemblyOptions::default(),
+    )
+}
+
+pub fn disassemble_regions_with_options(
+    bytes: &[u8],
+    origin: u64,
+    regions: &[DisassemblyRegion],
+    symbols: &BTreeMap<u64, String>,
+    options: DisassemblyOptions,
+) -> Result<Vec<DisassembledItem>> {
     let mut cursor = 0usize;
     let mut items = Vec::new();
     for region in regions {
@@ -128,8 +161,9 @@ pub fn disassemble_regions(
             .ok_or_else(|| Diagnostic::error("DISASM-ADDRESS-001", "address overflow"))?;
         match region.kind {
             DisassemblyRegionKind::Code => {
-                let lines = disassemble_bytes(&bytes[region.offset..end], address, symbols)?;
-                items.extend(lines.into_iter().map(DisassembledItem::Instruction));
+                let lines =
+                    disassemble_code(&bytes[region.offset..end], address, symbols, options)?;
+                items.extend(lines);
             }
             DisassemblyRegionKind::Data => {
                 for (chunk_index, chunk) in bytes[region.offset..end].chunks(16).enumerate() {
@@ -164,6 +198,246 @@ pub fn disassemble_regions(
         ));
     }
     Ok(items)
+}
+
+fn disassemble_code(
+    bytes: &[u8],
+    origin: u64,
+    symbols: &BTreeMap<u64, String>,
+    options: DisassemblyOptions,
+) -> Result<Vec<DisassembledItem>> {
+    let mut items = Vec::new();
+    let mut offset = 0usize;
+    while offset < bytes.len() {
+        if offset + 2 > bytes.len() {
+            return Err(Diagnostic::error(
+                "DISASM-ALIGN-001",
+                "instruction bytes must have a two-byte length",
+            ));
+        }
+        let halfword = u16::from_le_bytes(bytes[offset..offset + 2].try_into().unwrap());
+        let address = origin
+            .checked_add(offset as u64)
+            .ok_or_else(|| Diagnostic::error("DISASM-ADDRESS-001", "address overflow"))?;
+        if halfword & 0x3 != 0x3 {
+            if !options.enable_compressed {
+                return Err(Diagnostic::error(
+                    "DISASM-C-001",
+                    "compressed 16-bit instruction is not enabled in this disassembler",
+                ));
+            }
+            items.push(DisassembledItem::Compressed(decode_compressed(
+                address, halfword, symbols,
+            )));
+            offset += 2;
+        } else {
+            if offset + 4 > bytes.len() {
+                return Err(Diagnostic::error(
+                    "DISASM-ALIGN-001",
+                    "instruction bytes must have a four-byte length",
+                ));
+            }
+            let word = u32::from_le_bytes(bytes[offset..offset + 4].try_into().unwrap());
+            items.push(DisassembledItem::Instruction(disassemble_word(
+                address, word, symbols,
+            )));
+            offset += 4;
+        }
+    }
+    Ok(items)
+}
+
+fn sign_extend(value: u32, bits: u8) -> i32 {
+    ((value << (32 - bits)) as i32) >> (32 - bits)
+}
+
+fn compressed_prime_register(bits: u16) -> u8 {
+    (((bits >> 7) & 0x7) as u8) + 8
+}
+
+fn compressed_imm6(bits: u16) -> i32 {
+    sign_extend(
+        u32::from(((bits >> 2) & 0x1f) | (((bits >> 12) & 1) << 5)),
+        6,
+    )
+}
+
+fn compressed_shamt(bits: u16) -> u32 {
+    u32::from(((bits >> 2) & 0x1f) | (((bits >> 12) & 1) << 5))
+}
+
+fn compressed_lw_offset(bits: u16) -> u32 {
+    (((u32::from(bits) >> 10) & 0x7) << 6)
+        | (((u32::from(bits) >> 6) & 1) << 2)
+        | (((u32::from(bits) >> 3) & 0x7) << 3)
+}
+
+fn compressed_lwsp_offset(bits: u16) -> u32 {
+    (((u32::from(bits) >> 4) & 0x7) << 3) | (((u32::from(bits) >> 2) & 0x3) << 6)
+}
+
+fn compressed_ldsp_offset(bits: u16) -> u32 {
+    (((u32::from(bits) >> 4) & 0x7) << 3) | (((u32::from(bits) >> 10) & 0x7) << 6)
+}
+
+fn compressed_swsp_offset(bits: u16) -> u32 {
+    (((u32::from(bits) >> 9) & 0xf) << 2) | (((u32::from(bits) >> 7) & 0x3) << 6)
+}
+
+fn compressed_sdsp_offset(bits: u16) -> u32 {
+    (((u32::from(bits) >> 10) & 0x7) << 3) | (((u32::from(bits) >> 7) & 0x7) << 6)
+}
+
+fn compressed_addi16sp_immediate(bits: u16) -> i32 {
+    let value = (((u32::from(bits) >> 12) & 1) << 9)
+        | (((u32::from(bits) >> 6) & 1) << 4)
+        | (((u32::from(bits) >> 5) & 1) << 6)
+        | (((u32::from(bits) >> 3) & 0x3) << 7)
+        | (((u32::from(bits) >> 2) & 1) << 5);
+    sign_extend(value, 10)
+}
+
+fn compressed_lui_immediate(bits: u16) -> i32 {
+    let value = (((u32::from(bits) >> 12) & 1) << 17) | (((u32::from(bits) >> 2) & 0x1f) << 12);
+    sign_extend(value, 18)
+}
+
+fn compressed_jump_immediate(bits: u16) -> i32 {
+    let value = (((u32::from(bits) >> 12) & 1) << 11)
+        | (((u32::from(bits) >> 11) & 1) << 4)
+        | (((u32::from(bits) >> 9) & 0x3) << 8)
+        | (((u32::from(bits) >> 8) & 1) << 10)
+        | (((u32::from(bits) >> 7) & 1) << 6)
+        | (((u32::from(bits) >> 6) & 1) << 7)
+        | (((u32::from(bits) >> 3) & 0x7) << 1)
+        | (((u32::from(bits) >> 2) & 1) << 5);
+    sign_extend(value, 12)
+}
+
+fn compressed_branch_immediate(bits: u16) -> i32 {
+    let value = (((u32::from(bits) >> 12) & 1) << 8)
+        | (((u32::from(bits) >> 10) & 0x3) << 3)
+        | (((u32::from(bits) >> 5) & 0x3) << 6)
+        | (((u32::from(bits) >> 3) & 0x3) << 1)
+        | (((u32::from(bits) >> 2) & 1) << 5);
+    sign_extend(value, 9)
+}
+
+fn decode_compressed(address: u64, bits: u16, symbols: &BTreeMap<u64, String>) -> CompressedLine {
+    let matched = GENERATED_OPCODES.iter().find(|opcode| {
+        opcode.instruction_bits == 16 && (u32::from(bits) & opcode.mask) == opcode.match_value
+    });
+    let text = matched
+        .and_then(|opcode| format_compressed(opcode.mnemonic, bits, address, symbols))
+        .unwrap_or_else(|| format!(".half 0x{bits:04x}"));
+    CompressedLine {
+        address,
+        bits,
+        legal: !text.starts_with(".half "),
+        text,
+    }
+}
+
+fn format_compressed(
+    mnemonic: &str,
+    bits: u16,
+    address: u64,
+    symbols: &BTreeMap<u64, String>,
+) -> Option<String> {
+    let rd = ((bits >> 7) & 0x1f) as u8;
+    let rs2 = ((bits >> 2) & 0x1f) as u8;
+    let rd_prime = compressed_prime_register(bits);
+    let rs2_prime = (rs2 & 0x7) + 8;
+    let imm6 = compressed_imm6(bits);
+    match mnemonic {
+        "c.addi4spn" => {
+            let immediate = (((u32::from(bits) >> 11) & 0x3) << 4)
+                | (((u32::from(bits) >> 7) & 0xf) << 6)
+                | (((u32::from(bits) >> 5) & 0x3) << 2);
+            (immediate != 0).then(|| format!("c.addi4spn x{rd_prime},x2,{immediate}"))
+        }
+        "c.lw" => Some(format!(
+            "c.lw x{rd_prime},{}(x{})",
+            compressed_lw_offset(bits),
+            compressed_prime_register(bits)
+        )),
+        "c.sw" => Some(format!(
+            "c.sw x{},{}(x{})",
+            rs2_prime,
+            compressed_lw_offset(bits),
+            compressed_prime_register(bits)
+        )),
+        "c.nop" => Some("c.nop".into()),
+        "c.addi" => (rd != 0).then(|| format!("c.addi x{rd},x{rd},{imm6}")),
+        "c.li" => (rd != 0).then(|| format!("c.li x{rd},{imm6}")),
+        "c.addi16sp" => {
+            let immediate = compressed_addi16sp_immediate(bits);
+            (rd == 2 && immediate != 0).then(|| format!("c.addi16sp x2,{immediate}"))
+        }
+        "c.lui" => {
+            let immediate = compressed_lui_immediate(bits);
+            (rd != 0 && rd != 2 && immediate != 0).then(|| format!("c.lui x{rd},{immediate}"))
+        }
+        "c.andi" => (rd_prime != 0).then(|| format!("c.andi x{rd_prime},x{rd_prime},{imm6}")),
+        "c.sub" | "c.xor" | "c.or" | "c.and" => {
+            (rs2_prime != 0).then(|| format!("{mnemonic} x{rd_prime},x{rs2_prime}"))
+        }
+        "c.j" => Some(format!(
+            "c.j {}",
+            relative_target(address, i64::from(compressed_jump_immediate(bits)), symbols)
+        )),
+        "c.beqz" | "c.bnez" => Some(format!(
+            "{mnemonic} x{rd_prime},{}",
+            relative_target(
+                address,
+                i64::from(compressed_branch_immediate(bits)),
+                symbols
+            )
+        )),
+        "c.lwsp" => (rd != 0).then(|| format!("c.lwsp x{rd},{}(x2)", compressed_lwsp_offset(bits))),
+        "c.jr" => {
+            let rs1 = rd;
+            (rs1 != 0).then(|| format!("c.jr x{rs1}"))
+        }
+        "c.mv" => (rd != 0 && rs2 != 0).then(|| format!("c.mv x{rd},x{rs2}")),
+        "c.ebreak" => Some("c.ebreak".into()),
+        "c.jalr" => (rd != 0).then(|| format!("c.jalr x{rd}")),
+        "c.add" => (rd != 0 && rs2 != 0).then(|| format!("c.add x{rd},x{rs2}")),
+        "c.swsp" => Some(format!(
+            "c.swsp x{rs2},{}(x2)",
+            compressed_swsp_offset(bits)
+        )),
+        "c.ld" => Some(format!(
+            "c.ld x{rd_prime},{}(x{})",
+            compressed_lw_offset(bits),
+            compressed_prime_register(bits)
+        )),
+        "c.sd" => Some(format!(
+            "c.sd x{},{}(x{})",
+            rs2_prime,
+            compressed_lw_offset(bits),
+            compressed_prime_register(bits)
+        )),
+        "c.addiw" => (rd != 0).then(|| format!("c.addiw x{rd},x{rd},{imm6}")),
+        "c.srli" | "c.srai" => {
+            let shamt = compressed_shamt(bits);
+            (rd_prime != 0 && shamt != 0)
+                .then(|| format!("{mnemonic} x{rd_prime},x{rd_prime},{shamt}"))
+        }
+        "c.subw" | "c.addw" => {
+            (rs2_prime != 0).then(|| format!("{mnemonic} x{rd_prime},x{rs2_prime}"))
+        }
+        "c.slli" => {
+            let shamt = compressed_shamt(bits);
+            (rd != 0).then(|| format!("c.slli x{rd},x{rd},{shamt}"))
+        }
+        "c.ldsp" => (rd != 0).then(|| format!("c.ldsp x{rd},{}(x2)", compressed_ldsp_offset(bits))),
+        "c.sdsp" => Some(format!(
+            "c.sdsp x{rs2},{}(x2)",
+            compressed_sdsp_offset(bits)
+        )),
+        _ => None,
+    }
 }
 
 fn format_instruction(
@@ -281,6 +555,65 @@ mod tests {
     fn rejects_compressed_units_instead_of_misdecoding_them() {
         let error = disassemble_bytes(&[0x01, 0x00], 0, &BTreeMap::new()).unwrap_err();
         assert_eq!(error.code, "DISASM-C-001");
+    }
+
+    #[test]
+    fn opt_in_compressed_mode_walks_a_mixed_16_and_32_bit_code_stream() {
+        let mut bytes = vec![0x01, 0x00];
+        bytes.extend(luna_assembler::assemble("addi x1,x0,1").unwrap().text);
+        let regions = [DisassemblyRegion {
+            offset: 0,
+            length: bytes.len(),
+            kind: DisassemblyRegionKind::Code,
+        }];
+        let error = disassemble_regions(&bytes, 0, &regions, &BTreeMap::new()).unwrap_err();
+        assert_eq!(error.code, "DISASM-C-001");
+
+        let items = disassemble_regions_with_options(
+            &bytes,
+            0,
+            &regions,
+            &BTreeMap::new(),
+            DisassemblyOptions {
+                enable_compressed: true,
+            },
+        )
+        .unwrap();
+        assert_eq!(items.len(), 2);
+        let DisassembledItem::Compressed(compressed) = &items[0] else {
+            panic!("first item must be compressed");
+        };
+        assert_eq!(compressed.text, "c.nop");
+        assert!(compressed.legal);
+        let DisassembledItem::Instruction(instruction) = &items[1] else {
+            panic!("second item must be 32-bit");
+        };
+        assert_eq!(instruction.text, "addi x1,x0,1");
+        assert_eq!(instruction.address, 2);
+    }
+
+    #[test]
+    fn marks_an_invalid_compressed_encoding_without_stopping_the_stream() {
+        let regions = [DisassemblyRegion {
+            offset: 0,
+            length: 2,
+            kind: DisassemblyRegionKind::Code,
+        }];
+        let items = disassemble_regions_with_options(
+            &[0x00, 0x00],
+            0,
+            &regions,
+            &BTreeMap::new(),
+            DisassemblyOptions {
+                enable_compressed: true,
+            },
+        )
+        .unwrap();
+        let DisassembledItem::Compressed(line) = &items[0] else {
+            panic!("invalid compressed unit must remain a compressed item");
+        };
+        assert_eq!(line.text, ".half 0x0000");
+        assert!(!line.legal);
     }
 
     #[test]

@@ -8,8 +8,8 @@ use std::path::Path;
 use luna_assembler::{assemble, assemble_program as assemble_source_program};
 use luna_diag::{Diagnostic, Result};
 use luna_disassembler::{
-    DisassembledItem, DisassemblyRegion, DisassemblyRegionKind, disassemble_regions,
-    disassemble_word,
+    DisassembledItem, DisassemblyOptions, DisassemblyRegion, DisassemblyRegionKind,
+    disassemble_regions_with_options, disassemble_word,
 };
 use luna_isa::Instruction;
 use luna_machine::{FFLAG_DZ, FFLAG_NV, FFLAG_NX, FFLAG_OF, FFLAG_UF, Machine};
@@ -130,7 +130,8 @@ impl Monitor {
             "run" | "r" => self.run(argument),
             "continue" | "c" => self.continue_target(argument),
             "disasm" | "d" => self.disassemble(argument),
-            "disasm-mixed" | "mixed" | "dm" => self.disassemble_mixed(argument),
+            "disasm-mixed" | "mixed" | "dm" => self.disassemble_mixed(argument, false),
+            "disasm-mixed-c" | "mixed-c" => self.disassemble_mixed(argument, true),
             "memory" | "mem" | "hex" | "ascii" => self.memory_view(argument),
             "view" | "jump" => self.set_view(argument),
             "edit" | "e" => self.edit_memory(argument),
@@ -598,7 +599,7 @@ impl Monitor {
         Ok(output.trim_end().into())
     }
 
-    fn disassemble_mixed(&mut self, argument: &str) -> Result<String> {
+    fn disassemble_mixed(&mut self, argument: &str, enable_compressed: bool) -> Result<String> {
         let parts: Vec<_> = argument.split_whitespace().collect();
         let (address, spec) = match parts.as_slice() {
             [spec] => (self.machine.pc, *spec),
@@ -621,7 +622,13 @@ impl Monitor {
         })?;
         let mut bytes = vec![0u8; total];
         TargetBackend::read_memory(&mut self.machine, address, &mut bytes)?;
-        let items = disassemble_regions(&bytes, address, &regions, &self.symbols)?;
+        let items = disassemble_regions_with_options(
+            &bytes,
+            address,
+            &regions,
+            &self.symbols,
+            DisassemblyOptions { enable_compressed },
+        )?;
         self.view_address = address;
         Ok(format_mixed_disassembly(&items))
     }
@@ -1079,7 +1086,8 @@ where
             "continue" | "c" => self.continue_target(argument),
             "regs" | "registers" => Ok(self.registers()),
             "disasm" | "d" => self.disassemble(argument),
-            "disasm-mixed" | "mixed" | "dm" => self.disassemble_mixed(argument),
+            "disasm-mixed" | "mixed" | "dm" => self.disassemble_mixed(argument, false),
+            "disasm-mixed-c" | "mixed-c" => self.disassemble_mixed(argument, true),
             "symbols" => self.show_symbols(),
             "where" => Ok(self.show_location()),
             "memory" | "mem" | "hex" | "ascii" => self.memory(argument),
@@ -1316,7 +1324,7 @@ where
         Ok(output.trim_end().into())
     }
 
-    fn disassemble_mixed(&mut self, argument: &str) -> Result<String> {
+    fn disassemble_mixed(&mut self, argument: &str, enable_compressed: bool) -> Result<String> {
         let parts: Vec<_> = argument.split_whitespace().collect();
         let (address, spec) = match parts.as_slice() {
             [spec] => (self.backend.context().pc, *spec),
@@ -1347,7 +1355,13 @@ where
         self.backend
             .read_memory(address, &mut bytes)
             .map_err(target_error)?;
-        let items = disassemble_regions(&bytes, address, &regions, &self.symbols)?;
+        let items = disassemble_regions_with_options(
+            &bytes,
+            address,
+            &regions,
+            &self.symbols,
+            DisassemblyOptions { enable_compressed },
+        )?;
         self.view_address = address;
         Ok(format_mixed_disassembly(&items))
     }
@@ -1919,6 +1933,14 @@ fn format_mixed_disassembly(items: &[DisassembledItem]) -> String {
                 )
                 .unwrap();
             }
+            DisassembledItem::Compressed(line) => {
+                writeln!(
+                    output,
+                    "0x{:016x}: {:04x}  {}",
+                    line.address, line.bits, line.text
+                )
+                .unwrap();
+            }
             DisassembledItem::Data(line) => {
                 write!(output, "0x{:016x}: ", line.address).unwrap();
                 for byte in &line.bytes {
@@ -1992,6 +2014,7 @@ fn backend_help() -> String {
         "regs                 show target registers and capabilities",
         "disasm [addr] [n]    disassemble target words with symbols",
         "disasm-mixed [addr] c:n,d:n,...  disassemble marked code/data",
+        "disasm-mixed-c [addr] c:n,d:n,...  allow compressed 16-bit code",
         "symbols              list loaded symbols",
         "where                show pc, nearest symbol and memory view",
         "memory [addr] [n]    show target memory as hex/ASCII",
@@ -2099,6 +2122,7 @@ fn help() -> String {
         "project-load <path>  restore a project",
         "regs                 show x/f registers and fcsr exactly",
         "disasm-mixed [addr] c:n,d:n,...  disassemble marked code/data",
+        "disasm-mixed-c [addr] c:n,d:n,...  allow compressed 16-bit code",
         "reset                reset machine state",
         "quit                 leave the interactive monitor",
     ]
@@ -2659,6 +2683,17 @@ mod tests {
     }
 
     #[test]
+    fn compressed_mixed_disassembly_is_explicitly_opt_in() {
+        let mut monitor = Monitor::new(128);
+        monitor.execute("edit 0 01 00 93 00 10 00").unwrap();
+        let error = monitor.execute("disasm-mixed 0 c:2,c:4").unwrap_err();
+        assert_eq!(error.code, "DISASM-C-001");
+        let output = monitor.execute("disasm-mixed-c 0 c:2,c:4").unwrap();
+        assert!(output.contains("0001  c.nop"));
+        assert!(output.contains("addi x1,x0,1"));
+    }
+
+    #[test]
     fn memory_edit_and_undo_restore_bytes_through_backend() {
         let mut monitor = Monitor::new(128);
         monitor.execute("edit 0x10 deadbeef").unwrap();
@@ -2910,6 +2945,15 @@ mod tests {
         assert!(output.contains(".byte 0xde,0xad,0xbe"));
         assert!(output.contains("addi x2,x0,2"));
         assert_eq!(console.view_address, 0);
+    }
+
+    #[test]
+    fn backend_console_exposes_opt_in_compressed_disassembly() {
+        let mut console = BackendConsole::new(Machine::new(128));
+        console.execute("edit 0 01 00 93 00 10 00").unwrap();
+        let output = console.execute("mixed-c 0 c:2,c:4").unwrap();
+        assert!(output.contains("0001  c.nop"));
+        assert!(output.contains("addi x1,x0,1"));
     }
 
     #[test]

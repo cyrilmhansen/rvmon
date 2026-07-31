@@ -541,6 +541,23 @@ Une tâche est terminée seulement si sa condition de sortie est satisfaite.
 - **Parallélisable :** oui avec FP-001; non avec une modification concurrente de la syntaxe des commandes mémoire/désassemblage.
 - **Paquet de contexte minimal :** SPEC §§10/13–15/20/23, `crates/monitor/src/lib.rs`, `crates/disassembler/src/lib.rs`, `TESTS.md`.
 
+### DIS-001C — Désassemblage C 16 bits opt-in — TERMINÉ
+
+- **Jalon / exigences :** M3/M6; DIS-001..006, CMD-001..005, REQ-PROD-005.
+- **But :** parcourir explicitement des régions code contenant des instructions C 16 bits et des instructions 32 bits, en conservant l’adresse et la largeur de chaque item.
+- **Non-but :** émission C par l’assembleur, exécution C par la machine, activation implicite du profil C, décodage des extensions flottantes compressées non présentes dans le corpus R2 épinglé.
+- **Entrées/sources :** SPEC §§5, 11, 13, 23; R1 Volume I, chapitre C; R2 commit épinglé via norms/manifest.toml et norms/r2/extensions/rv_c; contrat local C opt-in.
+- **Fichiers/modules :** crates/disassembler/src/lib.rs, crates/monitor/src/lib.rs, TESTS.md.
+- **Étapes réalisées :** générer la reconnaissance opcode depuis GENERATED_OPCODES; décoder les formes C présentes dans R2; rendre les encodages réservés/invalides comme .half; ajouter DisassemblyOptions; exposer disasm-mixed-c/mixed-c; conserver le comportement C-off historique.
+- **Dépendances :** GEN-001, DIS-001A, DIS-001B; aucun outil externe à l’exécution.
+- **Tests :** flux c.nop + addi; rejet C-off; encodage C invalide sans arrêt du flux; commandes locale et backend.
+- **Critères de sortie :** disasm-mixed-c 0 c:2,c:4 affiche une unité 16 bits puis une instruction 32 bits; disasm-mixed refuse la même région; les données restent non décodées; aucune table d’opcodes locale n’est introduite.
+- **Cas limites et échecs :** demi-mot tronqué, opcode réservé, recouvrement R2 avec sélection par contraintes, flux C/32 non aligné sur quatre octets, limite interactive de 4096 octets.
+- **Taille :** 5 points / 2–3 journées-agent, incertitude moyenne; équivalent indicatif 80k–180k tokens.
+- **Compétences/outils :** ISA C, extraction de champs, désassemblage, tests Rust.
+- **Parallélisable :** oui avec les travaux d’interface mémoire; non avec une modification concurrente de DisassembledItem ou des commandes disasm-mixed.
+- **Paquet de contexte minimal :** SPEC §§5/10/11/13/23, R1 chapitre C, R2 rv_c, crates/disassembler/src/lib.rs, crates/monitor/src/lib.rs, TESTS.md.
+
 ### DIS-001 — Désassembleur canonique et symbolisation
 
 - **Jalon / exigences :** M3; DIS-001..006, MEM-001..012.

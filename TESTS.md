@@ -15,7 +15,7 @@ Validation locale complète :
     bash scripts/test-qemu-gdb-backend.sh
     git diff --check
 
-La suite actuelle exécute 117 tests unitaires/intégration répartis dans les crates. Les doc-tests compilent mais ne contiennent actuellement aucun cas. Le script QEMU ouvre en plus une session GDB RSP réelle, hors comptage Cargo.
+La suite actuelle exécute 121 tests unitaires/intégration répartis dans les crates. Les doc-tests compilent mais ne contiennent actuellement aucun cas. Le script QEMU ouvre en plus une session GDB RSP réelle, hors comptage Cargo.
 
 Démonstration M-mode/U-mode sous QEMU :
 
@@ -187,6 +187,10 @@ bornée depuis la cible et applique les marques fournies par l’utilisateur.
 Les régions `code` sont affichées comme instructions; les régions `data` comme
 `.byte` et ne sont jamais décodées. La syntaxe exige une couverture contiguë
 implicitement construite par les longueurs et reste limitée à 4096 octets.
+La variante disasm-mixed-c (alias mixed-c) active explicitement le décodage
+des unités C 16 bits dans les régions code, y compris les flux mixtes C/32 bits.
+Le mode par défaut refuse une unité compressée avec DISASM-C-001; C est ici
+désassemblé uniquement, sans assemblage ni exécution correspondants.
 
 Les marques sont des noms ASCII stables de 32 octets maximum. `mark name`
 capture l’adresse de la vue courante, tandis que `mark name address` l’associe
