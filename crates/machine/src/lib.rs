@@ -362,6 +362,7 @@ mod tests {
         let mut machine = Machine::new(128);
         machine.x[4] = 64;
         machine.x[3] = 0xffff_ffff_8000_0001;
+        machine.x[5] = 0xdead_beef_dead_beef;
         let words = [
             luna_isa::encode_store(
                 "sw",
@@ -386,7 +387,74 @@ mod tests {
         machine.load(0, &bytes).unwrap();
         machine.step().unwrap();
         machine.step().unwrap();
+        assert_eq!(machine.memory.load32(64).unwrap(), 0x8000_0001);
         assert_eq!(machine.x[5], 0xffff_ffff_8000_0001);
+    }
+
+    #[test]
+    fn loads_an_ilp32_pointer_table_with_four_byte_stride() {
+        let mut machine = Machine::new(128);
+        machine.x[10] = 64;
+        let pointers = [0x0000_0000, 0x7fff_ffff, 0x8000_0000, 0xffff_ffff];
+        for (index, pointer) in pointers.iter().enumerate() {
+            machine
+                .memory
+                .store32(64 + (index as u64 * 4), *pointer)
+                .unwrap();
+        }
+        let words = [
+            luna_isa::encode_load(
+                "lw",
+                luna_isa::Load {
+                    rd: 5,
+                    rs1: 10,
+                    imm: 0,
+                },
+            )
+            .unwrap(),
+            luna_isa::encode_load(
+                "lw",
+                luna_isa::Load {
+                    rd: 6,
+                    rs1: 10,
+                    imm: 4,
+                },
+            )
+            .unwrap(),
+            luna_isa::encode_load(
+                "lw",
+                luna_isa::Load {
+                    rd: 7,
+                    rs1: 10,
+                    imm: 8,
+                },
+            )
+            .unwrap(),
+            luna_isa::encode_load(
+                "lw",
+                luna_isa::Load {
+                    rd: 8,
+                    rs1: 10,
+                    imm: 12,
+                },
+            )
+            .unwrap(),
+        ];
+        let bytes: Vec<_> = words.iter().flat_map(|word| word.to_le_bytes()).collect();
+        machine.load(0, &bytes).unwrap();
+        machine.x[5] = 0xdead_beef_dead_beef;
+        machine.x[6] = 0x0123_4567_89ab_cdef;
+        machine.x[7] = 0xaaaa_aaaa_aaaa_aaaa;
+        machine.x[8] = 0x5555_5555_5555_5555;
+
+        for _ in words {
+            machine.step().unwrap();
+        }
+
+        assert_eq!(machine.x[5], 0x0000_0000_0000_0000);
+        assert_eq!(machine.x[6], 0x0000_0000_7fff_ffff);
+        assert_eq!(machine.x[7], 0xffff_ffff_8000_0000);
+        assert_eq!(machine.x[8], 0xffff_ffff_ffff_ffff);
     }
 
     #[test]

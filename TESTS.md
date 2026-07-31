@@ -12,7 +12,7 @@ Validation locale complète :
     bash scripts/test-guest-monitor.sh
     git diff --check
 
-La suite actuelle exécute 53 tests unitaires/intégration répartis dans les crates. Les doc-tests compilent mais ne contiennent actuellement aucun cas.
+La suite actuelle exécute 54 tests unitaires/intégration répartis dans les crates. Les doc-tests compilent mais ne contiennent actuellement aucun cas.
 
 Démonstration M-mode/U-mode sous QEMU :
 
@@ -41,7 +41,7 @@ Moniteur texte interactif :
 | luna-asm-lexer | 2 | Labels, ponctuation, commentaires, chaînes et positions d’erreur. |
 | luna-assembler | 16 | AST, alias ABI, expressions, symboles, directives, alignement, fadd.s et fadd.d. |
 | luna-isa | 6 | Tables générées depuis R2, encodage/décodage entier et flottant. |
-| luna-machine | 8 | Exécution entière, branches, mémoire, fadd.s, fadd.d, NaN-boxing et flags. |
+| luna-machine | 9 | Exécution entière, branches, mémoire, tables de pointeurs ILP32, fadd.s, fadd.d, NaN-boxing et flags. |
 | luna-disassembler | 7 | Format canonique, symboles, opcodes illégaux, C rejeté et round-trip. |
 | luna-floatfmt | 3 | Bits hex exacts, décimal court, classes IEEE et NaN-box invalide. |
 | luna-monitor | 3 | assemble → step → regs, affichage flottant et run borné. |
