@@ -18,6 +18,7 @@ pub enum TokenKind {
     Colon,
     LParen,
     RParen,
+    Operator(char),
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -67,6 +68,10 @@ pub fn tokenize(source: &str) -> Result<Vec<Token>> {
                 kind: TokenKind::RParen,
                 span: span(1),
             },
+            '+' | '-' | '*' | '/' | '%' | '&' | '|' | '^' | '~' => Token {
+                kind: TokenKind::Operator(character),
+                span: span(1),
+            },
             '"' => {
                 let mut value = String::new();
                 let mut length = 1;
@@ -107,10 +112,10 @@ pub fn tokenize(source: &str) -> Result<Vec<Token>> {
                     span: span(length),
                 }
             }
-            character if character.is_ascii_alphanumeric() || "_.$+-".contains(character) => {
+            character if character.is_ascii_alphanumeric() || "_.$".contains(character) => {
                 let mut value = String::from(character);
                 while let Some(next) = chars.peek().copied() {
-                    if next.is_ascii_alphanumeric() || "_.$+-xX".contains(next) {
+                    if next.is_ascii_alphanumeric() || "_.$".contains(next) {
                         value.push(next);
                         chars.next();
                     } else {

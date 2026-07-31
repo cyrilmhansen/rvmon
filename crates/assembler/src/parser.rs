@@ -21,6 +21,7 @@ pub enum OperandKind {
     Register(String),
     Integer(String),
     Symbol(String),
+    Expression(String),
     String(String),
     Memory { offset: String, base: String },
 }
@@ -121,10 +122,66 @@ impl Parser {
     }
 
     fn parse_operand(&mut self) -> Result<Operand> {
-        let token = self
+        let first = self
             .take()
             .ok_or_else(|| self.error_at("ASM-SYNTAX-003", "missing operand"))?;
-        let mut operand = Operand::atom(&token)?;
+        let mut pieces = Vec::new();
+        let mut has_operator = false;
+        let first_atom = if let TokenKind::Operator(operator) = first.kind {
+            if !matches!(operator, '+' | '-' | '~') {
+                return Err(Diagnostic::error("ASM-SYNTAX-005", "expected operand")
+                    .at(first.span.line, first.span.column));
+            }
+            has_operator = true;
+            pieces.push(operator.to_string());
+            self.take()
+                .ok_or_else(|| self.error_at("ASM-SYNTAX-003", "missing operand"))?
+        } else {
+            first
+        };
+        let mut operand = Operand::atom(&first_atom)?;
+        pieces.push(match &first_atom.kind {
+            TokenKind::Identifier(value) | TokenKind::Number(value) => value.clone(),
+            TokenKind::String(_) => String::new(),
+            _ => unreachable!("operand atom has a scalar token"),
+        });
+        while let Some(Token {
+            kind: TokenKind::Operator(operator),
+            ..
+        }) = self.peek()
+        {
+            has_operator = true;
+            pieces.push(operator.to_string());
+            self.take();
+            let next = self
+                .take()
+                .ok_or_else(|| self.error_at("ASM-SYNTAX-003", "missing operand"))?;
+            let next_value = match &next.kind {
+                TokenKind::Identifier(value) | TokenKind::Number(value) => value.clone(),
+                _ => {
+                    return Err(
+                        Diagnostic::error("ASM-SYNTAX-005", "expected expression atom")
+                            .at(next.span.line, next.span.column),
+                    );
+                }
+            };
+            pieces.push(next_value);
+        }
+        if has_operator {
+            if matches!(operand.kind, OperandKind::String(_)) {
+                return Err(Diagnostic::error(
+                    "ASM-EXPR-006",
+                    "strings cannot be used in expressions",
+                )
+                .at(operand.span.line, operand.span.column));
+            }
+            let expression = pieces.concat();
+            operand.kind = if matches!(operand.kind, OperandKind::Integer(_)) && pieces.len() == 2 {
+                OperandKind::Integer(expression)
+            } else {
+                OperandKind::Expression(expression)
+            };
+        }
         if !matches!(self.peek().map(|item| &item.kind), Some(TokenKind::LParen)) {
             return Ok(operand);
         }
@@ -154,7 +211,9 @@ impl Parser {
             );
         }
         let offset = match operand.kind {
-            OperandKind::Integer(value) | OperandKind::Symbol(value) => value,
+            OperandKind::Integer(value)
+            | OperandKind::Symbol(value)
+            | OperandKind::Expression(value) => value,
             _ => {
                 return Err(Diagnostic::error(
                     "ASM-MEMORY-005",
