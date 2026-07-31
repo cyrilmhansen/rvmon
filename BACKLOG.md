@@ -354,6 +354,23 @@ Une tâche est terminée seulement si sa condition de sortie est satisfaite.
 - **Parallélisable :** oui avec DIS-001; non avec une modification simultanée de `ObjectImage.symbols` ou de la grammaire des labels.
 - **Paquet de contexte minimal :** SPEC §11, `crates/assembler/src/expr.rs`, `crates/assembler/src/lib.rs`, `crates/asm-lexer/src/lib.rs`, tests assembleur.
 
+### ASM-002B — Intégrer `.equ` et `.set` dans l’assemblage — TERMINÉ
+
+- **Jalon / exigences :** M3; ASM-002, ASM-005, ASM-009, ASM-015, IO-005.
+- **But :** ajouter des symboles absolus signés évalués en `i128`, utilisables dans les données et immédiats, sans les confondre avec les adresses de labels.
+- **Non-but :** relocations ELF exportables, `.if`, macros et résolution de `.equ` dépendant d’un symbole futur ou d’un `.align` dont la taille dépend d’une définition future.
+- **Entrées/sources :** SPEC §11 (directives `.equ/.set`, expressions signées et deux passes), §12 (image/symboles) et §19 (diagnostics); R4, directives et symboles absolus.
+- **Fichiers/modules :** `crates/assembler/src/expr.rs`, `crates/assembler/src/lib.rs`, `TESTS.md`.
+- **Étapes réalisées :** élargir la table d’évaluation aux valeurs `i128`; ajouter `ObjectImage.constants`; traiter `.equ` immuable et `.set` séquentiel; conserver les constantes hors de `symbols` d’adresses; rendre ces directives de taille nulle; refuser le mode mono-ligne et les collisions avec labels.
+- **Dépendances :** ASM-002A; aucun nouvel outil externe; bloque la suite des directives conditionnelles qui doit réutiliser le même environnement de symboles.
+- **Tests :** `.equ` dans `.word` et `addi`; valeur négative dans `.byte/.word`; réaffectation séquentielle `.set`; `.equ` immutable; erreur en mode `assemble` mono-ligne; suite assembleur.
+- **Critères de sortie :** les bytes attendus sont produits sans décalage de PC; `constants` conserve les valeurs exactes signées; un label ne peut pas devenir constant; `.set` ne modifie pas les lignes antérieures.
+- **Cas limites et échecs :** symbole absolu inconnu, expression invalide, nom manquant, local hors portée et `.align` dépendant d’une valeur non définie produisent un diagnostic; les relocations non résolues restent hors périmètre.
+- **Taille :** 4 points / 1,5–2 journées-agent, incertitude moyenne; équivalent indicatif 60k–140k tokens.
+- **Compétences/outils :** assembleur, expressions signées, invariants de passes Rust.
+- **Parallélisable :** oui avec DIS-001; non avec une modification simultanée du contrat `ObjectImage` ou des directives de données.
+- **Paquet de contexte minimal :** SPEC §§11–12/19, R4 directives, `crates/assembler/src/lib.rs`, `crates/assembler/src/expr.rs`.
+
 ### ASM-003 — Directives, chaînes, macros et listing
 
 - **Jalon / exigences :** M3; ASM-001..015, IO-001..009.

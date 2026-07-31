@@ -1,6 +1,6 @@
 #![forbid(unsafe_code)]
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 
 use luna_diag::{Diagnostic, Result};
 use luna_isa::{
@@ -17,7 +17,10 @@ pub struct ObjectImage {
     pub text: Vec<u8>,
     pub entry: u64,
     pub symbols: BTreeMap<String, u64>,
+    pub constants: BTreeMap<String, i128>,
 }
+
+type SymbolValues = BTreeMap<String, i128>;
 
 fn register(name: &str) -> Result<u8> {
     if let Some(number) = name.strip_prefix('x') {
@@ -84,7 +87,7 @@ fn operand_text(operand: &Operand) -> Result<&str> {
     }
 }
 
-fn memory_operand(operand: &Operand, symbols: &BTreeMap<String, u64>) -> Result<(i16, u8)> {
+fn memory_operand(operand: &Operand, symbols: &SymbolValues) -> Result<(i16, u8)> {
     let OperandKind::Memory { offset, base } = &operand.kind else {
         return Err(
             Diagnostic::error("ASM-MEMORY-001", "memory operand must be imm(register)")
@@ -109,14 +112,16 @@ pub fn assemble(source: &str) -> Result<ObjectImage> {
             "labels are only valid when assembling a program",
         ));
     }
+    if matches!(parsed.mnemonic.as_deref(), Some(".equ" | ".set")) {
+        return Err(Diagnostic::error(
+            "ASM-DIRECTIVE-005",
+            ".equ and .set require program assembly",
+        ));
+    }
     assemble_parsed(&parsed, 0, &BTreeMap::new())
 }
 
-fn assemble_parsed(
-    parsed: &ParsedLine,
-    pc: u64,
-    symbols: &BTreeMap<String, u64>,
-) -> Result<ObjectImage> {
+fn assemble_parsed(parsed: &ParsedLine, pc: u64, symbols: &SymbolValues) -> Result<ObjectImage> {
     let mnemonic = parsed.mnemonic.as_deref().unwrap_or("");
     let parts = &parsed.operands;
     if mnemonic.starts_with('.') {
@@ -124,6 +129,7 @@ fn assemble_parsed(
             text: assemble_directive(parsed, pc, symbols)?,
             entry: 0,
             symbols: BTreeMap::new(),
+            constants: BTreeMap::new(),
         });
     }
     let word = match mnemonic {
@@ -240,6 +246,7 @@ fn assemble_parsed(
         text: word.to_le_bytes().to_vec(),
         entry: 0,
         symbols: BTreeMap::new(),
+        constants: BTreeMap::new(),
     })
 }
 
@@ -255,7 +262,7 @@ fn encode_u_instruction(mnemonic: &str, instruction: Lui) -> Result<u32> {
 
 fn immediate(
     operand: &Operand,
-    symbols: &BTreeMap<String, u64>,
+    symbols: &SymbolValues,
     minimum: i128,
     maximum: i128,
 ) -> Result<i128> {
@@ -270,12 +277,9 @@ fn immediate(
     Ok(value)
 }
 
-fn assemble_directive(
-    parsed: &ParsedLine,
-    pc: u64,
-    symbols: &BTreeMap<String, u64>,
-) -> Result<Vec<u8>> {
+fn assemble_directive(parsed: &ParsedLine, pc: u64, symbols: &SymbolValues) -> Result<Vec<u8>> {
     match parsed.mnemonic.as_deref().unwrap_or_default() {
+        ".equ" | ".set" => Ok(Vec::new()),
         ".byte" => data_values(&parsed.operands, 1, symbols),
         ".half" => data_values(&parsed.operands, 2, symbols),
         ".word" => data_values(&parsed.operands, 4, symbols),
@@ -320,11 +324,7 @@ fn assemble_directive(
     }
 }
 
-fn data_values(
-    operands: &[Operand],
-    width: usize,
-    symbols: &BTreeMap<String, u64>,
-) -> Result<Vec<u8>> {
+fn data_values(operands: &[Operand], width: usize, symbols: &SymbolValues) -> Result<Vec<u8>> {
     let bits = width * 8;
     let minimum = -(1i128 << (bits - 1));
     let maximum = (1i128 << bits) - 1;
@@ -340,12 +340,31 @@ fn data_values(
 pub fn assemble_program(source: &str) -> Result<ObjectImage> {
     let lines: Vec<_> = source.lines().map(parse_line).collect::<Result<_>>()?;
     let mut symbols = BTreeMap::new();
+    let mut values = SymbolValues::new();
+    let mut constants = BTreeMap::new();
+    let mut equ_values = SymbolValues::new();
+    let mut equ_names = BTreeSet::new();
     let mut current_global = None;
     let mut pc = 0u64;
     for line in &lines {
-        define_labels(&line.labels, pc, &mut symbols, &mut current_global)?;
+        define_labels(
+            &line.labels,
+            pc,
+            &mut symbols,
+            &mut values,
+            &mut current_global,
+        )?;
+        define_absolute_directive(
+            line,
+            current_global.as_deref(),
+            &symbols,
+            &mut values,
+            &mut constants,
+            &mut equ_values,
+            &mut equ_names,
+        )?;
         if line.mnemonic.is_some() {
-            let scoped = scoped_symbols(&symbols, current_global.as_deref());
+            let scoped = scoped_symbols(&values, current_global.as_deref());
             let size = line_size(line, pc, &scoped)?;
             pc = pc
                 .checked_add(size)
@@ -354,6 +373,11 @@ pub fn assemble_program(source: &str) -> Result<ObjectImage> {
     }
 
     let mut text = Vec::new();
+    let mut emit_values: SymbolValues = symbols
+        .iter()
+        .map(|(name, address)| (name.clone(), i128::from(*address)))
+        .collect();
+    emit_values.extend(equ_values);
     let mut current_global = None;
     pc = 0;
     for line in lines {
@@ -361,7 +385,20 @@ pub fn assemble_program(source: &str) -> Result<ObjectImage> {
         if line.mnemonic.is_none() {
             continue;
         }
-        let scoped = scoped_symbols(&symbols, current_global.as_deref());
+        if line.mnemonic.as_deref() == Some(".set") {
+            apply_set_directive(
+                &line,
+                current_global.as_deref(),
+                &symbols,
+                &equ_names,
+                &mut emit_values,
+            )?;
+            continue;
+        }
+        if line.mnemonic.as_deref() == Some(".equ") {
+            continue;
+        }
+        let scoped = scoped_symbols(&emit_values, current_global.as_deref());
         let resolved = resolve_control_label(line, pc, &scoped)?;
         let image = assemble_parsed(&resolved, pc, &scoped)?;
         text.extend_from_slice(&image.text);
@@ -372,6 +409,7 @@ pub fn assemble_program(source: &str) -> Result<ObjectImage> {
         text,
         entry,
         symbols,
+        constants,
     })
 }
 
@@ -387,6 +425,7 @@ fn define_labels(
     labels: &[String],
     pc: u64,
     symbols: &mut BTreeMap<String, u64>,
+    values: &mut SymbolValues,
     current_global: &mut Option<String>,
 ) -> Result<()> {
     for label in labels {
@@ -402,9 +441,11 @@ fn define_labels(
             current_global.replace(label.clone());
             label.clone()
         };
-        if symbols.insert(key, pc).is_some() {
+        if values.contains_key(&key) {
             return Err(Diagnostic::error("ASM-LABEL-002", "duplicate label"));
         }
+        symbols.insert(key.clone(), pc);
+        values.insert(key, i128::from(pc));
     }
     Ok(())
 }
@@ -425,10 +466,7 @@ fn update_scope(labels: &[String], current_global: &mut Option<String>) -> Resul
     Ok(())
 }
 
-fn scoped_symbols(
-    symbols: &BTreeMap<String, u64>,
-    current_global: Option<&str>,
-) -> BTreeMap<String, u64> {
+fn scoped_symbols(symbols: &SymbolValues, current_global: Option<&str>) -> SymbolValues {
     let mut scoped = symbols.clone();
     let Some(global) = current_global else {
         return scoped;
@@ -442,8 +480,123 @@ fn scoped_symbols(
     scoped
 }
 
-fn line_size(line: &ParsedLine, pc: u64, symbols: &BTreeMap<String, u64>) -> Result<u64> {
+fn definition_parts(line: &ParsedLine) -> Result<(&str, &str)> {
+    if line.operands.len() != 2 {
+        return Err(Diagnostic::error(
+            "ASM-DIRECTIVE-004",
+            ".equ and .set expect a name and one expression",
+        ));
+    }
+    let name = match &line.operands[0].kind {
+        OperandKind::Symbol(value) => value.as_str(),
+        _ => {
+            return Err(Diagnostic::error(
+                "ASM-SYMBOL-002",
+                "symbol definition requires a symbol name",
+            )
+            .at(line.operands[0].span.line, line.operands[0].span.column));
+        }
+    };
+    let expression = operand_text(&line.operands[1])?;
+    Ok((name, expression))
+}
+
+fn canonical_definition_name(name: &str, current_global: Option<&str>) -> Result<String> {
+    if !is_local_label(name) {
+        return Ok(name.to_owned());
+    }
+    let Some(scope) = current_global else {
+        return Err(Diagnostic::error(
+            "ASM-LABEL-001",
+            "local symbol requires a preceding global label",
+        ));
+    };
+    Ok(local_symbol_key(scope, name))
+}
+
+fn evaluate_definition(
+    line: &ParsedLine,
+    expression: &str,
+    values: &SymbolValues,
+    current_global: Option<&str>,
+) -> Result<i128> {
+    let scoped = scoped_symbols(values, current_global);
+    expr::evaluate(expression, &scoped)
+        .map_err(|error| error.at(line.operands[1].span.line, line.operands[1].span.column))
+}
+
+fn define_absolute_directive(
+    line: &ParsedLine,
+    current_global: Option<&str>,
+    labels: &BTreeMap<String, u64>,
+    values: &mut SymbolValues,
+    constants: &mut BTreeMap<String, i128>,
+    equ_values: &mut SymbolValues,
+    equ_names: &mut BTreeSet<String>,
+) -> Result<()> {
+    let Some(mnemonic) = line.mnemonic.as_deref() else {
+        return Ok(());
+    };
+    if !matches!(mnemonic, ".equ" | ".set") {
+        return Ok(());
+    }
+    let (name, expression) = definition_parts(line)?;
+    let key = canonical_definition_name(name, current_global)?;
+    if labels.contains_key(&key) {
+        return Err(Diagnostic::error(
+            "ASM-SYMBOL-004",
+            "cannot redefine a label as an absolute symbol",
+        ));
+    }
+    if mnemonic == ".equ" {
+        if values.contains_key(&key) {
+            return Err(Diagnostic::error(
+                "ASM-SYMBOL-003",
+                ".equ symbols are immutable",
+            ));
+        }
+        let value = evaluate_definition(line, expression, values, current_global)?;
+        values.insert(key.clone(), value);
+        constants.insert(key.clone(), value);
+        equ_values.insert(key.clone(), value);
+        equ_names.insert(key);
+    } else {
+        if equ_names.contains(&key) {
+            return Err(Diagnostic::error(
+                "ASM-SYMBOL-003",
+                ".equ symbols are immutable",
+            ));
+        }
+        let value = evaluate_definition(line, expression, values, current_global)?;
+        values.insert(key.clone(), value);
+        constants.insert(key, value);
+    }
+    Ok(())
+}
+
+fn apply_set_directive(
+    line: &ParsedLine,
+    current_global: Option<&str>,
+    labels: &BTreeMap<String, u64>,
+    equ_names: &BTreeSet<String>,
+    values: &mut SymbolValues,
+) -> Result<()> {
+    let (name, expression) = definition_parts(line)?;
+    let key = canonical_definition_name(name, current_global)?;
+    if labels.contains_key(&key) || equ_names.contains(&key) {
+        return Err(Diagnostic::error(
+            "ASM-SYMBOL-003",
+            "cannot redefine an immutable symbol",
+        ));
+    }
+    let value = evaluate_definition(line, expression, values, current_global)?;
+    values.insert(key, value);
+    Ok(())
+}
+
+fn line_size(line: &ParsedLine, pc: u64, symbols: &SymbolValues) -> Result<u64> {
     match line.mnemonic.as_deref().unwrap_or_default() {
+        ".equ" | ".set" => return Ok(0),
         ".byte" => return Ok(line.operands.len() as u64),
         ".half" => return Ok((line.operands.len() * 2) as u64),
         ".word" => return Ok((line.operands.len() * 4) as u64),
@@ -473,7 +626,7 @@ fn line_size(line: &ParsedLine, pc: u64, symbols: &BTreeMap<String, u64>) -> Res
 fn resolve_control_label(
     mut line: ParsedLine,
     pc: u64,
-    symbols: &BTreeMap<String, u64>,
+    symbols: &SymbolValues,
 ) -> Result<ParsedLine> {
     let index = match line.mnemonic.as_deref() {
         Some("beq") | Some("bne") => Some(2),
@@ -600,6 +753,40 @@ mod tests {
     fn rejects_duplicate_global_labels() {
         let error = assemble_program("value: .byte 1\nvalue: .byte 2").unwrap_err();
         assert_eq!(error.code, "ASM-LABEL-002");
+    }
+
+    #[test]
+    fn resolves_equ_and_set_in_data_and_instructions() {
+        let image =
+            assemble_program(".equ BASE, 3\n.set VALUE, BASE + 4\n.word VALUE\naddi x1,x0,VALUE")
+                .unwrap();
+        assert_eq!(&image.text[..4], &[7, 0, 0, 0]);
+        assert_eq!(&image.text[4..8], &[0x93, 0x00, 0x70, 0x00]);
+        assert_eq!(image.constants["BASE"], 3);
+        assert_eq!(image.constants["VALUE"], 7);
+    }
+
+    #[test]
+    fn preserves_signed_absolute_constants_for_data() {
+        let image = assemble_program(".equ NEGATIVE, -1\n.byte NEGATIVE\n.word NEGATIVE").unwrap();
+        assert_eq!(image.text, [0xff, 0xff, 0xff, 0xff, 0xff]);
+        assert_eq!(image.constants["NEGATIVE"], -1);
+    }
+
+    #[test]
+    fn set_is_sequential_and_equ_is_immutable() {
+        let image =
+            assemble_program(".set value, 1\n.word value\n.set value, 2\n.word value").unwrap();
+        assert_eq!(image.text, [1, 0, 0, 0, 2, 0, 0, 0]);
+
+        let error = assemble_program(".equ value, 1\n.set value, 2").unwrap_err();
+        assert_eq!(error.code, "ASM-SYMBOL-003");
+    }
+
+    #[test]
+    fn rejects_absolute_directives_in_single_line_mode() {
+        let error = assemble(".equ value, 1").unwrap_err();
+        assert_eq!(error.code, "ASM-DIRECTIVE-005");
     }
 
     #[test]

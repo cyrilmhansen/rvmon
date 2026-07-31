@@ -4,7 +4,7 @@ use std::collections::BTreeMap;
 
 use luna_diag::{Diagnostic, Result};
 
-pub fn evaluate(source: &str, symbols: &BTreeMap<String, u64>) -> Result<i128> {
+pub fn evaluate(source: &str, symbols: &BTreeMap<String, i128>) -> Result<i128> {
     let mut parser = Parser {
         source,
         symbols,
@@ -44,7 +44,7 @@ pub fn references_symbol(source: &str) -> bool {
 
 struct Parser<'a> {
     source: &'a str,
-    symbols: &'a BTreeMap<String, u64>,
+    symbols: &'a BTreeMap<String, i128>,
     cursor: usize,
 }
 
@@ -129,7 +129,6 @@ impl<'a> Parser<'a> {
         self.symbols
             .get(atom)
             .copied()
-            .map(i128::from)
             .ok_or_else(|| Diagnostic::error("ASM-SYMBOL-001", format!("unknown symbol: {atom}")))
     }
 
