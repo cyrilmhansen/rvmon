@@ -93,6 +93,23 @@ Une tâche est terminée seulement si sa condition de sortie est satisfaite.
 - **Parallélisable :** oui avec ASM-001 et FP-001; non avec une modification simultanée de `build.rs`.
 - **Paquet de contexte minimal :** SPEC §4/§11, `crates/isa-core/build.rs`, `norms/manifest.toml`, `tools/check-r2.sh`.
 
+### BOOT-006 — Brancher les premiers oracles d’encodage GNU/LLVM — TERMINÉ
+
+- **Jalon / exigences :** M0/M1; ENC-001..006, ISA-001..010, REQ-PROD-006.
+- **But :** obtenir une preuve externe reproductible pour un corpus réduit d’encodages R1, en complément des tables R2 et des tests internes.
+- **Non-but :** utiliser GNU ou LLVM dans le runtime, prouver toute la sémantique R1, ou valider l’ABI RV64ILP32.
+- **Entrées/sources :** R1 Unprivileged ISA v20260120; `norms/oracles/manifest.toml`; corpus `tests/golden/r1-encoding-corpus.tsv`.
+- **Fichiers/modules :** `tools/check-oracles.sh`, `norms/oracles/manifest.toml`, `tests/golden/r1-encoding-corpus.tsv`, `TESTS.md`, `TRACEABILITY.md`.
+- **Étapes réalisées :** assembler le même corpus avec GNU `as` et LLVM `llvm-mc`; extraire `.text`; comparer les octets à la fixture R1 puis entre oracles; refuser les versions d’outils non déclarées.
+- **Dépendances et tâches bloquées :** BOOT-005; le différentiel complet par extension et la sémantique Sail/Spike restent à réaliser.
+- **Tests :** `bash tools/check-oracles.sh`; échec attendu si une version, une fixture ou un octet diverge.
+- **Critères de sortie :** sept encodages I/U, `ld/sd`, F et D concordent avec GNU 2.44, LLVM 22.1.8 et le corpus R1.
+- **Cas limites et échecs :** oracle absent ou version différente → échec explicite; pseudo-instruction ou alias non inclus dans le corpus; divergence classée oracle/norme, jamais masquée.
+- **Taille :** 3 points / 1,5 journée-agent, incertitude faible; équivalent indicatif 60k–120k tokens.
+- **Compétences/outils :** GNU as/objdump, LLVM MC, formats ELF/text, RISC-V encodings.
+- **Parallélisable :** oui avec ASM-001 et FP-ORACLE-001; non avec une modification simultanée du corpus ou du script oracle.
+- **Paquet de contexte minimal :** SPEC §23, TEST_PLAN §§3–5, `norms/oracles/manifest.toml`, `tools/check-oracles.sh`.
+
 ## M1 — ISA générée
 
 ### GEN-001 — Générer tables profile-aware et artefacts hashés

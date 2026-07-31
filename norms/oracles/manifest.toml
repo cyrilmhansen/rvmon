@@ -1,0 +1,15 @@
+schema_version = 1
+
+[gnu]
+name = "GNU Binutils RISC-V assembler"
+command = "riscv64-linux-gnu-as"
+version = "2.44"
+license = "GPL-3.0-or-later"
+role = "independent encoding oracle"
+
+[llvm]
+name = "LLVM MC RISC-V assembler"
+command = "llvm-mc"
+version = "22.1.8"
+license = "Apache-2.0 WITH LLVM-exception"
+role = "independent encoding oracle"

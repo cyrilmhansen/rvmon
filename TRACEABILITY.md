@@ -18,7 +18,7 @@
 
 ## Tests différentiels obligatoires
 
-T-ENC compare chaque instruction sélectionnée à R2 SHA `c6edca7`, puis round-trip encode/decode. T-SEM compare le moteur à Sail R5 et Spike pour les instructions couvertes. T-ASM compare `as/objdump` et `llvm-mc` seulement quand le profil et l’ABI sont effectivement acceptés. T-FP utilise motifs `±0`, `±inf`, min/max normal, subnormaux, sNaN/qNaN et flags. T-FUZZ cible parser, decoder, expressions, commandes et chemins.
+T-ENC compare chaque instruction sélectionnée à R2 SHA `c6edca7`, puis round-trip encode/decode. `tools/check-oracles.sh` compare actuellement GNU Binutils 2.44 et LLVM MC 22.1.8 à sept encodages du corpus R1 v20260120 couvrant I/U, `ld/sd`, F et D. T-SEM compare le moteur à Sail R5 et Spike pour les instructions couvertes. T-ASM compare `as/objdump` et `llvm-mc` seulement quand le profil et l’ABI sont effectivement acceptés. T-FP utilise motifs `±0`, `±inf`, min/max normal, subnormaux, sNaN/qNaN et flags. T-FUZZ cible parser, decoder, expressions, commandes et chemins.
 
 ## Gaps connus
 

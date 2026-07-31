@@ -8,6 +8,7 @@ Validation locale complète :
 
     cargo fmt --all
     bash tools/check-r2.sh
+    bash tools/check-oracles.sh
     cargo test --workspace
     cargo build -p luna-guest-monitor --target riscv64gc-unknown-none-elf
     bash scripts/test-guest-monitor.sh
@@ -86,6 +87,12 @@ de contraintes d’opérandes R2 (`rd_n0`, etc.) ; un doublon exact reste une
 erreur bloquante.
 
 Cette vérification ne remplace pas encore une comparaison indépendante avec GNU, LLVM, Sail, Spike ou SoftFloat.
+
+Le contrôle `bash tools/check-oracles.sh` constitue la première preuve externe
+active. Il exige les versions déclarées dans `norms/oracles/manifest.toml` et
+compare GNU Binutils et LLVM MC à sept encodages du corpus R1 v20260120. Il ne
+prouve pas encore la couverture complète de R1, la sémantique d’exécution ni
+la conformité ABI RV64ILP32.
 
 ### Machine et flottants
 
@@ -246,7 +253,7 @@ breakpoint permanent et le breakpoint temporaire du pas-à-pas est refusée.
 | Unitaire | Présent | ABI, mémoire, lexer, expressions, ISA, flottants, machine et contrat de cible. |
 | Composant | Partiel | Assembleur, désassembleur et moniteur testés par API. |
 | Intégration interne | Présent | Round-trips et chaîne monitor/machine. |
-| Différentiel externe | Absent | GNU, LLVM, Sail, Spike et SoftFloat ne sont pas branchés dans CI. |
+| Différentiel externe | Partiel | GNU/LLVM sont branchés sur sept encodages R1 ; Sail, Spike et SoftFloat restent à intégrer. |
 | Génératif/fuzzing | Absent | Aucun budget de fuzzing installé. |
 | E2E terminal | Partiel | Smoke test UART/QEMU et session TCP GDB RSP automatisés ; protocole interactif complet encore absent. |
 | Multi-plateforme | Absent | Pas encore de matrice Linux/macOS/Windows et x86_64/arm64. |
