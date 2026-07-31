@@ -53,6 +53,7 @@ version = "0.1.0"
 name = "luna-guest-monitor"
 version = "0.1.0"
 dependencies = [
+ "luna-isa-core",
  "luna-target-api",
 ]
 
@@ -61,7 +62,12 @@ name = "luna-isa"
 version = "0.1.0"
 dependencies = [
  "luna-diag",
+ "luna-isa-core",
 ]
+
+[[package]]
+name = "luna-isa-core"
+version = "0.1.0"
 
 [[package]]
 name = "luna-machine"

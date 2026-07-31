@@ -2,16 +2,7 @@
 
 use luna_diag::{Diagnostic, Result};
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct Opcode {
-    pub mnemonic: &'static str,
-    pub extension: &'static str,
-    pub mask: u32,
-    pub match_value: u32,
-    pub fields: &'static [&'static str],
-}
-
-include!(concat!(env!("OUT_DIR"), "/opcode.rs"));
+pub use luna_isa_core::{ADDI_MASK, ADDI_MATCH, GENERATED_OPCODES, Opcode};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Addi {
@@ -122,14 +113,9 @@ fn encode_r_type(mnemonic: &str, instruction: RType) -> Result<u32> {
 }
 
 pub fn encode_addi(addi: Addi) -> Result<u32> {
-    if addi.rd > 31 || addi.rs1 > 31 || !(-2048..=2047).contains(&addi.imm) {
-        return Err(Diagnostic::error(
-            "ISA-OPERAND-001",
-            "addi register or immediate out of range",
-        ));
-    }
-    let imm = (addi.imm as i32 as u32) & 0xfff;
-    Ok((imm << 20) | ((addi.rs1 as u32) << 15) | ((addi.rd as u32) << 7) | ADDI_MATCH)
+    luna_isa_core::encode_addi(addi.rd, addi.rs1, addi.imm).ok_or_else(|| {
+        Diagnostic::error("ISA-OPERAND-001", "addi register or immediate out of range")
+    })
 }
 
 pub fn encode_r(mnemonic: &str, instruction: RType) -> Result<u32> {

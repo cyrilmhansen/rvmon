@@ -14,10 +14,11 @@ terminal                           <-- commandes et diagnostics UART
 ```
 
 Ce binaire invité est actuellement un moniteur de démarrage et de débogage
-minimal : il ne contient pas encore l’assembleur interactif, les vues mémoire,
-les symboles ou les snapshots du moniteur hôte. Le programme U-mode de
-démonstration est lié dans l’image et sert à valider les traps, les
-breakpoints logiciels et le pas-à-pas.
+minimal. Il fournit déjà l’inspection des registres, la lecture mémoire et
+une commande `assemble` limitée à `addi`. Les vues désassemblées complètes,
+les symboles, l’éditeur multi-ligne et les snapshots restent à porter. Le
+programme U-mode de démonstration est lié dans l’image et sert à valider les
+traps, les breakpoints logiciels et le pas-à-pas.
 
 ## 1. Préparer les outils
 
@@ -72,19 +73,57 @@ La commande `help` affiche la grammaire actuellement implémentée :
 
 ```text
 rvmonitor> help
-help/? regs/registers step/s continue/c break <addr> delete <n> info break quit/q
+help/? regs/registers memory <addr> <length> assemble <addr> addi <rd>,<rs1>,<imm> step/s continue/c break <addr> delete <n> info break quit/q
 ```
 
 ### Lire les registres
 
 ```text
 rvmonitor> regs
-pc=0x000000008000.... x1=0x0000000000000001 x2=0x000000008000.... fcsr=0x0000000000000000
+pc=0x000000008000.... mepc=0x000000008000.... mcause=0x0000000000000003 mtval=0x000000008000....
+mstatus=0x........ fcsr=0x0000000000000000
+integer registers:
+x0=0x0000000000000000  x1=0x0000000000000001  ... x31=0x0000000000000000
+floating registers (raw bits):
+f0=0x0000000000000000  ... f31=0x0000000000000000
 ```
 
-Cette version affiche le PC, `x1`, `x2` et `fcsr`. Les autres registres sont
-bien sauvegardés dans le contexte de trap, mais ne sont pas encore imprimés
-par la console invitée.
+Les 32 registres entiers et les 32 registres flottants sont affichés sous
+forme hexadécimale exacte. Les CSR de trap (`mepc`, `mcause`, `mtval`,
+`mstatus`) et `fcsr` sont également visibles. Les registres flottants sont
+présentés comme motifs binaires, sans conversion décimale dépendante de
+l’hôte.
+
+### Lire la mémoire
+
+```text
+rvmonitor> memory 0x80000000 16
+0x0000000080000000: 17 .. .. .. .. .. .. .. .. .. .. .. .. .. .. .. |................|
+```
+
+La longueur est décimale et limitée à 128 octets par commande. La lecture
+doit rester dans la RAM cible `[0x80000000, 0x80020000)`. Les adresses MMIO,
+les dépassements et les longueurs nulles sont refusés.
+
+### Assembler et exécuter `addi`
+
+Le premier cycle source → encodage → RAM → pas-à-pas dans le guest est :
+
+```text
+rvmonitor> assemble 0x80001000 addi x1,x0,1
+assembled addi at 0x0000000080001000 = 0x0000000000100093
+rvmonitor> step
+step: temporary breakpoint restored
+trap: breakpoint pc=0x0000000080001004
+rvmonitor> regs
+... x1=0x0000000000000001 ...
+```
+
+Cette première commande accepte uniquement la forme `addi <registre>,<registre>,<immédiat>`
+avec registres `x0` à `x31` et immédiat signé dans `[-2048, 2047]`. L’écriture
+est refusée si l’adresse est hors RAM ou occupée par un breakpoint actif. Le
+portage de l’assembleur complet réutilisera le crate `luna-isa-core` généré
+depuis R2, sans table d’opcodes spécifique au guest.
 
 ### Exécuter une instruction
 
@@ -185,9 +224,10 @@ Le script :
 1. construit l’ELF invité ;
 2. calcule une adresse de breakpoint avec `riscv64-linux-gnu-nm` ;
 3. démarre QEMU avec `-bios none`, `-kernel` et `-nographic` ;
-4. envoie `help`, `regs`, `break`, `info break`, `continue`, `step` et
-   `delete` sur l’UART ;
-5. vérifie les modifications de `x1` et les diagnostics de trap.
+4. envoie `help`, `regs`, `memory`, `break`, `info break`, `continue`,
+   `step`, `delete` et `assemble` sur l’UART ;
+5. vérifie les modifications de `x1`, l’encodage `addi` et les diagnostics de
+   trap.
 
 Pour observer la même session manuellement, démarrer QEMU dans un terminal,
 puis saisir les commandes une par une dans son terminal UART.
@@ -195,17 +235,17 @@ puis saisir les commandes une par une dans son terminal UART.
 ## 5. Ce qui n’est pas encore disponible dans ce mode
 
 Les commandes suivantes appartiennent aujourd’hui au moniteur hôte ou au
-simulateur interne, pas au binaire exécuté dans QEMU :
+simulateur interne, pas encore au binaire exécuté dans QEMU :
 
 ```text
-assemble, assemble-program, disasm, memory, edit, undo, watch, rwatch,
-symbols, history, project-save, project-load, snapshot, restore
+assemble-program, disasm, edit, undo, watch, rwatch, symbols, history,
+project-save, project-load, snapshot, restore
 ```
 
-Il n’existe donc pas encore de cycle « éditer une ligne → assembler en RAM →
-exécuter » directement dans le guest. La priorité de développement est de
-porter progressivement ce cycle dans `luna-guest-monitor`, en conservant le
-moniteur M-mode et le programme cible U-mode séparés.
+Le cycle d’une ligne existe désormais pour `addi`. La prochaine étape est le
+source buffer multi-ligne, puis les expressions, labels, directives et le
+désassembleur, en conservant le moniteur M-mode et le programme cible U-mode
+séparés.
 
 ## 6. Différence avec les deux autres parcours
 

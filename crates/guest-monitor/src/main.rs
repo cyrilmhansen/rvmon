@@ -13,11 +13,12 @@ const UART_BASE: usize = 0x1000_0000;
 const UART_LSR: usize = 5;
 const UART_LSR_DATA_READY: u8 = 1 << 0;
 const UART_LSR_EMPTY: u8 = 1 << 5;
-const COMMAND_CAPACITY: usize = 32;
+const COMMAND_CAPACITY: usize = 96;
 const TARGET_RAM_START: u64 = 0x8000_0000;
 const TARGET_RAM_END: u64 = 0x8002_0000;
 const EBREAK_WORD: u32 = 0x0010_0073;
 const MAX_PERMANENT_BREAKPOINTS: usize = 4;
+const MAX_MEMORY_DUMP: u64 = 128;
 
 global_asm!(include_str!("entry.S"));
 
@@ -87,6 +88,10 @@ fn monitor_loop(context: *mut TargetContext) -> ! {
         match &line[..length] {
             b"help" | b"?" => print_help(),
             b"regs" | b"registers" => print_registers(context),
+            command if command.starts_with(b"memory ") => print_memory(&command[7..]),
+            command if command.starts_with(b"assemble ") => {
+                assemble_command(context, &command[9..])
+            }
             b"step" | b"s" => step_target(context),
             b"continue" | b"c" => continue_target(context),
             command if command.starts_with(b"break ") => break_target(&command[6..]),
@@ -103,7 +108,7 @@ fn monitor_loop(context: *mut TargetContext) -> ! {
 
 fn print_help() {
     uart_write(
-        "help/? regs/registers step/s continue/c break <addr> delete <n> info break quit/q\r\n",
+        "help/? regs/registers memory <addr> <length> assemble <addr> addi <rd>,<rs1>,<imm> step/s continue/c break <addr> delete <n> info break quit/q\r\n",
     );
 }
 
@@ -111,13 +116,191 @@ fn print_registers(context: *mut TargetContext) {
     let context = unsafe { &*context };
     uart_write("pc=0x");
     uart_hex(context.pc);
-    uart_write(" x1=0x");
-    uart_hex(context.x[1]);
-    uart_write(" x2=0x");
-    uart_hex(context.x[2]);
+    uart_write(" mepc=0x");
+    uart_hex(context.mepc);
+    uart_write(" mcause=0x");
+    uart_hex(context.mcause);
+    uart_write(" mtval=0x");
+    uart_hex(context.mtval);
+    uart_write("\r\n");
+    uart_write("mstatus=0x");
+    uart_hex(context.mstatus);
     uart_write(" fcsr=0x");
     uart_hex(u64::from(context.fcsr));
     uart_write("\r\n");
+
+    uart_write("integer registers:\r\n");
+    for index in 0..32 {
+        uart_write("x");
+        uart_decimal(index as u64);
+        uart_write("=0x");
+        uart_hex(context.x[index]);
+        if index % 4 == 3 {
+            uart_write("\r\n");
+        } else {
+            uart_write("  ");
+        }
+    }
+
+    uart_write("floating registers (raw bits):\r\n");
+    for index in 0..32 {
+        uart_write("f");
+        uart_decimal(index as u64);
+        uart_write("=0x");
+        uart_hex(context.f[index]);
+        if index % 4 == 3 {
+            uart_write("\r\n");
+        } else {
+            uart_write("  ");
+        }
+    }
+}
+
+fn print_memory(argument: &[u8]) {
+    let Some((address, length)) = parse_memory_range(argument) else {
+        uart_write("error: memory expects <hex-address> <decimal-length>\r\n");
+        return;
+    };
+    if length == 0 || length > MAX_MEMORY_DUMP {
+        uart_write("error: memory length must be between 1 and 128\r\n");
+        return;
+    }
+    let Some(end) = address.checked_add(length) else {
+        uart_write("error: memory range overflows\r\n");
+        return;
+    };
+    if address < TARGET_RAM_START || end > TARGET_RAM_END {
+        uart_write("error: memory range is outside target RAM\r\n");
+        return;
+    }
+
+    let mut offset = 0u64;
+    while offset < length {
+        let row_length = core::cmp::min(16, length - offset);
+        let row_address = address + offset;
+        uart_write("0x");
+        uart_hex(row_address);
+        uart_write(": ");
+        let mut column = 0u64;
+        while column < 16 {
+            if column < row_length {
+                uart_hex_byte(unsafe {
+                    core::ptr::read_volatile((row_address + column) as *const u8)
+                });
+            } else {
+                uart_write("  ");
+            }
+            uart_put(b' ');
+            column += 1;
+        }
+        uart_write("|");
+        column = 0;
+        while column < row_length {
+            let byte = unsafe { core::ptr::read_volatile((row_address + column) as *const u8) };
+            uart_put(if (32..=126).contains(&byte) {
+                byte
+            } else {
+                b'.'
+            });
+            column += 1;
+        }
+        uart_write("|\r\n");
+        offset += row_length;
+    }
+}
+
+fn parse_memory_range(argument: &[u8]) -> Option<(u64, u64)> {
+    let separator = argument.iter().position(|byte| *byte == b' ')?;
+    let address = parse_hex(&argument[..separator])?;
+    let length = parse_decimal(argument[separator + 1..].trim_ascii())?;
+    Some((address, length))
+}
+
+fn assemble_command(context: *mut TargetContext, argument: &[u8]) {
+    let Some((address, source)) = split_once_space(argument) else {
+        uart_write("error: assemble expects <address> addi <rd>,<rs1>,<imm>\r\n");
+        return;
+    };
+    if !valid_target_word_address(address) {
+        uart_write("error: assemble address must be an aligned target RAM word\r\n");
+        return;
+    }
+    if permanent_breakpoint_at(address).is_some() || temporary_breakpoint_at(address) {
+        uart_write("error: cannot assemble over an active breakpoint\r\n");
+        return;
+    }
+    let Some(operands) = source.strip_prefix(b"addi ") else {
+        uart_write("error: guest assembler currently supports only addi\r\n");
+        return;
+    };
+    let Some((rd_bytes, rest)) = split_once_comma(operands) else {
+        uart_write("error: addi expects <rd>,<rs1>,<imm>\r\n");
+        return;
+    };
+    let Some((rs1_bytes, imm_bytes)) = split_once_comma(rest) else {
+        uart_write("error: addi expects <rd>,<rs1>,<imm>\r\n");
+        return;
+    };
+    let Some(rd) = parse_register(rd_bytes.trim_ascii()) else {
+        uart_write("error: invalid destination register\r\n");
+        return;
+    };
+    let Some(rs1) = parse_register(rs1_bytes.trim_ascii()) else {
+        uart_write("error: invalid source register\r\n");
+        return;
+    };
+    let Some(imm) = parse_signed_decimal(imm_bytes.trim_ascii()) else {
+        uart_write("error: invalid addi immediate\r\n");
+        return;
+    };
+    let Some(word) = luna_isa_core::encode_addi(rd, rs1, imm) else {
+        uart_write("error: addi operands are out of range\r\n");
+        return;
+    };
+    if !target_store32(address, word) {
+        uart_write("error: cannot write assembled instruction\r\n");
+        return;
+    }
+    flush_icache();
+    let context = unsafe { &mut *context };
+    context.pc = address;
+    context.mepc = address;
+    context.mcause = StopReason::Breakpoint as u64;
+    context.mtval = 0;
+    uart_write("assembled addi at 0x");
+    uart_hex(address);
+    uart_write(" = 0x");
+    uart_hex(u64::from(word));
+    uart_write("\r\n");
+}
+
+fn split_once_space(input: &[u8]) -> Option<(u64, &[u8])> {
+    let separator = input.iter().position(|byte| *byte == b' ')?;
+    let address = parse_hex(&input[..separator])?;
+    Some((address, input[separator + 1..].trim_ascii()))
+}
+
+fn split_once_comma(input: &[u8]) -> Option<(&[u8], &[u8])> {
+    let separator = input.iter().position(|byte| *byte == b',')?;
+    Some((&input[..separator], &input[separator + 1..]))
+}
+
+fn parse_register(input: &[u8]) -> Option<u8> {
+    let register = input.strip_prefix(b"x")?;
+    let value = parse_decimal(register)?;
+    (value <= 31).then_some(value as u8)
+}
+
+fn parse_signed_decimal(input: &[u8]) -> Option<i16> {
+    if let Some(positive) = input.strip_prefix(b"+") {
+        return parse_signed_decimal(positive);
+    }
+    if let Some(negative) = input.strip_prefix(b"-") {
+        let value = parse_decimal(negative)?;
+        return (value <= 2048).then_some(-(value as i16));
+    }
+    let value = parse_decimal(input)?;
+    (value <= 2047).then_some(value as i16)
 }
 
 fn step_target(context: *mut TargetContext) -> ! {
@@ -548,6 +731,21 @@ fn uart_hex(value: u64) {
         } else {
             b'a' + digit - 10
         });
+    }
+}
+
+fn uart_hex_byte(value: u8) {
+    let high = value >> 4;
+    let low = value & 0xf;
+    uart_put(hex_digit(high));
+    uart_put(hex_digit(low));
+}
+
+fn hex_digit(value: u8) -> u8 {
+    if value < 10 {
+        b'0' + value
+    } else {
+        b'a' + value - 10
     }
 }
 

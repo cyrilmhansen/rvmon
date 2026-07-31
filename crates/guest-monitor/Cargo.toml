@@ -11,6 +11,7 @@ test = false
 bench = false
 
 [dependencies]
+luna-isa-core = { path = "../isa-core" }
 luna-target-api = { path = "../target-api" }
 
 # Hardware MMIO, entry assembly and trap return are isolated in this crate.

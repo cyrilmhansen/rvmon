@@ -35,8 +35,6 @@ fn parse_fixed(fields: &[&str]) -> (u32, u32) {
         } else if let Ok(decimal) = value.parse::<u32>() {
             decimal
         } else {
-            // R2 also uses assignments such as rs2=rs1 to express an
-            // operand constraint; it is not a constant mask bit.
             continue;
         };
         let field_mask = ((1u32 << width) - 1) << lsb;

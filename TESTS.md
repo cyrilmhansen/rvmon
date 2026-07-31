@@ -13,7 +13,7 @@ Validation locale complète :
     bash scripts/test-qemu-gdb-backend.sh
     git diff --check
 
-La suite actuelle exécute 80 tests unitaires/intégration répartis dans les crates. Les doc-tests compilent mais ne contiennent actuellement aucun cas. Le script QEMU ouvre en plus une session GDB RSP réelle, hors comptage Cargo.
+La suite actuelle exécute 82 tests unitaires/intégration répartis dans les crates. Les doc-tests compilent mais ne contiennent actuellement aucun cas. Le script QEMU ouvre en plus une session GDB RSP réelle, hors comptage Cargo.
 
 Démonstration M-mode/U-mode sous QEMU :
 
@@ -41,14 +41,15 @@ Moniteur texte interactif :
 | luna-memory | 2 | Little-endian, transactions atomiques et rollback après erreur. |
 | luna-asm-lexer | 2 | Labels, ponctuation, commentaires, chaînes et positions d’erreur. |
 | luna-assembler | 16 | AST, alias ABI, expressions, symboles, directives, alignement, fadd.s et fadd.d. |
-| luna-isa | 6 | Tables générées depuis R2, encodage/décodage entier et flottant. |
+| luna-isa-core | 2 | Encodeur `addi` sans allocation et génération des tables R2 partagées avec le guest. |
+| luna-isa | 6 | Tables générées depuis R2, encodage/décodage entier et flottant via `luna-isa-core`. |
 | luna-machine | 12 | Exécution entière, branches, mémoire, tables de pointeurs ILP32, fadd.s, fadd.d, NaN-boxing, flags, contrat backend et snapshot cible. |
 | luna-disassembler | 7 | Format canonique, symboles, opcodes illégaux, C rejeté et round-trip. |
 | luna-floatfmt | 3 | Bits hex exacts, décimal court, classes IEEE et NaN-box invalide. |
 | luna-monitor | 19 | assemble → step → regs, affichage flottant, run borné, vues mémoire hex/ASCII, édition/undo, console backend-générique, marques QuickJump, breakpoints, watchpoints, symboles, pile, historique et persistance. |
 | luna-target-api | 4 | Contexte de trap, capacités explicites RV64 bare-metal, codes `mcause`, contrat de layout, résultats et accès mémoire du backend commun. |
 | luna-qemu-backend | 7 | Framing GDB RSP, checksum, lecture mémoire, layouts RV64 entier et F/D, stop reply, initialisation `?`, pas et budget nul. |
-| luna-guest-monitor | 0 | Image bare-metal, boot QEMU, PMP, transition M→U, trap `ebreak` et boucle UART; vérifié par smoke test QEMU. |
+| luna-guest-monitor | 0 | Image bare-metal, boot QEMU, PMP, transition M→U, contexte complet, lecture mémoire, `assemble addi`, trap `ebreak` et boucle UART; vérifié par smoke test QEMU. |
 | luna-app | 0 | Compilation du binaire et démonstration ; pas encore d’E2E terminal. |
 | luna-diag | 0 | Types utilisés par les autres crates ; pas de test dédié. |
 
@@ -191,7 +192,10 @@ interactive ; la sonde live vérifie les registres, la RAM QEMU et le pas depuis
 le PC de reset. Les symboles multi-lignes et snapshots restent dans le profil
 `Monitor` historique jusqu’à leur migration explicite vers le contrat backend.
 
-Le crate `luna-guest-monitor` est une première tranche d’intégration hors
+Le crate `luna-isa-core` est `no_std` et produit les artefacts d’opcodes à
+partir des mêmes sources R2 que `luna-isa`; il expose l’encodeur `addi` sans
+allocation pour le guest. Le crate `luna-guest-monitor` est une première
+tranche d’intégration hors
 `cargo test` : il est compilé pour `riscv64gc-unknown-none-elf`, mais les
 options Cargo désactivent `c` et `zca` afin de respecter le profil V1 C=off.
 Le linker place l’image en RAM QEMU à partir de `0x80000000`. Le code M-mode
@@ -206,7 +210,8 @@ pose un breakpoint permanent sur le `beq`, vérifie `info break`, exécute
 franchir l’instruction originale et vérifier le réarmement. Il supprime ensuite
 le breakpoint et reprend deux pas temporaires. La séquence vérifie la
 restauration des mots, les instructions séquentielles, `beq`/`bne`, `jal` et
-`jalr` du profil actuellement émis.
+`jalr` du profil actuellement émis. Il assemble enfin `addi x1,x0,1` à une
+adresse RAM libre, exécute un pas et vérifie `x1=1` ainsi que l’encodage exact.
 
 Le backend QEMU limite volontairement la table à quatre breakpoints permanents
 numérotés de 1 à 4. Une adresse doit être un mot aligné de la fenêtre RAM cible.

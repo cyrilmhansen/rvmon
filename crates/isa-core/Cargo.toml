@@ -1,11 +1,9 @@
 [package]
-name = "luna-isa"
+name = "luna-isa-core"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
-[dependencies]
-luna-diag = { path = "../diag" }
-luna-isa-core = { path = "../isa-core" }
+build = "build.rs"
 
 [lints]
 workspace = true

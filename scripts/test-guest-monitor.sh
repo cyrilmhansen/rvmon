@@ -13,7 +13,7 @@ breakpoint_address="$(printf '0x%x' "$((16#$target_entry_hex + 12))")"
 
 set +e
 output="$({
-    printf 'help\nregs\nbreak %s\ninfo break\ncontinue\nregs\ncontinue\ndelete 1\nstep\nregs\nstep\nregs\nquit\n' \
+    printf 'help\nregs\nmemory 0x80000000 16\nbreak %s\ninfo break\ncontinue\nregs\ncontinue\ndelete 1\nstep\nregs\nstep\nregs\nassemble 0x80001000 addi x1,x0,1\nstep\nregs\nquit\n' \
         "$breakpoint_address"
 } | timeout 5s qemu-system-riscv64 \
     -M virt \
@@ -34,6 +34,13 @@ for expected in \
     'breakpoint #1 set at' \
     'breakpoints:' \
     'breakpoint #1 deleted' \
+    'integer registers:' \
+    'floating registers (raw bits):' \
+    '0x0000000080000000:' \
+    'x31=0x' \
+    'f31=0x' \
+    'assembled addi at 0x0000000080001000 = 0x0000000000100093' \
+    'pc=0x0000000080001004' \
     'x1=0x0000000000000001' \
     'x1=0x0000000000000002'; do
     if ! [[ "$output" == *"$expected"* ]]; then
