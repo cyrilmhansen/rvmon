@@ -422,6 +422,23 @@ Une tâche est terminée seulement si sa condition de sortie est satisfaite.
 - **Parallélisable :** oui avec FP-001 et DIS-001; non avec une modification simultanée du layout `ObjectImage`.
 - **Paquet de contexte minimal :** SPEC §§9/11/12, R4 directives, `crates/assembler/src/parser.rs`, `crates/assembler/src/lib.rs`.
 
+### ASM-003D — Rendu texte canonique du listing — TERMINÉ
+
+- **Jalon / exigences :** M3; ASM-003, IO-005, OBS-001.
+- **But :** exporter le listing source/adresse/section/bytes sous une forme texte stable et reproductible.
+- **Non-but :** couleurs terminal, pagination, localisation des messages et fichier `.map` séparé.
+- **Entrées/sources :** SPEC §§12, 20–21 et 23 (export reproductible, observabilité et tests); décision locale du format de listing.
+- **Fichiers/modules :** `crates/assembler/src/lib.rs`, `TESTS.md`.
+- **Étapes réalisées :** ajouter `render_listing`; lignes 1-based, adresses hex 64 bits, section, bytes hex minuscules, `-` pour émission vide; exclure horodatages et chemins hôte.
+- **Dépendances :** ASM-003C; aucune dépendance externe; l’interface peut réutiliser directement la chaîne canonique.
+- **Tests :** stabilité bit-à-bit de deux rendus; ligne d’instruction avec bytes; ligne `.equ` vide; source originale conservée.
+- **Critères de sortie :** même `ObjectImage` produit exactement la même chaîne; le rendu ne dépend d’aucun état hôte; les bytes affichés correspondent aux entrées de listing.
+- **Cas limites et échecs :** bytes vides, sections custom, adresse haute, source contenant des espaces/commentaires.
+- **Taille :** 2 points / 0,5–1 journée-agent, incertitude faible; équivalent indicatif 20k–70k tokens.
+- **Compétences/outils :** formatage Rust, contrats de reproductibilité.
+- **Parallélisable :** oui avec DIS-001; non avec une modification concurrente de `ListingEntry`.
+- **Paquet de contexte minimal :** SPEC §§12/20/21/23, `crates/assembler/src/lib.rs`, `TESTS.md`.
+
 ### ASM-003 — Directives, chaînes, macros et listing
 
 - **Jalon / exigences :** M3; ASM-001..015, IO-001..009.

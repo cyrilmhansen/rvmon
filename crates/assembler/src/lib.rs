@@ -1,6 +1,7 @@
 #![forbid(unsafe_code)]
 
 use std::collections::{BTreeMap, BTreeSet};
+use std::fmt::Write as _;
 
 use luna_diag::{Diagnostic, Result};
 use luna_isa::{
@@ -38,6 +39,34 @@ pub struct SectionImage {
     pub address: u64,
     pub alignment: u64,
     pub bytes: Vec<u8>,
+}
+
+/// Render the source listing in a stable, human-readable text format.
+///
+/// Each line is `line address section bytes | original source`. Empty byte
+/// lists are represented by `-`; the output contains no timestamps or host
+/// paths and is therefore suitable for reproducible exports.
+pub fn render_listing(image: &ObjectImage) -> String {
+    let mut output = String::new();
+    for entry in &image.listing {
+        let mut bytes = String::new();
+        for (index, byte) in entry.bytes.iter().enumerate() {
+            if index != 0 {
+                bytes.push(' ');
+            }
+            write!(bytes, "{byte:02x}").expect("writing to String cannot fail");
+        }
+        if bytes.is_empty() {
+            bytes.push('-');
+        }
+        writeln!(
+            output,
+            "{:04} 0x{:016x} {:<12} {:<47} | {}",
+            entry.source_line, entry.address, entry.section, bytes, entry.source
+        )
+        .expect("writing to String cannot fail");
+    }
+    output
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -934,6 +963,20 @@ mod tests {
         let single = assemble("addi x1,x0,1").unwrap();
         assert_eq!(single.listing[0].source_line, 1);
         assert_eq!(single.listing[0].bytes, single.text);
+    }
+
+    #[test]
+    fn renders_a_reproducible_text_listing() {
+        let image = assemble_program(".text\n_start: addi x1,x0,1\n.equ VALUE, 7").unwrap();
+        let rendered = render_listing(&image);
+        assert_eq!(rendered, render_listing(&image));
+        let lines: Vec<_> = rendered.lines().collect();
+        assert_eq!(lines.len(), 3);
+        assert!(lines[0].starts_with("0001 0x0000000000000000 .text"));
+        assert!(lines[1].contains("93 00 10 00"));
+        assert!(lines[1].ends_with("| _start: addi x1,x0,1"));
+        assert!(lines[2].contains(" .equ VALUE, 7"));
+        assert!(lines[2].contains(" - "));
     }
 
     #[test]

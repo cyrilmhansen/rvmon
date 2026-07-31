@@ -15,7 +15,7 @@ Validation locale complète :
     bash scripts/test-qemu-gdb-backend.sh
     git diff --check
 
-La suite actuelle exécute 98 tests unitaires/intégration répartis dans les crates. Les doc-tests compilent mais ne contiennent actuellement aucun cas. Le script QEMU ouvre en plus une session GDB RSP réelle, hors comptage Cargo.
+La suite actuelle exécute 99 tests unitaires/intégration répartis dans les crates. Les doc-tests compilent mais ne contiennent actuellement aucun cas. Le script QEMU ouvre en plus une session GDB RSP réelle, hors comptage Cargo.
 
 Démonstration M-mode/U-mode sous QEMU :
 
@@ -42,7 +42,7 @@ Moniteur texte interactif :
 | luna-abi | 2 | Extension de signe des pointeurs 32 bits et idempotence. |
 | luna-memory | 3 | Little-endian, transactions atomiques et rollback après erreur. |
 | luna-asm-lexer | 5 | Registres numériques/ABI, commentaires, décalages, chaînes UTF-8 et positions d’erreur. |
-| luna-assembler | 29 | AST, alias ABI, expressions, symboles globaux/locaux, sections, `.equ/.set`, chaînes, alignement, listing, fadd.s et fadd.d. |
+| luna-assembler | 30 | AST, alias ABI, expressions, symboles globaux/locaux, sections, `.equ/.set`, chaînes, alignement, listing texte, fadd.s et fadd.d. |
 | luna-isa-core | 3 | Encodeurs `addi`, branches, sauts et `fadd.s`/`fadd.d` sans allocation, depuis les tables R2 partagées avec le guest ; commit R2 et champs générés validés. |
 | luna-isa | 6 | Tables générées depuis R2, encodage/décodage entier et flottant via `luna-isa-core`. |
 | luna-machine | 13 | Exécution entière, branches, mémoire, tables de pointeurs ILP32, fadd.s, fadd.d, NaN-boxing, flags, contrat backend et snapshot cible. |
@@ -72,6 +72,8 @@ L’assembleur en deux passes distingue les labels globaux des labels locaux `.L
 Chaque `ObjectImage` contient aussi un listing déterministe : numéro de ligne 1-based, adresse de début, source originale et bytes émis. Les labels seuls, `.equ` et `.set` produisent une entrée vide à l’adresse courante; les directives d’alignement portent les bytes de padding.
 
 Les sections V1 sont `.text` (`ax`), `.rodata` (`a`), `.data`/`.bss` (`aw`) et `.section name,"flags"`. `ObjectImage.text` reste l’image aplatie dans l’ordre d’émission afin de préserver le loader existant; `ObjectImage.sections` conserve le regroupement, les flags, la première adresse et l’alignement observé.
+
+`render_listing` produit le format canonique `ligne adresse section bytes | source`; les bytes sont en hexadécimal minuscule, `-` représente une émission vide et aucun chemin/horodatage hôte n’est injecté.
 
 Les formes assembleur testées sont :
 
