@@ -88,6 +88,27 @@ endianess explicite, toolchain et ELF BE à qualifier séparément. Le profil BE
 reste expérimental tant qu’un compilateur/linker produisant un ELF RISC-V BE
 compatible n’est pas démontré.
 
+## D-017 — Archiver Zfh/Zfhmin/Q sans annoncer leur exécution
+
+**Décision :** archiver les fichiers `rv_zfhmin`, `rv_zfh`, `rv64_zfh`, `rv_q`
+et `rv64_q` du commit R2 déjà figé, et les inclure dans la génération des
+tables profile-aware. Le décodeur les représente comme
+`GeneratedInstruction`, le désassembleur les réémet sous forme `.word` avec
+leur mnémonique de diagnostic, et l’encodeur préserve les bits validés par R2.
+Le moteur RV64IMAFD refuse ces instructions avec un diagnostic
+`TRAP-UNSUPPORTED-EXTENSION`. Les formats binary16 et binary128 restent
+disponibles dans les directives et les vues de bits ; cela ne constitue pas
+une implémentation arithmétique Zfh ou Q.
+
+**Alternative :** laisser ces mots illégaux, ou les exécuter via les types
+flottants de l’hôte, rejetée : la première perd la capacité de décodage/export
+prévue par le profil, la seconde viole la reproductibilité et la séparation
+parse/assemble/decode/execute.
+
+**Coût :** le registre généré augmente et les outils doivent distinguer
+`GeneratedInstruction` de `Illegal`; l’assemblage textuel complet des
+opérandes Zfh/Q reste une tranche ultérieure explicitement versionnée.
+
 ## D-016 — Oracle sémantique F/D par probe QEMU versionné
 
 **Décision :** utiliser QEMU user-mode RISC-V 11.0.2 comme oracle externe

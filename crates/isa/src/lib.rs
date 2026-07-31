@@ -114,6 +114,15 @@ pub struct FloatMove {
     pub rs1: u8,
 }
 
+/// An instruction present in the pinned R2 encoding registry but not yet
+/// executable by the selected machine profile. It remains decodable and can
+/// be re-emitted losslessly as raw bits.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct GeneratedInstruction {
+    pub mnemonic: &'static str,
+    pub word: u32,
+}
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Instruction {
     Addi(Addi),
@@ -133,6 +142,7 @@ pub enum Instruction {
     FAddD(FRegisterRType),
     FloatConversion(FloatConversion),
     FloatMove(FloatMove),
+    Generated(GeneratedInstruction),
     Illegal(u32),
 }
 
@@ -555,6 +565,14 @@ pub fn decode(word: u32) -> Instruction {
                 }
             }
         }
+        if let Some(opcode) = GENERATED_OPCODES.iter().find(|opcode| {
+            opcode.instruction_bits == 32 && word & opcode.mask == opcode.match_value
+        }) {
+            return Instruction::Generated(GeneratedInstruction {
+                mnemonic: opcode.mnemonic,
+                word,
+            });
+        }
         Instruction::Illegal(word)
     }
 }
@@ -582,6 +600,25 @@ pub fn encode(instruction: Instruction) -> Result<u32> {
         Instruction::FAddD(instruction) => encode_f_r("fadd.d", instruction),
         Instruction::FloatConversion(instruction) => encode_f_convert(instruction),
         Instruction::FloatMove(instruction) => encode_f_move(instruction),
+        Instruction::Generated(instruction) => {
+            let Some(opcode) = GENERATED_OPCODES
+                .iter()
+                .find(|opcode| opcode.mnemonic == instruction.mnemonic)
+            else {
+                return Err(Diagnostic::error(
+                    "ISA-TABLE-001",
+                    "generated instruction is absent from R2 tables",
+                ));
+            };
+            if opcode.instruction_bits != 32 || instruction.word & opcode.mask != opcode.match_value
+            {
+                return Err(Diagnostic::error(
+                    "ISA-ENCODE-002",
+                    "generated instruction bits do not match its R2 encoding",
+                ));
+            }
+            Ok(instruction.word)
+        }
         Instruction::Illegal(_) => Err(Diagnostic::error(
             "ISA-ENCODE-001",
             "cannot encode an illegal instruction",
@@ -641,6 +678,13 @@ mod tests {
                 .iter()
                 .any(|opcode| opcode.mnemonic == "fadd.s")
         );
+        for extension in ["rv_zfhmin", "rv_zfh", "rv64_zfh", "rv_q", "rv64_q"] {
+            assert!(
+                GENERATED_EXTENSIONS
+                    .iter()
+                    .any(|generated| generated.name == extension && generated.instruction_count > 0)
+            );
+        }
     }
 
     #[test]
@@ -723,6 +767,27 @@ mod tests {
             let word = encode_f_move(instruction).unwrap();
             assert_eq!(decode(word), Instruction::FloatMove(instruction));
             assert_eq!(generated_opcode(mnemonic).unwrap().instruction_bits, 32);
+        }
+    }
+
+    #[test]
+    fn unsupported_zfh_and_q_words_decode_and_reencode_losslessly() {
+        for mnemonic in ["fadd.h", "fmv.h.x", "fadd.q", "flq"] {
+            let opcode = generated_opcode(mnemonic).unwrap();
+            let word = opcode.match_value
+                | (1 << 7)
+                | (2 << 15)
+                | if mnemonic == "fadd.h" || mnemonic == "fadd.q" {
+                    3 << 20
+                } else {
+                    0
+                };
+            let decoded = decode(word);
+            assert_eq!(
+                decoded,
+                Instruction::Generated(GeneratedInstruction { mnemonic, word })
+            );
+            assert_eq!(encode(decoded).unwrap(), word);
         }
     }
 

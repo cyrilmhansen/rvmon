@@ -19,7 +19,7 @@ Validation locale complète :
     bash scripts/test-qemu-gdb-backend.sh
     git diff --check
 
-La suite actuelle exécute 140 tests unitaires/intégration répartis dans les crates. Les doc-tests compilent mais ne contiennent actuellement aucun cas. Les scripts FP oracle QEMU comparent treize cas F/D, trois conversions de format, treize conversions entières W/L et quatre mouvements binaires F/D, hors comptage Cargo. Le script QEMU ouvre en plus une session GDB RSP réelle, hors comptage Cargo.
+La suite actuelle exécute 144 tests unitaires/intégration répartis dans les crates. Les doc-tests compilent mais ne contiennent actuellement aucun cas. Les scripts FP oracle QEMU comparent treize cas F/D, trois conversions de format, treize conversions entières W/L et quatre mouvements binaires F/D, hors comptage Cargo. Le script QEMU ouvre en plus une session GDB RSP réelle, hors comptage Cargo.
 
 Démonstration M-mode/U-mode sous QEMU :
 
@@ -48,9 +48,9 @@ Moniteur texte interactif :
 | luna-asm-lexer | 6 | Registres numériques/ABI, commentaires, décalages, chaînes UTF-8, flottants décimaux et positions d’erreur. |
 | luna-assembler | 45 | AST, alias ABI, expressions, symboles globaux/locaux, sections, `.equ/.set`, chaînes, alignement, macros paramétrées bornées, includes sous sandbox, conditionnels bornés, listing texte, fadd.s/fadd.d, mouvements binaires F/D, conversions F/D↔F/D et entier W/L, directives exactes binary16/32/64/128. |
 | luna-isa-core | 3 | Encodeurs `addi`, branches, sauts et `fadd.s`/`fadd.d` sans allocation, depuis les tables R2 partagées avec le guest ; commit R2 et champs générés validés. |
-| luna-isa | 8 | Tables générées depuis R2, encodage/décodage entier, flottant, mouvements binaires et conversions de format via `luna-isa-core`. |
-| luna-machine | 22 | Exécution entière, branches, mémoire, tables de pointeurs ILP32, fadd.s/fadd.d dans les cinq modes d’arrondi, mouvements binaires F/D, conversions F/D et W/L entier/flottant, mode dynamique, NaN-boxing, positions exactes de fflags, contrat backend et snapshot cible. |
-| luna-disassembler | 12 | Format canonique, symboles, opcodes illégaux, régions code/données explicites, C rejeté et round-trip. |
+| luna-isa | 10 | Tables générées depuis R2, encodage/décodage entier, flottant, mouvements binaires, conversions de format et mots Zfh/Q décodables mais non exécutables via `luna-isa-core`. |
+| luna-machine | 23 | Exécution entière, branches, mémoire, tables de pointeurs ILP32, fadd.s/fadd.d dans les cinq modes d’arrondi, mouvements binaires F/D, conversions F/D et W/L entier/flottant, refus explicite Zfh/Q decode-only, mode dynamique, NaN-boxing, positions exactes de fflags, contrat backend et snapshot cible. |
+| luna-disassembler | 13 | Format canonique, symboles, opcodes illégaux, mots Zfh/Q decode-only, régions code/données explicites, C rejeté et round-trip. |
 | luna-floatfmt | 5 | Bits hex exacts, classes IEEE binary16/32/64/128, décimal déterministe et NaN-box invalide. |
 | luna-monitor | 23 | assemble → step → regs, affichage flottant, run borné, vues mémoire hex/ASCII, désassemblage mixte code/données/C, édition/undo, console backend-générique, marques QuickJump, breakpoints, watchpoints, symboles, pile, historique et persistance. |
 | luna-target-api | 4 | Contexte de trap, capacités explicites RV64 bare-metal, codes `mcause`, contrat de layout, résultats et accès mémoire du backend commun. |
@@ -87,6 +87,13 @@ Les formes assembleur testées sont :
     fcvt.l[ u].d, fcvt.d.l[ u]
     fmv.x.w, fmv.w.x, fmv.x.d, fmv.d.x
     .byte, .half, .word, .dword, .ascii, .asciz, .string, .align, .balign
+
+Les snapshots R2 `rv_zfhmin`, `rv_zfh`, `rv64_zfh`, `rv_q` et `rv64_q` sont
+également générés dans le registre. Un mot `fadd.h`, `fmv.h.x`, `fadd.q` ou
+`flq` est décodé comme extension non exécutable, exporté en `.word` avec son
+mnémonique `[decode-only]`, puis réencodé sans perte. Le moteur refuse son
+exécution avec `TRAP-UNSUPPORTED-EXTENSION`; cela ne constitue pas encore un
+assembleur textuel complet ni une exécution binary16/binary128.
 
 Les expressions couvrent la précédence, les bases décimale/hexadécimale/binaire, les opérateurs unaires, les décalages, les symboles en avant et les débordements. Un test vérifie qu’un offset numérique de branche reste un offset après pc = 0.
 

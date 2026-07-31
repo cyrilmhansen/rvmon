@@ -388,6 +388,15 @@ impl Machine {
                 }
                 self.fcsr |= flags;
             }
+            Instruction::Generated(instruction) => {
+                return Err(Diagnostic::error(
+                    "TRAP-UNSUPPORTED-EXTENSION",
+                    format!(
+                        "instruction {} is not executable in this profile",
+                        instruction.mnemonic
+                    ),
+                ));
+            }
             Instruction::Illegal(_) => {
                 return Err(Diagnostic::error(
                     "TRAP-ILLEGAL-INSTRUCTION",
@@ -1155,6 +1164,20 @@ fn is_infinite_binary(value: u64, format: BinaryFormat) -> bool {
 mod tests {
     use super::*;
     use luna_isa::{Addi, Lui, RType, encode_addi, encode_lui, encode_r, encode_u};
+
+    #[test]
+    fn decode_only_zfh_instruction_is_not_executed() {
+        let mut machine = Machine::new(64);
+        let opcode = luna_isa::generated_opcodes()
+            .iter()
+            .find(|opcode| opcode.mnemonic == "fadd.h")
+            .unwrap();
+        let word = opcode.match_value | (1 << 7) | (2 << 15) | (3 << 20);
+        machine.load(0, &word.to_le_bytes()).unwrap();
+        let error = machine.step().unwrap_err();
+        assert_eq!(error.code, "TRAP-UNSUPPORTED-EXTENSION");
+        assert_eq!(machine.pc, 0);
+    }
 
     #[test]
     fn executes_generated_integer_instructions() {

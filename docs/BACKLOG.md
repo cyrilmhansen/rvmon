@@ -729,6 +729,23 @@ Une tâche est terminée seulement si sa condition de sortie est satisfaite.
 - **Parallélisable :** oui avec CMD-001 après contract.
 - **Contexte minimal :** SPEC §5.3/11.1.
 
+### GEN-003 — Archiver et décoder les extensions Zfh/Zfhmin/Q — TERMINÉ
+
+- **Jalon / exigences :** M5; ENC-001..006, ISA-001..010, FP-001..018, IO-004.
+- **But :** intégrer dans les artefacts générés les fichiers R2 `rv_zfhmin`, `rv_zfh`, `rv64_zfh`, `rv_q` et `rv64_q`, puis distinguer un mot décodable mais non exécutable d’un opcode illégal.
+- **Non-but :** exécuter binary16 ou binary128, convertir des littéraux décimaux binary128, ajouter une table opcode manuelle, ou annoncer une compatibilité toolchain complète.
+- **Entrées/sources :** R1 F/D/Q et formats flottants; R2 commit `c6edca7d8c3f92694963a0a0baeb511930fb2af4`; DECISIONS D-005/D-006/D-017.
+- **Fichiers/modules :** `norms/r2/extensions/`, `norms/r2/SHA256SUMS`, `crates/isa-core/build.rs`, `crates/isa/src/lib.rs`, `crates/disassembler/src/lib.rs`, `crates/machine/src/lib.rs`, `tools/check-r2.sh`.
+- **Étapes réalisées :** archiver les cinq snapshots avec SHA vérifiés contre le commit R2; générer leurs entrées; introduire `GeneratedInstruction`; réencoder sans perte; afficher `.word` et le mnémonique `[decode-only]`; refuser l’exécution par `TRAP-UNSUPPORTED-EXTENSION`.
+- **Dépendances et tâches bloquées :** BOOT-005/GEN-002; le parseur textuel avec classes de registres et immédiats Zfh/Q, ainsi que l’exécution, restent différés.
+- **Tests :** `bash tools/check-r2.sh`; test ISA de quatre mots Zfh/Q; round-trip decode→encode; tests machine ciblant le diagnostic d’extension non exécutée; tests de désassemblage `.word` réassemblable.
+- **Critères de sortie :** les cinq extensions apparaissent dans `GENERATED_EXTENSIONS`; les fichiers sont identiques au SHA upstream; un mot `fadd.h`, `fmv.h.x`, `fadd.q` ou `flq` est distingué d’un opcode illégal et conserve ses bits; aucune branche machine ne l’exécute.
+- **Cas limites et échecs :** fichier R2 manquant ou altéré, extension 16 bits dans le chemin 32 bits, mot non reconnu, pseudo-instruction non traitée comme opcode réel; chaque cas produit un échec ou une représentation explicite.
+- **Taille :** 4 points / 2 journées-agent, incertitude moyenne; équivalent indicatif 80k–160k tokens.
+- **Compétences/outils :** RISC-V F/D/Q/Zfh, génération R2, Rust, désassemblage, contrôle SHA.
+- **Parallélisable :** oui avec la documentation de matrice; non avec une modification concurrente de `Instruction` ou du générateur.
+- **Paquet de contexte minimal :** `crates/isa-core/build.rs`, `crates/isa/src/lib.rs`, `crates/disassembler/src/lib.rs`, D-017, SPEC §§5/11/13/23.
+
 ### FP-004A — Conversions entières W F/D — TERMINÉ
 
 - **Jalon / exigences :** M5; FP-007..011, FP-015..018, IO-004.

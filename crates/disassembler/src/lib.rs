@@ -614,6 +614,10 @@ fn format_instruction(
             rs1,
             rm: _,
         }) => format!("fcvt.d.lu f{rd},x{rs1}"),
+        Instruction::Generated(instruction) => format!(
+            ".word 0x{:08x} ; {} [decode-only]",
+            instruction.word, instruction.mnemonic
+        ),
         Instruction::Illegal(word) => format!(".word 0x{word:08x}"),
     }
 }
@@ -671,6 +675,25 @@ mod tests {
         let line = disassemble_word(0, 0, &BTreeMap::new());
         assert_eq!(line.instruction, Instruction::Illegal(0));
         assert_eq!(line.text, ".word 0x00000000");
+    }
+
+    #[test]
+    fn labels_decode_only_extensions_without_claiming_execution() {
+        let opcode = luna_isa::generated_opcodes()
+            .iter()
+            .find(|opcode| opcode.mnemonic == "fadd.h")
+            .unwrap();
+        let word = opcode.match_value | (1 << 7) | (2 << 15) | (3 << 20);
+        let line = disassemble_word(0, word, &BTreeMap::new());
+        assert_eq!(
+            line.text,
+            format!(".word 0x{word:08x} ; fadd.h [decode-only]")
+        );
+        assert_eq!(
+            luna_assembler::assemble(&line.text).unwrap().text,
+            word.to_le_bytes()
+        );
+        assert!(matches!(line.instruction, Instruction::Generated(_)));
     }
 
     #[test]
