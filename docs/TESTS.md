@@ -16,7 +16,7 @@ Validation locale complète :
     bash scripts/test-qemu-gdb-backend.sh
     git diff --check
 
-La suite actuelle exécute 122 tests unitaires/intégration répartis dans les crates. Les doc-tests compilent mais ne contiennent actuellement aucun cas. Le script FP oracle QEMU compare huit cas F/D indépendants, hors comptage Cargo. Le script QEMU ouvre en plus une session GDB RSP réelle, hors comptage Cargo.
+La suite actuelle exécute 128 tests unitaires/intégration répartis dans les crates. Les doc-tests compilent mais ne contiennent actuellement aucun cas. Le script FP oracle QEMU compare huit cas F/D indépendants, hors comptage Cargo. Le script QEMU ouvre en plus une session GDB RSP réelle, hors comptage Cargo.
 
 Démonstration M-mode/U-mode sous QEMU :
 
@@ -42,13 +42,13 @@ Moniteur texte interactif :
 |---|---:|---|
 | luna-abi | 2 | Extension de signe des pointeurs 32 bits et idempotence. |
 | luna-memory | 3 | Little-endian, transactions atomiques et rollback après erreur. |
-| luna-asm-lexer | 5 | Registres numériques/ABI, commentaires, décalages, chaînes UTF-8 et positions d’erreur. |
-| luna-assembler | 40 | AST, alias ABI, expressions, symboles globaux/locaux, sections, `.equ/.set`, chaînes, alignement, macros paramétrées bornées, includes sous sandbox, conditionnels bornés, listing texte, fadd.s et fadd.d. |
+| luna-asm-lexer | 6 | Registres numériques/ABI, commentaires, décalages, chaînes UTF-8, flottants décimaux et positions d’erreur. |
+| luna-assembler | 43 | AST, alias ABI, expressions, symboles globaux/locaux, sections, `.equ/.set`, chaînes, alignement, macros paramétrées bornées, includes sous sandbox, conditionnels bornés, listing texte, fadd.s/fadd.d et directives exactes binary16/32/64/128. |
 | luna-isa-core | 3 | Encodeurs `addi`, branches, sauts et `fadd.s`/`fadd.d` sans allocation, depuis les tables R2 partagées avec le guest ; commit R2 et champs générés validés. |
 | luna-isa | 6 | Tables générées depuis R2, encodage/décodage entier et flottant via `luna-isa-core`. |
 | luna-machine | 14 | Exécution entière, branches, mémoire, tables de pointeurs ILP32, fadd.s, fadd.d, NaN-boxing, positions exactes de fflags, contrat backend et snapshot cible. |
 | luna-disassembler | 12 | Format canonique, symboles, opcodes illégaux, régions code/données explicites, C rejeté et round-trip. |
-| luna-floatfmt | 3 | Bits hex exacts, décimal court, classes IEEE et NaN-box invalide. |
+| luna-floatfmt | 5 | Bits hex exacts, classes IEEE binary16/32/64/128, décimal déterministe et NaN-box invalide. |
 | luna-monitor | 23 | assemble → step → regs, affichage flottant, run borné, vues mémoire hex/ASCII, désassemblage mixte code/données/C, édition/undo, console backend-générique, marques QuickJump, breakpoints, watchpoints, symboles, pile, historique et persistance. |
 | luna-target-api | 4 | Contexte de trap, capacités explicites RV64 bare-metal, codes `mcause`, contrat de layout, résultats et accès mémoire du backend commun. |
 | luna-qemu-backend | 7 | Framing GDB RSP, checksum, lecture mémoire, layouts RV64 entier et F/D, stop reply, initialisation `?`, pas et budget nul. |
@@ -315,7 +315,7 @@ breakpoint permanent et le breakpoint temporaire du pas-à-pas est refusée.
 Les tests ne prouvent pas encore :
 
 - la conformité complète RV64I/M/F/D ;
-- binary16, binary128, bfloat16, conversions ou autres opérations flottantes ;
+- bfloat16, conversions, shortest-decimal prouvé pour tous les formats ou autres opérations flottantes ; binary16/binary128 sont actuellement couverts pour les motifs exacts et l’affichage de données ;
 - tous les modes d’arrondi IEEE ;
 - toutes les règles de payload NaN ;
 - les oracles indépendants GNU/LLVM/Sail/Spike/SoftFloat ;

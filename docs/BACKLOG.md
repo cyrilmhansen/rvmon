@@ -577,6 +577,23 @@ Une tâche est terminée seulement si sa condition de sortie est satisfaite.
 
 ## M4–M5 — flottants et extensions
 
+### FP-001A — Formats binaires exacts et directives de données — TERMINÉ
+
+- **Jalon / exigences :** M4/M5; FP-001..006, IO-001..009.
+- **But :** représenter et sérialiser sans conversion hôte les motifs binary16, binary32, binary64 et binary128; permettre les directives de données exactes.
+- **Non-but :** exécuter Q/Zfh, convertir arbitrairement une décimale vers binary128, garantir encore le shortest-round-trip décimal pour les quatre formats.
+- **Entrées/sources :** SPEC §§5, 11.1, 12; IEEE 754 via SPEC; R1 F/D/Q; décision D-005.
+- **Fichiers/modules :** crates/floatfmt, crates/asm-lexer, crates/assembler, docs/TESTS.md.
+- **Étapes réalisées :** ajouter FloatFormat binary16/binary128; classifier zéro, subnormal, normal, infini et NaN; préserver les motifs 16/32/64/128; accepter bits16/bits32/bits64/bits128; ajouter .binary16/.float/.double/.binary128; sérialiser little-endian; convertir les décimaux binary16/32/64 déterministes.
+- **Dépendances :** FP-001 et contrat d’endianness LE; ne dépend pas d’un moteur Q/Zfh.
+- **Tests :** motifs exacts, classes IEEE, decimal binary16 1.5, binary128 1.5 exact, largeur bits incompatible, decimal binary128 refusé explicitement.
+- **Critères de sortie :** les quatre directives produisent les octets attendus; un motif d’une mauvaise largeur est rejeté avec ASM-FLOAT-002; aucun binary128 n’est converti via un type hôte.
+- **Cas limites et échecs :** ±0, subnormal, infini, qNaN/sNaN, motif trop large, decimal binary128 non supporté, bfloat16 non aliasé.
+- **Taille :** 4 points / 2 journées-agent, incertitude moyenne.
+- **Compétences/outils :** IEEE 754, parser, sérialisation binaire, Rust.
+- **Parallélisable :** oui avec FP-ORACLE-001; non avec une modification concurrente du contrat FloatDisplay.
+- **Paquet de contexte minimal :** SPEC §§5/11.1/12, crates/floatfmt/src/lib.rs, crates/assembler/src/parser.rs et src/lib.rs.
+
 ### FP-001 — Représenter formats et littéraux exacts
 
 - **Jalon / exigences :** M4/M5; FP-001..018, REQ-PROD-002/004.

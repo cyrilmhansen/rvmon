@@ -87,6 +87,9 @@ fn is_number_literal(value: &str) -> bool {
     if lower.starts_with("0x") || lower.starts_with("0b") || lower.starts_with("0o") {
         return true;
     }
+    if value.contains('.') || lower.contains('e') {
+        return value.replace(['_', '\''], "").parse::<f64>().is_ok();
+    }
     value
         .bytes()
         .all(|byte| byte.is_ascii_digit() || matches!(byte, b'_' | b'\''))
@@ -237,6 +240,14 @@ pub fn tokenize(source: &str) -> Result<Vec<Token>> {
                     if next.is_ascii_alphanumeric() || "_.$'".contains(next) {
                         value.push(next);
                         chars.next();
+                    } else if matches!(next, '+' | '-')
+                        && value
+                            .chars()
+                            .last()
+                            .is_some_and(|last| last == 'e' || last == 'E')
+                    {
+                        value.push(next);
+                        chars.next();
                     } else {
                         break;
                     }
@@ -281,6 +292,14 @@ mod tests {
         assert_eq!(tokens[5].kind, TokenKind::ShiftLeft);
         assert_eq!(tokens[7].kind, TokenKind::RParen);
         assert_eq!(tokens[5].span.length, 2);
+    }
+
+    #[test]
+    fn tokenizes_decimal_float_literals_as_numbers() {
+        let tokens = tokenize(".float -1.5, 2e-3").unwrap();
+        assert_eq!(tokens[1].kind, TokenKind::Operator('-'));
+        assert_eq!(tokens[2].kind, TokenKind::Number("1.5".into()));
+        assert_eq!(tokens[4].kind, TokenKind::Number("2e-3".into()));
     }
 
     #[test]

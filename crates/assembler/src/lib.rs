@@ -7,6 +7,7 @@ use std::fs;
 use std::path::{Path, PathBuf};
 
 use luna_diag::{Diagnostic, Result};
+use luna_floatfmt::{FloatFormat, parse_float_literal};
 use luna_isa::{
     Addi, Branch, FRegisterRType, Jal, Jalr, Load, Lui, RType, Store, encode_addi, encode_branch,
     encode_f_r, encode_jal, encode_jalr, encode_load, encode_r, encode_store, encode_u,
@@ -420,6 +421,10 @@ fn assemble_directive(parsed: &ParsedLine, pc: u64, symbols: &SymbolValues) -> R
         ".half" => data_values(&parsed.operands, 2, symbols),
         ".word" => data_values(&parsed.operands, 4, symbols),
         ".dword" => data_values(&parsed.operands, 8, symbols),
+        ".binary16" => float_values(&parsed.operands, FloatFormat::Binary16),
+        ".float" => float_values(&parsed.operands, FloatFormat::Binary32),
+        ".double" => float_values(&parsed.operands, FloatFormat::Binary64),
+        ".binary128" => float_values(&parsed.operands, FloatFormat::Binary128),
         ".ascii" | ".asciz" | ".string" => {
             let mut bytes = Vec::new();
             for operand in &parsed.operands {
@@ -494,6 +499,45 @@ fn data_values(operands: &[Operand], width: usize, symbols: &SymbolValues) -> Re
     for operand in operands {
         let value = immediate(operand, symbols, minimum, maximum)? as u128;
         let raw = value.to_le_bytes();
+        bytes.extend_from_slice(&raw[..width]);
+    }
+    Ok(bytes)
+}
+
+fn float_values(operands: &[Operand], format: FloatFormat) -> Result<Vec<u8>> {
+    let width = match format {
+        FloatFormat::Binary16 => 2,
+        FloatFormat::Binary32 => 4,
+        FloatFormat::Binary64 => 8,
+        FloatFormat::Binary128 => 16,
+    };
+    let mut bytes = Vec::with_capacity(operands.len() * width);
+    for operand in operands {
+        let literal = match &operand.kind {
+            OperandKind::BitPattern {
+                width: pattern_width,
+                value,
+            } => {
+                let expected_width = width * 8;
+                if *pattern_width != expected_width {
+                    return Err(Diagnostic::error(
+                        "ASM-FLOAT-002",
+                        "bit-pattern width does not match directive",
+                    )
+                    .at(operand.span.line, operand.span.column));
+                }
+                value.as_str()
+            }
+            _ => operand_text(operand)?,
+        };
+        let bits = parse_float_literal(format, literal).ok_or_else(|| {
+            Diagnostic::error(
+                "ASM-FLOAT-001",
+                "invalid or non-representable floating literal",
+            )
+            .at(operand.span.line, operand.span.column)
+        })?;
+        let raw = bits.to_le_bytes();
         bytes.extend_from_slice(&raw[..width]);
     }
     Ok(bytes)
@@ -1857,6 +1901,46 @@ mod tests {
         assert_eq!(
             assemble("fadd.d f3,f1,f2").unwrap().text,
             [0xd3, 0xf1, 0x20, 0x02]
+        );
+    }
+
+    #[test]
+    fn assembles_exact_float_data_literals_for_all_binary_formats() {
+        assert_eq!(
+            assemble(".binary16 bits16(0x3e00),1.5").unwrap().text,
+            [0x00, 0x3e, 0x00, 0x3e]
+        );
+        assert_eq!(
+            assemble(".float bits32(0x3fc00000),1.5").unwrap().text,
+            [0x00, 0x00, 0xc0, 0x3f, 0x00, 0x00, 0xc0, 0x3f]
+        );
+        assert_eq!(
+            assemble(".double bits64(0x3ff8000000000000),1.5")
+                .unwrap()
+                .text,
+            [
+                0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xf8, 0x3f, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+                0xf8, 0x3f
+            ]
+        );
+        let binary128 = 0x3fff_8000_0000_0000_0000_0000_0000_0000u128;
+        assert_eq!(
+            assemble(".binary128 bits128(0x3fff8000000000000000000000000000)")
+                .unwrap()
+                .text,
+            binary128.to_le_bytes()
+        );
+    }
+
+    #[test]
+    fn rejects_float_data_width_mismatch_and_unsupported_binary128_decimal() {
+        assert_eq!(
+            assemble(".binary16 bits32(0x3f800000)").unwrap_err().code,
+            "ASM-FLOAT-002"
+        );
+        assert_eq!(
+            assemble(".binary128 1.5").unwrap_err().code,
+            "ASM-FLOAT-001"
         );
     }
 

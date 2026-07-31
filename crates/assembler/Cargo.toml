@@ -8,6 +8,7 @@ license.workspace = true
 luna-diag = { path = "../diag" }
 luna-asm-lexer = { path = "../asm-lexer" }
 luna-isa = { path = "../isa" }
+luna-floatfmt = { path = "../floatfmt" }
 
 [lints]
 workspace = true

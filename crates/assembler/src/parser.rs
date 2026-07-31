@@ -23,6 +23,7 @@ pub enum OperandKind {
     Symbol(String),
     Expression(String),
     String(String),
+    BitPattern { width: usize, value: String },
     Memory { offset: String, base: String },
 }
 
@@ -152,6 +153,46 @@ impl Parser {
             TokenKind::String(_) => String::new(),
             _ => unreachable!("operand atom has a scalar token"),
         });
+        if let TokenKind::Identifier(name) = &first_atom.kind {
+            if let Some(width) = bit_pattern_width(name)
+                && matches!(
+                    self.peek().map(|token| &token.kind),
+                    Some(TokenKind::LParen)
+                )
+            {
+                let open = self.take().expect("peeked opening parenthesis");
+                let value = self.take().ok_or_else(|| {
+                    Diagnostic::error("ASM-BITS-001", "missing bit-pattern value")
+                        .at(open.span.line, open.span.column)
+                })?;
+                let value_text = match value.kind {
+                    TokenKind::Number(value) | TokenKind::Identifier(value) => value,
+                    _ => {
+                        return Err(Diagnostic::error(
+                            "ASM-BITS-001",
+                            "bit-pattern value must be numeric",
+                        )
+                        .at(value.span.line, value.span.column));
+                    }
+                };
+                let close = self.take().ok_or_else(|| {
+                    Diagnostic::error("ASM-BITS-001", "missing closing parenthesis")
+                        .at(open.span.line, open.span.column)
+                })?;
+                if !matches!(close.kind, TokenKind::RParen) {
+                    return Err(
+                        Diagnostic::error("ASM-BITS-001", "missing closing parenthesis")
+                            .at(close.span.line, close.span.column),
+                    );
+                }
+                operand.kind = OperandKind::BitPattern {
+                    width,
+                    value: value_text,
+                };
+                operand.span.length = close.span.column + close.span.length - operand.span.column;
+                return Ok(operand);
+            }
+        }
         while let Some(token) = self.peek() {
             let operator = match &token.kind {
                 TokenKind::Operator(operator) => operator.to_string(),
@@ -321,6 +362,16 @@ impl Parser {
     }
 }
 
+fn bit_pattern_width(name: &str) -> Option<usize> {
+    match name.to_ascii_lowercase().as_str() {
+        "bits16" => Some(16),
+        "bits32" => Some(32),
+        "bits64" => Some(64),
+        "bits128" => Some(128),
+        _ => None,
+    }
+}
+
 pub fn parse_line(source: &str) -> Result<ParsedLine> {
     Parser::new(source)?.parse()
 }
@@ -362,6 +413,18 @@ mod tests {
         assert_eq!(
             line.operands[0].kind,
             OperandKind::Expression("1<<3".into())
+        );
+    }
+
+    #[test]
+    fn parses_exact_float_bit_patterns() {
+        let line = parse_line(".binary128 bits128(0x1)").unwrap();
+        assert_eq!(
+            line.operands[0].kind,
+            OperandKind::BitPattern {
+                width: 128,
+                value: "0x1".into()
+            }
         );
     }
 }
