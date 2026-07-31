@@ -12,7 +12,7 @@ Validation locale complète :
     bash scripts/test-guest-monitor.sh
     git diff --check
 
-La suite actuelle exécute 71 tests unitaires/intégration répartis dans les crates. Les doc-tests compilent mais ne contiennent actuellement aucun cas.
+La suite actuelle exécute 76 tests unitaires/intégration répartis dans les crates. Les doc-tests compilent mais ne contiennent actuellement aucun cas.
 
 Démonstration M-mode/U-mode sous QEMU :
 
@@ -46,6 +46,7 @@ Moniteur texte interactif :
 | luna-floatfmt | 3 | Bits hex exacts, décimal court, classes IEEE et NaN-box invalide. |
 | luna-monitor | 18 | assemble → step → regs, affichage flottant, run borné, vues mémoire hex/ASCII, édition/undo, marques QuickJump, breakpoints, watchpoints, symboles, pile, historique et persistance. |
 | luna-target-api | 4 | Contexte de trap, capacités explicites RV64 bare-metal, codes `mcause`, contrat de layout, résultats et accès mémoire du backend commun. |
+| luna-qemu-backend | 5 | Framing GDB RSP, checksum, lecture mémoire, décodage registres RV64, stop reply et budget nul. |
 | luna-guest-monitor | 0 | Image bare-metal, boot QEMU, PMP, transition M→U, trap `ebreak` et boucle UART; vérifié par smoke test QEMU. |
 | luna-app | 0 | Compilation du binaire et démonstration ; pas encore d’E2E terminal. |
 | luna-diag | 0 | Types utilisés par les autres crates ; pas de test dédié. |
@@ -160,6 +161,13 @@ octet par octet, `step` et `run`, avec des résultats indépendants du transport
 `luna-machine` l’implémente actuellement ; le backend QEMU bare-metal conserve
 son protocole UART local et sera adapté à ce contrat dans une tranche
 ultérieure.
+
+Le crate `luna-qemu-backend` fournit un adaptateur GDB Remote Protocol générique
+sur `Read + Write` et un constructeur TCP. La première tranche couvre les
+paquets `m`, `M`, `s` et `g`, les accusés de réception, l’échappement, les
+checksums et les stop replies. Le layout RV64 par défaut est explicite et
+injectable ; l’XML d’architecture GDB et la validation contre un QEMU live
+restent à brancher avant de déclarer le backend distant production-ready.
 
 Le crate `luna-guest-monitor` est une première tranche d’intégration hors
 `cargo test` : il est compilé pour `riscv64gc-unknown-none-elf`, mais les

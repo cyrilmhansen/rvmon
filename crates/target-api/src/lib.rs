@@ -85,7 +85,7 @@ pub trait TargetBackend {
 
     fn capabilities(&self) -> TargetCapabilities;
     fn context(&self) -> TargetContext;
-    fn read_memory(&self, address: u64, destination: &mut [u8]) -> Result<(), Self::Error>;
+    fn read_memory(&mut self, address: u64, destination: &mut [u8]) -> Result<(), Self::Error>;
     fn write_memory(&mut self, address: u64, source: &[u8]) -> Result<(), Self::Error>;
     fn step(&mut self) -> Result<ExecutionOutcome, Self::Error>;
     fn run(&mut self, max_steps: u64) -> Result<ExecutionOutcome, Self::Error>;

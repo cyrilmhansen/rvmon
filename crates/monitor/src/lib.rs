@@ -206,9 +206,9 @@ impl Monitor {
         ))
     }
 
-    pub fn snapshot_bytes(&self) -> Result<Vec<u8>> {
+    pub fn snapshot_bytes(&mut self) -> Result<Vec<u8>> {
         let mut memory = vec![0u8; self.machine.memory_size()];
-        TargetBackend::read_memory(&self.machine, 0, &mut memory)?;
+        TargetBackend::read_memory(&mut self.machine, 0, &mut memory)?;
         let mut writer = ByteWriter::new(SNAPSHOT_MAGIC);
         writer.u32(PERSISTENCE_VERSION);
         writer.u64(memory.len() as u64);
@@ -273,7 +273,7 @@ impl Monitor {
         self.call_stack.clear();
     }
 
-    fn snapshot_file(&self, argument: &str) -> Result<String> {
+    fn snapshot_file(&mut self, argument: &str) -> Result<String> {
         let path = persistence_path(argument, "MON-PERSIST-001")?;
         let bytes = self.snapshot_bytes()?;
         fs::write(path, &bytes).map_err(|error| {
@@ -289,7 +289,7 @@ impl Monitor {
         Ok(format!("snapshot restored ({} bytes)", bytes.len()))
     }
 
-    fn project_save_file(&self, argument: &str) -> Result<String> {
+    fn project_save_file(&mut self, argument: &str) -> Result<String> {
         let path = persistence_path(argument, "MON-PERSIST-004")?;
         let snapshot = self.snapshot_bytes()?;
         let mut writer = ByteWriter::new(PROJECT_MAGIC);
@@ -545,7 +545,7 @@ impl Monitor {
             .unwrap_or_else(|| "<no-symbol>".into())
     }
 
-    fn disassemble(&self, argument: &str) -> Result<String> {
+    fn disassemble(&mut self, argument: &str) -> Result<String> {
         let parts: Vec<_> = argument.split_whitespace().collect();
         let (address, count) = match parts.as_slice() {
             [] => (self.machine.pc, 4),
@@ -577,9 +577,9 @@ impl Monitor {
         Ok(output.trim_end().into())
     }
 
-    fn read_word(&self, address: u64) -> Result<u32> {
+    fn read_word(&mut self, address: u64) -> Result<u32> {
         let mut bytes = [0u8; 4];
-        TargetBackend::read_memory(&self.machine, address, &mut bytes)?;
+        TargetBackend::read_memory(&mut self.machine, address, &mut bytes)?;
         Ok(u32::from_le_bytes(bytes))
     }
 
@@ -621,7 +621,7 @@ impl Monitor {
             ));
         }
         let mut bytes = vec![0u8; count];
-        TargetBackend::read_memory(&self.machine, address, &mut bytes)?;
+        TargetBackend::read_memory(&mut self.machine, address, &mut bytes)?;
         self.view_address = address;
 
         let mut output = String::new();
@@ -673,7 +673,7 @@ impl Monitor {
             ));
         }
         let mut previous = vec![0u8; bytes.len()];
-        TargetBackend::read_memory(&self.machine, address, &mut previous)?;
+        TargetBackend::read_memory(&mut self.machine, address, &mut previous)?;
         TargetBackend::write_memory(&mut self.machine, address, &bytes)?;
         if self.undo.len() == MAX_UNDO_ENTRIES {
             self.undo.remove(0);

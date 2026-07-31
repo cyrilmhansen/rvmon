@@ -1,5 +1,5 @@
 [workspace]
-members = ["crates/diag", "crates/abi", "crates/isa", "crates/memory", "crates/machine", "crates/asm-lexer", "crates/assembler", "crates/disassembler", "crates/floatfmt", "crates/target-api", "crates/monitor", "crates/guest-monitor", "crates/app"]
+members = ["crates/diag", "crates/abi", "crates/isa", "crates/memory", "crates/machine", "crates/asm-lexer", "crates/assembler", "crates/disassembler", "crates/floatfmt", "crates/target-api", "crates/qemu-backend", "crates/monitor", "crates/guest-monitor", "crates/app"]
 resolver = "2"
 
 [workspace.package]

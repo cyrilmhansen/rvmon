@@ -1,0 +1,11 @@
+[package]
+name = "luna-qemu-backend"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+luna-target-api = { path = "../target-api" }
+
+[lints]
+workspace = true

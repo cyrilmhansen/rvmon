@@ -94,5 +94,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "luna-qemu-backend"
+version = "0.1.0"
+dependencies = [
+ "luna-target-api",
+]
+
+[[package]]
 name = "luna-target-api"
 version = "0.1.0"

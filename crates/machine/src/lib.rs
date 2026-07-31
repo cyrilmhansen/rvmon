@@ -249,7 +249,7 @@ impl TargetBackend for Machine {
     }
 
     fn read_memory(
-        &self,
+        &mut self,
         address: u64,
         destination: &mut [u8],
     ) -> std::result::Result<(), Self::Error> {
@@ -718,7 +718,7 @@ mod tests {
 
         TargetBackend::write_memory(&mut machine, 2, &[0xaa, 0xbb, 0xcc]).unwrap();
         let mut bytes = [0; 3];
-        TargetBackend::read_memory(&machine, 2, &mut bytes).unwrap();
+        TargetBackend::read_memory(&mut machine, 2, &mut bytes).unwrap();
         assert_eq!(bytes, [0xaa, 0xbb, 0xcc]);
 
         assert!(TargetBackend::write_memory(&mut machine, 15, &[1, 2]).is_err());
