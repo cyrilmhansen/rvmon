@@ -3,6 +3,8 @@
 use std::cmp::Reverse;
 use std::collections::{BTreeMap, BTreeSet};
 use std::fmt::Write as _;
+use std::fs;
+use std::path::{Path, PathBuf};
 
 use luna_diag::{Diagnostic, Result};
 use luna_isa::{
@@ -22,6 +24,32 @@ pub struct ObjectImage {
     pub constants: BTreeMap<String, i128>,
     pub listing: Vec<ListingEntry>,
     pub sections: Vec<SectionImage>,
+}
+
+/// Controls the optional source-file include loader.
+///
+/// Includes are disabled when `include_roots` is empty. Every included file
+/// must resolve below one of the configured roots after symlink resolution;
+/// the loader never falls back to the process working directory.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct AssemblyOptions {
+    pub include_roots: Vec<PathBuf>,
+    pub source_path: Option<PathBuf>,
+    pub max_include_depth: usize,
+    pub max_include_bytes: usize,
+    pub max_include_files: usize,
+}
+
+impl Default for AssemblyOptions {
+    fn default() -> Self {
+        Self {
+            include_roots: Vec::new(),
+            source_path: None,
+            max_include_depth: MAX_INCLUDE_DEPTH,
+            max_include_bytes: MAX_INCLUDE_BYTES,
+            max_include_files: MAX_INCLUDE_FILES,
+        }
+    }
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -86,6 +114,9 @@ const MAX_MACRO_BODY_LINES: usize = 4096;
 const MAX_MACRO_PARAMETERS: usize = 32;
 const MAX_MACRO_DEPTH: usize = 32;
 const MAX_EXPANDED_LINES: usize = 65_536;
+const MAX_INCLUDE_DEPTH: usize = 32;
+const MAX_INCLUDE_BYTES: usize = 8 * 1024 * 1024;
+const MAX_INCLUDE_FILES: usize = 4096;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 struct ExpandedLine {
@@ -560,6 +591,261 @@ fn section_alignment_requirement(line: &ParsedLine, symbols: &SymbolValues) -> R
     }
 }
 
+fn is_include_directive(source: &str) -> bool {
+    let source = strip_macro_comment(source).trim_start();
+    let Some(prefix) = source.get(..8) else {
+        return false;
+    };
+    prefix.eq_ignore_ascii_case(".include")
+        && source[8..]
+            .chars()
+            .next()
+            .is_none_or(|character| character.is_ascii_whitespace())
+}
+
+fn include_request(source: &str) -> Result<Option<String>> {
+    if !is_include_directive(source) {
+        return Ok(None);
+    }
+    let parsed = parse_line(strip_macro_comment(source)).map_err(|error| {
+        Diagnostic::error(
+            "ASM-INCLUDE-002",
+            format!("invalid include directive: {}", error.message),
+        )
+    })?;
+    if parsed.mnemonic.as_deref() != Some(".include") || parsed.operands.len() != 1 {
+        return Err(Diagnostic::error(
+            "ASM-INCLUDE-002",
+            ".include expects one quoted path",
+        ));
+    }
+    let OperandKind::String(path) = &parsed.operands[0].kind else {
+        return Err(Diagnostic::error(
+            "ASM-INCLUDE-002",
+            ".include expects one quoted path",
+        ));
+    };
+    if path.is_empty() {
+        return Err(Diagnostic::error(
+            "ASM-INCLUDE-002",
+            "include path cannot be empty",
+        ));
+    }
+    Ok(Some(path.clone()))
+}
+
+struct IncludeLoader {
+    roots: Vec<PathBuf>,
+    main_base: Option<PathBuf>,
+    max_depth: usize,
+    max_bytes: usize,
+    max_files: usize,
+    total_bytes: usize,
+    loaded_files: usize,
+    active: Vec<PathBuf>,
+}
+
+impl IncludeLoader {
+    fn new(options: &AssemblyOptions) -> Result<Self> {
+        if options.max_include_depth == 0
+            || options.max_include_depth > MAX_INCLUDE_DEPTH
+            || options.max_include_bytes == 0
+            || options.max_include_bytes > MAX_INCLUDE_BYTES
+            || options.max_include_files == 0
+            || options.max_include_files > MAX_INCLUDE_FILES
+        {
+            return Err(Diagnostic::error(
+                "ASM-INCLUDE-005",
+                "include limits exceed the supported safety bounds",
+            ));
+        }
+        let mut roots = Vec::with_capacity(options.include_roots.len());
+        for root in &options.include_roots {
+            let canonical = fs::canonicalize(root).map_err(|error| {
+                Diagnostic::error(
+                    "ASM-INCLUDE-001",
+                    format!("cannot access include root {}: {error}", root.display()),
+                )
+            })?;
+            if !canonical.is_dir() {
+                return Err(Diagnostic::error(
+                    "ASM-INCLUDE-001",
+                    format!("include root is not a directory: {}", root.display()),
+                ));
+            }
+            roots.push(canonical);
+        }
+        let main_base = if let Some(source_path) = &options.source_path {
+            let parent = source_path.parent().unwrap_or_else(|| Path::new("."));
+            let canonical = fs::canonicalize(parent).map_err(|error| {
+                Diagnostic::error(
+                    "ASM-INCLUDE-001",
+                    format!(
+                        "cannot access source directory {}: {error}",
+                        parent.display()
+                    ),
+                )
+            })?;
+            if !roots.is_empty() && !roots.iter().any(|root| canonical.starts_with(root)) {
+                return Err(Diagnostic::error(
+                    "ASM-INCLUDE-003",
+                    "source directory is outside the configured include roots",
+                ));
+            }
+            Some(canonical)
+        } else {
+            roots.first().cloned()
+        };
+        Ok(Self {
+            roots,
+            main_base,
+            max_depth: options.max_include_depth,
+            max_bytes: options.max_include_bytes,
+            max_files: options.max_include_files,
+            total_bytes: 0,
+            loaded_files: 0,
+            active: Vec::new(),
+        })
+    }
+
+    fn resolve(
+        &mut self,
+        request: &str,
+        current_file: Option<&Path>,
+        depth: usize,
+    ) -> Result<PathBuf> {
+        if self.roots.is_empty() {
+            return Err(Diagnostic::error(
+                "ASM-INCLUDE-001",
+                "includes require at least one configured include root",
+            ));
+        }
+        if depth > self.max_depth {
+            return Err(Diagnostic::error(
+                "ASM-INCLUDE-005",
+                "include depth quota exceeded",
+            ));
+        }
+        let requested = Path::new(request);
+        if requested.is_absolute()
+            || requested
+                .components()
+                .any(|component| matches!(component, std::path::Component::ParentDir))
+        {
+            return Err(Diagnostic::error(
+                "ASM-INCLUDE-003",
+                "include path must be relative and cannot contain '..'",
+            ));
+        }
+        let base = current_file
+            .and_then(Path::parent)
+            .map(Path::to_path_buf)
+            .or_else(|| self.main_base.clone())
+            .ok_or_else(|| {
+                Diagnostic::error(
+                    "ASM-INCLUDE-001",
+                    "no base directory is available for the include",
+                )
+            })?;
+        let candidate = base.join(requested);
+        let canonical = fs::canonicalize(&candidate).map_err(|error| {
+            Diagnostic::error(
+                "ASM-INCLUDE-001",
+                format!(
+                    "cannot read included source {}: {error}",
+                    candidate.display()
+                ),
+            )
+        })?;
+        if !canonical.is_file() || !self.roots.iter().any(|root| canonical.starts_with(root)) {
+            return Err(Diagnostic::error(
+                "ASM-INCLUDE-003",
+                format!(
+                    "included source is outside the sandbox: {}",
+                    candidate.display()
+                ),
+            ));
+        }
+        if self.active.iter().any(|active| active == &canonical) {
+            return Err(Diagnostic::error(
+                "ASM-INCLUDE-004",
+                format!("cyclic include detected for {}", canonical.display()),
+            ));
+        }
+        Ok(canonical)
+    }
+
+    fn expand_source(
+        &mut self,
+        source: &str,
+        source_path: Option<&Path>,
+    ) -> Result<Vec<ExpandedLine>> {
+        let root_path = source_path.and_then(|path| fs::canonicalize(path).ok());
+        if let Some(root_path) = root_path {
+            self.active.push(root_path);
+        }
+        let result = self.expand_text(source, source_path, 0);
+        if source_path.is_some() {
+            self.active.pop();
+        }
+        result
+    }
+
+    fn expand_text(
+        &mut self,
+        source: &str,
+        source_path: Option<&Path>,
+        depth: usize,
+    ) -> Result<Vec<ExpandedLine>> {
+        let mut output = Vec::new();
+        for (index, raw_line) in source.lines().enumerate() {
+            let source_line = u32::try_from(index + 1).unwrap_or(u32::MAX);
+            if let Some(request) = include_request(raw_line)? {
+                let path = self.resolve(&request, source_path, depth + 1)?;
+                if self.loaded_files >= self.max_files {
+                    return Err(Diagnostic::error(
+                        "ASM-INCLUDE-005",
+                        "include file quota exceeded",
+                    ));
+                }
+                let bytes = fs::read(&path).map_err(|error| {
+                    Diagnostic::error(
+                        "ASM-INCLUDE-001",
+                        format!("cannot read included source {}: {error}", path.display()),
+                    )
+                })?;
+                let length = bytes.len();
+                self.total_bytes = self.total_bytes.checked_add(length).ok_or_else(|| {
+                    Diagnostic::error("ASM-INCLUDE-005", "included source byte quota exceeded")
+                })?;
+                if self.total_bytes > self.max_bytes {
+                    return Err(Diagnostic::error(
+                        "ASM-INCLUDE-005",
+                        "included source byte quota exceeded",
+                    ));
+                }
+                let included = String::from_utf8(bytes).map_err(|_| {
+                    Diagnostic::error(
+                        "ASM-INCLUDE-006",
+                        format!("included source is not valid UTF-8: {}", path.display()),
+                    )
+                })?;
+                self.loaded_files += 1;
+                self.active.push(path.clone());
+                let nested = self.expand_text(&included, Some(&path), depth + 1)?;
+                self.active.pop();
+                output.extend(nested);
+            } else {
+                output.push(ExpandedLine {
+                    text: raw_line.trim_end().to_owned(),
+                    source_line,
+                });
+            }
+        }
+        Ok(output)
+    }
+}
+
 fn strip_macro_comment(source: &str) -> &str {
     let bytes = source.as_bytes();
     let mut in_string = false;
@@ -748,14 +1034,16 @@ fn expand_macro_line(
     Ok(())
 }
 
-fn expand_macros(source: &str) -> Result<Vec<ExpandedLine>> {
+fn expand_macros(source: &str, options: &AssemblyOptions) -> Result<Vec<ExpandedLine>> {
+    let mut include_loader = IncludeLoader::new(options)?;
+    let included_source = include_loader.expand_source(source, options.source_path.as_deref())?;
     let mut macros = BTreeMap::new();
     let mut active: Option<(String, Vec<String>, Vec<ExpandedLine>)> = None;
     let mut retained = Vec::new();
-    for (index, raw_line) in source.lines().enumerate() {
-        let source_line = u32::try_from(index + 1).unwrap_or(u32::MAX);
-        let control_text = strip_macro_comment(raw_line);
-        let text = raw_line.trim_end().to_owned();
+    for expanded_line in included_source {
+        let source_line = expanded_line.source_line;
+        let text = expanded_line.text;
+        let control_text = strip_macro_comment(&text);
         if active.is_some() {
             if is_end_macro(control_text) {
                 let (name, parameters, body) = active.take().expect("active macro");
@@ -841,7 +1129,14 @@ fn expand_macros(source: &str) -> Result<Vec<ExpandedLine>> {
 }
 
 pub fn assemble_program(source: &str) -> Result<ObjectImage> {
-    let expanded_source = expand_macros(source)?;
+    assemble_program_with_options(source, &AssemblyOptions::default())
+}
+
+pub fn assemble_program_with_options(
+    source: &str,
+    options: &AssemblyOptions,
+) -> Result<ObjectImage> {
+    let expanded_source = expand_macros(source, options)?;
     let lines: Vec<_> = expanded_source
         .iter()
         .map(|line| parse_line(&line.text))
@@ -1228,6 +1523,28 @@ fn resolve_control_label(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::time::{SystemTime, UNIX_EPOCH};
+
+    fn with_include_root<T>(test: impl FnOnce(&Path) -> T) -> T {
+        let suffix = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .expect("system clock must be after epoch")
+            .as_nanos();
+        let root = std::env::temp_dir().join(format!(
+            "rvmonitor-assembler-include-{}-{suffix}",
+            std::process::id()
+        ));
+        fs::create_dir_all(&root).unwrap();
+        let result = test(&root);
+        fs::remove_dir_all(&root).unwrap();
+        result
+    }
+
+    fn write_include(root: &Path, relative: &str, source: &str) {
+        let path = root.join(relative);
+        fs::create_dir_all(path.parent().unwrap()).unwrap();
+        fs::write(path, source).unwrap();
+    }
     #[test]
     fn assembles_required_first_program() {
         assert_eq!(
@@ -1518,5 +1835,82 @@ mod tests {
 
         let error = assemble_program(".macro broken\n addi x1,x0,1").unwrap_err();
         assert_eq!(error.code, "ASM-MACRO-002");
+    }
+
+    #[test]
+    fn expands_nested_includes_relative_to_the_including_file() {
+        with_include_root(|root| {
+            write_include(root, "lib/constants.s", ".equ VALUE, 1\n");
+            write_include(
+                root,
+                "lib/macros.s",
+                ".include \"constants.s\"\n.macro load rd\n  addi \\rd,x0,VALUE\n.endm\n",
+            );
+            let options = AssemblyOptions {
+                include_roots: vec![root.to_path_buf()],
+                ..AssemblyOptions::default()
+            };
+            let image =
+                assemble_program_with_options(".include \"lib/macros.s\"\nload x1", &options)
+                    .unwrap();
+            assert_eq!(image.text, [0x93, 0x00, 0x10, 0x00]);
+            assert_eq!(image.listing.last().unwrap().source_line, 3);
+            assert_eq!(image.listing.last().unwrap().source, "  addi x1,x0,VALUE");
+        });
+    }
+
+    #[test]
+    fn rejects_includes_without_sandbox_traversal_cycles_and_quota_overflow() {
+        let error = assemble_program(".include \"missing.s\"").unwrap_err();
+        assert_eq!(error.code, "ASM-INCLUDE-001");
+
+        with_include_root(|root| {
+            write_include(root, "escape.s", "addi x1,x0,1\n");
+            let options = AssemblyOptions {
+                include_roots: vec![root.to_path_buf()],
+                ..AssemblyOptions::default()
+            };
+            let error =
+                assemble_program_with_options(".include \"../escape.s\"", &options).unwrap_err();
+            assert_eq!(error.code, "ASM-INCLUDE-003");
+
+            write_include(root, "a.s", ".include \"b.s\"\n");
+            write_include(root, "b.s", ".include \"a.s\"\n");
+            let error = assemble_program_with_options(".include \"a.s\"", &options).unwrap_err();
+            assert_eq!(error.code, "ASM-INCLUDE-004");
+
+            write_include(root, "large.s", "addi x1,x0,1\n");
+            let options = AssemblyOptions {
+                include_roots: vec![root.to_path_buf()],
+                max_include_bytes: 1,
+                ..AssemblyOptions::default()
+            };
+            let error =
+                assemble_program_with_options(".include \"large.s\"", &options).unwrap_err();
+            assert_eq!(error.code, "ASM-INCLUDE-005");
+        });
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn rejects_a_symlink_that_escapes_the_include_root() {
+        use std::os::unix::fs::symlink;
+
+        with_include_root(|root| {
+            let outside = root.with_file_name(format!(
+                "rvmonitor-assembler-outside-{}",
+                std::process::id()
+            ));
+            fs::create_dir_all(&outside).unwrap();
+            write_include(&outside, "secret.s", "addi x1,x0,1\n");
+            symlink(outside.join("secret.s"), root.join("link.s")).unwrap();
+            let options = AssemblyOptions {
+                include_roots: vec![root.to_path_buf()],
+                ..AssemblyOptions::default()
+            };
+            let error = assemble_program_with_options(".include \"link.s\"", &options).unwrap_err();
+            assert_eq!(error.code, "ASM-INCLUDE-003");
+            fs::remove_dir_all(outside).unwrap();
+        });
     }
 }

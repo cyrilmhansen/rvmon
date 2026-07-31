@@ -456,6 +456,23 @@ Une tâche est terminée seulement si sa condition de sortie est satisfaite.
 - **Parallélisable :** oui avec DIS-001 et FP-001; non avec une modification concurrente de la structure `ListingEntry` ou de la grammaire des directives.
 - **Paquet de contexte minimal :** SPEC §§11–12/18/19/23, R4 directives et macros, `crates/assembler/src/lib.rs`, `TESTS.md`.
 
+### ASM-003F — Includes sous sandbox de chemins — TERMINÉ
+
+- **Jalon / exigences :** M3; ASM-003, ASM-009, ASM-015, IO-005, ISO-001.
+- **But :** permettre des sources `.include "path"` récursives et déterministes, avec une API d’options explicite et un contrôle de confinement avant chaque lecture.
+- **Non-but :** recherche implicite dans le répertoire courant, includes système, expansion conditionnelle `.if`, préprocesseur compatible avec toutes les extensions GNU, import ELF ou accès distant.
+- **Entrées/sources :** SPEC §§11–12 (directives, listing et formats), §18 (validation des chemins et isolation), §19 (diagnostics), §23 (fuzzing et reproductibilité); R4 pour la syntaxe des directives; décision locale du sandbox de sources.
+- **Fichiers/modules :** `crates/assembler/src/lib.rs`, `TESTS.md`, `BACKLOG.md`.
+- **Étapes réalisées :** ajouter `AssemblyOptions`; conserver `assemble_program` sans accès disque; résoudre les includes relativement au fichier parent; canonicaliser racines, fichiers et symlinks; refuser absolus et `..`; détecter cycles; borner profondeur, octets et nombre de fichiers; rejeter UTF-8 invalide; faire passer le flux inclus avant l’expansion des macros.
+- **Dépendances :** ASM-003E et ASM-002B; aucune dépendance externe; prépare les directives conditionnelles; le monitor et le guest restent sur l’API hermétique par défaut.
+- **Tests :** include imbriqué relatif; macro défini dans un fichier inclus; include sans racine; traversal `..`; cycle; quota d’octets; suite assembleur complète.
+- **Critères de sortie :** le même arbre autorisé produit les mêmes bytes; un fichier hors racine n’est jamais lu; un include sans options est refusé; les codes `ASM-INCLUDE-001/002/003/004/005/006` sont réservés aux échecs correspondants; aucun recours implicite au cwd.
+- **Cas limites et échecs :** racine inexistante, racine qui n’est pas un répertoire, chemin vide ou non quoté, source principale hors racines, symlink sortant, cycle indirect, limite atteinte exactement et source non UTF-8.
+- **Taille :** 5 points / 2–2,5 journées-agent, incertitude moyenne; équivalent indicatif 80k–180k tokens.
+- **Compétences/outils :** API filesystem Rust, canonicalisation et sécurité des chemins, préprocesseurs, tests hermétiques.
+- **Parallélisable :** oui avec DIS-001 et FP-001; non avec une modification concurrente du contrat `AssemblyOptions` ou du pipeline de prétraitement.
+- **Paquet de contexte minimal :** SPEC §§11/12/18/19/23, R4 directives, `crates/assembler/src/lib.rs`, `TESTS.md`.
+
 ### ASM-003 — Directives, chaînes, macros et listing
 
 - **Jalon / exigences :** M3; ASM-001..015, IO-001..009.
