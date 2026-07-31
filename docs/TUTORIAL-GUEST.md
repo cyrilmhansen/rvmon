@@ -305,6 +305,23 @@ trap: breakpoint #1 pc=0x0000000080000...
 Le moniteur conserve au maximum quatre breakpoints permanents. Une adresse
 déjà utilisée ou non alignée est refusée.
 
+### Modifier un registre entier
+
+À l’arrêt sur un trap, `set` écrit un motif hexadécimal complet dans `x1` à
+`x31`. `x0` reste constant et toute écriture est refusée :
+
+```text
+rvmonitor> set x9 0x8000000080000000
+set x9=0x8000000080000000
+rvmonitor> set x0 0x1
+error: x0 is read-only
+```
+
+La commande conserve les 64 bits du registre. Elle ne convertit pas la valeur
+en pointeur : la convention ILP32 impose toujours au programme cible de
+produire lui-même la forme signée attendue lorsqu’un pointeur 32 bits est
+étendu dans un registre RV64.
+
 ### Supprimer un breakpoint
 
 ```text
@@ -341,7 +358,7 @@ Le script :
 1. construit l’ELF invité ;
 2. calcule une adresse de breakpoint avec `riscv64-linux-gnu-nm` ;
 3. démarre QEMU avec `-bios none`, `-kernel` et `-nographic` ;
-4. envoie `help`, `regs`, `memory`, `edit`, `undo`, `break`, `info break`,
+4. envoie `help`, `regs`, `set`, `memory`, `edit`, `undo`, `break`, `info break`,
    `continue`, `step`, `delete` et `assemble-program` sur l’UART ;
 5. vérifie les modifications de `x1`, les motifs exacts de `f3`/`f6`,
    les transferts `fmv.w.x`/`fmv.x.w` et leur NaN-boxing, `fcsr`, les

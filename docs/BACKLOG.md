@@ -267,6 +267,23 @@ Une tâche est terminée seulement si sa condition de sortie est satisfaite.
 - **Parallélisable :** oui avec la documentation et les oracles; non avec une modification simultanée du protocole UART guest.
 - **Paquet de contexte minimal :** `crates/guest-monitor/src/main.rs`, `scripts/test-guest-monitor.sh`, `docs/TESTS.md`, `docs/TUTORIAL-GUEST.md`, SPEC §§8/10/16/18/24.
 
+### GUEST-002 — Modifier de manière contrôlée les registres entiers du guest — TERMINÉ
+
+- **Jalon / exigences :** M7; DBG-001..004, ABI-001..008, REQ-PROD-003.
+- **But :** exposer `set xN <hex64>` dans le moniteur M-mode arrêté afin de préparer des cas ILP32 et de déboguer sans perdre les bits hauts du registre RV64.
+- **Non-but :** convertir automatiquement une valeur en pointeur, modifier `x0`, écrire les registres pendant l’exécution ou fournir encore les alias ABI textuels.
+- **Entrées/sources :** SPEC §§5, 7, 8, 15 et 16; règles RISC-V sur `x0` et extension de signe ILP32; `TargetContext` du contrat guest.
+- **Fichiers/modules :** `crates/guest-monitor/src/main.rs`, `scripts/test-guest-monitor.sh`, `docs/TESTS.md`, `docs/TUTORIAL-GUEST.md`.
+- **Étapes réalisées :** parser `set`; validation de l’arrêt sur breakpoint; parsing hexadécimal 64 bits; refus explicite de `x0`; écriture du contexte sauvegardé; affichage exact et E2E UART avec motif haut/bas.
+- **Dépendances et tâches bloquées :** GUEST-001; la modification des registres flottants existante est réutilisée; l’exécution bornée et les watches restent différés.
+- **Tests :** `bash scripts/test-guest-monitor.sh`; vérification de `x9=0x8000000080000000` et de l’erreur `x0 is read-only`.
+- **Critères de sortie :** depuis l’arrêt initial, `set x9` restitue exactement 64 bits; aucune mutation n’est observée après le refus de `set x0`; la compilation bare-metal et l’E2E passent.
+- **Cas limites et échecs :** commande en cours d’exécution refusée; registre invalide, valeur non hexadécimale ou overflow rejeté sans mutation.
+- **Taille :** 2 points / 1 journée-agent, incertitude faible; équivalent indicatif 40k–80k tokens.
+- **Compétences/outils :** Rust `no_std`, contexte de trap RISC-V, QEMU UART, tests shell.
+- **Parallélisable :** oui avec l’archivage Zfh/Q; non avec une modification concurrente de la grammaire UART guest.
+- **Paquet de contexte minimal :** `crates/guest-monitor/src/main.rs`, `scripts/test-guest-monitor.sh`, `docs/TUTORIAL-GUEST.md`, SPEC §§7/8/15/16.
+
 ## M3 — assembleur et désassembleur
 
 ### ISA-003 — Étendre la tranche RV64 aux loads/stores 64 bits — TERMINÉ

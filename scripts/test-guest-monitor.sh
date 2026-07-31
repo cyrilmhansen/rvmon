@@ -32,6 +32,7 @@ output="$({
     printf 'help\nregs\nmemory 0x80000000 16\nbreak %s\ninfo break\ncontinue\nregs\ncontinue\ndelete 1\nstep\nregs\nstep\nregs\nassemble-program %s\n_start:\naddi x1,x0,1\nbeq x1,x1,next\naddi x1,x0,99\nnext:\nfadd.s f3,f1,f2\nfadd.d f6,f4,f5\nfmv.w.x f7,x1\nfmv.x.w x8,f7\naddi x1,x1,2\nend\nedit %s deadbeef\nmemory %s 4\nundo\nmemory %s 4\nedit 0x8001ffff 0000\ndata %s .word 0x11223344\nmemory %s 4\nundo\ndata %s .float 0x3f800000\nmemory %s 4\nundo\ndata %s .binary128 000102030405060708090a0b0c0d0e0f\nmemory %s 16\nundo\nsymbols\ndisasm _start 8\nsetf f1 0xffffffff3f800000\nsetf f2 0xffffffff40000000\nsetf f4 0x3ff0000000000000\nsetf f5 0x4000000000000000\nbreak next\ninfo break\ndelete 1\nstep\nregs\nstep\nregs\nstep\nregs\nstep\nregs\nstep\nregs\nstep\nregs\nstep\nregs\nquit\n' \
         "$breakpoint_address" "$assembly_address" "$edit_address" "$edit_address" "$edit_address" \
         "$data_address" "$data_address" "$data_address" "$data_address" "$data_address" "$data_address"
+    printf 'set x9 0x8000000080000000\nset x0 0x1\n'
 } | timeout 5s qemu-system-riscv64 \
     -M virt \
     -m 64M \
@@ -53,6 +54,8 @@ for expected in \
     'breakpoints:' \
     'breakpoint #1 deleted' \
     'integer registers:' \
+    'set x9=0x8000000080000000' \
+    'error: x0 is read-only' \
     'floating registers (raw bits):' \
     '0x0000000080000000:' \
     'assembled instruction at' \

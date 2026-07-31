@@ -153,6 +153,7 @@ fn monitor_loop(context: *mut TargetContext) -> ! {
             b"help" | b"?" => print_help(),
             b"regs" | b"registers" => print_registers(context),
             command if command.starts_with(b"setf ") => set_float_register(context, &command[5..]),
+            command if command.starts_with(b"set ") => set_integer_register(context, &command[4..]),
             command if command.starts_with(b"memory ") => print_memory(&command[7..]),
             command if command.starts_with(b"edit ") => edit_memory(context, &command[5..]),
             command if command.starts_with(b"data ") => data_directive(context, &command[5..]),
@@ -181,7 +182,7 @@ fn monitor_loop(context: *mut TargetContext) -> ! {
 
 fn print_help() {
     uart_write(
-        "help/? regs/registers setf <freg> <hex64> memory <addr> <length> edit <addr> <hex-bytes> data <addr> <directive> <bits> undo assemble <addr> <instruction> assemble-program <addr> ... end symbols disasm <addr|label> <count> step/s continue/c break <addr|label> delete <n> info break quit/q\r\n",
+        "help/? regs/registers set <xreg> <hex64> setf <freg> <hex64> memory <addr> <length> edit <addr> <hex-bytes> data <addr> <directive> <bits> undo assemble <addr> <instruction> assemble-program <addr> ... end symbols disasm <addr|label> <count> step/s continue/c break <addr|label> delete <n> info break quit/q\r\n",
     );
 }
 
@@ -250,6 +251,37 @@ fn set_float_register(context: *mut TargetContext, argument: &[u8]) {
         (*context).f[usize::from(register)] = value;
     }
     uart_write("set f");
+    uart_decimal(u64::from(register));
+    uart_write("=0x");
+    uart_hex(value);
+    uart_write("\r\n");
+}
+
+fn set_integer_register(context: *mut TargetContext, argument: &[u8]) {
+    if unsafe { (*context).mcause } != StopReason::Breakpoint as u64 {
+        uart_write("error: target is not stopped at a breakpoint\r\n");
+        return;
+    }
+    let Some((register_bytes, value_bytes)) = split_token_space(argument) else {
+        uart_write("error: set expects <xreg> <hex64>\r\n");
+        return;
+    };
+    let Some(register) = parse_register(register_bytes) else {
+        uart_write("error: set register must be x0..x31\r\n");
+        return;
+    };
+    if register == 0 {
+        uart_write("error: x0 is read-only\r\n");
+        return;
+    }
+    let Some(value) = parse_hex(value_bytes) else {
+        uart_write("error: set value must be a hexadecimal 64-bit pattern\r\n");
+        return;
+    };
+    unsafe {
+        (*context).x[usize::from(register)] = value;
+    }
+    uart_write("set x");
     uart_decimal(u64::from(register));
     uart_write("=0x");
     uart_hex(value);
