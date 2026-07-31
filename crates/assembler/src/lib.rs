@@ -151,10 +151,10 @@ fn assemble_parsed(
             imm20: u32::try_from(immediate(&parts[1], symbols, 0, 0x000f_ffff)?)
                 .map_err(|_| Diagnostic::error("ASM-IMMEDIATE-001", "invalid U immediate"))?,
         })?,
-        "lw" if parts.len() == 2 => {
+        "lw" | "ld" if parts.len() == 2 => {
             let (imm, rs1) = memory_operand(&parts[1], symbols)?;
             encode_load(
-                "lw",
+                mnemonic,
                 Load {
                     rd: register(operand_text(&parts[0])?)?,
                     rs1,
@@ -162,10 +162,10 @@ fn assemble_parsed(
                 },
             )?
         }
-        "sw" if parts.len() == 2 => {
+        "sw" | "sd" if parts.len() == 2 => {
             let (imm, rs1) = memory_operand(&parts[1], symbols)?;
             encode_store(
-                "sw",
+                mnemonic,
                 Store {
                     rs2: register(operand_text(&parts[0])?)?,
                     rs1,
@@ -454,6 +454,14 @@ mod tests {
         assert!(assemble("beq x1,x2,-4").is_ok());
         assert!(assemble("jal ra,2048").is_ok());
         assert!(assemble("jalr ra,0(x4)").is_ok());
+        assert_eq!(
+            assemble("ld x3,-8(x4)").unwrap().text,
+            [0x83, 0x31, 0x82, 0xff]
+        );
+        assert_eq!(
+            assemble("sd x3,8(x4)").unwrap().text,
+            [0x23, 0x34, 0x32, 0x00]
+        );
     }
 
     #[test]

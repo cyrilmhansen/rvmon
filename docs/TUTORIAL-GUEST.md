@@ -173,7 +173,7 @@ Chaque ligne est validée avant toute écriture ; `end` termine la saisie :
 
 ```text
 rvmonitor> assemble-program 0x80010a30
-source mode: enter integer/control or fadd.s/fadd.d lines, finish with end
+source mode: enter integer/control, ld/sd or fadd.s/fadd.d lines, finish with end
 source> _start:
 source> addi x1,x0,1
 source> beq x1,x1,next
@@ -201,8 +201,8 @@ rvmonitor> regs
 ... x1=0x0000000000000003 ...
 ```
 
-Le parseur invité accepte `addi`, `beq`, `bne`, `jal`, `jalr`, `fadd.s` et
-`fadd.d`. Les branches et `jal` prennent une cible relative numérique ou un
+Le parseur invité accepte `addi`, `beq`, `bne`, `jal`, `jalr`, `ld`, `sd`,
+`fadd.s` et `fadd.d`. Les branches et `jal` prennent une cible relative numérique ou un
 label, éventuellement suivi de `+offset` ou `-offset`; `jalr` utilise la forme
 `jalr rd,imm(rs1)`. Les instructions flottantes utilisent
 `fadd.[s|d] fd,fs1,fs2` et acceptent éventuellement un mode d’arrondi numérique

@@ -2,7 +2,7 @@
 
 Toutes les décisions ISA/ABI nécessaires à V1 ont un défaut choisi. Une question ne bloque le plan que si le choix recommandé est refusé.
 
-1. **Bloquante pour ELF externe : stratégie de flags draft.** Recommandation : appliquer D-004 et refuser toute ambiguïté. Bloque seulement l’import d’objets ambigus.
+1. **Différable : stratégie de flags draft et ELF BE externe.** Recommandation : appliquer D-004, refuser toute ambiguïté et ne pas faire dépendre la release du profil ELF big-endian externe. Bloque uniquement l’interopérabilité ELF externe ; le runtime interne LE/BE, l’assembleur natif et les fixtures restent indépendants.
 2. **Différable : activer A multi-hart.** Recommandation : conserver mono-hart V1 ; réserver `A-MH1` aux tests ultérieurs. Bloque l’exécution atomique, pas l’assemblage/décodage.
 3. **Différable : inclure un frontend Q exécuté.** Recommandation : data/decode only. Bloque uniquement l’exécution Q.
 4. **Différable : format ELF32 d’export.** Recommandation : export interne d’abord, ELF contrôlé ensuite. Bloque l’interopérabilité avec certains linkers.

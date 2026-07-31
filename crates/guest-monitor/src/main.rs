@@ -667,6 +667,33 @@ fn print_disassembled_word(address: u64, word: u32) {
         uart_write(")");
         return;
     }
+    for mnemonic in ["ld", "sd"] {
+        for opcode in GENERATED_OPCODES {
+            if opcode.mnemonic != mnemonic || word & opcode.mask != opcode.match_value {
+                continue;
+            }
+            let immediate = if mnemonic == "ld" {
+                (word as i32 >> 20) as i16
+            } else {
+                let encoded = (((word >> 25) & 0x7f) << 5) | ((word >> 7) & 0x1f);
+                ((encoded as i32) << 20 >> 20) as i16
+            };
+            uart_write(mnemonic);
+            uart_write(" x");
+            if mnemonic == "ld" {
+                uart_decimal(u64::from((word >> 7) & 31));
+                uart_write(",");
+            } else {
+                uart_decimal(u64::from((word >> 20) & 31));
+                uart_write(",");
+            }
+            uart_signed_decimal(immediate);
+            uart_write("(x");
+            uart_decimal(u64::from((word >> 15) & 31));
+            uart_write(")");
+            return;
+        }
+    }
     for opcode in GENERATED_OPCODES {
         if opcode.extension == "rv_c" || opcode.extension == "rv64_c" {
             continue;
@@ -736,7 +763,9 @@ fn assemble_program_command(context: *mut TargetContext, argument: &[u8]) {
         return;
     }
 
-    uart_write("source mode: enter integer/control or fadd.s/fadd.d lines, finish with end\r\n");
+    uart_write(
+        "source mode: enter integer/control, ld/sd or fadd.s/fadd.d lines, finish with end\r\n",
+    );
     let mut lines = [[0u8; COMMAND_CAPACITY]; MAX_SOURCE_LINES];
     let mut lengths = [0usize; MAX_SOURCE_LINES];
     let mut count = 0usize;
@@ -825,7 +854,7 @@ fn assemble_program_command(context: *mut TargetContext, argument: &[u8]) {
         }
         let Some(word) = parse_source_instruction(line, line_address, &staged_symbols) else {
             uart_write(
-                "error: source line supports addi, branches, jumps or fadd.s/fadd.d syntax\r\n",
+                "error: source line supports integer/control, ld/sd or fadd.s/fadd.d syntax\r\n",
             );
             return;
         };
@@ -887,6 +916,12 @@ fn parse_source_instruction(
     if let Some(operands) = source.strip_prefix(b"jalr ") {
         return parse_jalr_operands(operands);
     }
+    if let Some(operands) = source.strip_prefix(b"ld ") {
+        return parse_load_store_operands("ld", operands, symbols);
+    }
+    if let Some(operands) = source.strip_prefix(b"sd ") {
+        return parse_load_store_operands("sd", operands, symbols);
+    }
     if let Some(operands) = source.strip_prefix(b"fadd.s ") {
         return parse_fadd_operands("fadd.s", operands);
     }
@@ -928,6 +963,33 @@ fn parse_jalr_operands(operands: &[u8]) -> Option<u32> {
     let immediate = parse_signed_decimal(imm_bytes.trim_ascii())?;
     let rs1 = parse_register(rs1_bytes.trim_ascii())?;
     luna_isa_core::encode_jalr(rd, rs1, immediate)
+}
+
+fn parse_load_store_operands(
+    mnemonic: &str,
+    operands: &[u8],
+    symbols: &[GuestSymbol; MAX_SYMBOLS],
+) -> Option<u32> {
+    let (register_bytes, rest) = split_once_comma(operands)?;
+    let rest = rest.trim_ascii().strip_suffix(b")")?;
+    let (offset_bytes, base_bytes) = split_once_left_paren(rest)?;
+    let offset = parse_signed_decimal_or_symbol(offset_bytes.trim_ascii(), symbols)?;
+    let base = parse_register(base_bytes.trim_ascii())?;
+    if mnemonic == "ld" {
+        luna_isa_core::encode_load(
+            mnemonic,
+            parse_register(register_bytes.trim_ascii())?,
+            base,
+            offset,
+        )
+    } else {
+        luna_isa_core::encode_store(
+            mnemonic,
+            parse_register(register_bytes.trim_ascii())?,
+            base,
+            offset,
+        )
+    }
 }
 
 fn parse_fadd_operands(mnemonic: &str, operands: &[u8]) -> Option<u32> {

@@ -49,7 +49,7 @@ capacity planning et ne prédisent ni une facture ni une limite de contexte.
 1. **R2 n’est pas réellement figé** : `c6edca7` est un SHA court. Le premier code dépend d’un SHA complet et d’un artefact hashé.
 2. **R3 pointe vers `master`** : impossible de reproduire la validation ABI. À figer avant import/export ELF et avant toute convention ABI testée.
 3. **Carte pointeur haute vs RAM/MMIO** : la spécification définit la traduction `sign_extend_32`, mais pas si une allocation dans la fenêtre haute est physiquement aliasée vers une RAM basse. Défaut : deux fenêtres logiques indépendantes ; aucune aliasing ; les allocations hautes sont explicites et bornées.
-4. **ELF32/flags** : `ELFCLASS32` ne suffit pas à reconnaître RV64ILP32. Défaut : import rejeté si machine, classe, flags float, ABI manifest ou relocation ne concordent pas ; ELF externe n’est pas requis par M2–M4.
+4. **ELF32/flags** : `ELFCLASS32` ne suffit pas à reconnaître RV64ILP32. Défaut : import rejeté si machine, classe, flags float, ABI manifest ou relocation ne concordent pas ; l’ELF externe, en particulier BE, est explicitement hors chemin critique M2–M9.
 5. **Outils GNU/LLVM** : leur acceptation de RV64ILP32 varie. Défaut : les tests différentiels marquent `unsupported-by-oracle` avec preuve de version et ne deviennent jamais des tests auto-comparatifs.
 6. **IEEE 754 déterministe** : la spécification exige un résultat indépendant de l’hôte, mais ne choisit pas de bibliothèque. Défaut : prototype contre Berkeley SoftFloat ou équivalent logiciel audité ; aucun fallback implicite vers les opérations hôte.
 7. **C** : C est optionnel et son émission automatique est désactivée. Défaut : C explicitement activable dès que le décodeur 16/32 est stable, sans relaxation automatique.
@@ -133,7 +133,7 @@ R1 reste l’autorité sémantique ; le contrôle R2 détecte une divergence mai
 |---|---|---|---|
 | M0 | dépôt reproductible et sources gelées | prérequis 1, 6, 10, 12 | CI, manifests, licences, ADR ouverts |
 | M1 | `addi` encode/decode avec tables générées | E2E 1 partiel, 10 | golden R2, encode↔decode, illegal opcode |
-| M2 | source→RAM→step→`x1=1` | E2E 1 | tranche entière sans UI obligatoire |
+| M2 | source→RAM→step→`x1=1`, loads/stores RV64 de base | E2E 1 | tranche entière sans UI obligatoire |
 | M3 | symboles/directives/diagnostics/disassemble | E2E 3, 9, 10, 14 | listing, C mixte, round-trip |
 | M4 | `fadd.s`, résultat bit-exact, `fflags` | E2E 5, 6, 13 | oracle FP indépendant |
 | M5 | D, données binary16/128, Zfh/Q decode-only | E2E 7 | profil matrix et refus d’exécution |

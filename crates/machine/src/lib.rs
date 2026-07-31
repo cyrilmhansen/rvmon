@@ -136,6 +136,30 @@ impl Machine {
                     width: 4,
                 });
             }
+            Instruction::Ld(instruction) => {
+                let address =
+                    self.x[instruction.rs1 as usize].wrapping_add(instruction.imm as i64 as u64);
+                let value = self.memory.load64(address)?;
+                memory_access = Some(MemoryAccess {
+                    kind: MemoryAccessKind::Read,
+                    address,
+                    width: 8,
+                });
+                if instruction.rd != 0 {
+                    self.x[instruction.rd as usize] = value;
+                }
+            }
+            Instruction::Sd(instruction) => {
+                let address =
+                    self.x[instruction.rs1 as usize].wrapping_add(instruction.imm as i64 as u64);
+                self.memory
+                    .store64(address, self.x[instruction.rs2 as usize])?;
+                memory_access = Some(MemoryAccess {
+                    kind: MemoryAccessKind::Write,
+                    address,
+                    width: 8,
+                });
+            }
             Instruction::Beq(instruction) => {
                 if self.x[instruction.rs1 as usize] == self.x[instruction.rs2 as usize] {
                     self.pc = self.pc.wrapping_add(instruction.imm as i64 as u64);
@@ -714,6 +738,37 @@ mod tests {
         machine.step().unwrap();
         assert_eq!(machine.x[5], 12);
         assert_eq!(machine.pc, 12);
+    }
+
+    #[test]
+    fn executes_ld_and_sd_with_eight_byte_memory_events() {
+        let mut machine = Machine::new(128);
+        machine.x[4] = 64;
+        machine.x[3] = 0x0102_0304_0506_0708;
+        let store = luna_isa::encode_store(
+            "sd",
+            luna_isa::Store {
+                rs2: 3,
+                rs1: 4,
+                imm: 8,
+            },
+        )
+        .unwrap();
+        let load = luna_isa::encode_load(
+            "ld",
+            luna_isa::Load {
+                rd: 5,
+                rs1: 4,
+                imm: 8,
+            },
+        )
+        .unwrap();
+        machine.load(0, &store.to_le_bytes()).unwrap();
+        machine.load(4, &load.to_le_bytes()).unwrap();
+        assert_eq!(machine.step().unwrap().memory_access.unwrap().width, 8);
+        assert_eq!(machine.step().unwrap().memory_access.unwrap().width, 8);
+        assert_eq!(machine.x[5], machine.x[3]);
+        assert_eq!(machine.memory.load8(72).unwrap(), 0x08);
     }
 
     #[test]

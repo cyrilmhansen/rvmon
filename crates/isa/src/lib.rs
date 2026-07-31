@@ -74,6 +74,8 @@ pub enum Instruction {
     Lui(Lui),
     Lw(Load),
     Sw(Store),
+    Ld(Load),
+    Sd(Store),
     Beq(Branch),
     Bne(Branch),
     Jal(Jal),
@@ -301,6 +303,25 @@ pub fn decode(word: u32) -> Instruction {
                 });
             }
         }
+        if let Ok(opcode) = generated_opcode("ld") {
+            if word & opcode.mask == opcode.match_value {
+                return Instruction::Ld(Load {
+                    rd: ((word >> 7) & 31) as u8,
+                    rs1: ((word >> 15) & 31) as u8,
+                    imm: (word as i32 >> 20) as i16,
+                });
+            }
+        }
+        if let Ok(opcode) = generated_opcode("sd") {
+            if word & opcode.mask == opcode.match_value {
+                let immediate = (((word >> 25) & 0x7f) << 5) | ((word >> 7) & 0x1f);
+                return Instruction::Sd(Store {
+                    rs2: ((word >> 20) & 31) as u8,
+                    rs1: ((word >> 15) & 31) as u8,
+                    imm: ((immediate as i32) << 20 >> 20) as i16,
+                });
+            }
+        }
         let branch_imm = (((word >> 31) & 1) << 12)
             | (((word >> 25) & 0x3f) << 5)
             | (((word >> 8) & 0xf) << 1)
@@ -389,6 +410,8 @@ pub fn encode(instruction: Instruction) -> Result<u32> {
         Instruction::Lui(instruction) => encode_lui(instruction),
         Instruction::Lw(instruction) => encode_load("lw", instruction),
         Instruction::Sw(instruction) => encode_store("sw", instruction),
+        Instruction::Ld(instruction) => encode_load("ld", instruction),
+        Instruction::Sd(instruction) => encode_store("sd", instruction),
         Instruction::Beq(instruction) => encode_branch("beq", instruction),
         Instruction::Bne(instruction) => encode_branch("bne", instruction),
         Instruction::Jal(instruction) => encode_jal(instruction),

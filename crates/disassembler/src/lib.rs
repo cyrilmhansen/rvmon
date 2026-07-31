@@ -80,6 +80,8 @@ fn format_instruction(
         Instruction::Lui(Lui { rd, imm20 }) => format!("lui x{rd},{imm20}"),
         Instruction::Lw(Load { rd, rs1, imm }) => format!("lw x{rd},{imm}(x{rs1})"),
         Instruction::Sw(Store { rs2, rs1, imm }) => format!("sw x{rs2},{imm}(x{rs1})"),
+        Instruction::Ld(Load { rd, rs1, imm }) => format!("ld x{rd},{imm}(x{rs1})"),
+        Instruction::Sd(Store { rs2, rs1, imm }) => format!("sd x{rs2},{imm}(x{rs1})"),
         Instruction::Beq(Branch { rs1, rs2, imm }) => format!(
             "beq x{rs1},x{rs2},{}",
             relative_target(address, i64::from(imm), symbols)
@@ -202,6 +204,8 @@ mod tests {
             "lui x3,74565",
             "lw x3,8(x4)",
             "sw x3,-8(x4)",
+            "ld x3,-8(x4)",
+            "sd x3,8(x4)",
             "beq x1,x2,-4",
             "bne x1,x2,6",
             "jal x1,2048",

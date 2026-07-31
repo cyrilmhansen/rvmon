@@ -201,6 +201,23 @@ Une tâche est terminée seulement si sa condition de sortie est satisfaite.
 
 ## M3 — assembleur et désassembleur
 
+### ISA-003 — Étendre la tranche RV64 aux loads/stores 64 bits — TERMINÉ
+
+- **Jalon / exigences :** M2; ISA-001, MEM-001..004, REQ-PROD-001/002.
+- **But :** supporter `ld` et `sd` de bout en bout dans le profil RV64 : encodage généré, décodage, mémoire little-endian, exécution, événements de largeur 8 octets et désassemblage.
+- **Non-but :** bascule big-endian, MMU ou compatibilité ELF externe.
+- **Entrées et sources :** R1 RV64I Load/Store; R2 `rv64_i`; SPEC §§5–8 et 23.
+- **Fichiers/modules :** `crates/isa-core`, `crates/isa`, `crates/memory`, `crates/machine`, `crates/assembler`, `crates/disassembler`, `crates/guest-monitor`, linker et smoke test guest.
+- **Étapes réalisées :** ajouter `encode_load/store` au cœur sans-std; ajouter les variantes `Ld/Sd`; sérialiser `u64` LE; exposer `MemoryAccess.width=8`; étendre assembleur/désassembleur; porter le parseur guest; réduire le workspace linker pour conserver un binaire guest dans 128 KiB.
+- **Dépendances :** GEN-001 existant; aucune dépendance BE ou ELF externe.
+- **Tests :** golden `ld x3,-8(x4)`/`sd x3,8(x4)`; round-trip assemble→decode→désassemble; mémoire LE et bornes; machine et événements watchpoint; `bash scripts/test-guest-monitor.sh`.
+- **Critères de sortie :** tests ciblés verts, compilation `riscv64gc-unknown-none-elf` verte, smoke QEMU vert et sortie guest contenant `ld x3,-8(x4)`.
+- **Cas limites :** immédiat signé 12 bits, adresse non mappée, débordement de plage 8 octets, `x0` destination inchangée.
+- **Taille :** 4 points / 2 journées-agent, réalisée ; équivalent indicatif 80k–160k tokens.
+- **Compétences/outils :** encodage RISC-V, Rust no-std, QEMU.
+- **Parallélisable :** oui avec FP-004 et GEN-001 ; intégration guest séquentielle.
+- **Paquet de contexte minimal :** SPEC §§5–8/23, `crates/isa-core/src/lib.rs`, `crates/isa/src/lib.rs`, `scripts/test-guest-monitor.sh`.
+
 ### ASM-001 — Lexer, registres et diagnostics de position
 
 - **Jalon / exigences :** M3; ASM-001..015, REQ-PROD-004.

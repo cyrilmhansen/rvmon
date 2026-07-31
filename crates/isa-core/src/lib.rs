@@ -71,6 +71,34 @@ pub fn encode_jalr(rd: u8, rs1: u8, imm: i16) -> Option<u32> {
     Some((immediate << 20) | ((rs1 as u32) << 15) | ((rd as u32) << 7) | opcode.match_value)
 }
 
+pub fn encode_load(mnemonic: &str, rd: u8, rs1: u8, imm: i16) -> Option<u32> {
+    if rd > 31 || rs1 > 31 || !(-2048..=2047).contains(&imm) {
+        return None;
+    }
+    let opcode = GENERATED_OPCODES
+        .iter()
+        .find(|opcode| opcode.mnemonic == mnemonic)?;
+    let immediate = (imm as i32 as u32) & 0xfff;
+    Some((immediate << 20) | ((rs1 as u32) << 15) | ((rd as u32) << 7) | opcode.match_value)
+}
+
+pub fn encode_store(mnemonic: &str, rs2: u8, rs1: u8, imm: i16) -> Option<u32> {
+    if rs2 > 31 || rs1 > 31 || !(-2048..=2047).contains(&imm) {
+        return None;
+    }
+    let opcode = GENERATED_OPCODES
+        .iter()
+        .find(|opcode| opcode.mnemonic == mnemonic)?;
+    let immediate = (imm as i32 as u32) & 0xfff;
+    Some(
+        ((immediate >> 5) << 25)
+            | ((rs2 as u32) << 20)
+            | ((rs1 as u32) << 15)
+            | ((immediate & 0x1f) << 7)
+            | opcode.match_value,
+    )
+}
+
 pub fn encode_f_r(mnemonic: &str, rd: u8, rs1: u8, rs2: u8, rm: u8) -> Option<u32> {
     if rd > 31 || rs1 > 31 || rs2 > 31 || rm > 7 {
         return None;
@@ -89,7 +117,9 @@ pub fn encode_f_r(mnemonic: &str, rd: u8, rs1: u8, rs2: u8, rm: u8) -> Option<u3
 
 #[cfg(test)]
 mod tests {
-    use super::{encode_addi, encode_branch, encode_f_r, encode_jal, encode_jalr};
+    use super::{
+        encode_addi, encode_branch, encode_f_r, encode_jal, encode_jalr, encode_load, encode_store,
+    };
 
     #[test]
     fn encodes_the_guest_first_instruction_without_allocation() {
@@ -109,6 +139,8 @@ mod tests {
         assert_eq!(encode_branch("bne", 1, 2, -8), Some(0xfe20_9ce3));
         assert_eq!(encode_jal(0, 12), Some(0x00c0_006f));
         assert_eq!(encode_jalr(0, 1, 0), Some(0x0000_8067));
+        assert_eq!(encode_load("ld", 3, 4, -8), Some(0xff82_3183));
+        assert_eq!(encode_store("sd", 3, 4, 8), Some(0x0032_3423));
         assert_eq!(encode_f_r("fadd.s", 3, 1, 2, 0), Some(0x0020_81d3));
         assert_eq!(encode_f_r("fadd.d", 6, 4, 5, 7), Some(0x0252_7353));
     }

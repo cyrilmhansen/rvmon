@@ -25,6 +25,7 @@ data_address_full="$(printf '0x%016x' "$((16#$workspace_start_hex + 0x60))")"
 
 set +e
 output="$({
+    printf 'assemble %s ld x3,-8(x4)\ndisasm %s 1\n' "$assembly_address" "$assembly_address"
     printf 'help\nregs\nmemory 0x80000000 16\nbreak %s\ninfo break\ncontinue\nregs\ncontinue\ndelete 1\nstep\nregs\nstep\nregs\nassemble-program %s\n_start:\naddi x1,x0,1\nbeq x1,x1,next\naddi x1,x0,99\nnext:\nfadd.s f3,f1,f2\nfadd.d f6,f4,f5\naddi x1,x1,2\nend\nedit %s deadbeef\nmemory %s 4\nundo\nmemory %s 4\nedit 0x8001ffff 0000\ndata %s .word 0x11223344\nmemory %s 4\nundo\ndata %s .float 0x3f800000\nmemory %s 4\nundo\ndata %s .binary128 000102030405060708090a0b0c0d0e0f\nmemory %s 16\nundo\nsymbols\ndisasm _start 6\nsetf f1 0xffffffff3f800000\nsetf f2 0xffffffff40000000\nsetf f4 0x3ff0000000000000\nsetf f5 0x4000000000000000\nbreak next\ninfo break\ndelete 1\nstep\nregs\nstep\nregs\nstep\nregs\nstep\nregs\nstep\nregs\nquit\n' \
         "$breakpoint_address" "$assembly_address" "$edit_address" "$edit_address" "$edit_address" \
         "$data_address" "$data_address" "$data_address" "$data_address" "$data_address" "$data_address"
@@ -50,9 +51,11 @@ for expected in \
     'integer registers:' \
     'floating registers (raw bits):' \
     '0x0000000080000000:' \
+    'assembled instruction at' \
+    'ld x3,-8(x4)' \
     'x31=0x' \
     'f31=0x' \
-    'source mode: enter integer/control or fadd.s/fadd.d lines, finish with end' \
+    'source mode: enter integer/control, ld/sd or fadd.s/fadd.d lines, finish with end' \
     "assembled program: 6 instruction(s) at $assembly_address_full" \
     "edited 4 byte(s) at $edit_address_full" \
     "$edit_address_full: de ad be ef" \

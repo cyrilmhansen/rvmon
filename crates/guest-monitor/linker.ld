@@ -39,7 +39,9 @@ SECTIONS
     .target_workspace (NOLOAD) : ALIGN(16)
     {
         _target_workspace_start = .;
-        . += 4K;
+        /* The guest source buffer is bounded to 16 instructions. Keep the
+           workspace small so the monitor itself remains within 128 KiB. */
+        . += 2K;
         _target_workspace_end = .;
     } > RAM
 

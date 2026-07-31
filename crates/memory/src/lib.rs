@@ -40,6 +40,10 @@ impl Memory {
         let range = self.range(address, 4)?;
         Ok(u32::from_le_bytes(self.bytes[range].try_into().unwrap()))
     }
+    pub fn load64(&self, address: u64) -> Result<u64> {
+        let range = self.range(address, 8)?;
+        Ok(u64::from_le_bytes(self.bytes[range].try_into().unwrap()))
+    }
     pub fn load8(&self, address: u64) -> Result<u8> {
         let range = self.range(address, 1)?;
         Ok(self.bytes[range][0])
@@ -51,6 +55,11 @@ impl Memory {
     }
     pub fn store32(&mut self, address: u64, value: u32) -> Result<()> {
         let range = self.range(address, 4)?;
+        self.bytes[range].copy_from_slice(&value.to_le_bytes());
+        Ok(())
+    }
+    pub fn store64(&mut self, address: u64, value: u64) -> Result<()> {
+        let range = self.range(address, 8)?;
         self.bytes[range].copy_from_slice(&value.to_le_bytes());
         Ok(())
     }
@@ -103,5 +112,14 @@ mod tests {
         tx.write8(3, 0x00);
         memory.commit(tx).unwrap();
         assert_eq!(memory.load32(0).unwrap(), 0x0010_0093);
+    }
+
+    #[test]
+    fn load64_and_store64_are_little_endian_and_bounded() {
+        let mut memory = Memory::new(8);
+        memory.store64(0, 0x0102_0304_0506_0708).unwrap();
+        assert_eq!(memory.load8(0).unwrap(), 0x08);
+        assert_eq!(memory.load64(0).unwrap(), 0x0102_0304_0506_0708);
+        assert!(memory.store64(1, 0).is_err());
     }
 }
