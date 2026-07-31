@@ -2,6 +2,8 @@
 
 use std::collections::BTreeMap;
 use std::fmt::Write;
+use std::fs;
+use std::path::Path;
 
 use luna_assembler::{assemble, assemble_program as assemble_source_program};
 use luna_diag::{Diagnostic, Result};
@@ -15,6 +17,10 @@ const MAX_MEMORY_VIEW_BYTES: usize = 4096;
 const MAX_EDIT_BYTES: usize = 4096;
 const MAX_UNDO_ENTRIES: usize = 64;
 const MAX_HISTORY_ENTRIES: usize = 4096;
+const MAX_PERSISTED_BYTES: usize = 64 * 1024 * 1024;
+const SNAPSHOT_MAGIC: &[u8; 8] = b"RVSNAP01";
+const PROJECT_MAGIC: &[u8; 8] = b"RVPROJ01";
+const PERSISTENCE_VERSION: u32 = 1;
 
 struct MemoryEdit {
     address: u64,
@@ -41,6 +47,17 @@ struct CallFrame {
     target: u64,
 }
 
+struct DecodedSnapshot {
+    machine: Machine,
+    symbols: BTreeMap<u64, String>,
+    marks: BTreeMap<String, u64>,
+    breakpoints: BTreeMap<u64, u64>,
+    watchpoints: BTreeMap<u64, Watchpoint>,
+    next_breakpoint_id: u64,
+    next_watchpoint_id: u64,
+    view_address: u64,
+}
+
 pub struct Monitor {
     pub machine: Machine,
     symbols: BTreeMap<u64, String>,
@@ -54,6 +71,7 @@ pub struct Monitor {
     next_watchpoint_id: u64,
     history: Vec<HistoryEntry>,
     call_stack: Vec<CallFrame>,
+    source_text: String,
 }
 
 impl Monitor {
@@ -71,6 +89,7 @@ impl Monitor {
             next_watchpoint_id: 1,
             history: Vec::new(),
             call_stack: Vec::new(),
+            source_text: String::new(),
         }
     }
 
@@ -108,6 +127,10 @@ impl Monitor {
             "stack" | "bt" => self.show_stack(),
             "where" => self.show_location(),
             "symbols" => self.show_symbols(),
+            "snapshot" => self.snapshot_file(argument),
+            "restore" => self.restore_snapshot_file(argument),
+            "project-save" => self.project_save_file(argument),
+            "project-load" => self.project_load_file(argument),
             "reset" => {
                 self.machine = Machine::new(self.machine.memory_size());
                 self.symbols.clear();
@@ -118,6 +141,7 @@ impl Monitor {
                 self.watchpoints.clear();
                 self.history.clear();
                 self.call_stack.clear();
+                self.source_text.clear();
                 Ok("machine reset".into())
             }
             "quit" | "exit" => Ok("bye".into()),
@@ -139,6 +163,7 @@ impl Monitor {
         let address = self.machine.pc;
         self.machine.load(address, &image.text)?;
         self.view_address = address;
+        self.source_text.clear();
         let word = image
             .text
             .get(..4)
@@ -172,12 +197,126 @@ impl Monitor {
         self.watchpoints.clear();
         self.history.clear();
         self.call_stack.clear();
+        self.source_text = source.to_string();
         Ok(format!(
             "loaded {} bytes at 0x{:016x}; {} symbol(s)",
             image.text.len(),
             image.entry,
             self.symbols.len()
         ))
+    }
+
+    pub fn snapshot_bytes(&self) -> Result<Vec<u8>> {
+        let mut memory = vec![0u8; self.machine.memory_size()];
+        TargetBackend::read_memory(&self.machine, 0, &mut memory)?;
+        let mut writer = ByteWriter::new(SNAPSHOT_MAGIC);
+        writer.u32(PERSISTENCE_VERSION);
+        writer.u64(memory.len() as u64);
+        for value in self.machine.x {
+            writer.u64(value);
+        }
+        for value in self.machine.f {
+            writer.u64(value);
+        }
+        writer.u32(self.machine.fcsr);
+        writer.u64(self.machine.pc);
+        writer.u64(self.machine.instructions);
+        writer.u64(self.view_address);
+        writer.u64(self.next_breakpoint_id);
+        writer.u64(self.next_watchpoint_id);
+        writer.map_u64_string(&self.symbols)?;
+        writer.map_string_u64(&self.marks)?;
+        writer.u32(self.breakpoints.len() as u32);
+        for (address, id) in &self.breakpoints {
+            writer.u64(*address);
+            writer.u64(*id);
+        }
+        writer.u32(self.watchpoints.len() as u32);
+        for watchpoint in self.watchpoints.values() {
+            writer.u64(watchpoint.id);
+            writer.u64(watchpoint.address);
+            writer.u64(watchpoint.width);
+            writer.u8(match watchpoint.kind {
+                None => 0,
+                Some(MemoryAccessKind::Read) => 1,
+                Some(MemoryAccessKind::Write) => 2,
+            });
+        }
+        writer.bytes(&memory);
+        let bytes = writer.finish();
+        if bytes.len() > MAX_PERSISTED_BYTES {
+            return Err(Diagnostic::error(
+                "MON-PERSIST-032",
+                "snapshot exceeds size limit",
+            ));
+        }
+        Ok(bytes)
+    }
+
+    pub fn restore_snapshot_bytes(&mut self, bytes: &[u8]) -> Result<()> {
+        let decoded = decode_snapshot(bytes)?;
+        self.apply_snapshot(decoded);
+        Ok(())
+    }
+
+    fn apply_snapshot(&mut self, decoded: DecodedSnapshot) {
+        self.machine = decoded.machine;
+        self.symbols = decoded.symbols;
+        self.marks = decoded.marks;
+        self.breakpoints = decoded.breakpoints;
+        self.watchpoints = decoded.watchpoints;
+        self.next_breakpoint_id = decoded.next_breakpoint_id;
+        self.next_watchpoint_id = decoded.next_watchpoint_id;
+        self.view_address = decoded.view_address;
+        self.undo.clear();
+        self.history.clear();
+        self.call_stack.clear();
+    }
+
+    fn snapshot_file(&self, argument: &str) -> Result<String> {
+        let path = persistence_path(argument, "MON-PERSIST-001")?;
+        let bytes = self.snapshot_bytes()?;
+        fs::write(path, &bytes).map_err(|error| {
+            Diagnostic::error("MON-PERSIST-002", format!("cannot write snapshot: {error}"))
+        })?;
+        Ok(format!("snapshot saved ({} bytes)", bytes.len()))
+    }
+
+    fn restore_snapshot_file(&mut self, argument: &str) -> Result<String> {
+        let path = persistence_path(argument, "MON-PERSIST-003")?;
+        let bytes = read_persistence_file(path)?;
+        self.restore_snapshot_bytes(&bytes)?;
+        Ok(format!("snapshot restored ({} bytes)", bytes.len()))
+    }
+
+    fn project_save_file(&self, argument: &str) -> Result<String> {
+        let path = persistence_path(argument, "MON-PERSIST-004")?;
+        let snapshot = self.snapshot_bytes()?;
+        let mut writer = ByteWriter::new(PROJECT_MAGIC);
+        writer.u32(PERSISTENCE_VERSION);
+        writer.string(&self.source_text)?;
+        writer.u64(snapshot.len() as u64);
+        writer.bytes(&snapshot);
+        let bytes = writer.finish();
+        if bytes.len() > MAX_PERSISTED_BYTES {
+            return Err(Diagnostic::error(
+                "MON-PERSIST-033",
+                "project exceeds size limit",
+            ));
+        }
+        fs::write(path, &bytes).map_err(|error| {
+            Diagnostic::error("MON-PERSIST-005", format!("cannot write project: {error}"))
+        })?;
+        Ok(format!("project saved ({} bytes)", bytes.len()))
+    }
+
+    fn project_load_file(&mut self, argument: &str) -> Result<String> {
+        let path = persistence_path(argument, "MON-PERSIST-006")?;
+        let bytes = read_persistence_file(path)?;
+        let (source, snapshot) = decode_project(&bytes)?;
+        self.restore_snapshot_bytes(&snapshot)?;
+        self.source_text = source;
+        Ok(format!("project restored ({} bytes)", bytes.len()))
     }
 
     fn step(&mut self) -> Result<String> {
@@ -907,6 +1046,10 @@ fn help() -> String {
         "where                show pc, nearest symbol and memory view",
         "stack                show inferred jal/jalr call stack",
         "history [count]      show bounded execution history",
+        "snapshot <path>      save machine/debugger state",
+        "restore <path>       restore a snapshot atomically",
+        "project-save <path>  save source plus state",
+        "project-load <path>  restore a project",
         "regs                 show x/f registers and fcsr exactly",
         "reset                reset machine state",
         "quit                 leave the interactive monitor",
@@ -964,6 +1107,335 @@ fn validate_mark_name(name: &str) -> Result<()> {
         ));
     }
     Ok(())
+}
+
+struct ByteWriter {
+    bytes: Vec<u8>,
+}
+
+impl ByteWriter {
+    fn new(magic: &[u8; 8]) -> Self {
+        Self {
+            bytes: magic.to_vec(),
+        }
+    }
+
+    fn u8(&mut self, value: u8) {
+        self.bytes.push(value);
+    }
+
+    fn u32(&mut self, value: u32) {
+        self.bytes.extend_from_slice(&value.to_le_bytes());
+    }
+
+    fn u64(&mut self, value: u64) {
+        self.bytes.extend_from_slice(&value.to_le_bytes());
+    }
+
+    fn string(&mut self, value: &str) -> Result<()> {
+        let length = u32::try_from(value.len())
+            .map_err(|_| Diagnostic::error("MON-PERSIST-007", "string is too large"))?;
+        self.u32(length);
+        self.bytes.extend_from_slice(value.as_bytes());
+        Ok(())
+    }
+
+    fn map_u64_string(&mut self, values: &BTreeMap<u64, String>) -> Result<()> {
+        self.u32(
+            u32::try_from(values.len())
+                .map_err(|_| Diagnostic::error("MON-PERSIST-008", "symbol table is too large"))?,
+        );
+        for (address, value) in values {
+            self.u64(*address);
+            self.string(value)?;
+        }
+        Ok(())
+    }
+
+    fn map_string_u64(&mut self, values: &BTreeMap<String, u64>) -> Result<()> {
+        self.u32(
+            u32::try_from(values.len())
+                .map_err(|_| Diagnostic::error("MON-PERSIST-009", "mark table is too large"))?,
+        );
+        for (name, address) in values {
+            self.string(name)?;
+            self.u64(*address);
+        }
+        Ok(())
+    }
+
+    fn bytes(&mut self, value: &[u8]) {
+        self.bytes.extend_from_slice(value);
+    }
+
+    fn finish(self) -> Vec<u8> {
+        self.bytes
+    }
+}
+
+struct ByteReader<'a> {
+    bytes: &'a [u8],
+    position: usize,
+}
+
+impl<'a> ByteReader<'a> {
+    fn new(bytes: &'a [u8], magic: &[u8; 8]) -> Result<Self> {
+        if bytes.len() < magic.len() || &bytes[..magic.len()] != magic {
+            return Err(Diagnostic::error(
+                "MON-PERSIST-010",
+                "unrecognized persistence magic",
+            ));
+        }
+        Ok(Self {
+            bytes,
+            position: magic.len(),
+        })
+    }
+
+    fn take(&mut self, length: usize) -> Result<&'a [u8]> {
+        let end = self
+            .position
+            .checked_add(length)
+            .ok_or_else(|| Diagnostic::error("MON-PERSIST-011", "persistence offset overflow"))?;
+        if end > self.bytes.len() {
+            return Err(Diagnostic::error(
+                "MON-PERSIST-012",
+                "truncated persistence file",
+            ));
+        }
+        let value = &self.bytes[self.position..end];
+        self.position = end;
+        Ok(value)
+    }
+
+    fn u8(&mut self) -> Result<u8> {
+        Ok(self.take(1)?[0])
+    }
+
+    fn u32(&mut self) -> Result<u32> {
+        Ok(u32::from_le_bytes(self.take(4)?.try_into().unwrap()))
+    }
+
+    fn u64(&mut self) -> Result<u64> {
+        Ok(u64::from_le_bytes(self.take(8)?.try_into().unwrap()))
+    }
+
+    fn string(&mut self) -> Result<String> {
+        let length = self.u32()? as usize;
+        if length > MAX_PERSISTED_BYTES {
+            return Err(Diagnostic::error(
+                "MON-PERSIST-013",
+                "persisted string exceeds size limit",
+            ));
+        }
+        String::from_utf8(self.take(length)?.to_vec()).map_err(|_| {
+            Diagnostic::error("MON-PERSIST-014", "persisted string is not valid UTF-8")
+        })
+    }
+
+    fn bytes_vec(&mut self, length: usize) -> Result<Vec<u8>> {
+        if length > MAX_PERSISTED_BYTES {
+            return Err(Diagnostic::error(
+                "MON-PERSIST-015",
+                "persisted byte array exceeds size limit",
+            ));
+        }
+        Ok(self.take(length)?.to_vec())
+    }
+
+    fn finish(self) -> Result<()> {
+        if self.position == self.bytes.len() {
+            Ok(())
+        } else {
+            Err(Diagnostic::error(
+                "MON-PERSIST-016",
+                "trailing bytes in persistence file",
+            ))
+        }
+    }
+}
+
+fn decode_snapshot(bytes: &[u8]) -> Result<DecodedSnapshot> {
+    if bytes.len() > MAX_PERSISTED_BYTES {
+        return Err(Diagnostic::error(
+            "MON-PERSIST-017",
+            "snapshot exceeds size limit",
+        ));
+    }
+    let mut reader = ByteReader::new(bytes, SNAPSHOT_MAGIC)?;
+    if reader.u32()? != PERSISTENCE_VERSION {
+        return Err(Diagnostic::error(
+            "MON-PERSIST-018",
+            "unsupported snapshot version",
+        ));
+    }
+    let memory_length = usize::try_from(reader.u64()?)
+        .map_err(|_| Diagnostic::error("MON-PERSIST-019", "invalid memory length"))?;
+    let mut x = [0u64; 32];
+    let mut f = [0u64; 32];
+    for value in &mut x {
+        *value = reader.u64()?;
+    }
+    for value in &mut f {
+        *value = reader.u64()?;
+    }
+    let fcsr = reader.u32()?;
+    let pc = reader.u64()?;
+    let instructions = reader.u64()?;
+    let view_address = reader.u64()?;
+    let next_breakpoint_id = reader.u64()?;
+    let next_watchpoint_id = reader.u64()?;
+
+    let symbol_count = checked_count(reader.u32()?, "symbol table")?;
+    let mut symbols = BTreeMap::new();
+    for _ in 0..symbol_count {
+        let address = reader.u64()?;
+        let name = reader.string()?;
+        if symbols.insert(address, name).is_some() {
+            return Err(Diagnostic::error(
+                "MON-PERSIST-020",
+                "duplicate symbol address",
+            ));
+        }
+    }
+    let mark_count = checked_count(reader.u32()?, "mark table")?;
+    let mut marks = BTreeMap::new();
+    for _ in 0..mark_count {
+        let name = reader.string()?;
+        let address = reader.u64()?;
+        if marks.insert(name, address).is_some() {
+            return Err(Diagnostic::error("MON-PERSIST-021", "duplicate mark name"));
+        }
+    }
+    let breakpoint_count = checked_count(reader.u32()?, "breakpoint table")?;
+    let mut breakpoints = BTreeMap::new();
+    for _ in 0..breakpoint_count {
+        let address = reader.u64()?;
+        let id = reader.u64()?;
+        if breakpoints.insert(address, id).is_some() {
+            return Err(Diagnostic::error(
+                "MON-PERSIST-022",
+                "duplicate breakpoint address",
+            ));
+        }
+    }
+    let watchpoint_count = checked_count(reader.u32()?, "watchpoint table")?;
+    let mut watchpoints = BTreeMap::new();
+    for _ in 0..watchpoint_count {
+        let id = reader.u64()?;
+        let address = reader.u64()?;
+        let width = reader.u64()?;
+        let kind = match reader.u8()? {
+            0 => None,
+            1 => Some(MemoryAccessKind::Read),
+            2 => Some(MemoryAccessKind::Write),
+            _ => {
+                return Err(Diagnostic::error(
+                    "MON-PERSIST-023",
+                    "invalid watchpoint access kind",
+                ));
+            }
+        };
+        if watchpoints
+            .insert(
+                id,
+                Watchpoint {
+                    address,
+                    width,
+                    kind,
+                    id,
+                },
+            )
+            .is_some()
+        {
+            return Err(Diagnostic::error(
+                "MON-PERSIST-024",
+                "duplicate watchpoint id",
+            ));
+        }
+    }
+    let memory = reader.bytes_vec(memory_length)?;
+    reader.finish()?;
+
+    let mut machine = Machine::new(memory_length);
+    machine.load(0, &memory)?;
+    machine.x = x;
+    machine.f = f;
+    machine.fcsr = fcsr;
+    machine.pc = pc;
+    machine.instructions = instructions;
+    Ok(DecodedSnapshot {
+        machine,
+        symbols,
+        marks,
+        breakpoints,
+        watchpoints,
+        next_breakpoint_id,
+        next_watchpoint_id,
+        view_address,
+    })
+}
+
+fn decode_project(bytes: &[u8]) -> Result<(String, Vec<u8>)> {
+    if bytes.len() > MAX_PERSISTED_BYTES {
+        return Err(Diagnostic::error(
+            "MON-PERSIST-025",
+            "project exceeds size limit",
+        ));
+    }
+    let mut reader = ByteReader::new(bytes, PROJECT_MAGIC)?;
+    if reader.u32()? != PERSISTENCE_VERSION {
+        return Err(Diagnostic::error(
+            "MON-PERSIST-026",
+            "unsupported project version",
+        ));
+    }
+    let source = reader.string()?;
+    let snapshot_length = usize::try_from(reader.u64()?)
+        .map_err(|_| Diagnostic::error("MON-PERSIST-027", "invalid snapshot length"))?;
+    let snapshot = reader.bytes_vec(snapshot_length)?;
+    reader.finish()?;
+    decode_snapshot(&snapshot)?;
+    Ok((source, snapshot))
+}
+
+fn checked_count(value: u32, name: &str) -> Result<usize> {
+    let count = usize::try_from(value)
+        .map_err(|_| Diagnostic::error("MON-PERSIST-028", format!("invalid {name} count")))?;
+    if count > 1_000_000 {
+        return Err(Diagnostic::error(
+            "MON-PERSIST-029",
+            format!("{name} count exceeds limit"),
+        ));
+    }
+    Ok(count)
+}
+
+fn persistence_path<'a>(argument: &'a str, code: &'static str) -> Result<&'a Path> {
+    let path = argument.trim();
+    if path.is_empty() || path.contains('\0') {
+        return Err(Diagnostic::error(
+            code,
+            "persistence command expects a valid path",
+        ));
+    }
+    Ok(Path::new(path))
+}
+
+fn read_persistence_file(path: &Path) -> Result<Vec<u8>> {
+    let bytes = fs::read(path).map_err(|error| {
+        Diagnostic::error(
+            "MON-PERSIST-030",
+            format!("cannot read persistence file: {error}"),
+        )
+    })?;
+    if bytes.len() > MAX_PERSISTED_BYTES {
+        return Err(Diagnostic::error(
+            "MON-PERSIST-031",
+            "persistence file exceeds size limit",
+        ));
+    }
+    Ok(bytes)
 }
 
 #[cfg(test)]
@@ -1200,5 +1672,65 @@ mod tests {
             monitor.execute("symbols").unwrap(),
             "symbols:\n  0x0000000000000000 _start"
         );
+    }
+
+    #[test]
+    fn snapshot_roundtrip_restores_machine_and_debug_state() {
+        let mut monitor = Monitor::new(128);
+        monitor.assemble_program("_start: addi x1,x0,1").unwrap();
+        monitor.execute("mark entry 0x0").unwrap();
+        monitor.execute("break 0x0").unwrap();
+        monitor.execute("watch 0x10 4").unwrap();
+        monitor.machine.x[1] = 0x8000_0000;
+        monitor.machine.memory.store32(0x10, 0x1122_3344).unwrap();
+        let snapshot = monitor.snapshot_bytes().unwrap();
+
+        monitor.machine.x[1] = 99;
+        monitor.machine.memory.store32(0x10, 0).unwrap();
+        monitor.execute("reset").unwrap();
+        monitor.restore_snapshot_bytes(&snapshot).unwrap();
+
+        assert_eq!(monitor.machine.x[1], 0x8000_0000);
+        assert_eq!(monitor.machine.memory.load32(0x10).unwrap(), 0x1122_3344);
+        assert!(monitor.execute("symbols").unwrap().contains("_start"));
+        assert!(monitor.execute("marks").unwrap().contains("@entry"));
+        assert!(monitor.execute("info break").unwrap().contains("#1"));
+        assert!(monitor.execute("info watch").unwrap().contains("#1"));
+    }
+
+    #[test]
+    fn malformed_snapshot_is_rejected_without_mutating_state() {
+        let mut monitor = Monitor::new(128);
+        monitor.assemble("addi x1,x0,1").unwrap();
+        monitor.machine.x[1] = 7;
+        let snapshot = monitor.snapshot_bytes().unwrap();
+        let truncated = &snapshot[..snapshot.len() - 1];
+        let error = monitor.restore_snapshot_bytes(truncated).unwrap_err();
+        assert_eq!(error.code, "MON-PERSIST-012");
+        assert_eq!(monitor.machine.x[1], 7);
+    }
+
+    #[test]
+    fn project_file_roundtrip_restores_source_and_state() {
+        let path = std::env::temp_dir().join(format!(
+            "rvmonitor-project-{}-{}.rvp",
+            std::process::id(),
+            234_567u64
+        ));
+        let path_text = path.to_string_lossy().into_owned();
+        let mut monitor = Monitor::new(128);
+        monitor
+            .assemble_program("_start: addi x1,x0,1\ndone: addi x2,x0,2")
+            .unwrap();
+        monitor
+            .execute(&format!("project-save {path_text}"))
+            .unwrap();
+        monitor.execute("reset").unwrap();
+        monitor
+            .execute(&format!("project-load {path_text}"))
+            .unwrap();
+        assert!(monitor.execute("symbols").unwrap().contains("done"));
+        assert!(monitor.execute("where").unwrap().contains("_start"));
+        std::fs::remove_file(path).unwrap();
     }
 }

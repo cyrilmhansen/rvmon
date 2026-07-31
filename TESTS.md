@@ -12,7 +12,7 @@ Validation locale complète :
     bash scripts/test-guest-monitor.sh
     git diff --check
 
-La suite actuelle exécute 68 tests unitaires/intégration répartis dans les crates. Les doc-tests compilent mais ne contiennent actuellement aucun cas.
+La suite actuelle exécute 71 tests unitaires/intégration répartis dans les crates. Les doc-tests compilent mais ne contiennent actuellement aucun cas.
 
 Démonstration M-mode/U-mode sous QEMU :
 
@@ -44,7 +44,7 @@ Moniteur texte interactif :
 | luna-machine | 11 | Exécution entière, branches, mémoire, tables de pointeurs ILP32, fadd.s, fadd.d, NaN-boxing, flags et contrat backend. |
 | luna-disassembler | 7 | Format canonique, symboles, opcodes illégaux, C rejeté et round-trip. |
 | luna-floatfmt | 3 | Bits hex exacts, décimal court, classes IEEE et NaN-box invalide. |
-| luna-monitor | 15 | assemble → step → regs, affichage flottant, run borné, vues mémoire hex/ASCII, édition/undo, marques QuickJump, breakpoints, watchpoints, symboles, pile et historique. |
+| luna-monitor | 18 | assemble → step → regs, affichage flottant, run borné, vues mémoire hex/ASCII, édition/undo, marques QuickJump, breakpoints, watchpoints, symboles, pile, historique et persistance. |
 | luna-target-api | 4 | Contexte de trap, capacités explicites RV64 bare-metal, codes `mcause`, contrat de layout, résultats et accès mémoire du backend commun. |
 | luna-guest-monitor | 0 | Image bare-metal, boot QEMU, PMP, transition M→U, trap `ebreak` et boucle UART; vérifié par smoke test QEMU. |
 | luna-app | 0 | Compilation du binaire et démonstration ; pas encore d’E2E terminal. |
@@ -144,6 +144,13 @@ symbole le plus proche, `symbols` liste la table, `stack` expose la pile
 d’appels inférée pour `jal`/`jalr`, et `history` conserve au plus 4096
 instructions. L’inférence de pile n’est pas un unwind ABI complet et ne doit
 pas être utilisée comme preuve de validité d’une pile corrompue.
+
+Les snapshots utilisent le format canonique versionné RVSNAP01 et les projets
+RVPROJ01, tous deux en little-endian avec taille maximale de 64 MiB. La
+restauration décode et vérifie l’intégralité du fichier avant de remplacer
+l’état courant. L’historique d’exécution, la pile inférée et l’historique undo
+sont volontairement vidés après restauration ; ils ne constituent pas encore
+des éléments persistés du replay.
 
 ### Backend cible 4B
 
