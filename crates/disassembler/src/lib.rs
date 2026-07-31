@@ -4,8 +4,8 @@ use std::collections::BTreeMap;
 
 use luna_diag::{Diagnostic, Result};
 use luna_isa::{
-    Addi, Branch, FRegisterRType, FloatConversion, FloatConversionKind, GENERATED_OPCODES,
-    Instruction, Jal, Jalr, Load, Lui, RType, Store,
+    Addi, Branch, FRegisterRType, FloatConversion, FloatConversionKind, FloatMove, FloatMoveKind,
+    GENERATED_OPCODES, Instruction, Jal, Jalr, Load, Lui, RType, Store,
 };
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -486,6 +486,26 @@ fn format_instruction(
         }) => {
             format!("fadd.d f{rd},f{rs1},f{rs2}")
         }
+        Instruction::FloatMove(FloatMove {
+            kind: FloatMoveKind::XFromW,
+            rd,
+            rs1,
+        }) => format!("fmv.x.w x{rd},f{rs1}"),
+        Instruction::FloatMove(FloatMove {
+            kind: FloatMoveKind::WFromX,
+            rd,
+            rs1,
+        }) => format!("fmv.w.x f{rd},x{rs1}"),
+        Instruction::FloatMove(FloatMove {
+            kind: FloatMoveKind::XFromD,
+            rd,
+            rs1,
+        }) => format!("fmv.x.d x{rd},f{rs1}"),
+        Instruction::FloatMove(FloatMove {
+            kind: FloatMoveKind::DFromX,
+            rd,
+            rs1,
+        }) => format!("fmv.d.x f{rd},x{rs1}"),
         Instruction::FloatConversion(FloatConversion {
             kind: FloatConversionKind::SFromD,
             rd,
@@ -753,6 +773,10 @@ mod tests {
             "jalr x1,0(x4)",
             "fadd.s f3,f1,f2",
             "fadd.d f3,f1,f2",
+            "fmv.x.w x2,f3",
+            "fmv.w.x f2,x3",
+            "fmv.x.d x2,f3",
+            "fmv.d.x f2,x3",
             "fcvt.s.d f3,f1",
             "fcvt.d.s f3,f1",
             "fcvt.w.s x3,f1",

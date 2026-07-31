@@ -728,6 +728,22 @@ Une tâche est terminée seulement si sa condition de sortie est satisfaite.
 - **Parallélisable :** oui avec le corpus IEEE; non avec une modification concurrente de `FloatConversionKind` ou de la sémantique `fcsr`.
 - **Contexte minimal :** SPEC §§5/11.1/23/24, R2 `rv_f`/`rv_d`, `crates/machine/src/lib.rs`, oracle integer.
 
+### FP-005A — Mouvements binaires F/D — TERMINÉ
+
+- **Jalon / exigences :** M5; FP-001..006, FP-015..018, IO-004.
+- **But :** assembler, désassembler et exécuter `fmv.x.w`, `fmv.w.x`, `fmv.x.d` et `fmv.d.x` avec transfert bit-à-bit entre registres entiers et flottants.
+- **Non-but :** nouvelles opérations arithmétiques F/D, formats binary16/binary128 exécutés, et extensions Zfh/Q.
+- **Entrées/sources :** R1 §§11.1/12; R2 commit épinglé, entrées `rv_f`, `rv64_f`, `rv_d`, `rv64_d`; QEMU 11.0.2 via oracle local.
+- **Fichiers/modules :** `crates/isa`, `crates/assembler`, `crates/disassembler`, `crates/machine`, `crates/machine/examples/fp_move_probe.rs`, `tests/oracles/fp_move_qemu_probe.S`, `tools/check-fp-move-oracle.sh`.
+- **Étapes réalisées :** générer les formes depuis les entrées R2 déjà archivées; distinguer les classes x/f des opérandes; appliquer la sign-extension RV64 de `fmv.x.w`; appliquer le NaN-boxing de `fmv.w.x`; préserver intégralement les 64 bits pour les formes D; ne modifier aucun flag.
+- **Tests :** round-trip ISA, classes de registres assembleur, désassemblage canonique et quatre motifs limites indépendants QEMU.
+- **Acceptation :** 139 tests Cargo et `bash tools/check-fp-move-oracle.sh` passent; les quatre sorties bit-à-bit concordent avec QEMU 11.0.2.
+- **Limites/échecs :** les opérations F/D autres que `fadd.*`, conversions et mouvements restent hors de cette tranche; Zfh/Q restent non exécutés.
+- **Taille :** 3 points / 1,5 journée-agent, incertitude faible.
+- **Compétences/outils :** RISC-V F/D, NaN-boxing, génération R2, QEMU, Rust.
+- **Parallélisable :** oui avec la préparation de `CMD-001`; non avec une modification concurrente de `Instruction` ou du format de registre flottant.
+- **Contexte minimal :** SPEC §§5/8/11.1/15/23/24, R2 `rv_f`/`rv64_f`/`rv_d`/`rv64_d`, `crates/isa/src/lib.rs`, oracle move.
+
 ## M6–M8 — interface, debug, persistance
 
 ### CMD-001 — Parser commandes et expressions contrôlées

@@ -2,6 +2,7 @@
 
 use luna_diag::{Diagnostic, Result};
 use luna_floatfmt::{FloatDisplay, binary64, boxed_binary32};
+use luna_isa::FloatMoveKind;
 use luna_isa::{FloatConversionKind, Instruction, decode};
 use luna_memory::Memory;
 use luna_target_api::{
@@ -235,6 +236,26 @@ impl Machine {
                 self.f[instruction.rd as usize] = result;
                 self.fcsr |= flags;
             }
+            Instruction::FloatMove(instruction) => match instruction.kind {
+                FloatMoveKind::XFromW => {
+                    if instruction.rd != 0 {
+                        self.x[instruction.rd as usize] =
+                            (self.f[instruction.rs1 as usize] as u32 as i32 as i64) as u64;
+                    }
+                }
+                FloatMoveKind::WFromX => {
+                    self.f[instruction.rd as usize] =
+                        0xffff_ffff_0000_0000 | (self.x[instruction.rs1 as usize] & 0xffff_ffff);
+                }
+                FloatMoveKind::XFromD => {
+                    if instruction.rd != 0 {
+                        self.x[instruction.rd as usize] = self.f[instruction.rs1 as usize];
+                    }
+                }
+                FloatMoveKind::DFromX => {
+                    self.f[instruction.rd as usize] = self.x[instruction.rs1 as usize];
+                }
+            },
             Instruction::FloatConversion(instruction) => {
                 let rounding_mode = if instruction.rm == 7 {
                     self.frm()
@@ -1774,6 +1795,80 @@ mod tests {
         );
         assert_eq!(result, 1.5f64.to_bits());
         assert_eq!(flags, 0);
+    }
+
+    #[test]
+    fn executes_float_moves_without_changing_bits_or_flags() {
+        let mut machine = Machine::new(16);
+        machine.f[1] = 0xffff_ffff_8000_0001;
+        machine
+            .load(
+                0,
+                &luna_isa::encode_f_move(luna_isa::FloatMove {
+                    kind: luna_isa::FloatMoveKind::XFromW,
+                    rd: 2,
+                    rs1: 1,
+                })
+                .unwrap()
+                .to_le_bytes(),
+            )
+            .unwrap();
+        machine.step().unwrap();
+        assert_eq!(machine.x[2], 0xffff_ffff_8000_0001);
+        assert_eq!(machine.fflags(), 0);
+
+        machine = Machine::new(16);
+        machine.x[1] = 0x1234_5678_8765_4321;
+        machine
+            .load(
+                0,
+                &luna_isa::encode_f_move(luna_isa::FloatMove {
+                    kind: luna_isa::FloatMoveKind::WFromX,
+                    rd: 2,
+                    rs1: 1,
+                })
+                .unwrap()
+                .to_le_bytes(),
+            )
+            .unwrap();
+        machine.step().unwrap();
+        assert_eq!(machine.f[2], 0xffff_ffff_8765_4321);
+        assert_eq!(machine.fflags(), 0);
+
+        machine = Machine::new(16);
+        machine.f[1] = 0x7ff8_0000_0000_0042;
+        machine
+            .load(
+                0,
+                &luna_isa::encode_f_move(luna_isa::FloatMove {
+                    kind: luna_isa::FloatMoveKind::XFromD,
+                    rd: 2,
+                    rs1: 1,
+                })
+                .unwrap()
+                .to_le_bytes(),
+            )
+            .unwrap();
+        machine.step().unwrap();
+        assert_eq!(machine.x[2], 0x7ff8_0000_0000_0042);
+
+        machine = Machine::new(16);
+        machine.x[1] = 0x8000_0000_0000_0000;
+        machine
+            .load(
+                0,
+                &luna_isa::encode_f_move(luna_isa::FloatMove {
+                    kind: luna_isa::FloatMoveKind::DFromX,
+                    rd: 2,
+                    rs1: 1,
+                })
+                .unwrap()
+                .to_le_bytes(),
+            )
+            .unwrap();
+        machine.step().unwrap();
+        assert_eq!(machine.f[2], 0x8000_0000_0000_0000);
+        assert_eq!(machine.fflags(), 0);
     }
 
     #[test]

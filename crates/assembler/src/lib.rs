@@ -9,9 +9,10 @@ use std::path::{Path, PathBuf};
 use luna_diag::{Diagnostic, Result};
 use luna_floatfmt::{FloatFormat, parse_float_literal};
 use luna_isa::{
-    Addi, Branch, FRegisterRType, FloatConversion, FloatConversionKind, Jal, Jalr, Load, Lui,
-    RType, Store, encode_addi, encode_branch, encode_f_convert, encode_f_r, encode_jal,
-    encode_jalr, encode_load, encode_r, encode_store, encode_u,
+    Addi, Branch, FRegisterRType, FloatConversion, FloatConversionKind, FloatMove, FloatMoveKind,
+    Jal, Jalr, Load, Lui, RType, Store, encode_addi, encode_branch, encode_f_convert,
+    encode_f_move, encode_f_r, encode_jal, encode_jalr, encode_load, encode_r, encode_store,
+    encode_u,
 };
 
 mod expr;
@@ -368,6 +369,24 @@ fn assemble_parsed(parsed: &ParsedLine, pc: u64, symbols: &SymbolValues) -> Resu
                 rm: 7,
             },
         )?,
+        "fmv.x.w" | "fmv.x.d" if parts.len() == 2 => encode_f_move(FloatMove {
+            kind: if mnemonic == "fmv.x.w" {
+                FloatMoveKind::XFromW
+            } else {
+                FloatMoveKind::XFromD
+            },
+            rd: register(operand_text(&parts[0])?)?,
+            rs1: floating_register(operand_text(&parts[1])?)?,
+        })?,
+        "fmv.w.x" | "fmv.d.x" if parts.len() == 2 => encode_f_move(FloatMove {
+            kind: if mnemonic == "fmv.w.x" {
+                FloatMoveKind::WFromX
+            } else {
+                FloatMoveKind::DFromX
+            },
+            rd: floating_register(operand_text(&parts[0])?)?,
+            rs1: register(operand_text(&parts[1])?)?,
+        })?,
         "fcvt.s.d" if parts.len() == 2 => encode_f_convert(FloatConversion {
             kind: FloatConversionKind::SFromD,
             rd: floating_register(operand_text(&parts[0])?)?,
@@ -2012,6 +2031,10 @@ mod tests {
     #[test]
     fn assembles_integer_float_conversions_with_register_class_validation() {
         for source in [
+            "fmv.x.w x3,f1",
+            "fmv.w.x f3,x1",
+            "fmv.x.d x3,f1",
+            "fmv.d.x f3,x1",
             "fcvt.w.s x3,f1",
             "fcvt.wu.s x3,f1",
             "fcvt.s.w f3,x1",
