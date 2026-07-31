@@ -70,6 +70,7 @@ dependencies = [
  "luna-floatfmt",
  "luna-isa",
  "luna-memory",
+ "luna-target-api",
 ]
 
 [[package]]
@@ -88,6 +89,7 @@ dependencies = [
  "luna-disassembler",
  "luna-floatfmt",
  "luna-machine",
+ "luna-target-api",
 ]
 
 [[package]]

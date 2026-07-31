@@ -10,8 +10,9 @@
 6. `ISA-001` encode/decode I
 7. `MEM-001` RAM isolée
 8. `MACHINE-001` hart et step
-9. `ASM-BOOT-001` assembleur de la ligne minimale
-10. `DEMO-001` premier incrément
+9. `BACKEND-001` contrat TargetBackend et adaptateur simulateur
+10. `ASM-BOOT-001` assembleur de la ligne minimale
+11. `DEMO-001` premier incrément
 11. `ASM-001` lexer
 12. `ASM-002` expressions/symboles/passes
 13. `ISA-002` C/illegal decoder
@@ -44,6 +45,8 @@ flowchart TD
   GEN --> I2[ISA-002 C/illegal]
   I1 --> MACH[MACHINE-001 hart/step]
   MEM --> MACH
+  MACH --> BE[BACKEND-001 TargetBackend]
+  BE --> MONITOR[Monitor backend facade]
   I1 --> AB[ASM-BOOT-001 Minimal assembler]
   AB --> DEMO[DEMO-001]
   MACH --> DEMO
@@ -87,7 +90,7 @@ Le chemin FP est volontairement lancé en parallèle de M3 dès que `FP-001` et 
 * `ProfileId`, `ExtensionStatus`, `CapabilityMatrix` ;
 * `Diagnostic`, `Location`, codes et gravités ;
 * `DecodedInstruction { address, length, bytes, canonical, operands, status }` ;
-* `MachineState`, `StepResult`, `Trap`, `StopReason` ;
+* `TargetBackend`, `TargetContext`, `ExecutionOutcome`, `MachineState`, `StepResult`, `Trap`, `StopReason` ;
 * `MemoryTransaction`, `CommitId`, `SnapshotId` ;
 * `ObjectImage`, `Section`, `Symbol`, `Relocation`, `ListingItem` ;
 * `FloatBits`, `RoundingMode`, `FcsrView` ;

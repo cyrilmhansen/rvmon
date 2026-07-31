@@ -4,6 +4,7 @@ use luna_diag::{Diagnostic, Result};
 use luna_floatfmt::{FloatDisplay, binary64, boxed_binary32};
 use luna_isa::{Instruction, decode};
 use luna_memory::Memory;
+use luna_target_api::{ExecutionOutcome, TargetBackend, TargetCapabilities, TargetContext};
 
 pub const FFLAG_NV: u32 = 1 << 0;
 pub const FFLAG_DZ: u32 = 1 << 1;
@@ -207,6 +208,74 @@ impl Machine {
             pc_before,
             pc_after: self.pc,
             instruction,
+        })
+    }
+}
+
+impl TargetBackend for Machine {
+    type Error = Diagnostic;
+
+    fn capabilities(&self) -> TargetCapabilities {
+        TargetCapabilities::RV64_BARE_METAL_V1
+    }
+
+    fn context(&self) -> TargetContext {
+        TargetContext {
+            x: self.x,
+            f: self.f,
+            pc: self.pc,
+            fcsr: self.fcsr,
+            mstatus: 0,
+            mepc: self.pc,
+            mcause: 0,
+            mtval: 0,
+        }
+    }
+
+    fn read_memory(
+        &self,
+        address: u64,
+        destination: &mut [u8],
+    ) -> std::result::Result<(), Self::Error> {
+        for (offset, byte) in destination.iter_mut().enumerate() {
+            let address = address
+                .checked_add(offset as u64)
+                .ok_or_else(|| Diagnostic::error("MEM-ADDRESS-002", "address range overflow"))?;
+            *byte = self.memory.load8(address)?;
+        }
+        Ok(())
+    }
+
+    fn write_memory(
+        &mut self,
+        address: u64,
+        source: &[u8],
+    ) -> std::result::Result<(), Self::Error> {
+        let mut transaction = self.memory.transaction();
+        for (offset, byte) in source.iter().enumerate() {
+            let address = address
+                .checked_add(offset as u64)
+                .ok_or_else(|| Diagnostic::error("MEM-ADDRESS-002", "address range overflow"))?;
+            transaction.write8(address, *byte);
+        }
+        self.memory.commit(transaction)
+    }
+
+    fn step(&mut self) -> std::result::Result<ExecutionOutcome, Self::Error> {
+        let result = Machine::step(self)?;
+        Ok(ExecutionOutcome::Retired {
+            pc_before: result.pc_before,
+            pc_after: result.pc_after,
+        })
+    }
+
+    fn run(&mut self, max_steps: u64) -> std::result::Result<ExecutionOutcome, Self::Error> {
+        for _ in 0..max_steps {
+            Machine::step(self)?;
+        }
+        Ok(ExecutionOutcome::BudgetExhausted {
+            pc: self.pc,
+            instruction_count: self.instructions,
         })
     }
 }
@@ -615,5 +684,57 @@ mod tests {
         machine.step().unwrap();
         assert_ne!(machine.fflags() & FFLAG_NV as u8, 0);
         assert_eq!(machine.f[3], 0x7ff8_0000_0000_0000);
+    }
+
+    #[test]
+    fn target_backend_exposes_context_and_transactional_bytes() {
+        let mut machine = Machine::new(16);
+        machine.pc = 4;
+        machine.x[1] = 0x8000_0000;
+        machine.fcsr = 0x1f;
+
+        let context = TargetBackend::context(&machine);
+        assert_eq!(context.pc, 4);
+        assert_eq!(context.mepc, 4);
+        assert_eq!(context.x[1], 0x8000_0000);
+        assert_eq!(context.fcsr, 0x1f);
+
+        TargetBackend::write_memory(&mut machine, 2, &[0xaa, 0xbb, 0xcc]).unwrap();
+        let mut bytes = [0; 3];
+        TargetBackend::read_memory(&machine, 2, &mut bytes).unwrap();
+        assert_eq!(bytes, [0xaa, 0xbb, 0xcc]);
+
+        assert!(TargetBackend::write_memory(&mut machine, 15, &[1, 2]).is_err());
+        assert_eq!(machine.memory.load8(15).unwrap(), 0);
+    }
+
+    #[test]
+    fn target_backend_step_and_run_report_contractual_outcomes() {
+        let mut machine = Machine::new(32);
+        let addi = luna_isa::encode_addi(luna_isa::Addi {
+            rd: 1,
+            rs1: 0,
+            imm: 1,
+        })
+        .unwrap();
+        machine.load(0, &addi.to_le_bytes()).unwrap();
+        machine.load(4, &addi.to_le_bytes()).unwrap();
+        machine.load(8, &addi.to_le_bytes()).unwrap();
+
+        assert_eq!(
+            TargetBackend::step(&mut machine).unwrap(),
+            ExecutionOutcome::Retired {
+                pc_before: 0,
+                pc_after: 4,
+            }
+        );
+        assert_eq!(machine.x[1], 1);
+        assert_eq!(
+            TargetBackend::run(&mut machine, 2).unwrap(),
+            ExecutionOutcome::BudgetExhausted {
+                pc: 12,
+                instruction_count: 3,
+            }
+        );
     }
 }

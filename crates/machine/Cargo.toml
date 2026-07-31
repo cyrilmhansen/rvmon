@@ -9,6 +9,7 @@ luna-diag = { path = "../diag" }
 luna-isa = { path = "../isa" }
 luna-memory = { path = "../memory" }
 luna-floatfmt = { path = "../floatfmt" }
+luna-target-api = { path = "../target-api" }
 
 [lints]
 workspace = true

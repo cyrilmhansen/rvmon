@@ -59,6 +59,7 @@ Ces points ne sont pas corrigés silencieusement ; ils deviennent ADR et tests d
     asm-parser/                       # AST, expressions, directives, macros
     assembler/                        # passes, symbols, relocations, listing
     memory/                           # sparse RAM, MMIO contract, transactions
+    target-api/                       # TargetBackend, context, capabilities, outcomes
     machine/                          # state, hart, CSR, traps, deterministic backend
     debugger/                         # break/watch, stepping, source mapping, history
     formats/                          # project, image, snapshot, symbols, ELF limited
@@ -74,7 +75,7 @@ Ces points ne sont pas corrigés silencieusement ; ils deviennent ADR et tests d
   docs/                               # guide développeur/utilisateur
 ```
 
-Frontières : `machine` ne connaît ni AST ni UI ; `assembler` ne dépend pas de `machine` ; `isa` dépend des tables générées, jamais de texte saisi ; `formats` sérialise des contrats versionnés ; le frontend ne manipule jamais directement la RAM.
+Frontières : `target-api` ne dépend d’aucun transport et ne contient pas la sémantique machine ; `machine` implémente `TargetBackend` sans connaître AST ni UI ; `assembler` ne dépend pas de `machine` ; `isa` dépend des tables générées, jamais de texte saisi ; `formats` sérialise des contrats versionnés ; le frontend ne manipule jamais directement la RAM.
 
 ## 5. Langage, bibliothèques et coût de verrouillage
 

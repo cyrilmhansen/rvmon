@@ -41,6 +41,36 @@ pub enum StopReason {
     UnknownTrap = 255,
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct StopEvent {
+    pub reason: StopReason,
+    pub pc: u64,
+    pub instruction_count: u64,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ExecutionOutcome {
+    Retired { pc_before: u64, pc_after: u64 },
+    Stopped(StopEvent),
+    BudgetExhausted { pc: u64, instruction_count: u64 },
+}
+
+/// Stable boundary between the monitor/debugger and a target implementation.
+///
+/// The host simulator and a future QEMU/GDB transport implement the same
+/// contract. The trait deliberately exposes target-shaped state and byte
+/// access, not a host process, socket, or UI representation.
+pub trait TargetBackend {
+    type Error;
+
+    fn capabilities(&self) -> TargetCapabilities;
+    fn context(&self) -> TargetContext;
+    fn read_memory(&self, address: u64, destination: &mut [u8]) -> Result<(), Self::Error>;
+    fn write_memory(&mut self, address: u64, source: &[u8]) -> Result<(), Self::Error>;
+    fn step(&mut self) -> Result<ExecutionOutcome, Self::Error>;
+    fn run(&mut self, max_steps: u64) -> Result<ExecutionOutcome, Self::Error>;
+}
+
 #[repr(C)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Breakpoint {

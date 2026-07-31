@@ -7,6 +7,7 @@ use luna_assembler::assemble;
 use luna_diag::{Diagnostic, Result};
 use luna_disassembler::disassemble_word;
 use luna_machine::{FFLAG_DZ, FFLAG_NV, FFLAG_NX, FFLAG_OF, FFLAG_UF, Machine};
+use luna_target_api::{ExecutionOutcome, TargetBackend};
 
 pub struct Monitor {
     pub machine: Machine,
@@ -75,10 +76,15 @@ impl Monitor {
         let address = self.machine.pc;
         let word = self.machine.memory.load32(address)?;
         let line = disassemble_word(address, word, &self.symbols);
-        let result = self.machine.step()?;
+        let outcome = TargetBackend::step(&mut self.machine)?;
+        let pc_after = match outcome {
+            ExecutionOutcome::Retired { pc_after, .. } => pc_after,
+            ExecutionOutcome::Stopped(event) => event.pc,
+            ExecutionOutcome::BudgetExhausted { pc, .. } => pc,
+        };
         Ok(format!(
-            "0x{address:016x}: {word:08x}  {:<28} -> pc=0x{:016x}",
-            line.text, result.pc_after
+            "0x{address:016x}: {word:08x}  {:<28} -> pc=0x{pc_after:016x}",
+            line.text
         ))
     }
 
@@ -91,15 +97,24 @@ impl Monitor {
             })?
         };
         let start = self.machine.instructions;
-        for _ in 0..limit {
-            self.machine.step()?;
+        match TargetBackend::run(&mut self.machine, limit)? {
+            ExecutionOutcome::BudgetExhausted {
+                pc,
+                instruction_count,
+            } => Ok(format!(
+                "ran {} step(s); pc=0x{pc:016x}; total={instruction_count}",
+                instruction_count - start
+            )),
+            ExecutionOutcome::Stopped(event) => Ok(format!(
+                "stopped: {:?} at pc=0x{:016x}; total={}",
+                event.reason, event.pc, event.instruction_count
+            )),
+            ExecutionOutcome::Retired { pc_after, .. } => Ok(format!(
+                "ran {} step(s); pc=0x{pc_after:016x}; total={}",
+                self.machine.instructions - start,
+                self.machine.instructions
+            )),
         }
-        Ok(format!(
-            "ran {} step(s); pc=0x{:016x}; total={}",
-            self.machine.instructions - start,
-            self.machine.pc,
-            self.machine.instructions
-        ))
     }
 
     fn disassemble(&self, argument: &str) -> Result<String> {

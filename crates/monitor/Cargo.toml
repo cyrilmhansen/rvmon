@@ -10,6 +10,7 @@ luna-diag = { path = "../diag" }
 luna-disassembler = { path = "../disassembler" }
 luna-floatfmt = { path = "../floatfmt" }
 luna-machine = { path = "../machine" }
+luna-target-api = { path = "../target-api" }
 
 [lints]
 workspace = true
