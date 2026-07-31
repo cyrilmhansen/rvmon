@@ -15,7 +15,7 @@ Validation locale complète :
     bash scripts/test-qemu-gdb-backend.sh
     git diff --check
 
-La suite actuelle exécute 108 tests unitaires/intégration répartis dans les crates. Les doc-tests compilent mais ne contiennent actuellement aucun cas. Le script QEMU ouvre en plus une session GDB RSP réelle, hors comptage Cargo.
+La suite actuelle exécute 112 tests unitaires/intégration répartis dans les crates. Les doc-tests compilent mais ne contiennent actuellement aucun cas. Le script QEMU ouvre en plus une session GDB RSP réelle, hors comptage Cargo.
 
 Démonstration M-mode/U-mode sous QEMU :
 
@@ -42,7 +42,7 @@ Moniteur texte interactif :
 | luna-abi | 2 | Extension de signe des pointeurs 32 bits et idempotence. |
 | luna-memory | 3 | Little-endian, transactions atomiques et rollback après erreur. |
 | luna-asm-lexer | 5 | Registres numériques/ABI, commentaires, décalages, chaînes UTF-8 et positions d’erreur. |
-| luna-assembler | 36 | AST, alias ABI, expressions, symboles globaux/locaux, sections, `.equ/.set`, chaînes, alignement, macros paramétrées bornées, includes sous sandbox, listing texte, fadd.s et fadd.d. |
+| luna-assembler | 40 | AST, alias ABI, expressions, symboles globaux/locaux, sections, `.equ/.set`, chaînes, alignement, macros paramétrées bornées, includes sous sandbox, conditionnels bornés, listing texte, fadd.s et fadd.d. |
 | luna-isa-core | 3 | Encodeurs `addi`, branches, sauts et `fadd.s`/`fadd.d` sans allocation, depuis les tables R2 partagées avec le guest ; commit R2 et champs générés validés. |
 | luna-isa | 6 | Tables générées depuis R2, encodage/décodage entier et flottant via `luna-isa-core`. |
 | luna-machine | 13 | Exécution entière, branches, mémoire, tables de pointeurs ILP32, fadd.s, fadd.d, NaN-boxing, flags, contrat backend et snapshot cible. |
@@ -99,6 +99,14 @@ avant contrôle, et doivent rester sous une racine autorisée. Les chemins
 absolus, `..`, cycles, fichiers non UTF-8 et dépassements de profondeur,
 nombre de fichiers ou octets produisent des diagnostics `ASM-INCLUDE-*`.
 Le répertoire de travail du processus n’est jamais utilisé implicitement.
+
+Les conditionnels `.if expression`, `.else` et `.endif` sont évalués dans
+l’ordre source avec les constantes `.equ/.set` déjà actives; une valeur non
+nulle sélectionne la branche. Les branches mortes ne sont ni parsées ni
+expansées, et les expressions mortes peuvent donc référencer des symboles
+inconnus sans erreur. La profondeur est limitée à 32 niveaux. Les directives
+conditionnelles dans un corps de macro sont refusées explicitement dans cette
+version afin de conserver une phase de prétraitement non ambiguë.
 
 ### ISA et encodages
 

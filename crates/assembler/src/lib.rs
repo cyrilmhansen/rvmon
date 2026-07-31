@@ -117,6 +117,7 @@ const MAX_EXPANDED_LINES: usize = 65_536;
 const MAX_INCLUDE_DEPTH: usize = 32;
 const MAX_INCLUDE_BYTES: usize = 8 * 1024 * 1024;
 const MAX_INCLUDE_FILES: usize = 4096;
+const MAX_CONDITIONAL_DEPTH: usize = 32;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 struct ExpandedLine {
@@ -128,6 +129,21 @@ struct ExpandedLine {
 struct MacroDefinition {
     parameters: Vec<String>,
     body: Vec<ExpandedLine>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+enum ConditionalDirective {
+    If(String),
+    Else,
+    EndIf,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+struct ConditionalFrame {
+    parent_active: bool,
+    condition_true: bool,
+    branch_active: bool,
+    else_seen: bool,
 }
 
 fn register(name: &str) -> Result<u8> {
@@ -1034,16 +1050,101 @@ fn expand_macro_line(
     Ok(())
 }
 
+fn directive_rest<'a>(source: &'a str, directive: &str) -> Option<&'a str> {
+    let source = strip_macro_comment(source).trim_start();
+    let prefix = source.get(..directive.len())?;
+    if !prefix.eq_ignore_ascii_case(directive) {
+        return None;
+    }
+    if source[directive.len()..]
+        .chars()
+        .next()
+        .is_some_and(|character| !character.is_ascii_whitespace())
+    {
+        return None;
+    }
+    Some(source[directive.len()..].trim())
+}
+
+fn conditional_directive(source: &str) -> Result<Option<ConditionalDirective>> {
+    if let Some(expression) = directive_rest(source, ".if") {
+        if expression.is_empty() {
+            return Err(Diagnostic::error(
+                "ASM-CONDITIONAL-002",
+                ".if expects one integer expression",
+            ));
+        }
+        return Ok(Some(ConditionalDirective::If(expression.to_owned())));
+    }
+    if let Some(rest) = directive_rest(source, ".else") {
+        if !rest.is_empty() {
+            return Err(Diagnostic::error(
+                "ASM-CONDITIONAL-002",
+                ".else expects no operands",
+            ));
+        }
+        return Ok(Some(ConditionalDirective::Else));
+    }
+    if let Some(rest) = directive_rest(source, ".endif") {
+        if !rest.is_empty() {
+            return Err(Diagnostic::error(
+                "ASM-CONDITIONAL-002",
+                ".endif expects no operands",
+            ));
+        }
+        return Ok(Some(ConditionalDirective::EndIf));
+    }
+    Ok(None)
+}
+
+fn conditional_active(frames: &[ConditionalFrame]) -> bool {
+    frames.iter().all(|frame| frame.branch_active)
+}
+
+fn update_conditional_symbols(
+    line: &ParsedLine,
+    current_global: &mut Option<String>,
+    values: &mut SymbolValues,
+    equ_values: &mut SymbolValues,
+    equ_names: &mut BTreeSet<String>,
+) -> Result<()> {
+    update_scope(&line.labels, current_global)?;
+    let mut constants = BTreeMap::new();
+    define_absolute_directive(
+        line,
+        current_global.as_deref(),
+        &BTreeMap::new(),
+        values,
+        &mut constants,
+        equ_values,
+        equ_names,
+    )
+}
+
 fn expand_macros(source: &str, options: &AssemblyOptions) -> Result<Vec<ExpandedLine>> {
     let mut include_loader = IncludeLoader::new(options)?;
     let included_source = include_loader.expand_source(source, options.source_path.as_deref())?;
     let mut macros = BTreeMap::new();
     let mut active: Option<(String, Vec<String>, Vec<ExpandedLine>)> = None;
+    let mut skipped_macro_depth = 0usize;
+    let mut conditional_frames = Vec::new();
+    let mut conditional_values = SymbolValues::new();
+    let mut conditional_equ_values = SymbolValues::new();
+    let mut conditional_equ_names = BTreeSet::new();
+    let mut conditional_global = None;
     let mut retained = Vec::new();
     for expanded_line in included_source {
         let source_line = expanded_line.source_line;
         let text = expanded_line.text;
         let control_text = strip_macro_comment(&text);
+        if skipped_macro_depth != 0 {
+            if macro_header(control_text).is_some() {
+                skipped_macro_depth += 1;
+            } else if is_end_macro(control_text) {
+                skipped_macro_depth -= 1;
+            }
+            continue;
+        }
         if active.is_some() {
             if is_end_macro(control_text) {
                 let (name, parameters, body) = active.take().expect("active macro");
@@ -1056,6 +1157,15 @@ fn expand_macros(source: &str, options: &AssemblyOptions) -> Result<Vec<Expanded
                     "nested macro definitions are not supported",
                 ));
             }
+            if directive_rest(control_text, ".if").is_some()
+                || directive_rest(control_text, ".else").is_some()
+                || directive_rest(control_text, ".endif").is_some()
+            {
+                return Err(Diagnostic::error(
+                    "ASM-CONDITIONAL-006",
+                    "conditional directives inside macros are not supported",
+                ));
+            }
             let (_, _, body) = active.as_mut().expect("active macro");
             if body.len() >= MAX_MACRO_BODY_LINES {
                 return Err(Diagnostic::error(
@@ -1066,7 +1176,63 @@ fn expand_macros(source: &str, options: &AssemblyOptions) -> Result<Vec<Expanded
             body.push(ExpandedLine { text, source_line });
             continue;
         }
+        if let Some(directive) = conditional_directive(control_text)? {
+            match directive {
+                ConditionalDirective::If(expression) => {
+                    if conditional_frames.len() >= MAX_CONDITIONAL_DEPTH {
+                        return Err(Diagnostic::error(
+                            "ASM-CONDITIONAL-005",
+                            "conditional nesting depth quota exceeded",
+                        ));
+                    }
+                    let parent_active = conditional_active(&conditional_frames);
+                    let condition_true = if parent_active {
+                        let scoped =
+                            scoped_symbols(&conditional_values, conditional_global.as_deref());
+                        expr::evaluate(&expression, &scoped)
+                            .map(|value| value != 0)
+                            .map_err(|error| {
+                                Diagnostic::error(
+                                    "ASM-CONDITIONAL-003",
+                                    format!("invalid .if expression: {}", error.message),
+                                )
+                            })?
+                    } else {
+                        false
+                    };
+                    conditional_frames.push(ConditionalFrame {
+                        parent_active,
+                        condition_true,
+                        branch_active: parent_active && condition_true,
+                        else_seen: false,
+                    });
+                }
+                ConditionalDirective::Else => {
+                    let Some(frame) = conditional_frames.last_mut() else {
+                        return Err(Diagnostic::error("ASM-CONDITIONAL-001", "unexpected .else"));
+                    };
+                    if frame.else_seen {
+                        return Err(Diagnostic::error("ASM-CONDITIONAL-001", "duplicate .else"));
+                    }
+                    frame.else_seen = true;
+                    frame.branch_active = frame.parent_active && !frame.condition_true;
+                }
+                ConditionalDirective::EndIf => {
+                    if conditional_frames.pop().is_none() {
+                        return Err(Diagnostic::error(
+                            "ASM-CONDITIONAL-001",
+                            "unexpected .endif",
+                        ));
+                    }
+                }
+            }
+            continue;
+        }
         if let Some(header) = macro_header(control_text) {
+            if !conditional_active(&conditional_frames) {
+                skipped_macro_depth = 1;
+                continue;
+            }
             let words = macro_words(header);
             let Some((name, parameters)) = words.split_first() else {
                 return Err(Diagnostic::error("ASM-MACRO-001", "macro name is missing"));
@@ -1112,12 +1278,40 @@ fn expand_macros(source: &str, options: &AssemblyOptions) -> Result<Vec<Expanded
                 "unexpected macro terminator",
             ));
         }
+        if !conditional_active(&conditional_frames) {
+            continue;
+        }
+        if control_text.contains(':')
+            || directive_rest(control_text, ".equ").is_some()
+            || directive_rest(control_text, ".set").is_some()
+        {
+            let parsed = parse_line(&text)?;
+            update_conditional_symbols(
+                &parsed,
+                &mut conditional_global,
+                &mut conditional_values,
+                &mut conditional_equ_values,
+                &mut conditional_equ_names,
+            )?;
+        }
         retained.push(ExpandedLine { text, source_line });
     }
     if active.is_some() {
         return Err(Diagnostic::error(
             "ASM-MACRO-002",
             "unterminated macro definition",
+        ));
+    }
+    if skipped_macro_depth != 0 {
+        return Err(Diagnostic::error(
+            "ASM-MACRO-002",
+            "unterminated macro definition",
+        ));
+    }
+    if !conditional_frames.is_empty() {
+        return Err(Diagnostic::error(
+            "ASM-CONDITIONAL-001",
+            "unterminated conditional block",
         ));
     }
     let mut output = Vec::new();
@@ -1912,5 +2106,60 @@ mod tests {
             assert_eq!(error.code, "ASM-INCLUDE-003");
             fs::remove_dir_all(outside).unwrap();
         });
+    }
+
+    #[test]
+    fn selects_conditional_branches_using_sequential_constants() {
+        let image = assemble_program(
+            ".equ ENABLE, 1\n.if ENABLE\n  .set VALUE, 7\n  addi x1,x0,VALUE\n.else\n  addi x1,x0,99\n.endif",
+        )
+        .unwrap();
+        assert_eq!(image.text, [0x93, 0x00, 0x70, 0x00]);
+        assert_eq!(image.constants["VALUE"], 7);
+
+        let image = assemble_program(
+            ".equ ENABLE, 0\n.if ENABLE\n  unknown x1,x2,x3\n.else\n  addi x1,x0,2\n.endif",
+        )
+        .unwrap();
+        assert_eq!(image.text, [0x93, 0x00, 0x20, 0x00]);
+    }
+
+    #[test]
+    fn supports_nested_conditionals_and_ignores_dead_expressions() {
+        let image = assemble_program(
+            ".if 0\n  .if UNKNOWN_SYMBOL\n    invalid x1\n  .endif\n.else\n  .if (1 + 1)\n    addi x1,x0,3\n  .endif\n.endif",
+        )
+        .unwrap();
+        assert_eq!(image.text, [0x93, 0x00, 0x30, 0x00]);
+    }
+
+    #[test]
+    fn rejects_invalid_conditional_structure_and_macro_mixture() {
+        let error = assemble_program(".else").unwrap_err();
+        assert_eq!(error.code, "ASM-CONDITIONAL-001");
+
+        let error = assemble_program(".if UNKNOWN_SYMBOL\naddi x1,x0,1\n.endif").unwrap_err();
+        assert_eq!(error.code, "ASM-CONDITIONAL-003");
+
+        let error = assemble_program(".macro broken\n.if 1\n addi x1,x0,1\n.endif\n.endm\nbroken")
+            .unwrap_err();
+        assert_eq!(error.code, "ASM-CONDITIONAL-006");
+
+        let error = assemble_program(".if 1\naddi x1,x0,1").unwrap_err();
+        assert_eq!(error.code, "ASM-CONDITIONAL-001");
+    }
+
+    #[test]
+    fn enforces_conditional_nesting_quota() {
+        let mut source = String::new();
+        for _ in 0..=MAX_CONDITIONAL_DEPTH {
+            source.push_str(".if 1\n");
+        }
+        source.push_str("addi x1,x0,1\n");
+        for _ in 0..=MAX_CONDITIONAL_DEPTH {
+            source.push_str(".endif\n");
+        }
+        let error = assemble_program(&source).unwrap_err();
+        assert_eq!(error.code, "ASM-CONDITIONAL-005");
     }
 }

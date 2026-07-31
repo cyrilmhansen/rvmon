@@ -473,6 +473,23 @@ Une tâche est terminée seulement si sa condition de sortie est satisfaite.
 - **Parallélisable :** oui avec DIS-001 et FP-001; non avec une modification concurrente du contrat `AssemblyOptions` ou du pipeline de prétraitement.
 - **Paquet de contexte minimal :** SPEC §§11/12/18/19/23, R4 directives, `crates/assembler/src/lib.rs`, `TESTS.md`.
 
+### ASM-003G — Conditionnels bornés et séquentiels — TERMINÉ
+
+- **Jalon / exigences :** M3; ASM-003, ASM-009, ASM-015, IO-005, ISO-001.
+- **But :** sélectionner des lignes avec `.if expression`, `.else` et `.endif`, en réutilisant l’environnement séquentiel des constantes `.equ/.set` et en ignorant complètement les branches mortes.
+- **Non-but :** comparateurs supplémentaires, symboles de labels futurs, conditionnels dans les corps de macros, exécution dynamique, compatibilité complète avec les syntaxes GNU/LLVM et directives `.ifdef`/`.ifndef`.
+- **Entrées/sources :** SPEC §§11–12 (préprocesseur, expressions, listing), §18 (bornes d’exécution), §19 (diagnostics), §23 (tests génératifs et non-régression); R4 pour les directives et expressions; décision locale de conditionnel entier non nul.
+- **Fichiers/modules :** `crates/assembler/src/lib.rs`, `TESTS.md`, `BACKLOG.md`.
+- **Étapes réalisées :** ajouter les frames conditionnelles imbriquées; évaluer les expressions actives avec les constantes déjà définies; mettre à jour `.equ/.set` actifs; supprimer les lignes mortes avant expansion des macros; ignorer les expressions mortes; refuser `.else`/`.endif` orphelins, blocs non terminés, profondeur excessive et directives conditionnelles dans les macros.
+- **Dépendances :** ASM-003E et ASM-003F; aucune dépendance externe; le conditionnel doit précéder l’expansion des macros pour éviter de traiter du code mort; prépare le sign-off des directives M3.
+- **Tests :** sélection `.if/.else`; `.set` visible par le conditionnel suivant; expression parenthésée; imbrication; symbole inconnu dans une branche morte; structure invalide; mélange macro/conditionnel; quota de profondeur; suite assembleur complète.
+- **Critères de sortie :** seules les lignes de la branche active entrent dans l’assembleur; les constantes restent cohérentes avec la seconde passe; les codes `ASM-CONDITIONAL-001/002/003/005/006` sont déterministes; une branche morte invalide n’empêche pas l’assemblage.
+- **Cas limites et échecs :** valeur nulle, valeur négative non nulle, `.else` double, `.endif` sans `.if`, `.if` sans expression, parenthèses invalides, symbole inconnu actif, profondeur exactement maximale et macro inactive.
+- **Taille :** 4 points / 1,5–2 journées-agent, incertitude moyenne; équivalent indicatif 60k–140k tokens.
+- **Compétences/outils :** préprocesseurs à états, expressions entières, invariants de passes, tests de diagnostics.
+- **Parallélisable :** oui avec DIS-001 et FP-001; non avec une modification concurrente de l’ordre includes/macros/conditionnels.
+- **Paquet de contexte minimal :** SPEC §§11/12/18/19/23, R4 directives, `crates/assembler/src/lib.rs`, `TESTS.md`.
+
 ### ASM-003 — Directives, chaînes, macros et listing
 
 - **Jalon / exigences :** M3; ASM-001..015, IO-001..009.
