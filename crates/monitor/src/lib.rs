@@ -968,6 +968,293 @@ impl Monitor {
     }
 }
 
+/// Backend-neutral command surface used by targets that are not owned by the
+/// host simulator, such as the QEMU GDB remote backend.
+///
+/// The legacy [`Monitor`] remains the richer host profile for now. This type
+/// deliberately contains only operations whose state and semantics are
+/// available through [`TargetBackend`]; it is the migration seam for the
+/// eventual full debugger UI.
+pub struct BackendConsole<B> {
+    pub backend: B,
+    view_address: u64,
+    undo: Vec<MemoryEdit>,
+    max_run_steps: u64,
+}
+
+impl<B> BackendConsole<B>
+where
+    B: TargetBackend,
+    B::Error: std::fmt::Debug,
+{
+    pub fn new(backend: B) -> Self {
+        let view_address = backend.context().pc;
+        Self {
+            backend,
+            view_address,
+            undo: Vec::new(),
+            max_run_steps: 1000,
+        }
+    }
+
+    pub fn execute(&mut self, command: &str) -> Result<String> {
+        let command = command.trim();
+        if command.is_empty() {
+            return Ok(String::new());
+        }
+        let (name, argument) = command
+            .split_once(char::is_whitespace)
+            .map_or((command, ""), |(name, argument)| (name, argument.trim()));
+        match name.to_ascii_lowercase().as_str() {
+            "help" | "?" => Ok(backend_help()),
+            "assemble" | "a" => self.assemble(argument),
+            "step" | "s" => self.step(),
+            "run" | "r" => self.run(argument),
+            "regs" | "registers" => Ok(self.registers()),
+            "memory" | "mem" | "hex" | "ascii" => self.memory(argument),
+            "view" | "jump" => self.set_view(argument),
+            "edit" | "e" => self.edit(argument),
+            "undo" | "u" => self.undo_edit(),
+            "quit" | "exit" => Ok("bye".into()),
+            _ => Err(Diagnostic::error(
+                "MON-CMD-101",
+                format!("unknown backend command: {name}; use help"),
+            )),
+        }
+    }
+
+    fn assemble(&mut self, source: &str) -> Result<String> {
+        if source.is_empty() {
+            return Err(Diagnostic::error(
+                "MON-ASM-101",
+                "assemble expects one source line",
+            ));
+        }
+        let image = assemble(source)?;
+        let address = self.backend.context().pc;
+        self.backend
+            .write_memory(address, &image.text)
+            .map_err(target_error)?;
+        self.view_address = address;
+        Ok(format!(
+            "loaded {} byte(s) at 0x{address:016x}",
+            image.text.len()
+        ))
+    }
+
+    fn step(&mut self) -> Result<String> {
+        let pc_before = self.backend.context().pc;
+        let word = self.read_word(pc_before)?;
+        let outcome = self.backend.step().map_err(target_error)?;
+        Ok(format_backend_console_step(pc_before, word, outcome))
+    }
+
+    fn run(&mut self, argument: &str) -> Result<String> {
+        let limit = parse_run_limit(argument, self.max_run_steps)?;
+        let outcome = self.backend.run(limit).map_err(target_error)?;
+        Ok(format_backend_console_outcome(outcome))
+    }
+
+    fn registers(&self) -> String {
+        let context = self.backend.context();
+        let mut output = String::from("integer registers\n");
+        for row in 0..8 {
+            for column in 0..4 {
+                let register = row * 4 + column;
+                write!(output, "x{register:02}=0x{:016x}  ", context.x[register]).unwrap();
+            }
+            output.push('\n');
+        }
+        output.push_str("floating registers (raw bits)\n");
+        for row in 0..8 {
+            for column in 0..4 {
+                let register = row * 4 + column;
+                write!(output, "f{register:02}=0x{:016x}  ", context.f[register]).unwrap();
+            }
+            output.push('\n');
+        }
+        writeln!(
+            output,
+            "pc=0x{:016x} fcsr=0x{:08x} capabilities={:?}",
+            context.pc,
+            context.fcsr,
+            self.backend.capabilities()
+        )
+        .unwrap();
+        output.trim_end().into()
+    }
+
+    fn memory(&mut self, argument: &str) -> Result<String> {
+        let parts: Vec<_> = argument.split_whitespace().collect();
+        let (address, count) = match parts.as_slice() {
+            [] => (self.view_address, DEFAULT_MEMORY_VIEW_BYTES),
+            [address] => (
+                parse_address(address, "MON-MEM-101")?,
+                DEFAULT_MEMORY_VIEW_BYTES,
+            ),
+            [address, count] => (
+                parse_address(address, "MON-MEM-101")?,
+                parse_count(count, "MON-MEM-102")?,
+            ),
+            _ => {
+                return Err(Diagnostic::error(
+                    "MON-MEM-100",
+                    "memory expects [address] [count]",
+                ));
+            }
+        };
+        if count > MAX_MEMORY_VIEW_BYTES {
+            return Err(Diagnostic::error(
+                "MON-MEM-103",
+                "memory view exceeds the 4096-byte interactive limit",
+            ));
+        }
+        let mut bytes = vec![0u8; count];
+        self.backend
+            .read_memory(address, &mut bytes)
+            .map_err(target_error)?;
+        self.view_address = address;
+        format_memory_view(address, &bytes)
+    }
+
+    fn set_view(&mut self, argument: &str) -> Result<String> {
+        let parts: Vec<_> = argument.split_whitespace().collect();
+        let [address] = parts.as_slice() else {
+            return Err(Diagnostic::error(
+                "MON-MEM-104",
+                "view expects one target address",
+            ));
+        };
+        self.view_address = parse_address(address, "MON-MEM-105")?;
+        Ok(format!("view=0x{:016x}", self.view_address))
+    }
+
+    fn edit(&mut self, argument: &str) -> Result<String> {
+        let mut parts = argument.split_whitespace();
+        let address = parts
+            .next()
+            .ok_or_else(|| Diagnostic::error("MON-MEM-106", "edit expects an address and bytes"))
+            .and_then(|value| parse_address(value, "MON-MEM-101"))?;
+        let mut bytes = Vec::new();
+        for token in parts {
+            parse_byte_token(token, &mut bytes)?;
+            if bytes.len() > MAX_EDIT_BYTES {
+                return Err(Diagnostic::error(
+                    "MON-MEM-107",
+                    "edit exceeds the 4096-byte transaction limit",
+                ));
+            }
+        }
+        if bytes.is_empty() {
+            return Err(Diagnostic::error(
+                "MON-MEM-106",
+                "edit expects at least one byte",
+            ));
+        }
+        let mut previous = vec![0u8; bytes.len()];
+        self.backend
+            .read_memory(address, &mut previous)
+            .map_err(target_error)?;
+        self.backend
+            .write_memory(address, &bytes)
+            .map_err(target_error)?;
+        self.undo.push(MemoryEdit { address, previous });
+        self.view_address = address;
+        Ok(format!(
+            "edited {} byte(s) at 0x{address:016x}",
+            bytes.len()
+        ))
+    }
+
+    fn undo_edit(&mut self) -> Result<String> {
+        let edit = self
+            .undo
+            .pop()
+            .ok_or_else(|| Diagnostic::error("MON-MEM-108", "nothing to undo"))?;
+        self.backend
+            .write_memory(edit.address, &edit.previous)
+            .map_err(target_error)?;
+        self.view_address = edit.address;
+        Ok(format!("undid edit at 0x{:016x}", edit.address))
+    }
+
+    fn read_word(&mut self, address: u64) -> Result<u32> {
+        let mut bytes = [0u8; 4];
+        self.backend
+            .read_memory(address, &mut bytes)
+            .map_err(target_error)?;
+        Ok(u32::from_le_bytes(bytes))
+    }
+}
+
+fn target_error<E: std::fmt::Debug>(error: E) -> Diagnostic {
+    Diagnostic::error(
+        "MON-TARGET-001",
+        format!("target operation failed: {error:?}"),
+    )
+}
+
+fn format_backend_console_step(pc: u64, word: u32, outcome: ExecutionOutcome) -> String {
+    format!(
+        "0x{pc:016x}: {word:08x} -> {}",
+        format_backend_console_outcome(outcome)
+    )
+}
+
+fn format_backend_console_outcome(outcome: ExecutionOutcome) -> String {
+    match outcome {
+        ExecutionOutcome::Retired { pc_after, .. } => format!("pc=0x{pc_after:016x}"),
+        ExecutionOutcome::Stopped(event) => format_backend_stop(event),
+        ExecutionOutcome::BudgetExhausted {
+            pc,
+            instruction_count,
+        } => format!("budget exhausted at pc=0x{pc:016x}; total={instruction_count}"),
+    }
+}
+
+fn format_memory_view(address: u64, bytes: &[u8]) -> Result<String> {
+    let mut output = String::new();
+    for (row, chunk) in bytes.chunks(16).enumerate() {
+        let row_address = address
+            .checked_add((row * 16) as u64)
+            .ok_or_else(|| Diagnostic::error("MON-MEM-101", "address overflow"))?;
+        write!(output, "0x{row_address:016x}: ").unwrap();
+        for byte in chunk {
+            write!(output, "{byte:02x} ").unwrap();
+        }
+        for _ in chunk.len()..16 {
+            output.push_str("   ");
+        }
+        output.push('|');
+        for byte in chunk {
+            output.push(if (0x20..=0x7e).contains(byte) {
+                *byte as char
+            } else {
+                '.'
+            });
+        }
+        output.push('|');
+        output.push('\n');
+    }
+    Ok(output.trim_end().into())
+}
+
+fn backend_help() -> String {
+    [
+        "help                 show backend-neutral commands",
+        "assemble <source>    assemble and write at target pc",
+        "step                 execute one target instruction",
+        "run [count]          execute up to count target steps",
+        "regs                 show target registers and capabilities",
+        "memory [addr] [n]    show target memory as hex/ASCII",
+        "view <addr>          move memory view without changing pc",
+        "edit <addr> <bytes>  write target bytes transactionally",
+        "undo                 restore the last target memory edit",
+        "quit                 close the console",
+    ]
+    .join("\n")
+}
+
 fn format_flags(flags: u8) -> String {
     let mut names = Vec::new();
     for (mask, name) in [
@@ -1732,5 +2019,28 @@ mod tests {
         assert!(monitor.execute("symbols").unwrap().contains("done"));
         assert!(monitor.execute("where").unwrap().contains("_start"));
         std::fs::remove_file(path).unwrap();
+    }
+
+    #[test]
+    fn backend_console_runs_common_commands_against_machine_backend() {
+        let mut console = BackendConsole::new(Machine::new(128));
+        assert!(
+            console
+                .execute("assemble addi x1,x0,1")
+                .unwrap()
+                .contains("loaded 4 byte(s)")
+        );
+        console.execute("step").unwrap();
+        assert!(
+            console
+                .execute("regs")
+                .unwrap()
+                .contains("x01=0x0000000000000001")
+        );
+
+        let original = console.execute("memory 0 4").unwrap();
+        console.execute("edit 0 13 00 20 00").unwrap();
+        console.execute("undo").unwrap();
+        assert_eq!(console.execute("memory 0 4").unwrap(), original);
     }
 }

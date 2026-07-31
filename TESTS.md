@@ -13,7 +13,7 @@ Validation locale complète :
     bash scripts/test-qemu-gdb-backend.sh
     git diff --check
 
-La suite actuelle exécute 78 tests unitaires/intégration répartis dans les crates. Les doc-tests compilent mais ne contiennent actuellement aucun cas. Le script QEMU ouvre en plus une session GDB RSP réelle, hors comptage Cargo.
+La suite actuelle exécute 79 tests unitaires/intégration répartis dans les crates. Les doc-tests compilent mais ne contiennent actuellement aucun cas. Le script QEMU ouvre en plus une session GDB RSP réelle, hors comptage Cargo.
 
 Démonstration M-mode/U-mode sous QEMU :
 
@@ -45,7 +45,7 @@ Moniteur texte interactif :
 | luna-machine | 11 | Exécution entière, branches, mémoire, tables de pointeurs ILP32, fadd.s, fadd.d, NaN-boxing, flags et contrat backend. |
 | luna-disassembler | 7 | Format canonique, symboles, opcodes illégaux, C rejeté et round-trip. |
 | luna-floatfmt | 3 | Bits hex exacts, décimal court, classes IEEE et NaN-box invalide. |
-| luna-monitor | 18 | assemble → step → regs, affichage flottant, run borné, vues mémoire hex/ASCII, édition/undo, marques QuickJump, breakpoints, watchpoints, symboles, pile, historique et persistance. |
+| luna-monitor | 19 | assemble → step → regs, affichage flottant, run borné, vues mémoire hex/ASCII, édition/undo, console backend-générique, marques QuickJump, breakpoints, watchpoints, symboles, pile, historique et persistance. |
 | luna-target-api | 4 | Contexte de trap, capacités explicites RV64 bare-metal, codes `mcause`, contrat de layout, résultats et accès mémoire du backend commun. |
 | luna-qemu-backend | 7 | Framing GDB RSP, checksum, lecture mémoire, layouts RV64 entier et F/D, stop reply, initialisation `?`, pas et budget nul. |
 | luna-guest-monitor | 0 | Image bare-metal, boot QEMU, PMP, transition M→U, trap `ebreak` et boucle UART; vérifié par smoke test QEMU. |
@@ -170,6 +170,14 @@ observé avec QEMU 11.0.2 dans cette image (x0..x31, pc) et expose alors
 honnêtement des capacités F/D désactivées. `bash
 scripts/test-qemu-gdb-backend.sh` valide ce chemin sur un QEMU live, avec
 lecture de la RAM à `0x80000000` puis un pas.
+
+`luna-monitor::BackendConsole<B>` utilise le même contrat pour les commandes
+communes `assemble`, `step`, `run`, `regs`, `memory`, `view`, `edit` et `undo`.
+`luna-app --qemu-port PORT` sélectionne ce chemin et l’intègre à la boucle
+interactive ; la sonde live vérifie les registres, la RAM QEMU et le pas depuis
+le PC de reset. Les breakpoints, symboles multi-lignes, snapshots et
+watchpoints restent dans le profil `Monitor<Machine>` historique jusqu’à leur
+migration explicite vers le contrat backend.
 
 Le crate `luna-guest-monitor` est une première tranche d’intégration hors
 `cargo test` : il est compilé pour `riscv64gc-unknown-none-elf`, mais les

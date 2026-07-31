@@ -8,6 +8,7 @@ license.workspace = true
 luna-assembler = { path = "../assembler" }
 luna-machine = { path = "../machine" }
 luna-monitor = { path = "../monitor" }
+luna-qemu-backend = { path = "../qemu-backend" }
 
 [lints]
 workspace = true

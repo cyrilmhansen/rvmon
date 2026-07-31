@@ -8,7 +8,7 @@ port=12351
 qemu_log=${TMPDIR:-/tmp}/rvmonitor-qemu-gdb-$port.log
 
 cargo build -p luna-guest-monitor --target riscv64gc-unknown-none-elf >/dev/null
-cargo build -p luna-qemu-backend --example qemu_probe >/dev/null
+cargo build -p luna-app >/dev/null
 
 qemu-system-riscv64 \
     -M virt \
@@ -30,9 +30,13 @@ trap cleanup EXIT
 # keeps the first client session and that would consume the only RSP peer.
 sleep 0.2
 
-probe_output=$(timeout 10s cargo run --quiet -p luna-qemu-backend --example qemu_probe -- "$port")
-printf '%s\n' "$probe_output"
-grep -q '^qemu-connect: pc=0x' <<<"$probe_output"
-grep -q '^qemu-step: Stopped' <<<"$probe_output"
+console_output=$(printf 'regs\nmemory 0x80000000 4\nstep\nquit\n' \
+    | timeout 10s target/debug/luna-app --qemu-port "$port")
+printf '%s\n' "$console_output"
+grep -q '^RVMonitor QEMU backend on ' <<<"$console_output"
+grep -q '^pc=0x' <<<"$console_output"
+grep -q '^0x0000000080000000:' <<<"$console_output"
+grep -q '^0x0000000000001000:' <<<"$console_output"
+grep -q 'stopped: Breakpoint' <<<"$console_output"
 
 echo "QEMU GDB backend integration: PASS"
