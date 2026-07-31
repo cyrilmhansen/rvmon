@@ -1,10 +1,15 @@
 # Tutoriel rapide RVMonitor
 
-Ce tutoriel présente les deux chemins disponibles : le moniteur interne avec
-sa machine RV64 déterministe, puis la console hôte connectée à
-`qemu-system-riscv64` par GDB Remote Protocol.
+Ce tutoriel couvre les parcours exécutés sur l’hôte. Pour le parcours
+prioritaire, où le moniteur RV64 est lui-même cross-compilé et exécuté dans
+QEMU en M-mode, voir [TUTORIAL-GUEST.md](TUTORIAL-GUEST.md).
 
-## 1. Premier pas dans le moniteur interne
+Attention aux termes : le « moniteur interne » de ce document est le
+simulateur `luna-app` exécuté sur l’hôte ; il ne s’agit pas du
+`luna-guest-monitor` exécuté à l’intérieur de QEMU. La section QEMU ci-dessous
+décrit également `luna-app` sur l’hôte, connecté au guest par GDB RSP.
+
+## 1. Premier pas dans le simulateur hôte
 
 Depuis la racine du dépôt :
 
@@ -25,7 +30,8 @@ $ cargo run -p luna-app -- --script examples/internal-first-step.rv
 ```
 
 La commande `regs` affiche les registres entiers, les registres flottants et
-`fcsr`. La mémoire cible est isolée de la mémoire du processus hôte.
+`fcsr`. La mémoire cible est isolée de la mémoire du processus hôte. Ce
+parcours ne démarre pas QEMU.
 
 ## 2. Charger un petit programme et le suivre
 
@@ -103,7 +109,7 @@ rvmonitor> restore /tmp/machine.rvt
 snapshot restored
 ```
 
-## 5. Connecter QEMU
+## 5. Console hôte connectée à QEMU par GDB RSP
 
 Construire l’image bare-metal puis lancer QEMU arrêté sur son premier PC :
 

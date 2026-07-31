@@ -7,8 +7,10 @@ cargo test --workspace
 cargo run -p luna-app
 ```
 
-Voir [docs/TUTORIAL.md](docs/TUTORIAL.md) pour les exemples interactifs du
-moniteur interne et de la connexion QEMU.
+Le parcours prioritaire, avec le moniteur exécuté dans QEMU, est documenté
+dans [docs/TUTORIAL-GUEST.md](docs/TUTORIAL-GUEST.md). Voir aussi
+[docs/TUTORIAL.md](docs/TUTORIAL.md) pour le simulateur hôte et la console
+hôte connectée à QEMU par GDB RSP.
 
 The current slice includes the isolated RV64 simulator, the backend-neutral
 console, generic breakpoints/watchpoints/history, and a live GDB RSP path to
