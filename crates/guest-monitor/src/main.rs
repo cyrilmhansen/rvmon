@@ -4,6 +4,7 @@
 use core::arch::{asm, global_asm};
 use core::panic::PanicInfo;
 
+use luna_isa_core::{ADDI_MASK, ADDI_MATCH, GENERATED_OPCODES};
 use luna_target_api::Breakpoint;
 use luna_target_api::StopReason;
 use luna_target_api::TargetCapabilities;
@@ -20,6 +21,8 @@ const EBREAK_WORD: u32 = 0x0010_0073;
 const MAX_PERMANENT_BREAKPOINTS: usize = 4;
 const MAX_MEMORY_DUMP: u64 = 128;
 const MAX_SOURCE_LINES: usize = 16;
+const MAX_SYMBOLS: usize = 8;
+const SYMBOL_NAME_CAPACITY: usize = 16;
 
 global_asm!(include_str!("entry.S"));
 
@@ -28,7 +31,27 @@ static mut TEMPORARY_BREAKPOINT: Breakpoint = Breakpoint::disabled();
 static mut PERMANENT_BREAKPOINTS: [Breakpoint; MAX_PERMANENT_BREAKPOINTS] =
     [Breakpoint::disabled(); MAX_PERMANENT_BREAKPOINTS];
 static mut STEPPED_PERMANENT_BREAKPOINT: u8 = u8::MAX;
+static mut SYMBOLS: [GuestSymbol; MAX_SYMBOLS] = [GuestSymbol::empty(); MAX_SYMBOLS];
 static TARGET_STACK: [u8; 8192] = [0; 8192];
+
+#[derive(Clone, Copy)]
+struct GuestSymbol {
+    name: [u8; SYMBOL_NAME_CAPACITY],
+    length: usize,
+    address: u64,
+    enabled: bool,
+}
+
+impl GuestSymbol {
+    const fn empty() -> Self {
+        Self {
+            name: [0; SYMBOL_NAME_CAPACITY],
+            length: 0,
+            address: 0,
+            enabled: false,
+        }
+    }
+}
 
 #[panic_handler]
 fn panic(_info: &PanicInfo<'_>) -> ! {
@@ -101,6 +124,8 @@ fn monitor_loop(context: *mut TargetContext) -> ! {
             command if command.starts_with(b"assemble-program ") => {
                 assemble_program_command(context, &command[17..])
             }
+            b"symbols" => print_symbols(),
+            command if command.starts_with(b"disasm ") => print_disassembly(&command[7..]),
             b"step" | b"s" => step_target(context),
             b"continue" | b"c" => continue_target(context),
             command if command.starts_with(b"break ") => break_target(&command[6..]),
@@ -117,7 +142,7 @@ fn monitor_loop(context: *mut TargetContext) -> ! {
 
 fn print_help() {
     uart_write(
-        "help/? regs/registers memory <addr> <length> assemble <addr> addi <rd>,<rs1>,<imm> assemble-program <addr> ... end step/s continue/c break <addr> delete <n> info break quit/q\r\n",
+        "help/? regs/registers memory <addr> <length> assemble <addr> addi <rd>,<rs1>,<imm> assemble-program <addr> ... end symbols disasm <addr|label> <count> step/s continue/c break <addr|label> delete <n> info break quit/q\r\n",
     );
 }
 
@@ -225,6 +250,103 @@ fn parse_memory_range(argument: &[u8]) -> Option<(u64, u64)> {
     Some((address, length))
 }
 
+fn print_symbols() {
+    uart_write("symbols:\r\n");
+    let mut found = false;
+    for index in 0..MAX_SYMBOLS {
+        let symbol = unsafe { core::ptr::read_volatile(core::ptr::addr_of!(SYMBOLS[index])) };
+        if symbol.enabled {
+            found = true;
+            uart_write("  0x");
+            uart_hex(symbol.address);
+            uart_write(" ");
+            uart_bytes(&symbol.name[..symbol.length]);
+            uart_write("\r\n");
+        }
+    }
+    if !found {
+        uart_write("  none\r\n");
+    }
+}
+
+fn print_disassembly(argument: &[u8]) {
+    let Some((address, count)) = split_once_address_space(argument) else {
+        uart_write("error: disasm expects <address|label> <decimal-count>\r\n");
+        return;
+    };
+    if count == 0 || count > 16 {
+        uart_write("error: disasm count must be between 1 and 16\r\n");
+        return;
+    }
+    let Some(end) = address.checked_add(count * 4) else {
+        uart_write("error: disasm range overflows\r\n");
+        return;
+    };
+    if address % 4 != 0 || address < TARGET_RAM_START || end > TARGET_RAM_END {
+        uart_write("error: disasm range is outside target RAM\r\n");
+        return;
+    }
+    for index in 0..count {
+        let instruction_address = address + index * 4;
+        let Some(word) = target_load32(instruction_address) else {
+            uart_write("error: cannot read disassembly word\r\n");
+            return;
+        };
+        uart_write("0x");
+        uart_hex(instruction_address);
+        uart_write(": ");
+        uart_hex(u64::from(word));
+        if let Some(symbol) = symbol_at(instruction_address) {
+            uart_write(" <");
+            uart_bytes(&symbol.name[..symbol.length]);
+            uart_write(">");
+        }
+        uart_write("  ");
+        print_disassembled_word(word);
+        uart_write("\r\n");
+    }
+}
+
+fn print_disassembled_word(word: u32) {
+    if word == EBREAK_WORD {
+        uart_write("ebreak");
+        return;
+    }
+    if word & ADDI_MASK == ADDI_MATCH {
+        let rd = ((word >> 7) & 31) as u8;
+        let rs1 = ((word >> 15) & 31) as u8;
+        let immediate = (word as i32 >> 20) as i16;
+        uart_write("addi x");
+        uart_decimal(u64::from(rd));
+        uart_write(",x");
+        uart_decimal(u64::from(rs1));
+        uart_write(",");
+        uart_signed_decimal(immediate);
+        return;
+    }
+    for opcode in GENERATED_OPCODES {
+        if opcode.extension == "rv_c" || opcode.extension == "rv64_c" {
+            continue;
+        }
+        if word & opcode.mask == opcode.match_value {
+            uart_write(opcode.mnemonic);
+            return;
+        }
+    }
+    uart_write(".word 0x");
+    uart_hex(u64::from(word));
+}
+
+fn symbol_at(address: u64) -> Option<GuestSymbol> {
+    for index in 0..MAX_SYMBOLS {
+        let symbol = unsafe { core::ptr::read_volatile(core::ptr::addr_of!(SYMBOLS[index])) };
+        if symbol.enabled && symbol.address == address {
+            return Some(symbol);
+        }
+    }
+    None
+}
+
 fn assemble_command(context: *mut TargetContext, argument: &[u8]) {
     let Some((address, source)) = split_once_space(argument) else {
         uart_write("error: assemble expects <address> addi <rd>,<rs1>,<imm>\r\n");
@@ -238,7 +360,8 @@ fn assemble_command(context: *mut TargetContext, argument: &[u8]) {
         uart_write("error: cannot assemble over an active breakpoint\r\n");
         return;
     }
-    let Some(word) = parse_addi_source(source) else {
+    let empty_symbols = [GuestSymbol::empty(); MAX_SYMBOLS];
+    let Some(word) = parse_addi_source(source, &empty_symbols) else {
         uart_write("error: expected addi <rd>,<rs1>,<imm> with valid operands\r\n");
         return;
     };
@@ -302,7 +425,39 @@ fn assemble_program_command(context: *mut TargetContext, argument: &[u8]) {
         uart_write("error: source program is empty\r\n");
         return;
     }
-    let Some(end_address) = address.checked_add((count as u64) * 4) else {
+    let mut staged_symbols = [GuestSymbol::empty(); MAX_SYMBOLS];
+    let mut instruction_count = 0usize;
+    for index in 0..count {
+        let line = &lines[index][..lengths[index]];
+        if let Some(label) = line.strip_suffix(b":") {
+            let line_address = address + (instruction_count as u64) * 4;
+            let Some(symbol) = make_symbol(label, line_address) else {
+                uart_write("error: invalid, duplicate or too many source labels\r\n");
+                return;
+            };
+            if staged_symbols
+                .iter()
+                .any(|slot| slot.enabled && &slot.name[..slot.length] == label)
+            {
+                uart_write("error: invalid, duplicate or too many source labels\r\n");
+                return;
+            }
+            if let Some(slot) = staged_symbols.iter_mut().find(|slot| !slot.enabled) {
+                *slot = symbol;
+            } else {
+                uart_write("error: invalid, duplicate or too many source labels\r\n");
+                return;
+            }
+        } else {
+            instruction_count += 1;
+        }
+    }
+    if instruction_count == 0 {
+        uart_write("error: source program contains no instructions\r\n");
+        return;
+    }
+
+    let Some(end_address) = address.checked_add((instruction_count as u64) * 4) else {
         uart_write("error: source program address overflows\r\n");
         return;
     };
@@ -312,12 +467,18 @@ fn assemble_program_command(context: *mut TargetContext, argument: &[u8]) {
     }
 
     let mut words = [0u32; MAX_SOURCE_LINES];
+    let mut word_addresses = [0u64; MAX_SOURCE_LINES];
+    let mut word_count = 0usize;
     for index in 0..count {
-        let Some(word) = parse_addi_source(&lines[index][..lengths[index]]) else {
+        let line = &lines[index][..lengths[index]];
+        if line.ends_with(b":") {
+            continue;
+        }
+        let Some(word) = parse_addi_source(line, &staged_symbols) else {
             uart_write("error: source line supports only valid addi syntax\r\n");
             return;
         };
-        let line_address = address + (index as u64) * 4;
+        let line_address = address + (word_count as u64) * 4;
         if !valid_target_program_word_address(line_address) {
             uart_write("error: source program exceeds target workspace\r\n");
             return;
@@ -327,12 +488,13 @@ fn assemble_program_command(context: *mut TargetContext, argument: &[u8]) {
             uart_write("error: source overlaps an active breakpoint\r\n");
             return;
         }
-        words[index] = word;
+        words[word_count] = word;
+        word_addresses[word_count] = line_address;
+        word_count += 1;
     }
 
-    for index in 0..count {
-        let line_address = address + (index as u64) * 4;
-        if !target_store32(line_address, words[index]) {
+    for index in 0..word_count {
+        if !target_store32(word_addresses[index], words[index]) {
             uart_write("error: cannot write assembled source program\r\n");
             return;
         }
@@ -343,20 +505,25 @@ fn assemble_program_command(context: *mut TargetContext, argument: &[u8]) {
     context.mepc = address;
     context.mcause = StopReason::Breakpoint as u64;
     context.mtval = 0;
+    unsafe {
+        for (index, symbol) in staged_symbols.iter().enumerate() {
+            core::ptr::write_volatile(core::ptr::addr_of_mut!(SYMBOLS[index]), *symbol);
+        }
+    }
     uart_write("assembled program: ");
-    uart_decimal(count as u64);
+    uart_decimal(word_count as u64);
     uart_write(" instruction(s) at 0x");
     uart_hex(address);
     uart_write("\r\n");
 }
 
-fn parse_addi_source(source: &[u8]) -> Option<u32> {
+fn parse_addi_source(source: &[u8], symbols: &[GuestSymbol; MAX_SYMBOLS]) -> Option<u32> {
     let operands = source.strip_prefix(b"addi ")?;
     let (rd_bytes, rest) = split_once_comma(operands)?;
     let (rs1_bytes, imm_bytes) = split_once_comma(rest)?;
     let rd = parse_register(rd_bytes.trim_ascii())?;
     let rs1 = parse_register(rs1_bytes.trim_ascii())?;
-    let imm = parse_signed_decimal(imm_bytes.trim_ascii())?;
+    let imm = parse_signed_decimal_or_symbol(imm_bytes.trim_ascii(), symbols)?;
     luna_isa_core::encode_addi(rd, rs1, imm)
 }
 
@@ -364,6 +531,25 @@ fn split_once_space(input: &[u8]) -> Option<(u64, &[u8])> {
     let separator = input.iter().position(|byte| *byte == b' ')?;
     let address = parse_hex(&input[..separator])?;
     Some((address, input[separator + 1..].trim_ascii()))
+}
+
+fn split_once_address_space(input: &[u8]) -> Option<(u64, u64)> {
+    let separator = input.iter().position(|byte| *byte == b' ')?;
+    let address = parse_address_or_symbol(&input[..separator])?;
+    let count = parse_decimal(input[separator + 1..].trim_ascii())?;
+    Some((address, count))
+}
+
+fn parse_address_or_symbol(input: &[u8]) -> Option<u64> {
+    parse_hex(input).or_else(|| {
+        for index in 0..MAX_SYMBOLS {
+            let symbol = unsafe { core::ptr::read_volatile(core::ptr::addr_of!(SYMBOLS[index])) };
+            if symbol.enabled && &symbol.name[..symbol.length] == input {
+                return Some(symbol.address);
+            }
+        }
+        None
+    })
 }
 
 fn split_once_comma(input: &[u8]) -> Option<(&[u8], &[u8])> {
@@ -387,6 +573,37 @@ fn parse_signed_decimal(input: &[u8]) -> Option<i16> {
     }
     let value = parse_decimal(input)?;
     (value <= 2047).then_some(value as i16)
+}
+
+fn parse_signed_decimal_or_symbol(
+    input: &[u8],
+    symbols: &[GuestSymbol; MAX_SYMBOLS],
+) -> Option<i16> {
+    parse_signed_decimal(input).or_else(|| {
+        let address = symbols
+            .iter()
+            .find(|symbol| symbol.enabled && &symbol.name[..symbol.length] == input)?
+            .address;
+        i16::try_from(address).ok()
+    })
+}
+
+fn make_symbol(name: &[u8], address: u64) -> Option<GuestSymbol> {
+    if name.is_empty() || name.len() >= SYMBOL_NAME_CAPACITY {
+        return None;
+    }
+    if !name
+        .iter()
+        .all(|byte| byte.is_ascii_alphanumeric() || *byte == b'_' || *byte == b'.' || *byte == b'$')
+    {
+        return None;
+    }
+    let mut symbol = GuestSymbol::empty();
+    symbol.name[..name.len()].copy_from_slice(name);
+    symbol.length = name.len();
+    symbol.address = address;
+    symbol.enabled = true;
+    Some(symbol)
 }
 
 fn step_target(context: *mut TargetContext) -> ! {
@@ -485,8 +702,8 @@ fn continue_target(context: *mut TargetContext) -> ! {
 }
 
 fn break_target(argument: &[u8]) {
-    let Some(address) = parse_hex(argument) else {
-        uart_write("error: break expects an address such as 0x80000010\r\n");
+    let Some(address) = parse_address_or_symbol(argument) else {
+        uart_write("error: break expects an address or a known label\r\n");
         return;
     };
     if !valid_target_word_address(address) {
@@ -869,6 +1086,15 @@ fn uart_decimal(mut value: u64) {
     }
 }
 
+fn uart_signed_decimal(value: i16) {
+    if value < 0 {
+        uart_put(b'-');
+        uart_decimal(u64::from(value.unsigned_abs()));
+    } else {
+        uart_decimal(u64::from(value as u16));
+    }
+}
+
 fn parse_hex(input: &[u8]) -> Option<u64> {
     let input = input.strip_prefix(b"0x").unwrap_or(input);
     if input.is_empty() {
@@ -913,6 +1139,12 @@ unsafe extern "C" {
 fn uart_write(text: &str) {
     for byte in text.bytes() {
         uart_put(byte);
+    }
+}
+
+fn uart_bytes(bytes: &[u8]) {
+    for byte in bytes {
+        uart_put(*byte);
     }
 }
 

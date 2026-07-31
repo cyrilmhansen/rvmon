@@ -16,9 +16,9 @@ terminal                           <-- commandes et diagnostics UART
 Ce binaire invité est actuellement un moniteur de démarrage et de débogage
 minimal. Il fournit déjà l’inspection des registres, la lecture mémoire et
 des commandes `assemble` et `assemble-program` limitées à `addi`. Les vues
-désassemblées complètes, les symboles, les directives et les snapshots restent
-à porter. Le programme U-mode de démonstration est lié dans l’image et sert à
-valider les traps, les breakpoints logiciels et le pas-à-pas.
+les directives et les snapshots restent à porter. Le programme U-mode de
+démonstration est lié dans l’image et sert à valider les traps, les
+breakpoints logiciels et le pas-à-pas.
 
 ## 1. Préparer les outils
 
@@ -132,10 +132,19 @@ Chaque ligne est validée avant toute écriture ; `end` termine la saisie :
 ```text
 rvmonitor> assemble-program 0x80010a30
 source mode: enter addi lines, finish with end
+source> _start:
 source> addi x1,x0,1
+source> next:
 source> addi x1,x1,2
 source> end
 assembled program: 2 instruction(s) at 0x0000000080010a30
+rvmonitor> symbols
+symbols:
+  0x0000000080010a30 _start
+  0x0000000080010a34 next
+rvmonitor> disasm _start 2
+0x0000000080010a30: 0000000000100093 <_start>  addi x1,x0,1
+0x0000000080010a34: 0000000000208093 <next>  addi x1,x1,2
 rvmonitor> step
 trap: breakpoint pc=0x0000000080010a34
 rvmonitor> step
@@ -144,10 +153,12 @@ rvmonitor> regs
 ... x1=0x0000000000000003 ...
 ```
 
-Le tampon accepte au maximum 16 lignes de 96 caractères. L’adresse de
-l’exemple doit correspondre à une zone RAM libre, qui ne recouvre ni le code,
-ni la pile, ni les données du moniteur ; le smoke test la calcule à partir de
-`_stack_top` avec `nm`.
+Le tampon accepte au maximum 16 lignes de 96 caractères et huit labels. Les
+labels ASCII (`a-z`, chiffres, `_`, `.` et `$`) occupent l’adresse courante
+sans produire d’instruction. L’adresse de l’exemple doit correspondre à une
+zone RAM libre, qui ne recouvre ni le code, ni la pile, ni les données du
+moniteur ; le smoke test la calcule à partir de `_target_workspace_start` avec
+`nm`.
 
 ### Exécuter une instruction
 
@@ -262,14 +273,15 @@ Les commandes suivantes appartiennent aujourd’hui au moniteur hôte ou au
 simulateur interne, pas encore au binaire exécuté dans QEMU :
 
 ```text
-disasm, edit, undo, watch, rwatch, symbols, history,
-project-save, project-load, snapshot, restore
+edit, undo, watch, rwatch, history, project-save, project-load, snapshot,
+restore
 ```
 
 Le cycle d’une ligne et le source buffer multi-ligne existent désormais pour
-`addi`. La prochaine étape est la prise en charge des expressions, labels,
-directives et du désassembleur, en conservant le moniteur M-mode et le
-programme cible U-mode séparés.
+`addi`, les labels et le désassemblage des mots 32 bits. La prochaine étape est
+la prise en charge des expressions, directives et des instructions de contrôle
+avec résolution de labels, en conservant le moniteur M-mode et le programme
+cible U-mode séparés.
 
 ## 6. Différence avec les deux autres parcours
 

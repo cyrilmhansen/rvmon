@@ -21,7 +21,7 @@ assembly_address_full="$(printf '0x%016x' "$((16#$workspace_start_hex + 0x100))"
 
 set +e
 output="$({
-    printf 'help\nregs\nmemory 0x80000000 16\nbreak %s\ninfo break\ncontinue\nregs\ncontinue\ndelete 1\nstep\nregs\nstep\nregs\nassemble-program %s\naddi x1,x0,1\naddi x1,x1,2\nend\nstep\nregs\nstep\nregs\nquit\n' \
+    printf 'help\nregs\nmemory 0x80000000 16\nbreak %s\ninfo break\ncontinue\nregs\ncontinue\ndelete 1\nstep\nregs\nstep\nregs\nassemble-program %s\n_start:\naddi x1,x0,1\nnext:\naddi x1,x1,2\nend\nsymbols\ndisasm _start 2\nbreak next\ninfo break\ndelete 1\nstep\nregs\nstep\nregs\nquit\n' \
         "$breakpoint_address" "$assembly_address"
 } | timeout 5s qemu-system-riscv64 \
     -M virt \
@@ -49,6 +49,12 @@ for expected in \
     'f31=0x' \
     'source mode: enter addi lines, finish with end' \
     "assembled program: 2 instruction(s) at $assembly_address_full" \
+    '_start' \
+    'next' \
+    'addi x1,x0,1' \
+    'addi x1,x1,2' \
+    'breakpoint #1 set at' \
+    'breakpoint #1 deleted' \
     'x1=0x0000000000000003' \
     'x1=0x0000000000000002'; do
     if ! [[ "$output" == *"$expected"* ]]; then

@@ -216,8 +216,9 @@ pose un breakpoint permanent sur le `beq`, vérifie `info break`, exécute
 franchir l’instruction originale et vérifier le réarmement. Il supprime ensuite
 le breakpoint et reprend deux pas temporaires. La séquence vérifie la
 restauration des mots, les instructions séquentielles, `beq`/`bne`, `jal` et
-`jalr` du profil actuellement émis. Il assemble enfin deux lignes `addi` dans
-la fenêtre de travail réservée, exécute deux pas et vérifie `x1=3` ainsi que
+`jalr` du profil actuellement émis. Il assemble enfin deux lignes `addi` avec
+labels dans la fenêtre de travail réservée, vérifie `symbols` et `disasm`,
+pose un breakpoint par label, exécute deux pas et vérifie `x1=3` ainsi que
 l’encodage partagé.
 
 Le backend QEMU limite volontairement la table à quatre breakpoints permanents
