@@ -983,6 +983,7 @@ impl Monitor {
 /// eventual full debugger UI.
 pub struct BackendConsole<B> {
     pub backend: B,
+    symbols: BTreeMap<u64, String>,
     view_address: u64,
     undo: Vec<MemoryEdit>,
     breakpoints: BTreeMap<u64, BackendBreakpoint>,
@@ -1003,6 +1004,7 @@ where
         let view_address = backend.context().pc;
         Self {
             backend,
+            symbols: BTreeMap::new(),
             view_address,
             undo: Vec::new(),
             breakpoints: BTreeMap::new(),
@@ -1026,10 +1028,14 @@ where
         match name.to_ascii_lowercase().as_str() {
             "help" | "?" => Ok(backend_help()),
             "assemble" | "a" => self.assemble(argument),
+            "assemble-program" | "load" => self.assemble_program(argument),
             "step" | "s" => self.step(),
             "run" | "r" => self.run(argument),
             "continue" | "c" => self.continue_target(argument),
             "regs" | "registers" => Ok(self.registers()),
+            "disasm" | "d" => self.disassemble(argument),
+            "symbols" => self.show_symbols(),
+            "where" => Ok(self.show_location()),
             "memory" | "mem" | "hex" | "ascii" => self.memory(argument),
             "view" | "jump" => self.set_view(argument),
             "edit" | "e" => self.edit(argument),
@@ -1068,9 +1074,41 @@ where
         ))
     }
 
+    fn assemble_program(&mut self, source: &str) -> Result<String> {
+        if source.trim().is_empty() {
+            return Err(Diagnostic::error(
+                "MON-ASM-102",
+                "assemble-program expects at least one source line",
+            ));
+        }
+        let image = assemble_source_program(source)?;
+        let base = self.backend.context().pc;
+        self.backend
+            .write_memory(base, &image.text)
+            .map_err(target_error)?;
+        let mut symbols = BTreeMap::new();
+        for (name, offset) in image.symbols {
+            let address = base
+                .checked_add(offset)
+                .ok_or_else(|| Diagnostic::error("MON-ASM-103", "symbol address overflow"))?;
+            symbols.insert(address, name);
+        }
+        self.symbols = symbols;
+        self.view_address = base;
+        let entry = base
+            .checked_add(image.entry)
+            .ok_or_else(|| Diagnostic::error("MON-ASM-103", "entry address overflow"))?;
+        Ok(format!(
+            "loaded {} byte(s) at 0x{base:016x}; entry=0x{entry:016x}; {} symbol(s)",
+            image.text.len(),
+            self.symbols.len()
+        ))
+    }
+
     fn step(&mut self) -> Result<String> {
         let pc_before = self.backend.context().pc;
         let word = self.read_word(pc_before)?;
+        let text = disassemble_word(pc_before, word, &self.symbols).text;
         let outcome = self.backend.step().map_err(target_error)?;
         if let ExecutionOutcome::Retired {
             pc_after,
@@ -1090,7 +1128,7 @@ where
                 }
             }
         }
-        Ok(format_backend_console_step(pc_before, word, outcome))
+        Ok(format_backend_console_step(pc_before, word, &text, outcome))
     }
 
     fn run(&mut self, argument: &str) -> Result<String> {
@@ -1183,6 +1221,87 @@ where
         )
         .unwrap();
         output.trim_end().into()
+    }
+
+    fn disassemble(&mut self, argument: &str) -> Result<String> {
+        let parts: Vec<_> = argument.split_whitespace().collect();
+        let (address, count) = match parts.as_slice() {
+            [] => (self.backend.context().pc, 4),
+            [count] => (
+                self.backend.context().pc,
+                parse_count(count, "MON-DISASM-101")?,
+            ),
+            [address, count] => (
+                self.resolve_address(address, "MON-DISASM-102")?,
+                parse_count(count, "MON-DISASM-101")?,
+            ),
+            _ => {
+                return Err(Diagnostic::error(
+                    "MON-DISASM-101",
+                    "disasm expects [addr] [count]",
+                ));
+            }
+        };
+        if count > MAX_MEMORY_VIEW_BYTES / 4 {
+            return Err(Diagnostic::error(
+                "MON-DISASM-103",
+                "disassembly count exceeds the 1024-instruction interactive limit",
+            ));
+        }
+        let mut output = String::new();
+        for index in 0..count {
+            let address = address
+                .checked_add(
+                    (index as u64)
+                        .checked_mul(4)
+                        .ok_or_else(|| Diagnostic::error("MON-DISASM-102", "address overflow"))?,
+                )
+                .ok_or_else(|| Diagnostic::error("MON-DISASM-102", "address overflow"))?;
+            let word = self.read_word(address)?;
+            let line = disassemble_word(address, word, &self.symbols);
+            writeln!(output, "0x{address:016x}: {word:08x}  {}", line.text).unwrap();
+        }
+        Ok(output.trim_end().into())
+    }
+
+    fn show_symbols(&self) -> Result<String> {
+        if self.symbols.is_empty() {
+            return Ok("symbols: none".into());
+        }
+        let mut output = String::from("symbols:\n");
+        for (address, name) in &self.symbols {
+            writeln!(output, "  0x{address:016x} {name}").unwrap();
+        }
+        Ok(output.trim_end().into())
+    }
+
+    fn show_location(&self) -> String {
+        let pc = self.backend.context().pc;
+        let symbol = self
+            .symbols
+            .range(..=pc)
+            .next_back()
+            .map(|(address, name)| {
+                if *address == pc {
+                    name.clone()
+                } else {
+                    format!("{name}+0x{:x}", pc - address)
+                }
+            })
+            .unwrap_or_else(|| "<no-symbol>".into());
+        format!("pc=0x{pc:016x} {symbol} view=0x{:016x}", self.view_address)
+    }
+
+    fn resolve_address(&self, value: &str, code: &'static str) -> Result<u64> {
+        let name = value.strip_prefix('@').unwrap_or(value);
+        if let Some(address) = self
+            .symbols
+            .iter()
+            .find_map(|(address, symbol)| (symbol == name).then_some(*address))
+        {
+            return Ok(address);
+        }
+        parse_address(value, code)
     }
 
     fn memory(&mut self, argument: &str) -> Result<String> {
@@ -1466,7 +1585,7 @@ where
             sequence,
             pc_before,
             pc_after,
-            instruction: format!(".word 0x{word:08x}"),
+            instruction: disassemble_word(pc_before, word, &self.symbols).text,
             memory_access,
         });
     }
@@ -1523,9 +1642,14 @@ fn target_error<E: std::fmt::Debug>(error: E) -> Diagnostic {
     )
 }
 
-fn format_backend_console_step(pc: u64, word: u32, outcome: ExecutionOutcome) -> String {
+fn format_backend_console_step(
+    pc: u64,
+    word: u32,
+    text: &str,
+    outcome: ExecutionOutcome,
+) -> String {
     format!(
-        "0x{pc:016x}: {word:08x} -> {}",
+        "0x{pc:016x}: {word:08x}  {text} -> {}",
         format_backend_console_outcome(outcome)
     )
 }
@@ -1572,10 +1696,14 @@ fn backend_help() -> String {
     [
         "help                 show backend-neutral commands",
         "assemble <source>    assemble and write at target pc",
+        "assemble-program <source> load a multi-line image and symbols",
         "step                 execute one target instruction",
         "run [count]          execute up to count target steps",
         "continue [count]     resume, bypassing a breakpoint at current pc",
         "regs                 show target registers and capabilities",
+        "disasm [addr] [n]    disassemble target words with symbols",
+        "symbols              list loaded symbols",
+        "where                show pc, nearest symbol and memory view",
         "memory [addr] [n]    show target memory as hex/ASCII",
         "view <addr>          move memory view without changing pc",
         "edit <addr> <bytes>  write target bytes transactionally",
@@ -2426,6 +2554,26 @@ mod tests {
         assert_eq!(
             memory_console.execute("delete watch 1").unwrap(),
             "watchpoint #1 deleted"
+        );
+
+        let mut symbol_console = BackendConsole::new(Machine::new(128));
+        symbol_console
+            .execute("assemble-program _start: jal x0,func\nfunc: addi x1,x0,1")
+            .unwrap();
+        assert!(symbol_console.execute("symbols").unwrap().contains("func"));
+        assert!(
+            symbol_console
+                .execute("disasm 0 2")
+                .unwrap()
+                .contains("jal x0,func")
+        );
+        assert!(symbol_console.execute("where").unwrap().contains("_start"));
+        symbol_console.execute("step").unwrap();
+        assert!(
+            symbol_console
+                .execute("history")
+                .unwrap()
+                .contains("jal x0,func")
         );
     }
 }

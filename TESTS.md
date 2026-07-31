@@ -172,8 +172,9 @@ scripts/test-qemu-gdb-backend.sh` valide ce chemin sur un QEMU live, avec
 lecture de la RAM à `0x80000000` puis un pas.
 
 `luna-monitor::BackendConsole<B>` utilise le même contrat pour les commandes
-communes `assemble`, `step`, `run`, `continue`, `regs`, `memory`, `view`,
-`edit`, `undo`, `break`, `delete` et `info break`. Ses breakpoints sont
+communes `assemble`, `assemble-program`, `step`, `run`, `continue`, `regs`,
+`disasm`, `symbols`, `where`, `memory`, `view`, `edit`, `undo`, `break`,
+`delete` et `info break`. Ses breakpoints sont
 logiques côté moniteur : ils arrêtent avant l’appel au backend et ne modifient
 pas la mémoire cible. Les commandes `watch`, `rwatch`, `awatch`, `info watch`
 et `history` utilisent les `MemoryAccess` et l’historique borné retournés par
