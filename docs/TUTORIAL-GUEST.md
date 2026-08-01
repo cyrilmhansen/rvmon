@@ -17,7 +17,8 @@ Ce binaire invité est actuellement un moniteur de démarrage et de débogage
 minimal. Il fournit déjà l’inspection des registres, les vues mémoire hex/ASCII,
 les directives de données exactes et des commandes `assemble` et
 `assemble-program` limitées à `addi`, `lui`, `beq`, `bne`, `jal`, `jalr`, `ld`,
-`sd`, `fadd.s`, `fadd.d`, `fmv.w.x` et `fmv.x.w`. Les vues avancées, les
+`sd`, `add`, `sub`, `mul`, `div`, `fadd.s`, `fadd.d`, `fdiv.d`, `ecall`,
+`ebreak`, `fmv.w.x` et `fmv.x.w`. Les vues avancées, les
 watchpoints, l’historique et les snapshots restent à porter. Le programme U-mode de
 démonstration est lié dans l’image et sert à valider les traps, les
 breakpoints logiciels et le pas-à-pas.
@@ -84,6 +85,26 @@ Le premier `ebreak` du programme U-mode arrête volontairement la cible. Le
 PC exact dépend du placement final de l’image ; il faut utiliser l’adresse
 affichée par QEMU ou celle calculée avec `nm`, jamais supposer une adresse
 fixe dans un tutoriel automatisable.
+
+### ABI des services U-mode
+
+Un programme cible peut demander un service au moniteur M-mode avec `ecall`.
+Le numéro de service est dans `a7` (`x17`) et les arguments/résultats dans
+`a0` (`x10`) et `a1` (`x11`). Le moniteur avance `mepc` de 4 octets et reprend
+le programme sans afficher de trap de débogage pour les services valides.
+
+| `a7` | Service | Entrée | Résultat |
+|---:|---|---|---|
+| 1 | `write_char` | `a0` octet bas | aucun |
+| 2 | `read_char` | aucune | `a0` octet reçu, bloquant |
+| 3 | `exit` | `a0` code | arrêt au prompt avec le code affiché |
+| 4 | `write_buffer` | `a0` adresse RV64, `a1` longueur ≤4096 | aucun |
+
+Les adresses du service 4 doivent rester dans la RAM cible ; l’hôte n’est
+jamais lu ou écrit directement. Le caractère ASCII Ctrl-C (`0x03`) est
+retourné par `read_char` et constitue le mécanisme d’interruption coopératif
+du futur MiniBASIC. Un service inconnu produit `GUEST-IO-002` et rend la main
+au prompt.
 
 ## 3. Commandes disponibles dans le guest
 

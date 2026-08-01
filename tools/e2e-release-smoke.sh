@@ -12,6 +12,8 @@ fi
 
 scripts=(
     scripts/test-guest-monitor.sh
+    scripts/test-guest-ecall.sh
+    scripts/test-guest-fdiv.sh
     scripts/test-guest-run.sh
     scripts/test-guest-ld-sd.sh
     scripts/test-guest-source.sh

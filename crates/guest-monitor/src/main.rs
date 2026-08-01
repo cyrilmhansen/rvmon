@@ -36,6 +36,11 @@ const MAX_METADATA_SOURCE_BYTES: usize = MAX_SOURCE_LINES * COMMAND_CAPACITY;
 const MAX_SOURCE_LINES: usize = 16;
 const MAX_SYMBOLS: usize = 8;
 const SYMBOL_NAME_CAPACITY: usize = 16;
+// Target service ABI: a7 selects the service; a0/a1 carry arguments/results.
+const ECALL_WRITE_CHAR: u64 = 1;
+const ECALL_READ_CHAR: u64 = 2;
+const ECALL_EXIT: u64 = 3;
+const ECALL_WRITE_BUFFER: u64 = 4;
 
 global_asm!(include_str!("entry.S"));
 
@@ -213,6 +218,9 @@ pub extern "C" fn rust_main() -> ! {
 #[unsafe(no_mangle)]
 pub extern "C" fn rust_trap(context: *mut TargetContext) -> ! {
     let context = unsafe { &mut *context };
+    if context.mcause == StopReason::EnvironmentCall as u64 {
+        handle_environment_call(context);
+    }
     restore_temporary_breakpoint();
     restore_stepped_permanent_breakpoint();
     let budget_stop = context.mcause == StopReason::Breakpoint as u64
@@ -252,6 +260,59 @@ pub extern "C" fn rust_trap(context: *mut TargetContext) -> ! {
         uart_write("run: budget exhausted\r\n");
     }
     monitor_loop(context as *const TargetContext as *mut TargetContext);
+}
+
+fn handle_environment_call(context: &mut TargetContext) -> ! {
+    match context.x[17] {
+        ECALL_WRITE_CHAR => {
+            uart_put(context.x[10] as u8);
+            resume_after_environment_call(context);
+        }
+        ECALL_READ_CHAR => {
+            context.x[10] = u64::from(uart_get());
+            resume_after_environment_call(context);
+        }
+        ECALL_WRITE_BUFFER => {
+            let address = context.x[10];
+            let length = context.x[11];
+            if length > 4096
+                || address < TARGET_RAM_START
+                || address
+                    .checked_add(length)
+                    .is_none_or(|end| end > TARGET_RAM_END)
+            {
+                guest_error(b"GUEST-IO-001", b"write buffer is outside target RAM");
+                monitor_loop(context);
+            }
+            for offset in 0..length {
+                let byte = unsafe { core::ptr::read_volatile((address + offset) as *const u8) };
+                uart_put(byte);
+            }
+            resume_after_environment_call(context);
+        }
+        ECALL_EXIT => {
+            uart_write("target exit status=");
+            uart_decimal(context.x[10]);
+            uart_write("\r\n");
+            context.mcause = StopReason::Breakpoint as u64;
+            monitor_loop(context);
+        }
+        _ => {
+            guest_error(b"GUEST-IO-002", b"unknown environment service");
+            monitor_loop(context);
+        }
+    }
+}
+
+fn resume_after_environment_call(context: &mut TargetContext) -> ! {
+    let Some(next_pc) = context.mepc.checked_add(4) else {
+        guest_error(b"GUEST-IO-003", b"environment call PC overflow");
+        monitor_loop(context);
+    };
+    context.mepc = next_pc;
+    context.pc = next_pc;
+    context.mcause = StopReason::Breakpoint as u64;
+    unsafe { resume_user(context as *mut TargetContext) }
 }
 
 fn monitor_loop(context: *mut TargetContext) -> ! {
@@ -2278,6 +2339,25 @@ fn parse_source_instruction(
     if let Some(operands) = source.strip_prefix(b"fadd.d ") {
         return parse_fadd_operands("fadd.d", operands);
     }
+    if let Some(operands) = source.strip_prefix(b"fdiv.d ") {
+        return parse_fadd_operands("fdiv.d", operands);
+    }
+    for mnemonic in ["add", "sub", "mul", "div"] {
+        if let Some(operands) = source.strip_prefix(mnemonic.as_bytes()) {
+            if let Some(operands) = operands.strip_prefix(b" ") {
+                return parse_r_operands(mnemonic, operands);
+            }
+        }
+    }
+    if source == b"ecall" {
+        return GENERATED_OPCODES
+            .iter()
+            .find(|opcode| opcode.mnemonic == "ecall")
+            .map(|opcode| opcode.match_value);
+    }
+    if source == b"ebreak" {
+        return Some(EBREAK_WORD);
+    }
     for (mnemonic, rd_float, rs1_float) in [
         ("fmv.w.x", true, false),
         ("fmv.x.w", false, true),
@@ -2291,6 +2371,17 @@ fn parse_source_instruction(
         }
     }
     None
+}
+
+fn parse_r_operands(mnemonic: &str, operands: &[u8]) -> Option<u32> {
+    let (rd_bytes, rest) = split_once_comma(operands)?;
+    let (rs1_bytes, rs2_bytes) = split_once_comma(rest)?;
+    luna_isa_core::encode_r(
+        mnemonic,
+        parse_register(rd_bytes.trim_ascii())?,
+        parse_register(rs1_bytes.trim_ascii())?,
+        parse_register(rs2_bytes.trim_ascii())?,
+    )
 }
 
 fn parse_addi_operands(operands: &[u8], symbols: &[GuestSymbol; MAX_SYMBOLS]) -> Option<u32> {

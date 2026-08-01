@@ -55,6 +55,11 @@ bloquante dans un environnement de release.
 
 La suite actuelle exécute 177 tests unitaires/intégration répartis dans les crates. Les doc-tests compilent mais ne contiennent actuellement aucun cas. Les scripts FP oracle QEMU comparent treize cas F/D, trois conversions de format, treize conversions entières W/L et quatre mouvements binaires F/D, hors comptage Cargo. Le script QEMU ouvre en plus une session GDB RSP réelle, hors comptage Cargo.
 
+Les contrats guest couvrent également `scripts/test-guest-ecall.sh` pour les
+services U→M `write_char`, `read_char` et `exit`, ainsi que
+`scripts/test-guest-fdiv.sh` pour l’exécution réelle de `fdiv.d` et la lecture
+de `fcsr`.
+
 Démonstration M-mode/U-mode sous QEMU :
 
     timeout 4s qemu-system-riscv64 -M virt -bios none \

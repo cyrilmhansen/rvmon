@@ -143,6 +143,16 @@ pub fn encode_f_r(mnemonic: &str, rd: u8, rs1: u8, rs2: u8, rm: u8) -> Option<u3
     )
 }
 
+pub fn encode_r(mnemonic: &str, rd: u8, rs1: u8, rs2: u8) -> Option<u32> {
+    if rd > 31 || rs1 > 31 || rs2 > 31 {
+        return None;
+    }
+    let opcode = GENERATED_OPCODES
+        .iter()
+        .find(|opcode| opcode.mnemonic == mnemonic)?;
+    Some(opcode.match_value | ((rs2 as u32) << 20) | ((rs1 as u32) << 15) | ((rd as u32) << 7))
+}
+
 #[cfg(test)]
 mod tests {
     use super::{
@@ -187,5 +197,6 @@ mod tests {
         assert_eq!(encode_store("sd", 3, 4, 8), Some(0x0032_3423));
         assert_eq!(encode_f_r("fadd.s", 3, 1, 2, 0), Some(0x0020_81d3));
         assert_eq!(encode_f_r("fadd.d", 6, 4, 5, 7), Some(0x0252_7353));
+        assert_eq!(super::encode_r("add", 3, 1, 2), Some(0x0020_81b3));
     }
 }
