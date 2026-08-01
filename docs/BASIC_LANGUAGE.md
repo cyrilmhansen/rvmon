@@ -29,17 +29,25 @@ comparison    = sum , [ ( "=" | "<>" | "<" | "<=" | ">" | ">=" ) , sum ] ;
 sum           = product , { ( "+" | "-" ) , product } ;
 product       = factor , { ( "*" | "/" ) , factor } ;
 factor        = number | variable | "(" , expression , ")" | ( "+" | "-" ) , factor ;
-variable      = "A" .. "Z" ;
+variable      = identifier ;
+identifier    = letter , { letter | digit | "_" } ;
+letter        = "A" .. "Z" | "a" .. "z" ;
+digit         = "0" .. "9" ;
 ```
 
 Les lignes sont des octets ASCII, numérotées de 0 à 65535, stockées dans 256
 enregistrements fixes de 96 octets et triées par numéro. Une ligne vide après
-son numéro la supprime. `LIST` montre le texte ; `DUMP` montre slot, adresse
-cible, longueur et octets du record.
+son numéro la supprime. Un identifiant comporte de 1 à 16 caractères ASCII
+alphanumériques ou `_`, commence par une lettre et est insensible à la casse.
+MiniBASIC réserve 64 variables binary64 ; une variable lue avant affectation
+est créée avec la valeur zéro. Au-delà de 64 noms distincts ou de 16
+caractères, l’instruction est rejetée par `BASIC-SYNTAX-001`. `LIST` montre le
+texte ; `DUMP` montre slot, adresse, longueur et octets du record, puis les
+variables utilisées avec leur motif binary64 et leur affichage fixe.
 
 ## Sémantique numérique
 
-Les variables A–Z sont 26 binary64. Les opérations `+`, `-`, `*` et `/` sont
+Les identifiants sont 64 variables binary64 au maximum. Les opérations `+`, `-`, `*` et `/` sont
 effectuées dans le guest ; le chemin `/` contient réellement une instruction
 `fdiv.d` (symbole `minibasic_divide`). Les comparaisons produisent `0.0` ou
 `1.0`. L’affichage V1 est fixe à six décimales, arrondi au plus proche ; les

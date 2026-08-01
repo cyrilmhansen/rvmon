@@ -6,6 +6,8 @@ const LINE_CAPACITY: usize = 96;
 const PROGRAM_CAPACITY: usize = 256;
 const FOR_CAPACITY: usize = 8;
 const INPUT_CAPACITY: usize = 96;
+const VARIABLE_CAPACITY: usize = 64;
+const VARIABLE_NAME_CAPACITY: usize = 16;
 
 const SERVICE_WRITE_CHAR: u64 = 1;
 const SERVICE_READ_CHAR: u64 = 2;
@@ -40,6 +42,76 @@ struct ForFrame {
     active: bool,
 }
 
+#[derive(Clone, Copy)]
+struct VariableSlot {
+    name: [u8; VARIABLE_NAME_CAPACITY],
+    length: u8,
+    value: f64,
+    used: bool,
+}
+
+impl VariableSlot {
+    const fn empty() -> Self {
+        Self {
+            name: [0; VARIABLE_NAME_CAPACITY],
+            length: 0,
+            value: 0.0,
+            used: false,
+        }
+    }
+}
+
+struct Variables {
+    slots: [VariableSlot; VARIABLE_CAPACITY],
+}
+
+impl Variables {
+    const fn new() -> Self {
+        Self {
+            slots: [VariableSlot::empty(); VARIABLE_CAPACITY],
+        }
+    }
+
+    fn clear(&mut self) {
+        self.slots = [VariableSlot::empty(); VARIABLE_CAPACITY];
+    }
+
+    fn reset_values(&mut self) {
+        for slot in &mut self.slots {
+            if slot.used {
+                slot.value = 0.0;
+            }
+        }
+    }
+
+    fn ensure(&mut self, name: &[u8]) -> Option<usize> {
+        if name.is_empty() || name.len() > VARIABLE_NAME_CAPACITY {
+            return None;
+        }
+        if let Some(index) = self.find(name) {
+            return Some(index);
+        }
+        let index = self.slots.iter().position(|slot| !slot.used)?;
+        let slot = &mut self.slots[index];
+        slot.name = [0; VARIABLE_NAME_CAPACITY];
+        for (destination, source) in slot.name.iter_mut().zip(name.iter()) {
+            *destination = source.to_ascii_uppercase();
+        }
+        slot.length = name.len() as u8;
+        slot.value = 0.0;
+        slot.used = true;
+        Some(index)
+    }
+
+    fn find(&self, name: &[u8]) -> Option<usize> {
+        self.slots.iter().position(|slot| {
+            slot.used
+                && usize::from(slot.length) == name.len()
+                && slot.name[..usize::from(slot.length)].eq_ignore_ascii_case(name)
+        })
+    }
+}
+
 impl ForFrame {
     const fn empty() -> Self {
         Self {
@@ -54,7 +126,7 @@ impl ForFrame {
 
 struct BasicState {
     lines: [ProgramLine; PROGRAM_CAPACITY],
-    variables: [f64; 26],
+    variables: Variables,
     for_stack: [ForFrame; FOR_CAPACITY],
     trace: bool,
 }
@@ -63,7 +135,7 @@ impl BasicState {
     const fn new() -> Self {
         Self {
             lines: [ProgramLine::empty(); PROGRAM_CAPACITY],
-            variables: [0.0; 26],
+            variables: Variables::new(),
             for_stack: [ForFrame::empty(); FOR_CAPACITY],
             trace: false,
         }
@@ -73,7 +145,7 @@ impl BasicState {
         for line in &mut self.lines {
             line.used = false;
         }
-        self.variables = [0.0; 26];
+        self.variables.clear();
         self.for_stack = [ForFrame::empty(); FOR_CAPACITY];
         self.trace = false;
     }
@@ -243,11 +315,20 @@ fn dump_program(state: &BasicState) {
         }
         write_text("\r\n");
     }
+    write_text("variables:\r\n");
+    for slot in state.variables.slots.iter().filter(|slot| slot.used) {
+        write_bytes(&slot.name[..usize::from(slot.length)]);
+        write_text("=0x");
+        print_hex(slot.value.to_bits());
+        write_text(" (");
+        print_fixed(slot.value);
+        write_text(")\r\n");
+    }
 }
 
 fn run_program(state: &mut BasicState) -> Result<(), Error> {
     write_text("RV64 MINIBASIC\r\n");
-    state.variables = [0.0; 26];
+    state.variables.reset_values();
     state.for_stack = [ForFrame::empty(); FOR_CAPACITY];
     let mut index = 0usize;
     let mut steps = 0u64;
@@ -312,17 +393,17 @@ fn execute_statement(
         return Ok(Control::Next);
     }
     if starts_word(input, b"INPUT") {
-        let variable = input[5..]
-            .trim_ascii()
-            .first()
-            .copied()
+        let name = input[5..].trim_ascii();
+        let variable = parse_identifier(name)
+            .and_then(|(_, end)| (end == name.len()).then_some(&name[..end]))
+            .and_then(|name| state.variables.ensure(name))
             .ok_or(Error::Syntax)?;
-        let variable = variable_index(variable).ok_or(Error::Syntax)?;
         write_text("? ");
         let mut line = [0u8; INPUT_CAPACITY];
         let length = read_line(&mut line);
-        let mut parser = ExprParser::new(&line[..length], state.variables);
-        state.variables[variable] = parser.parse_value().map_err(|_| Error::Input)?;
+        let mut parser = ExprParser::new(&line[..length], &mut state.variables);
+        let value = parser.parse_value().map_err(|_| Error::Input)?;
+        state.variables.slots[variable].value = value;
         return Ok(Control::Next);
     }
     if starts_word(input, b"GOTO") {
@@ -336,7 +417,7 @@ fn execute_statement(
         let Some(then_at) = find_word(rest, b"THEN") else {
             return Err(Error::Syntax);
         };
-        let mut parser = ExprParser::new(&rest[..then_at], state.variables);
+        let mut parser = ExprParser::new(&rest[..then_at], &mut state.variables);
         let condition = parser.parse_value()?;
         let target = parse_u16(rest[then_at + 4..].trim_ascii()).ok_or(Error::Syntax)?;
         if condition != 0.0 {
@@ -350,25 +431,22 @@ fn execute_statement(
         return execute_for(state, input[3..].trim_ascii(), next_index);
     }
     if starts_word(input, b"NEXT") {
-        let variable = variable_index(
-            input[4..]
-                .trim_ascii()
-                .first()
-                .copied()
-                .ok_or(Error::Syntax)?,
-        )
-        .ok_or(Error::Syntax)?;
+        let name = input[4..].trim_ascii();
+        let variable = parse_identifier(name)
+            .and_then(|(_, end)| (end == name.len()).then_some(&name[..end]))
+            .and_then(|name| state.variables.find(name))
+            .ok_or(Error::Syntax)?;
         let Some(frame_index) = (0..FOR_CAPACITY).rev().find(|index| {
             state.for_stack[*index].active && state.for_stack[*index].variable == variable
         }) else {
             return Err(Error::ForStack);
         };
         let frame = state.for_stack[frame_index];
-        state.variables[variable] += frame.step;
+        state.variables.slots[variable].value += frame.step;
         let continue_loop = if frame.step >= 0.0 {
-            state.variables[variable] <= frame.limit
+            state.variables.slots[variable].value <= frame.limit
         } else {
-            state.variables[variable] >= frame.limit
+            state.variables.slots[variable].value >= frame.limit
         };
         if continue_loop {
             return Ok(Control::Jump(frame.body_index));
@@ -377,38 +455,42 @@ fn execute_statement(
         return Ok(Control::Next);
     }
     let assignment = input.strip_prefix(b"LET ").unwrap_or(input);
-    let variable =
-        variable_index(assignment.first().copied().ok_or(Error::Syntax)?).ok_or(Error::Syntax)?;
     let Some(equal) = assignment.iter().position(|byte| *byte == b'=') else {
         return Err(Error::Syntax);
     };
-    if equal != 1 {
-        return Err(Error::Syntax);
-    }
-    let mut parser = ExprParser::new(&assignment[equal + 1..], state.variables);
-    state.variables[variable] = parser.parse_value()?;
+    let name = assignment[..equal].trim_ascii();
+    let variable = parse_identifier(name)
+        .and_then(|(_, end)| (end == name.len()).then_some(&name[..end]))
+        .and_then(|name| state.variables.ensure(name))
+        .ok_or(Error::Syntax)?;
+    let mut parser = ExprParser::new(&assignment[equal + 1..], &mut state.variables);
+    state.variables.slots[variable].value = parser.parse_value()?;
     Ok(Control::Next)
 }
 
 fn execute_for(state: &mut BasicState, input: &[u8], body_index: usize) -> Result<Control, Error> {
-    let variable =
-        variable_index(input.first().copied().ok_or(Error::Syntax)?).ok_or(Error::Syntax)?;
-    if input.get(1) != Some(&b'=') {
-        return Err(Error::Syntax);
-    }
-    let Some(to_at) = find_word(&input[2..], b"TO") else {
+    let Some(equal) = input.iter().position(|byte| *byte == b'=') else {
         return Err(Error::Syntax);
     };
-    let to_at = to_at + 2;
-    let mut start_parser = ExprParser::new(&input[2..to_at], state.variables);
+    let name = input[..equal].trim_ascii();
+    let variable = parse_identifier(name)
+        .and_then(|(_, end)| (end == name.len()).then_some(&name[..end]))
+        .and_then(|name| state.variables.ensure(name))
+        .ok_or(Error::Syntax)?;
+    let Some(to_at) = find_word(&input[equal + 1..], b"TO") else {
+        return Err(Error::Syntax);
+    };
+    let to_at = to_at + equal + 1;
+    let mut start_parser = ExprParser::new(&input[equal + 1..to_at], &mut state.variables);
     let start = start_parser.parse_value()?;
     let step_at = find_word(&input[to_at + 2..], b"STEP");
     let limit_end = step_at.map(|at| to_at + 2 + at).unwrap_or(input.len());
-    let mut limit_parser = ExprParser::new(&input[to_at + 2..limit_end], state.variables);
+    let mut limit_parser = ExprParser::new(&input[to_at + 2..limit_end], &mut state.variables);
     let limit = limit_parser.parse_value()?;
     let mut step = 1.0;
     if let Some(step_at) = step_at {
-        let mut step_parser = ExprParser::new(&input[to_at + 2 + step_at + 4..], state.variables);
+        let mut step_parser =
+            ExprParser::new(&input[to_at + 2 + step_at + 4..], &mut state.variables);
         step = step_parser.parse_value()?;
     }
     if step == 0.0 {
@@ -417,7 +499,7 @@ fn execute_for(state: &mut BasicState, input: &[u8], body_index: usize) -> Resul
     let Some(slot) = state.for_stack.iter_mut().find(|frame| !frame.active) else {
         return Err(Error::ForStack);
     };
-    state.variables[variable] = start;
+    state.variables.slots[variable].value = start;
     *slot = ForFrame {
         variable,
         limit,
@@ -428,7 +510,7 @@ fn execute_for(state: &mut BasicState, input: &[u8], body_index: usize) -> Resul
     Ok(Control::Next)
 }
 
-fn execute_print(state: &BasicState, input: &[u8]) -> Result<(), Error> {
+fn execute_print(state: &mut BasicState, input: &[u8]) -> Result<(), Error> {
     let mut rest = input.trim_ascii();
     let mut first = true;
     while !rest.is_empty() {
@@ -444,7 +526,7 @@ fn execute_print(state: &BasicState, input: &[u8]) -> Result<(), Error> {
         if item.len() >= 2 && item[0] == b'"' && item[item.len() - 1] == b'"' {
             write_bytes(&item[1..item.len() - 1]);
         } else {
-            let mut parser = ExprParser::new(item, state.variables);
+            let mut parser = ExprParser::new(item, &mut state.variables);
             print_fixed(parser.parse_value()?);
         }
         if separator == rest.len() {
@@ -459,11 +541,11 @@ fn execute_print(state: &BasicState, input: &[u8]) -> Result<(), Error> {
 struct ExprParser<'a> {
     input: &'a [u8],
     position: usize,
-    variables: [f64; 26],
+    variables: &'a mut Variables,
 }
 
 impl<'a> ExprParser<'a> {
-    fn new(input: &'a [u8], variables: [f64; 26]) -> Self {
+    fn new(input: &'a [u8], variables: &'a mut Variables) -> Self {
         Self {
             input,
             position: 0,
@@ -560,13 +642,24 @@ impl<'a> ExprParser<'a> {
             }
             return Ok(value);
         }
-        if let Some(variable) = self
+        if self
             .input
             .get(self.position)
-            .and_then(|byte| variable_index(*byte))
+            .is_some_and(|byte| byte.is_ascii_alphabetic())
         {
+            let start = self.position;
             self.position += 1;
-            return Ok(self.variables[variable]);
+            while self.position < self.input.len()
+                && (self.input[self.position].is_ascii_alphanumeric()
+                    || self.input[self.position] == b'_')
+            {
+                self.position += 1;
+            }
+            let variable = self
+                .variables
+                .ensure(&self.input[start..self.position])
+                .ok_or(Error::Syntax)?;
+            return Ok(self.variables.slots[variable].value);
         }
         let start = self.position;
         while self.position < self.input.len()
@@ -712,14 +805,15 @@ fn find_line(state: &BasicState, number: u16) -> Option<usize> {
         .position(|line| line.number == number)
 }
 
-fn variable_index(byte: u8) -> Option<usize> {
-    if byte.is_ascii_uppercase() {
-        Some(usize::from(byte - b'A'))
-    } else if byte.is_ascii_lowercase() {
-        Some(usize::from(byte - b'a'))
-    } else {
-        None
+fn parse_identifier(input: &[u8]) -> Option<(&[u8], usize)> {
+    if !input.first()?.is_ascii_alphabetic() {
+        return None;
     }
+    let mut end = 1;
+    while end < input.len() && (input[end].is_ascii_alphanumeric() || input[end] == b'_') {
+        end += 1;
+    }
+    Some((&input[..end], end))
 }
 
 fn equals_word(input: &[u8], word: &[u8]) -> bool {

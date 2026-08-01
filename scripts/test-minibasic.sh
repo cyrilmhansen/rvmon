@@ -10,7 +10,7 @@ set +e
 output="$({
     sleep 0.1
     printf 'basic\n'
-    printf 'PRINT 2+3*4\nPRINT 22/7\n'
+    printf 'PRINT 2+3*4\nPRINT 22/7\nPOPULATION=95\nPRINT population\nABCDEFGHIJKLMNOP=7\nPRINT abcdefghijklmnop\nABCDEFGHIJKLMNOPQ=8\n'
     printf '10 PRINT "OLD"\n10 PRINT "NEW"\n10\nLIST\n'
     printf '40 PRINT I,X\n10 PRINT "RV64 MINIBASIC"\n60 END\n30 X=I/3\n20 FOR I=1 TO 10\n50 NEXT I\nLIST\nDUMP\nTRACE ON\nRUN\n'
     printf '10 PRINT "BEFORE"\n20 GOTO 999\n30 END\nRUN\nBYE\n'
@@ -38,6 +38,9 @@ for expected in \
     'MiniBASIC-RV' \
     '14.000000' \
     '3.142857' \
+    '95.000000' \
+    '7.000000' \
+    'ERROR [BASIC-SYNTAX-001]' \
     '10 PRINT "NEW"' \
     '10 PRINT "RV64 MINIBASIC"' \
     '1.000000 0.333333' \

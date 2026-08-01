@@ -13,15 +13,16 @@ qemu-system-riscv64 <UART>           └─ programme cible U-mode
 terminal                           <-- commandes et diagnostics UART
 ```
 
-Ce binaire invité est actuellement un moniteur de démarrage et de débogage
-minimal. Il fournit déjà l’inspection des registres, les vues mémoire hex/ASCII,
-les directives de données exactes et des commandes `assemble` et
-`assemble-program` limitées à `addi`, `lui`, `beq`, `bne`, `jal`, `jalr`, `ld`,
-`sd`, `add`, `sub`, `mul`, `div`, `fadd.s`, `fadd.d`, `fdiv.d`, `ecall`,
-`ebreak`, `fmv.w.x` et `fmv.x.w`. Les vues avancées, les
-watchpoints, l’historique et les snapshots restent à porter. Le programme U-mode de
-démonstration est lié dans l’image et sert à valider les traps, les
-breakpoints logiciels et le pas-à-pas.
+Ce binaire invité est un moniteur de démarrage et de débogage minimal. Il
+fournit déjà l’inspection des registres, les vues mémoire hex/ASCII, les
+directives de données exactes, les watchpoints logiciels, les snapshots
+volatils et des commandes `assemble` et `assemble-program` limitées à `addi`,
+`lui`, `beq`, `bne`, `jal`, `jalr`, `ld`, `sd`, `add`, `sub`, `mul`, `div`,
+`fadd.s`, `fadd.d`, `fdiv.d`, `ecall`, `ebreak`, `fmv.w.x` et `fmv.x.w`. La
+trace arrière, les conditions de breakpoint et la persistance sur fichiers
+restent à porter. Le programme U-mode de démonstration et MiniBASIC-RV sont
+liés dans l’image et servent à valider les traps, les breakpoints logiciels et
+le pas-à-pas.
 
 ## 1. Préparer les outils
 
@@ -563,7 +564,326 @@ Dans la version actuelle, `quit` termine la commande mais ne peut pas arrêter
 le processus QEMU depuis le guest. Pour arrêter QEMU, utiliser `Ctrl-C` dans
 le terminal hôte.
 
-## 4. Session complète reproductible
+## 4. MiniBASIC-RV : progression guidée
+
+`basic` lance MiniBASIC-RV en U-mode. Le moteur, son magasin de lignes, son
+parseur, ses variables et ses calculs sont exécutés dans la machine cible ; le
+moniteur ne fournit que les services console et l’arrêt coopératif documentés
+plus haut. Le parcours ci-dessous introduit une seule idée à la fois.
+
+### 4.1 Entrer en mode direct
+
+```text
+rvmonitor> basic
+
+MiniBASIC-RV
+READY> PRINT 2+3*4
+14.000000
+READY> PRINT (2+3)*4
+20.000000
+READY> PRINT 22/7
+3.142857
+```
+
+La priorité est celle des mathématiques usuelles : multiplication et division
+avant addition et soustraction ; les parenthèses forcent un autre groupement.
+Les six décimales sont un format d’affichage V1, pas une conversion exécutée
+par l’hôte.
+
+### 4.2 Construire puis lister un petit programme
+
+Une ligne précédée d’un numéro est stockée. La saisie suivante remplace la
+ligne 20 ; `LIST` trie les lignes même si elles ont été entrées dans le
+désordre.
+
+```text
+READY> 30 PRINT "DONE"
+READY> 10 A=2
+READY> 20 PRINT A*A
+READY> LIST
+10 A=2
+20 PRINT A*A
+30 PRINT "DONE"
+READY> RUN
+4.000000
+DONE
+```
+
+Un numéro seul supprime la ligne : `READY> 20`. `NEW` efface ensuite le
+programme et les variables. Cette convention reprend l’immédiateté des BASIC
+à lignes numérotées sans chercher une compatibilité avec un dialecte précis.
+
+### 4.3 Ajouter une boucle et observer TRACE
+
+```text
+READY> 10 FOR I=1 TO 3
+READY> 20 PRINT I,I*I
+READY> 30 NEXT I
+READY> LIST
+10 FOR I=1 TO 3
+20 PRINT I,I*I
+30 NEXT I
+READY> TRACE ON
+READY> RUN
+[10]
+[20]
+1.000000 1.000000
+[30]
+[20]
+2.000000 4.000000
+[30]
+[20]
+3.000000 9.000000
+[30]
+READY> TRACE OFF
+```
+
+`FOR` utilise la pile FOR cible ; huit boucles imbriquées sont garanties en
+V1. Un `STEP 0`, une pile pleine ou une expression invalide provoquent un
+diagnostic stable et rendent la main à `READY>`.
+
+### 4.4 Faire intervenir INPUT et le contrôle de flot
+
+```text
+READY> NEW
+READY> 10 INPUT N
+READY> 20 IF N<0 THEN 50
+READY> 30 PRINT N*N
+READY> 40 GOTO 10
+READY> 50 END
+READY> RUN
+? 3
+9.000000
+? 4
+16.000000
+? -1
+READY>
+```
+
+Une boucle `GOTO` peut être interrompue par le caractère Ctrl-C envoyé sur la
+console. Le polling est effectué par le programme cible via `ecall` 5 ; le
+moniteur ne tue donc pas la machine QEMU.
+
+### 4.5 Inspecter le calcul flottant dans le débogueur
+
+Le calcul `I/3` du programme suivant passe par une fonction cible contenant
+réellement `fdiv.d` :
+
+```text
+READY> NEW
+READY> 10 I=1
+READY> 20 X=I/3
+READY> 30 PRINT X
+READY> 40 END
+READY> RUN
+0.333333
+```
+
+Depuis l’hôte, retrouver l’adresse sans la coder en dur :
+
+```sh
+$ riscv64-linux-gnu-nm -n \
+    target/riscv64gc-unknown-none-elf/debug/luna-guest-monitor \
+    | awk '$3 == "minibasic_divide" { print $1; exit }'
+```
+
+Poser ensuite `break 0x...`, relancer `basic`, ressaisir le petit programme et
+exécuter `RUN`. À l’arrêt :
+
+```text
+rvmonitor> disasm 0x... 12
+rvmonitor> regs
+rvmonitor> step
+rvmonitor> regs
+```
+
+Le désassemblage doit afficher `fdiv.d`. Les registres `f0`–`f31` sont montrés
+comme motifs binaires exacts et `fcsr` expose `frm` et `fflags`. Cette étape
+relie une expression BASIC, une adresse symbolique, une instruction RV64D et
+le résultat observable dans le contexte cible.
+
+### 4.6 Exemple traditionnel : Sumerian Granary
+
+L’exemple est inspiré de l’expérience de *Hammurabi*, un jeu de gestion textuel
+attribué à la tradition de *BASIC Computer Games*. La page de référence le
+présente comme une version simplifiée de *The Sumerian Game* et conserve une
+structure de rapports annuels, décisions de grain et bilan final
+([listing et présentation de Hammurabi](https://basic-code.bearblog.dev/hammurabi/)).
+Le code ci-dessous est une adaptation pédagogique originale, volontairement
+plus petite et compatible avec MiniBASIC-RV V1 ; il ne reproduit pas le listing
+de cette page.
+
+Le roi gère trois années. Une acre coûte dix mesures de grain, une acre plantée
+rapporte trois mesures et chaque habitant consomme deux mesures. Les réponses
+doivent être saisies dans cet ordre à chaque année : acres achetées, acres
+plantées, grain distribué.
+
+```basic
+10 PRINT "SUMERIAN GRANARY"
+20 A=100
+30 G=300
+40 P=20
+50 Y=0
+60 PRINT "YEAR",Y,"ACRES",A,"GRAIN",G
+70 Y=Y+1
+80 PRINT "BUY ACRES"
+90 INPUT Q
+100 IF Q<0 THEN 80
+110 IF Q*10>G THEN 80
+120 A=A+Q
+130 G=G-Q*10
+140 PRINT "PLANT ACRES"
+150 INPUT Q
+160 IF Q<0 THEN 140
+170 IF Q>A THEN 140
+180 IF Q*2>G THEN 140
+190 G=G-Q*2
+200 G=G+Q*3
+210 PRINT "FEED GRAIN"
+220 INPUT Q
+230 IF Q<0 THEN 210
+240 IF Q>G THEN 210
+250 G=G-Q
+260 IF Q<P*2 THEN 300
+270 PRINT "THE PEOPLE ARE FED"
+280 IF Y<3 THEN 60
+290 GOTO 400
+300 PRINT "STARVATION"
+310 IF Y<3 THEN 60
+320 GOTO 400
+400 PRINT "FINAL GRAIN",G
+410 END
+```
+
+Séquence de démonstration reproductible :
+
+```text
+RUN
+? 0
+? 20
+? 40
+? 0
+? 20
+? 40
+? 0
+? 20
+? 40
+```
+
+La sortie doit contenir trois rapports annuels, trois fois
+`THE PEOPLE ARE FED`, puis `FINAL GRAIN` avec `240.000000`. Les valeurs ne
+sont pas préenregistrées : elles résultent des opérations binary64 du guest.
+Pour voir le chemin de contrôle, activer `TRACE ON` avant `RUN`; pour relier
+le texte aux octets, utiliser `DUMP`, puis revenir au moniteur et examiner la
+zone indiquée par `memory <adresse> <longueur>` en hexadécimal/ASCII.
+
+L’exemple illustre aussi les limites assumées : pas de tableaux, de chaînes
+variables, de hasard, de sous-programmes, de `INT`, de `OR`, de labels ni de
+séparateur `:` en V1. Cette réduction rend chaque décision visible dans le
+moniteur et conserve l’esprit rapport annuel / allocation / conséquences du
+BASIC historique.
+
+### 4.7 Jeu final : HAMMURABI-RV
+
+Voici la version finale du parcours. Elle reste un programme MiniBASIC V1
+réellement saisissable : une seule lettre par variable, pas de `:` ni de
+fonctions cachées, et uniquement les instructions documentées plus haut. Elle
+reprend les éléments structurants de *Hammurabi* — rapport annuel, population,
+terres, grain, décision du joueur, famine et bilan — sans recopier le listing
+de référence. La page de référence décrit cette adaptation de *The Sumerian
+Game* et explique ses choix de variables et de décisions
+([Hammurabi.BAS](https://basic-code.bearblog.dev/hammurabi/)).
+
+Les variables sont volontairement compactes : `Y` année, `P` population, `A`
+acres, `G` grain, `Q` quantité saisie, `H` récolte, `C` personnes nourries,
+`D` morts de faim et `T` total des morts. `LIST`, `TRACE ON`, `DUMP` et les
+registres permettent de suivre ces états sans quitter le programme cible.
+
+```basic
+10 PRINT "HAMMURABI-RV"
+20 P=95
+30 A=1000
+40 G=2800
+50 Y=0
+60 T=0
+70 D=0
+80 Y=Y+1
+90 PRINT "YEAR",Y,"PEOPLE",P,"ACRES",A,"GRAIN",G
+100 PRINT "LAND PRICE 10 GRAIN PER ACRE"
+110 PRINT "ACRES TO BUY (NEGATIVE TO SELL)"
+120 INPUT Q
+130 IF Q<0 THEN 180
+140 IF Q*10>G THEN 110
+150 A=A+Q
+160 G=G-Q*10
+170 GOTO 220
+180 Q=0-Q
+190 IF Q>A THEN 110
+200 A=A-Q
+210 G=G+Q*10
+220 PRINT "ACRES TO PLANT"
+230 INPUT Q
+240 IF Q<0 THEN 220
+250 IF Q>A THEN 220
+260 IF Q*2>G THEN 220
+270 G=G-Q*2
+280 H=Q*3
+290 G=G+H
+300 PRINT "BUSHELS TO FEED"
+310 D=0
+320 INPUT Q
+330 IF Q<0 THEN 300
+340 IF Q>G THEN 300
+350 G=G-Q
+360 C=Q/2
+370 IF C>=P THEN 400
+380 D=P-C
+390 P=C
+400 T=T+D
+410 PRINT "HARVEST",H,"STARVED",D
+420 IF D*2>P THEN 500
+430 IF Y<5 THEN 80
+440 GOTO 600
+500 PRINT "REVOLT"
+510 GOTO 600
+600 PRINT "FINAL STARVED",T,"GRAIN",G
+610 END
+```
+
+Pour une partie prudente, saisir `0`, `20`, puis `190` à chaque année : ne
+pas acheter, planter 20 acres, distribuer 190 mesures. Pour expérimenter,
+acheter ou vendre des terres, planter davantage, puis observer l’effet d’une
+distribution insuffisante. Une entrée négative ou trop grande ramène à la
+question correspondante ; une année où `C<P` conserve la famine dans `D` et
+alimente le bilan `T`.
+
+Une séance pédagogique recommandée est :
+
+```text
+READY> NEW
+READY> 10 PRINT "HAMMURABI-RV"
+...
+READY> LIST
+READY> TRACE ON
+READY> RUN
+```
+
+Pendant l’exécution, placer un breakpoint sur `minibasic_divide` pour observer
+`Q/2`. Après le retour à l’invite, `DUMP` montre pour chaque lettre le motif
+binary64 et la valeur fixe ; le moniteur permet ainsi de comparer trois niveaux
+au même moment : la ligne BASIC (`360 C=Q/2`), l’instruction `fdiv.d` et les
+bits du registre flottant. Après une famine volontaire, utiliser `snapshot
+save`, modifier une décision, puis `snapshot restore` pour rejouer la partie.
+
+Le programme est assez compact pour être recopié manuellement, mais assez
+riche pour donner envie de modifier les règles : changer le prix du terrain,
+le rendement, la durée du règne ou le seuil de révolte constitue une suite
+d’exercices naturelle. Les extensions du listing original — noms de variables
+longs, `INT`, hasard, invites `INPUT`, labels, `OR` et séparateurs `:` — sont
+laissées comme exercices de conception future, pas introduites implicitement
+dans le langage V1.
+
+## 5. Session complète reproductible
 
 Le test E2E fourni automatise une session UART et vérifie les sorties :
 
@@ -586,24 +906,24 @@ Le script :
 Pour observer la même session manuellement, démarrer QEMU dans un terminal,
 puis saisir les commandes une par une dans son terminal UART.
 
-## 5. Ce qui n’est pas encore disponible dans ce mode
+## 6. Ce qui n’est pas encore disponible dans ce mode
 
-Les commandes suivantes appartiennent aujourd’hui au moniteur hôte ou au
-simulateur interne, pas encore au binaire exécuté dans QEMU :
+Les fonctions suivantes ne sont pas encore disponibles dans le binaire
+exécuté dans QEMU :
 
 ```text
-watch, rwatch, history, project-save, project-load, snapshot, restore
+history, conditions de breakpoint, persistance directe sur système de fichiers
 ```
 
-Le cycle d’une ligne et le source buffer multi-ligne existent désormais pour
-`addi`, les branches, les sauts, les loads/stores 64 bits et
-`fadd.s`/`fadd.d` avec résolution de labels, ainsi que le désassemblage des
-mots 32 bits. Les expressions générales, les macros, les directives dans le
-source assembleur et les snapshots restent à venir, en conservant le moniteur
+`watch`, `rwatch`, `awatch`, `project-save`, `project-load`, `snapshot` et
+`restore` sont disponibles dans le guest, mais les snapshots restent
+volatils et limités aux régions documentées. Les expressions générales, les
+macros, les directives dans le source assembleur et l’import du moteur
+MiniBASIC comme source assembleur restent à venir, en conservant le moniteur
 M-mode et le programme cible U-mode séparés. Les directives `data` documentées
 plus haut sont déjà disponibles pour écrire une valeur isolée en mémoire.
 
-## 6. Différence avec les deux autres parcours
+## 7. Différence avec les deux autres parcours
 
 | Parcours | Binaire qui exécute le moniteur | Transport | État cible actuel |
 |---|---|---|---|

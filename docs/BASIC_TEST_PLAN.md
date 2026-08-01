@@ -5,9 +5,15 @@
 - `scripts/test-minibasic.sh` vérifie direct mode, précédence, lignes hors
   ordre, remplacement/suppression implicite, LIST, DUMP, TRACE, FOR de dix
   itérations, binary64, erreur GOTO et INPUT avec deux valeurs positives puis
-une valeur négative.
+  une valeur négative.
+- `scripts/test-hammurabi.sh` extrait le listing final du tutoriel, le saisit
+  réellement dans le guest et vérifie cinq années de jeu sans sortie
+  préenregistrée.
 - Une réponse `INPUT` vide ou invalide doit produire `BASIC-INPUT-001` et
   laisser l’invite et le programme utilisables.
+- Les identifiants d’une à 16 lettres/chiffres/underscore, la casse
+  insensible, la création implicite à zéro, la limite de 64 noms et le rejet
+  d’un 17e caractère sont vérifiés sur la cible.
 - `scripts/test-guest-fdiv.sh` vérifie indépendamment l’encodage, l’exécution
   et le motif de `fdiv.d`.
 - Le breakpoint `minibasic_divide` et `disasm` permettent d’observer la
