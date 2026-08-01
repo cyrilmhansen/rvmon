@@ -29,7 +29,7 @@ const MAX_PERSISTED_BYTES: usize = 64 * 1024 * 1024;
 const SNAPSHOT_MAGIC: &[u8; 8] = b"RVSNAP01";
 const PROJECT_MAGIC: &[u8; 8] = b"RVPROJ01";
 const SESSION_MAGIC: &[u8; 8] = b"RVSESS01";
-const PERSISTENCE_VERSION: u32 = 1;
+const PERSISTENCE_VERSION: u32 = 2;
 
 struct MemoryEdit {
     address: u64,
@@ -69,6 +69,7 @@ struct DecodedSnapshot {
     symbols: BTreeMap<u64, String>,
     marks: BTreeMap<String, u64>,
     breakpoints: BTreeMap<u64, u64>,
+    breakpoint_conditions: BTreeMap<u64, command::Expression>,
     watchpoints: BTreeMap<u64, Watchpoint>,
     next_breakpoint_id: u64,
     next_watchpoint_id: u64,
@@ -369,6 +370,12 @@ impl Monitor {
         for (address, id) in &self.breakpoints {
             writer.u64(*address);
             writer.u64(*id);
+            if let Some(condition) = self.breakpoint_conditions.get(address) {
+                writer.u8(1);
+                writer.expression(condition)?;
+            } else {
+                writer.u8(0);
+            }
         }
         writer.u32(self.watchpoints.len() as u32);
         for watchpoint in self.watchpoints.values() {
@@ -405,6 +412,7 @@ impl Monitor {
         self.symbols = decoded.symbols;
         self.marks = decoded.marks;
         self.breakpoints = decoded.breakpoints;
+        self.breakpoint_conditions = decoded.breakpoint_conditions;
         self.watchpoints = decoded.watchpoints;
         self.next_breakpoint_id = decoded.next_breakpoint_id;
         self.next_watchpoint_id = decoded.next_watchpoint_id;
@@ -2616,6 +2624,12 @@ where
         for breakpoint in self.breakpoints.values() {
             writer.u64(breakpoint.id);
             writer.u64(breakpoint.address);
+            if let Some(condition) = &breakpoint.condition {
+                writer.u8(1);
+                writer.expression(condition)?;
+            } else {
+                writer.u8(0);
+            }
         }
         writer.u32(
             u32::try_from(self.watchpoints.len())
@@ -3148,6 +3162,50 @@ impl ByteWriter {
         self.bytes.extend_from_slice(&value.to_le_bytes());
     }
 
+    fn expression(&mut self, expression: &command::Expression) -> Result<()> {
+        match expression {
+            command::Expression::Literal(value) => {
+                self.u8(0);
+                self.bytes.extend_from_slice(&value.to_le_bytes());
+            }
+            command::Expression::Symbol(name) => {
+                self.u8(1);
+                self.string(name)?;
+            }
+            command::Expression::Unary { operator, operand } => {
+                self.u8(2);
+                self.u8(match operator {
+                    command::UnaryOperator::Plus => 0,
+                    command::UnaryOperator::Minus => 1,
+                    command::UnaryOperator::BitNot => 2,
+                });
+                self.expression(operand)?;
+            }
+            command::Expression::Binary {
+                operator,
+                left,
+                right,
+            } => {
+                self.u8(3);
+                self.u8(match operator {
+                    command::BinaryOperator::Add => 0,
+                    command::BinaryOperator::Subtract => 1,
+                    command::BinaryOperator::Multiply => 2,
+                    command::BinaryOperator::Divide => 3,
+                    command::BinaryOperator::Remainder => 4,
+                    command::BinaryOperator::ShiftLeft => 5,
+                    command::BinaryOperator::ShiftRight => 6,
+                    command::BinaryOperator::BitAnd => 7,
+                    command::BinaryOperator::BitXor => 8,
+                    command::BinaryOperator::BitOr => 9,
+                });
+                self.expression(left)?;
+                self.expression(right)?;
+            }
+        }
+        Ok(())
+    }
+
     fn string(&mut self, value: &str) -> Result<()> {
         let length = u32::try_from(value.len())
             .map_err(|_| Diagnostic::error("MON-PERSIST-007", "string is too large"))?;
@@ -3236,6 +3294,74 @@ impl<'a> ByteReader<'a> {
         Ok(u64::from_le_bytes(self.take(8)?.try_into().unwrap()))
     }
 
+    fn expression(&mut self) -> Result<command::Expression> {
+        self.expression_at_depth(0)
+    }
+
+    fn expression_at_depth(&mut self, depth: usize) -> Result<command::Expression> {
+        if depth > 128 {
+            return Err(Diagnostic::error(
+                "MON-PERSIST-034",
+                "persisted expression is too deeply nested",
+            ));
+        }
+        match self.u8()? {
+            0 => Ok(command::Expression::Literal(i128::from_le_bytes(
+                self.take(16)?.try_into().unwrap(),
+            ))),
+            1 => Ok(command::Expression::Symbol(self.string()?)),
+            2 => {
+                let operator = match self.u8()? {
+                    0 => command::UnaryOperator::Plus,
+                    1 => command::UnaryOperator::Minus,
+                    2 => command::UnaryOperator::BitNot,
+                    _ => {
+                        return Err(Diagnostic::error(
+                            "MON-PERSIST-035",
+                            "invalid persisted unary operator",
+                        ));
+                    }
+                };
+                let operand = self.expression_at_depth(depth + 1)?;
+                Ok(command::Expression::Unary {
+                    operator,
+                    operand: Box::new(operand),
+                })
+            }
+            3 => {
+                let operator = match self.u8()? {
+                    0 => command::BinaryOperator::Add,
+                    1 => command::BinaryOperator::Subtract,
+                    2 => command::BinaryOperator::Multiply,
+                    3 => command::BinaryOperator::Divide,
+                    4 => command::BinaryOperator::Remainder,
+                    5 => command::BinaryOperator::ShiftLeft,
+                    6 => command::BinaryOperator::ShiftRight,
+                    7 => command::BinaryOperator::BitAnd,
+                    8 => command::BinaryOperator::BitXor,
+                    9 => command::BinaryOperator::BitOr,
+                    _ => {
+                        return Err(Diagnostic::error(
+                            "MON-PERSIST-036",
+                            "invalid persisted binary operator",
+                        ));
+                    }
+                };
+                let left = self.expression_at_depth(depth + 1)?;
+                let right = self.expression_at_depth(depth + 1)?;
+                Ok(command::Expression::Binary {
+                    operator,
+                    left: Box::new(left),
+                    right: Box::new(right),
+                })
+            }
+            _ => Err(Diagnostic::error(
+                "MON-PERSIST-037",
+                "invalid persisted expression node",
+            )),
+        }
+    }
+
     fn string(&mut self) -> Result<String> {
         let length = self.u32()? as usize;
         if length > MAX_PERSISTED_BYTES {
@@ -3308,6 +3434,11 @@ fn decode_backend_session(bytes: &[u8]) -> Result<DecodedBackendSession> {
     for _ in 0..breakpoint_count {
         let id = reader.u64()?;
         let address = reader.u64()?;
+        let condition = if reader.u8()? != 0 {
+            Some(reader.expression()?)
+        } else {
+            None
+        };
         if address & 3 != 0
             || breakpoints
                 .insert(
@@ -3315,7 +3446,7 @@ fn decode_backend_session(bytes: &[u8]) -> Result<DecodedBackendSession> {
                     BackendBreakpoint {
                         id,
                         address,
-                        condition: None,
+                        condition,
                     },
                 )
                 .is_some()
@@ -3429,6 +3560,7 @@ fn decode_snapshot(bytes: &[u8]) -> Result<DecodedSnapshot> {
     }
     let breakpoint_count = checked_count(reader.u32()?, "breakpoint table")?;
     let mut breakpoints = BTreeMap::new();
+    let mut breakpoint_conditions = BTreeMap::new();
     for _ in 0..breakpoint_count {
         let address = reader.u64()?;
         let id = reader.u64()?;
@@ -3437,6 +3569,9 @@ fn decode_snapshot(bytes: &[u8]) -> Result<DecodedSnapshot> {
                 "MON-PERSIST-022",
                 "duplicate breakpoint address",
             ));
+        }
+        if reader.u8()? != 0 {
+            breakpoint_conditions.insert(address, reader.expression()?);
         }
     }
     let watchpoint_count = checked_count(reader.u32()?, "watchpoint table")?;
@@ -3489,6 +3624,7 @@ fn decode_snapshot(bytes: &[u8]) -> Result<DecodedSnapshot> {
         symbols,
         marks,
         breakpoints,
+        breakpoint_conditions,
         watchpoints,
         next_breakpoint_id,
         next_watchpoint_id,
@@ -4102,7 +4238,7 @@ mod tests {
         let mut monitor = Monitor::new(128);
         monitor.assemble_program("_start: addi x1,x0,1").unwrap();
         monitor.execute("mark entry 0x0").unwrap();
-        monitor.execute("break 0x0").unwrap();
+        monitor.execute("break 0x0 if x1").unwrap();
         monitor.execute("watch 0x10 4").unwrap();
         monitor.machine.x[1] = 0x8000_0000;
         monitor.machine.memory.store32(0x10, 0x1122_3344).unwrap();
@@ -4117,7 +4253,12 @@ mod tests {
         assert_eq!(monitor.machine.memory.load32(0x10).unwrap(), 0x1122_3344);
         assert!(monitor.execute("symbols").unwrap().contains("_start"));
         assert!(monitor.execute("marks").unwrap().contains("@entry"));
-        assert!(monitor.execute("info break").unwrap().contains("#1"));
+        assert!(
+            monitor
+                .execute("info break")
+                .unwrap()
+                .contains("#1 addr=0x0000000000000000 condition=expression")
+        );
         assert!(monitor.execute("info watch").unwrap().contains("#1"));
     }
 
@@ -4286,7 +4427,7 @@ mod tests {
             765_432u64
         ));
         let session_path_text = session_path.to_string_lossy().into_owned();
-        symbol_console.execute("break 0").unwrap();
+        symbol_console.execute("break 0 if x1").unwrap();
         symbol_console
             .execute(&format!("project-save {session_path_text}"))
             .unwrap();
@@ -4294,7 +4435,12 @@ mod tests {
         symbol_console
             .execute(&format!("project-load {session_path_text}"))
             .unwrap();
-        assert!(symbol_console.execute("info break").unwrap().contains("#1"));
+        assert!(
+            symbol_console
+                .execute("info break")
+                .unwrap()
+                .contains("#1 at 0x0000000000000000 condition=expression")
+        );
         std::fs::remove_file(session_path).unwrap();
 
         let snapshot_path = std::env::temp_dir().join(format!(

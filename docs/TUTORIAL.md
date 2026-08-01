@@ -80,8 +80,8 @@ breakpoint #2 set at 0x0000000000000004 if x1
 
 La condition est évaluée avant l’instruction et s’arrête si sa valeur est
 non nulle. Les noms disponibles sont `pc`, `fcsr`, les registres `x0` à `x31`
-et leurs alias ABI. Les conditions ne sont pas encore persistées dans les
-fichiers projet/session.
+et leurs alias ABI. Elles sont persistées dans les snapshots host et les
+projets/sessions du moniteur.
 
 ## 3. Mémoire, watchpoint et annulation
 

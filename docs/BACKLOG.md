@@ -21,7 +21,7 @@ réimplémentée si les preuves indiquées existent.
 | FP-001A, FP-002A, FP-003A, FP-004A/B, FP-005A, GEN-003 | livré | tests `luna-machine`, probes QEMU et tests de formats | traiter FP-002 comme partiellement livré et FP-003 comme reste D/Q/Zfh |
 | CMD-001A/B/C, MON-001A/B, REG-001A..D | livré par sous-tranches | tests `luna-monitor` et commandes host/backend | clôturer les agrégats après matrice de couverture |
 | UI-000A..H | livré | tests app/monitor, TTY et documentation | conserver UI-001 pour l’éditeur/panneaux réellement interactifs |
-| DBG-001, FORMAT-001, QUAL-001/002, REL-001 | partiel | conditions de breakpoint ajoutées ; step-over/out et persistance restent absents | restent sur le chemin critique |
+| DBG-001, FORMAT-001, QUAL-001/002, REL-001 | partiel | conditions, step-over/out et persistance des conditions livrés ; migration et état complet restent absents | restent sur le chemin critique |
 
 Les tâches BOOT-001 à BOOT-004, GEN-001, ISA-001/002, ASM-BOOT-001,
 MEM-001, MACHINE-001 et DEMO-001 sont des entrées de plan initial. Le dépôt
@@ -1469,6 +1469,36 @@ confondre code présent et exigence formellement auditée.
   de la représentation de l’historique.
 - **Paquet de contexte minimal :** ce sous-ensemble, SPEC §16 et les tests
   `step_over_*`/`step_out_*`.
+
+#### DBG-001C — Persister les conditions de breakpoint — TERMINÉ
+
+- **Jalon / exigences :** M8; DBG-001..004, IO-001..009, OBS-001..006.
+- **But :** conserver l’expression des breakpoints dans snapshots host,
+  projets host et sessions du backend générique.
+- **Non-but :** persister l’historique complet, la pile d’appels ou étendre le
+  langage d’expressions.
+- **Entrées/sources :** SPEC §§8/12/21/22; contrat de versionnement local des
+  formats; AST d’expression de la ligne de commande.
+- **Fichiers/modules :** `crates/monitor/src/lib.rs`, tests de round-trip.
+- **Étapes réalisées :** sérialiser l’AST avec tags déterministes; restaurer
+  les littéraux, symboles, opérateurs unaires/binaires et conditions host/
+  backend; augmenter la version de persistance à 2; refuser les nœuds inconnus
+  et les expressions imbriquées au-delà de 128 niveaux.
+- **Dépendances et tâches bloquées :** DBG-001A, FORMAT-001; une migration
+  automatique des fichiers version 1 reste différée et ceux-ci sont refusés
+  explicitement comme versions incompatibles.
+- **Tests :** snapshot host et session backend avec condition `if x1`, contrôle
+  du marqueur `condition=expression`, troncature et validation des limites.
+- **Critères de sortie :** save/load restitue une condition sémantiquement
+  identique et l’évaluation après restauration conserve le même arrêt.
+- **Cas limites et échecs :** version inconnue, AST tronqué, opérateur invalide
+  ou profondeur excessive → diagnostic stable, sans mutation de la cible.
+- **Taille :** 3 points / 1,5 journée-agent, incertitude faible.
+- **Compétences/outils :** formats binaires versionnés, Rust, tests de parser.
+- **Parallélisable :** oui avec QUAL-001; non avec une modification simultanée
+  du format snapshot/session.
+- **Paquet de contexte minimal :** ce sous-ensemble, `ByteWriter`/
+  `ByteReader`, SPEC §§12/21/22.
 
 ### FORMAT-001 — Projets, snapshots et replay
 
