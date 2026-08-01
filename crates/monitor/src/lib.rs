@@ -158,6 +158,8 @@ impl Monitor {
             "assemble" | "a" => self.assemble(argument),
             "assemble-program" | "load" => self.assemble_program(argument),
             "step" | "s" => self.step(),
+            "step-over" | "next" | "n" => self.step_over(),
+            "step-out" | "finish" => self.step_out(),
             "run" | "r" => self.run(argument),
             "continue" | "c" => self.continue_target(argument),
             "disasm" | "d" => self.disassemble(argument),
@@ -492,6 +494,46 @@ impl Monitor {
         Ok(format!(
             "0x{address:016x}: {word:08x}  {:<28} -> pc=0x{pc_after:016x}; changes: {}",
             line.text, register_changes
+        ))
+    }
+
+    fn step_over(&mut self) -> Result<String> {
+        let pc = self.machine.pc;
+        let word = self.read_word(pc)?;
+        if call_return_address(pc, word).is_none() {
+            return self.step();
+        }
+        self.run_until_pc(pc.wrapping_add(4), "step-over")
+    }
+
+    fn step_out(&mut self) -> Result<String> {
+        let target = self
+            .call_stack
+            .last()
+            .map(|frame| frame.return_pc)
+            .ok_or_else(|| {
+                Diagnostic::error("MON-DBG-021", "step-out requires an active call frame")
+            })?;
+        self.run_until_pc(target, "step-out")
+    }
+
+    fn run_until_pc(&mut self, target: u64, operation: &str) -> Result<String> {
+        let start = self.machine.instructions;
+        for _ in 0..self.max_run_steps {
+            if self.machine.pc == target && self.machine.instructions != start {
+                return Ok(format!(
+                    "{operation}: pc=0x{target:016x}; steps={}",
+                    self.machine.instructions - start
+                ));
+            }
+            let result = self.run_with_limit(1, self.machine.instructions == start)?;
+            if result.starts_with("stopped:") {
+                return Ok(result);
+            }
+        }
+        Err(Diagnostic::error(
+            "MON-DBG-022",
+            format!("{operation} exceeded the execution budget"),
         ))
     }
 
@@ -1450,6 +1492,7 @@ pub struct BackendConsole<B> {
     next_watchpoint_id: u64,
     history: Vec<HistoryEntry>,
     next_history_sequence: u64,
+    call_stack: Vec<CallFrame>,
     max_run_steps: u64,
     register_baseline: register_view::RegisterSnapshot,
     last_diagnostic: Option<Diagnostic>,
@@ -1475,6 +1518,7 @@ where
             next_watchpoint_id: 1,
             history: Vec::new(),
             next_history_sequence: 1,
+            call_stack: Vec::new(),
             max_run_steps: 1000,
             register_baseline,
             last_diagnostic: None,
@@ -1494,6 +1538,8 @@ where
             "assemble" | "a" => self.assemble(argument),
             "assemble-program" | "load" => self.assemble_program(argument),
             "step" | "s" => self.step(),
+            "step-over" | "next" | "n" => self.step_over(),
+            "step-out" | "finish" => self.step_out(),
             "run" | "r" => self.run(argument),
             "continue" | "c" => self.continue_target(argument),
             "regs" | "registers" => {
@@ -1697,6 +1743,46 @@ where
         Ok(format!(
             "{}; changes: {register_changes}",
             format_backend_console_step(pc_before, word, &text, outcome)
+        ))
+    }
+
+    fn step_over(&mut self) -> Result<String> {
+        let pc = self.backend.context().pc;
+        let word = self.read_word(pc)?;
+        if call_return_address(pc, word).is_none() {
+            return self.step();
+        }
+        self.run_until_pc(pc.wrapping_add(4), "step-over")
+    }
+
+    fn step_out(&mut self) -> Result<String> {
+        let target = self
+            .call_stack
+            .last()
+            .map(|frame| frame.return_pc)
+            .ok_or_else(|| {
+                Diagnostic::error("MON-DEBUG-121", "step-out requires an active call frame")
+            })?;
+        self.run_until_pc(target, "step-out")
+    }
+
+    fn run_until_pc(&mut self, target: u64, operation: &str) -> Result<String> {
+        let start = self.next_history_sequence;
+        for _ in 0..self.max_run_steps {
+            if self.backend.context().pc == target && self.next_history_sequence != start {
+                return Ok(format!(
+                    "{operation}: pc=0x{target:016x}; steps={}",
+                    self.next_history_sequence - start
+                ));
+            }
+            let result = self.run_with_limit(1, self.next_history_sequence == start)?;
+            if result.starts_with("stopped:") {
+                return Ok(result);
+            }
+        }
+        Err(Diagnostic::error(
+            "MON-DEBUG-122",
+            format!("{operation} exceeded the execution budget"),
         ))
     }
 
@@ -2463,6 +2549,18 @@ where
             memory_access,
             register_changes,
         });
+        match luna_isa::decode(word) {
+            Instruction::Jal(luna_isa::Jal { rd: 1, imm }) => {
+                self.call_stack.push(CallFrame {
+                    return_pc: pc_before.wrapping_add(4),
+                    target: pc_before.wrapping_add_signed(i64::from(imm)),
+                });
+            }
+            Instruction::Jalr(luna_isa::Jalr { rd: 0, rs1: 1, .. }) => {
+                self.call_stack.pop();
+            }
+            _ => {}
+        }
     }
 
     fn show_history(&self, argument: &str) -> Result<String> {
@@ -2563,6 +2661,7 @@ where
         self.undo.clear();
         self.history.clear();
         self.next_history_sequence = 1;
+        self.call_stack.clear();
         Ok(format!(
             "session loaded ({} bytes; target registers and memory unchanged)",
             bytes.len()
@@ -2625,6 +2724,7 @@ where
         self.undo.clear();
         self.history.clear();
         self.next_history_sequence = 1;
+        self.call_stack.clear();
         Ok(format!("target snapshot restored ({} bytes)", bytes.len()))
     }
 
@@ -2757,6 +2857,8 @@ fn backend_help() -> String {
         "assemble <source>    assemble and write at target pc",
         "assemble-program <source> load a multi-line image and symbols",
         "step                 execute one target instruction",
+        "step-over|next       execute a call and stop at its return address",
+        "step-out|finish      execute until the current call returns",
         "run [count]          execute up to count target steps",
         "continue [count]     resume, bypassing a breakpoint at current pc",
         "regs [blinkenlights]  show exact registers or a bit-light panel",
@@ -2893,6 +2995,14 @@ fn format_watchpoint_stop(
     )
 }
 
+fn call_return_address(pc: u64, word: u32) -> Option<u64> {
+    match luna_isa::decode(word) {
+        Instruction::Jal(luna_isa::Jal { rd: 1, .. })
+        | Instruction::Jalr(luna_isa::Jalr { rd: 1, .. }) => Some(pc.wrapping_add(4)),
+        _ => None,
+    }
+}
+
 fn help() -> String {
     [
         "help                 show commands",
@@ -2900,6 +3010,8 @@ fn help() -> String {
         "assemble <source>    assemble and load one source line at pc",
         "assemble-program <source> load a multi-line program and symbols",
         "step                 execute one instruction",
+        "step-over|next       execute a call and stop at its return address",
+        "step-out|finish      execute until the current call returns",
         "run [count]          execute up to count instructions (default 1000)",
         "continue [count]     resume, bypassing a breakpoint at current pc",
         "set <xreg> <value>   edit an integer register (x0 is read-only)",
@@ -3918,6 +4030,49 @@ mod tests {
         assert!(monitor.execute("where").unwrap().contains("func"));
         assert!(monitor.execute("stack").unwrap().contains("target=func"));
         assert!(monitor.execute("history").unwrap().contains("jal x1,func"));
+    }
+
+    #[test]
+    fn step_over_executes_call_and_stops_at_return_address() {
+        let mut monitor = Monitor::new(128);
+        monitor
+            .assemble_program(
+                "_start: jal ra,func\n        addi x2,x0,9\nfunc:   addi x3,x0,7\n        jalr x0,0(ra)",
+            )
+            .unwrap();
+
+        let result = monitor.execute("step-over").unwrap();
+
+        assert!(result.contains("step-over: pc=0x0000000000000004"));
+        assert_eq!(monitor.machine.pc, 4);
+        assert_eq!(monitor.machine.x[2], 0);
+        assert_eq!(monitor.machine.x[3], 7);
+        assert!(monitor.call_stack.is_empty());
+    }
+
+    #[test]
+    fn step_out_executes_current_call_until_return_address() {
+        let mut monitor = Monitor::new(128);
+        monitor
+            .assemble_program(
+                "_start: jal ra,func\n        addi x2,x0,9\nfunc:   addi x3,x0,7\n        jalr x0,0(ra)",
+            )
+            .unwrap();
+        monitor.execute("step").unwrap();
+
+        let result = monitor.execute("step-out").unwrap();
+
+        assert!(result.contains("step-out: pc=0x0000000000000004"));
+        assert_eq!(monitor.machine.pc, 4);
+        assert_eq!(monitor.machine.x[3], 7);
+        assert!(monitor.call_stack.is_empty());
+    }
+
+    #[test]
+    fn step_out_without_call_frame_is_rejected() {
+        let mut monitor = Monitor::new(128);
+        let error = monitor.execute("step-out").unwrap_err();
+        assert_eq!(error.code, "MON-DBG-021");
     }
 
     #[test]

@@ -1439,6 +1439,37 @@ confondre code présent et exigence formellement auditée.
 - **Paquet de contexte minimal :** ce sous-ensemble, SPEC §16 et les tests
   `conditional_breakpoint_*`.
 
+#### DBG-001B — Step-over et step-out call-aware — TERMINÉ
+
+- **Jalon / exigences :** M7; DBG-001..004, DBG-009, REQ-PROD-003.
+- **But :** fournir `step-over`/`next` et `step-out` dans le moniteur host et
+  le backend générique, avec une heuristique explicite basée sur `jal`/`jalr`
+  et les adresses de retour `ra`.
+- **Non-but :** DWARF, analyse complète des appels indirects, exécution
+  asynchrone et transport série.
+- **Entrées/sources :** SPEC §16; R1 chap. 2 sur `jal`/`jalr`; historique et
+  contrat `TargetBackend`.
+- **Fichiers/modules :** `crates/monitor/src/lib.rs`, tests du moniteur.
+- **Étapes réalisées :** mémoriser les cadres lors de `jal ra,...`, les retirer
+  sur `jalr x0,0(ra)`; exécuter un appel jusqu’à `pc+4` pour `step-over`; exécuter
+  le cadre actif jusqu’à son adresse de retour pour `step-out`; réutiliser les
+  breakpoints/watchpoints et le budget borné.
+- **Dépendances et tâches bloquées :** DBG-001; les appels non conventionnels,
+  tail calls, DWARF et la persistance de la pile restent différés.
+- **Tests :** appel avec fonction et retour `jalr`, vérification des registres,
+  PC de retour, pile vide après retour et refus de `step-out` sans cadre.
+- **Critères de sortie :** l’appel est franchi sans exécuter l’instruction
+  située à l’adresse de retour; `step-out` s’arrête à cette adresse; le budget
+  et les arrêts existants restent effectifs.
+- **Cas limites et échecs :** absence de cadre, boucle sans retour, breakpoint
+  dans la fonction et dépassement du budget produisent un résultat borné.
+- **Taille :** 3 points / 1,5 journée-agent, incertitude moyenne.
+- **Compétences/outils :** débogage RV64, conventions `ra`, tests Rust.
+- **Parallélisable :** oui avec QUAL-001; non avec une modification concurrente
+  de la représentation de l’historique.
+- **Paquet de contexte minimal :** ce sous-ensemble, SPEC §16 et les tests
+  `step_over_*`/`step_out_*`.
+
 ### FORMAT-001 — Projets, snapshots et replay
 
 - **Jalon / exigences :** M8; IO-001..009, OBS-001..006, REQ-PROD-006.

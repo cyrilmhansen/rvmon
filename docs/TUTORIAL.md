@@ -58,6 +58,19 @@ breakpoint courant une fois. Pour un programme multi-ligne, fournir le texte
 avec des retours à la ligne à l’API `BackendConsole::execute` ou utiliser
 `--script` avec un fichier de commandes.
 
+Pour traverser une fonction appelée par `jal ra,...` sans s’arrêter dans son
+corps :
+
+```text
+rvmonitor> step-over
+step-over: pc=0x0000000000000004; steps=3
+```
+
+Depuis une fonction déjà appelée, `step-out` exécute jusqu’à l’adresse de
+retour contenue dans le cadre `ra` courant. Ces commandes utilisent une
+heuristique RV64 volontairement limitée : appels indirects non conventionnels,
+tail calls et informations DWARF ne sont pas encore pris en charge.
+
 Une condition entière peut limiter l’arrêt :
 
 ```text
