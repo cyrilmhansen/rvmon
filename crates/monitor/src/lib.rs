@@ -3417,7 +3417,8 @@ fn decode_backend_session(bytes: &[u8]) -> Result<DecodedBackendSession> {
         ));
     }
     let mut reader = ByteReader::new(bytes, SESSION_MAGIC)?;
-    if reader.u32()? != PERSISTENCE_VERSION {
+    let version = reader.u32()?;
+    if version != PERSISTENCE_VERSION {
         return Err(Diagnostic::error(
             "MON-SESSION-008",
             "unsupported session version",
@@ -3506,13 +3507,16 @@ fn decode_backend_session(bytes: &[u8]) -> Result<DecodedBackendSession> {
             ));
         }
     }
-    let call_frame_count = checked_count(reader.u32()?, "session call stack")?;
-    let mut call_stack = Vec::with_capacity(call_frame_count);
-    for _ in 0..call_frame_count {
-        call_stack.push(CallFrame {
-            return_pc: reader.u64()?,
-            target: reader.u64()?,
-        });
+    let mut call_stack = Vec::new();
+    if version >= 3 {
+        let call_frame_count = checked_count(reader.u32()?, "session call stack")?;
+        call_stack = Vec::with_capacity(call_frame_count);
+        for _ in 0..call_frame_count {
+            call_stack.push(CallFrame {
+                return_pc: reader.u64()?,
+                target: reader.u64()?,
+            });
+        }
     }
     reader.finish()?;
     Ok(DecodedBackendSession {
@@ -3535,7 +3539,8 @@ fn decode_snapshot(bytes: &[u8]) -> Result<DecodedSnapshot> {
         ));
     }
     let mut reader = ByteReader::new(bytes, SNAPSHOT_MAGIC)?;
-    if reader.u32()? != PERSISTENCE_VERSION {
+    let version = reader.u32()?;
+    if version != PERSISTENCE_VERSION {
         return Err(Diagnostic::error(
             "MON-PERSIST-018",
             "unsupported snapshot version",
@@ -3630,13 +3635,16 @@ fn decode_snapshot(bytes: &[u8]) -> Result<DecodedSnapshot> {
             ));
         }
     }
-    let call_frame_count = checked_count(reader.u32()?, "call stack")?;
-    let mut call_stack = Vec::with_capacity(call_frame_count);
-    for _ in 0..call_frame_count {
-        call_stack.push(CallFrame {
-            return_pc: reader.u64()?,
-            target: reader.u64()?,
-        });
+    let mut call_stack = Vec::new();
+    if version >= 3 {
+        let call_frame_count = checked_count(reader.u32()?, "call stack")?;
+        call_stack = Vec::with_capacity(call_frame_count);
+        for _ in 0..call_frame_count {
+            call_stack.push(CallFrame {
+                return_pc: reader.u64()?,
+                target: reader.u64()?,
+            });
+        }
     }
     let memory = reader.bytes_vec(memory_length)?;
     reader.finish()?;
@@ -3670,7 +3678,8 @@ fn decode_project(bytes: &[u8]) -> Result<(String, Vec<u8>)> {
         ));
     }
     let mut reader = ByteReader::new(bytes, PROJECT_MAGIC)?;
-    if reader.u32()? != PERSISTENCE_VERSION {
+    let version = reader.u32()?;
+    if version != PERSISTENCE_VERSION {
         return Err(Diagnostic::error(
             "MON-PERSIST-026",
             "unsupported project version",
