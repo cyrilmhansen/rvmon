@@ -916,6 +916,23 @@ Une tâche est terminée seulement si sa condition de sortie est satisfaite.
 - **Parallélisable :** oui avec REG-001.
 - **Contexte minimal :** SPEC §§14–15, scénarios 2/3.
 
+### REG-001A — Parsing et édition exacte des registres internes — TERMINÉ
+
+- **Jalon / exigences :** M6/M7; REQ-PROD-003/005, DBG-001..014, FP-001..018.
+- **But :** stabiliser les noms de registres et l’édition bit-exacte des registres entiers/flottants du simulateur interne.
+- **Non-but :** écrire les registres d’un backend distant avant extension de `TargetBackend`, modifier `fcsr` par commande ou construire les widgets terminaux.
+- **Entrées/sources :** SPEC §§8/15/16; R1 F/Zicsr; R3 convention de registres; DECISIONS D-003/D-005/D-007.
+- **Fichiers/modules :** `crates/monitor/src/register_view.rs`, `crates/monitor/src/lib.rs`.
+- **Étapes réalisées :** parsing `x0..x31` et aliases ABI; parsing `f0..f31`; motifs u64 décimaux/hexadécimaux avec séparateurs; `set` et `setf` sur le simulateur; `x0` read-only; représentation flottante sans conversion hôte.
+- **Dépendances/bloqués :** MON-001B; l’édition CSR, le diff de registres à chaque stop et le contrat d’écriture du backend distant restent à faire.
+- **Tests :** aliases `a0`, bit pattern flottant exact, overflow, classes incorrectes, protection de x0 et absence de mutation après erreur.
+- **Critères de sortie :** toute édition valide modifie exactement le registre demandé; aucun float n’est converti par l’hôte; x0 reste nul; le backend distant reste explicitement read-only.
+- **Cas limites et échecs :** index hors 31, valeur >64 bits, f-register utilisé avec `set`, x0, motif NaN/non-boxé; chaque erreur conserve l’état.
+- **Taille :** 3 points / 1,5 journée-agent, incertitude moyenne.
+- **Compétences/outils :** ABI RISC-V, bit patterns IEEE, contrats backend, Rust.
+- **Parallélisable :** oui avec la finalisation MON-001; non avec une modification concurrente de `TargetContext`.
+- **Paquet de contexte minimal :** SPEC §§8/15/16, `crates/monitor/src/register_view.rs`, `crates/target-api/src/lib.rs`.
+
 ### REG-001 — Contrat et vues exactes des registres
 
 - **Jalon / exigences :** M6/M7; REQ-PROD-003/005, DBG-001..014, FP-001..018.

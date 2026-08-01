@@ -17,6 +17,7 @@ use luna_target_api::{ExecutionOutcome, MemoryAccess, MemoryAccessKind, StopEven
 
 mod command;
 mod memory_view;
+mod register_view;
 
 const DEFAULT_MEMORY_VIEW_BYTES: usize = 64;
 const MAX_MEMORY_VIEW_BYTES: usize = 4096;
@@ -127,6 +128,8 @@ impl Monitor {
         match name.as_str() {
             "help" | "?" => Ok(help()),
             "regs" | "registers" => self.registers(),
+            "set" => self.set_integer_register(argument),
+            "setf" => self.set_float_register(argument),
             "assemble" | "a" => self.assemble(argument),
             "assemble-program" | "load" => self.assemble_program(argument),
             "step" | "s" => self.step(),
@@ -1158,6 +1161,30 @@ impl Monitor {
         )
         .unwrap();
         Ok(output.trim_end().into())
+    }
+
+    fn set_integer_register(&mut self, argument: &str) -> Result<String> {
+        let register_view::RegisterEdit::Integer { index, value } =
+            register_view::parse_integer_edit(argument)?
+        else {
+            unreachable!("integer register parser returned a float edit");
+        };
+        if index == 0 {
+            return Err(Diagnostic::error("MON-REG-007", "x0 is read-only"));
+        }
+        self.machine.x[index] = value;
+        self.machine.x[0] = 0;
+        Ok(format!("x{index:02}={}", register_view::format_raw(value)))
+    }
+
+    fn set_float_register(&mut self, argument: &str) -> Result<String> {
+        let register_view::RegisterEdit::Float { index, bits } =
+            register_view::parse_float_edit(argument)?
+        else {
+            unreachable!("float register parser returned an integer edit");
+        };
+        self.machine.f[index] = bits;
+        Ok(format!("f{index:02}={}", register_view::format_raw(bits)))
     }
 }
 
@@ -2363,6 +2390,8 @@ fn help() -> String {
         "step                 execute one instruction",
         "run [count]          execute up to count instructions (default 1000)",
         "continue [count]     resume, bypassing a breakpoint at current pc",
+        "set <xreg> <value>   edit an integer register (x0 is read-only)",
+        "setf <freg> <bits>   edit an exact floating-register bit pattern",
         "disasm [addr] [count] show instructions (default pc, 4)",
         "memory [addr] [count] show hex and ASCII (default view, 64)",
         "find <addr> <count> <bytes> search memory for a byte pattern",
@@ -2949,6 +2978,29 @@ mod tests {
         assert!(registers.contains("0x40700000"));
         assert!(registers.contains("s:0x40700000=3.75"));
         assert!(registers.contains("fcsr=0x00000000"));
+    }
+
+    #[test]
+    fn register_edits_use_abi_aliases_exact_bits_and_protect_x0() {
+        let mut monitor = Monitor::new(128);
+        assert_eq!(
+            monitor.execute("set a0 0x1234_5678").unwrap(),
+            "x10=0x0000000012345678"
+        );
+        assert_eq!(monitor.machine.x[10], 0x1234_5678);
+        monitor.machine.x[0] = 0;
+        let error = monitor.execute("set zero 0xffff").unwrap_err();
+        assert_eq!(error.code, "MON-REG-007");
+        assert_eq!(monitor.machine.x[0], 0);
+
+        assert_eq!(
+            monitor.execute("setf f3 0xffff_ffff_0000_0001").unwrap(),
+            "f03=0xffffffff00000001"
+        );
+        assert_eq!(monitor.machine.f[3], 0xffff_ffff_0000_0001);
+        let error = monitor.execute("setf x3 1").unwrap_err();
+        assert_eq!(error.code, "MON-REG-005");
+        assert_eq!(monitor.machine.f[3], 0xffff_ffff_0000_0001);
     }
 
     #[test]
