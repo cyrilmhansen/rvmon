@@ -77,6 +77,18 @@ Les fichiers de persistance du moniteur sont versionnés et protégés par un
 checksum déterministe ; un fichier tronqué ou modifié est refusé avant son
 application.
 
+Pour auditer un fichier sans restaurer la cible :
+
+```text
+rvmonitor> manifest session.rvs
+manifest:
+  type=RVSESS01
+  version=4
+  bytes=...
+  checksum=0x...
+  integrity=valid
+```
+
 Une condition entière peut limiter l’arrêt :
 
 ```text

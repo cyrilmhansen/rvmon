@@ -192,6 +192,7 @@ impl Monitor {
             "diagnostic" | "diag" => self.show_diagnostic(),
             "snapshot" => self.snapshot_file(argument),
             "restore" => self.restore_snapshot_file(argument),
+            "manifest" | "file-info" => persistence_manifest_file(argument),
             "project-save" => self.project_save_file(argument),
             "project-load" => self.project_load_file(argument),
             "reset" => {
@@ -1593,6 +1594,7 @@ where
             "history" | "trace" => self.show_history(argument),
             "snapshot" => self.snapshot_file(argument),
             "restore" => self.restore_snapshot_file(argument),
+            "manifest" | "file-info" => persistence_manifest_file(argument),
             "project-save" | "session-save" => self.save_session(argument),
             "project-load" | "session-load" => self.load_session(argument),
             "quit" | "exit" => Ok("bye".into()),
@@ -2913,6 +2915,7 @@ fn backend_help() -> String {
         "history [count]      show bounded target execution history",
         "snapshot <path>      save target state when supported",
         "restore <path>       restore target state when supported",
+        "manifest <path>      verify and display a persistence manifest",
         "project-save <path>  save session metadata (not target state)",
         "project-load <path>  restore session metadata (not target state)",
         "quit                 close the console",
@@ -3069,6 +3072,7 @@ fn help() -> String {
         "history [count]      show bounded execution history",
         "snapshot <path>      save machine/debugger state",
         "restore <path>       restore a snapshot atomically",
+        "manifest <path>      verify and display a persistence manifest",
         "project-save <path>  save source plus state",
         "project-load <path>  restore a project",
         "regs [blinkenlights]  show x/f/fcsr exactly or bit-light view",
@@ -3428,6 +3432,32 @@ fn persistence_checksum(bytes: &[u8]) -> u64 {
         checksum = checksum.wrapping_mul(0x0000_0100_0000_01b3);
     }
     checksum
+}
+
+fn persistence_manifest_file(argument: &str) -> Result<String> {
+    let path = persistence_path(argument, "MON-PERSIST-039")?;
+    let bytes = read_persistence_file(path)?;
+    let kind = if bytes.starts_with(SNAPSHOT_MAGIC) {
+        decode_snapshot(&bytes)?;
+        "RVSNAP01"
+    } else if bytes.starts_with(PROJECT_MAGIC) {
+        decode_project(&bytes)?;
+        "RVPROJ01"
+    } else if bytes.starts_with(SESSION_MAGIC) {
+        decode_backend_session(&bytes)?;
+        "RVSESS01"
+    } else {
+        return Err(Diagnostic::error(
+            "MON-PERSIST-040",
+            "unsupported persistence container",
+        ));
+    };
+    let version = u32::from_le_bytes(bytes[8..12].try_into().unwrap());
+    let checksum = u64::from_le_bytes(bytes[bytes.len() - 8..].try_into().unwrap());
+    Ok(format!(
+        "manifest:\n  type={kind}\n  version={version}\n  bytes={}\n  checksum=0x{checksum:016x}\n  integrity=valid",
+        bytes.len()
+    ))
 }
 
 fn decode_backend_session(bytes: &[u8]) -> Result<DecodedBackendSession> {
@@ -4382,6 +4412,39 @@ mod tests {
     }
 
     #[test]
+    fn persistence_manifest_reports_valid_snapshot_and_project() {
+        let snapshot_path = std::env::temp_dir().join(format!(
+            "rvmonitor-manifest-snapshot-{}-{}.rvt",
+            std::process::id(),
+            345_678u64
+        ));
+        let project_path = std::env::temp_dir().join(format!(
+            "rvmonitor-manifest-project-{}-{}.rvp",
+            std::process::id(),
+            456_789u64
+        ));
+        let snapshot_text = snapshot_path.to_string_lossy().into_owned();
+        let project_text = project_path.to_string_lossy().into_owned();
+        let mut monitor = Monitor::new(128);
+        monitor
+            .execute(&format!("snapshot {snapshot_text}"))
+            .unwrap();
+        monitor.assemble_program("_start: addi x1,x0,1").unwrap();
+        monitor
+            .execute(&format!("project-save {project_text}"))
+            .unwrap();
+
+        let snapshot_manifest = monitor.execute(&format!("manifest {snapshot_text}"));
+        let project_manifest = monitor.execute(&format!("manifest {project_text}"));
+        assert!(snapshot_manifest.unwrap().contains("type=RVSNAP01"));
+        let project_manifest = project_manifest.unwrap();
+        assert!(project_manifest.contains("type=RVPROJ01"));
+        assert!(project_manifest.contains("integrity=valid"));
+        std::fs::remove_file(snapshot_path).unwrap();
+        std::fs::remove_file(project_path).unwrap();
+    }
+
+    #[test]
     fn backend_console_exposes_mixed_disassembly() {
         let mut console = BackendConsole::new(Machine::new(128));
         console.execute("assemble addi x1,x0,1").unwrap();
@@ -4523,6 +4586,12 @@ mod tests {
                 .execute("info break")
                 .unwrap()
                 .contains("#1 at 0x0000000000000000 condition=expression")
+        );
+        assert!(
+            symbol_console
+                .execute(&format!("manifest {session_path_text}"))
+                .unwrap()
+                .contains("type=RVSESS01")
         );
         std::fs::remove_file(session_path).unwrap();
 

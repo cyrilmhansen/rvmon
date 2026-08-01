@@ -1573,6 +1573,33 @@ confondre code présent et exigence formellement auditée.
 - **Parallélisable :** oui avec UI-001 après contracts.
 - **Contexte minimal :** SPEC §§12/21/22.
 
+#### FORMAT-001B — Inspection de manifeste — TERMINÉ
+
+- **Jalon / exigences :** M8; IO-001..009, OBS-001..006.
+- **But :** rendre l’intégrité et l’identité d’un fichier inspectables sans
+  restaurer ni modifier la cible.
+- **Non-but :** extraction de l’état complet, signature cryptographique ou
+  transport série.
+- **Entrées/sources :** SPEC §§12/18/21/22; conteneurs locaux v4.
+- **Fichiers/modules :** `crates/monitor/src/lib.rs`, aide et tutoriel.
+- **Étapes réalisées :** ajouter `manifest <path>` dans host/backend; détecter
+  `RVSNAP01`, `RVPROJ01` et `RVSESS01`; valider le décodage et le checksum;
+  afficher type, version, taille, checksum et état `integrity=valid`.
+- **Dépendances et tâches bloquées :** FORMAT-001A; manifeste multi-profils,
+  SBOM et signature de release restent dans REL-001.
+- **Tests :** inspection host snapshot/projet et backend session; fichiers
+  corrompus refusés par le même contrat d’intégrité.
+- **Critères de sortie :** la commande ne change ni PC, ni registres, ni
+  mémoire, et toute structure invalide est rejetée avant affichage.
+- **Cas limites et échecs :** chemin absent, magic inconnu, taille minimale
+  insuffisante et checksum invalide produisent des diagnostics stables.
+- **Taille :** 2 points / 1 journée-agent, incertitude faible.
+- **Compétences/outils :** CLI, formats binaires, diagnostics Rust.
+- **Parallélisable :** oui avec QUAL-001; non avec une modification concurrente
+  de `ByteReader`.
+- **Paquet de contexte minimal :** commande `manifest`, `ByteReader`,
+  `persistence_checksum`, SPEC §§12/18/21.
+
 ### UI-000A — Historique de commandes du shell host/QEMU — TERMINÉ
 
 - **Jalon / exigences :** M6/M7; REQ-PROD-001, REQ-PROD-005, REQ-OBS-001.
