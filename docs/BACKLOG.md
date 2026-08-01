@@ -1877,7 +1877,7 @@ release. Elles n’ajoutent aucune extension ISA.
   préenregistrée.
 - **Taille :** 3 points / 1,5 journée-agent, incertitude faible.
 
-#### BASIC-LOAD-003B — Conversion binary64 vers affichage décimal cible
+#### BASIC-LOAD-003B — Conversion binary64 vers affichage décimal cible — TERMINÉ
 
 - **Priorité :** P0, prochaine sous-tranche.
 - **But :** ajouter une conversion bornée target-side compatible avec le format
@@ -1885,10 +1885,15 @@ release. Elles n’ajoutent aucune extension ISA.
 - **Non-but :** dtoa général illimité ou compatibilité de toutes les locales.
 - **Dépendances :** BASIC-LOAD-003A, ABI `write-buffer` ; bloque le lexer
   d’expressions et le `PRINT` chargé.
-- **Tests :** 14, 22/7, ±0, valeurs entières, six décimales, buffer plein et
-  absence de conversion hôte.
-- **Acceptation :** la chaîne produite par le payload est déterministe et est
-  envoyée uniquement par ecall.
+- **Tests :** `bash scripts/test-guest-decimal-print.sh`; `22/7`, six
+  décimales fixes, boucles entières target-side, buffer ASCII et absence de
+  conversion hôte.
+- **Étapes réalisées :** support guest `fcvt.l.d`, `fcvt.d.l` et `sb`; routine
+  de décomposition, arrondi positif borné, génération ASCII et `write-buffer`.
+- **Acceptation :** le payload produit déterministement `3.142857` depuis
+  binary64 et l’envoie uniquement par ecall.
+- **Limites restantes :** négatifs, ±0, infinis, NaN, débordements, valeurs
+  hors plage et raccord au lexer BASIC sont explicitement différés.
 - **Taille :** 5 points / 2,5 journées-agent, incertitude élevée.
 
 ### BASIC-LOAD-004 — Porter le magasin de lignes et le contrôle de flot

@@ -1,0 +1,63 @@
+data 0x82000000 .double 0x4036000000000000
+data 0x82000008 .double 0x401c000000000000
+data 0x82000010 .double 0x412e848000000000
+data 0x82000018 .double 0x3fe0000000000000
+assemble-program 0x81000100
+entry:
+auipc x5,0x1000
+addi x5,x5,-256
+fld f1,0(x5)
+fld f2,8(x5)
+fdiv.d f1,f1,f2
+fcvt.l.d x10,f1,1
+fcvt.d.l f2,x10
+fsub.d f3,f1,f2
+fld f4,16(x5)
+fmul.d f3,f3,f4
+end
+assemble-program 0x81000128
+fld f4,24(x5)
+fadd.d f3,f3,f4
+fcvt.l.d x11,f3,1
+addi x12,x5,128
+addi x13,x0,0
+addi x14,x0,10
+addi x18,x0,6
+end
+assemble-program 0x81000144
+frac_loop:
+div x15,x11,x14
+mul x16,x15,x14
+sub x17,x11,x16
+addi x17,x17,48
+addi x12,x12,-1
+sb x17,0(x12)
+addi x13,x13,1
+add x11,x15,x0
+addi x18,x18,-1
+bne x18,x0,frac_loop
+addi x17,x0,46
+addi x12,x12,-1
+sb x17,0(x12)
+addi x13,x13,1
+end
+assemble-program 0x8100017c
+int_loop:
+div x15,x10,x14
+mul x16,x15,x14
+sub x17,x10,x16
+addi x17,x17,48
+addi x12,x12,-1
+sb x17,0(x12)
+addi x13,x13,1
+add x10,x15,x0
+bne x10,x0,int_loop
+add x10,x12,x0
+add x11,x13,x0
+addi x17,x0,4
+ecall
+ebreak
+end
+run-at 0x81000100
+regs
+q

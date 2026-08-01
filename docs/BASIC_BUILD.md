@@ -68,5 +68,17 @@ La première primitive arithmétique du futur runtime assembleur est testée par
 `bash scripts/test-guest-expression-d.sh`. Elle charge trois `binary64`,
 exécute `fmul.d`, `fadd.d`, `fsub.d`, puis `fsd` et s’arrête sur `ebreak` pour
 inspecter les bits exacts. Cette étape ne fournit pas encore le lexer BASIC ni
-la conversion décimale ; elle prouve seulement que l’évaluation D pourra être
-faite dans le payload cible.
+la conversion décimale générale ; elle prouve seulement que l’évaluation D
+pourra être faite dans le payload cible.
+
+La tranche suivante démontre une conversion target-side bornée pour les
+valeurs positives finies, en six décimales fixes :
+
+```text
+bash scripts/test-guest-decimal-print.sh
+```
+
+Le payload calcule `22/7`, sépare partie entière et fractionnaire avec
+`fcvt.l.d`/`fcvt.d.l`, remplit l’ASCII et l’envoie par `write-buffer`, ce qui
+produit `3.142857` sans interpréteur ni conversion hôte. Les signes négatifs,
+les valeurs particulières et le raccord au lexer BASIC restent à couvrir.

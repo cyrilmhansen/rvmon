@@ -2440,6 +2440,9 @@ fn parse_source_instruction(
     if let Some(operands) = source.strip_prefix(b"sd ") {
         return parse_load_store_operands("sd", operands, symbols);
     }
+    if let Some(operands) = source.strip_prefix(b"sb ") {
+        return parse_load_store_operands("sb", operands, symbols);
+    }
     if let Some(operands) = source.strip_prefix(b"fld ") {
         return parse_float_load_store_operands("fld", operands, symbols);
     }
@@ -2458,6 +2461,14 @@ fn parse_source_instruction(
     ] {
         if let Some(operands) = source.strip_prefix(prefix) {
             return parse_fadd_operands(mnemonic, operands);
+        }
+    }
+    for (prefix, mnemonic) in [
+        (b"fcvt.l.d " as &[u8], "fcvt.l.d"),
+        (b"fcvt.d.l ", "fcvt.d.l"),
+    ] {
+        if let Some(operands) = source.strip_prefix(prefix) {
+            return parse_float_conversion(mnemonic, operands);
         }
     }
     for mnemonic in ["add", "sub", "mul", "div"] {
@@ -2591,6 +2602,32 @@ fn parse_float_load_store_operands(
     } else {
         luna_isa_core::encode_store(mnemonic, register, base, offset)
     }
+}
+
+fn parse_float_conversion(mnemonic: &str, operands: &[u8]) -> Option<u32> {
+    let (rd_bytes, rest) = split_once_comma(operands)?;
+    let (rs1_bytes, rm_bytes) = split_once_comma(rest).unwrap_or((rest, b""));
+    let rm = if rm_bytes.is_empty() {
+        0
+    } else {
+        let value = parse_decimal(rm_bytes.trim_ascii())?;
+        (value <= 7).then_some(value as u8)?
+    };
+    let (rd, rs1) = if mnemonic == "fcvt.l.d" {
+        (
+            parse_register(rd_bytes.trim_ascii())?,
+            parse_float_register(rs1_bytes.trim_ascii())?,
+        )
+    } else {
+        (
+            parse_float_register(rd_bytes.trim_ascii())?,
+            parse_register(rs1_bytes.trim_ascii())?,
+        )
+    };
+    let opcode = GENERATED_OPCODES
+        .iter()
+        .find(|opcode| opcode.mnemonic == mnemonic)?;
+    Some(opcode.match_value | ((rs1 as u32) << 15) | ((rm as u32) << 12) | ((rd as u32) << 7))
 }
 
 fn parse_fadd_operands(mnemonic: &str, operands: &[u8]) -> Option<u32> {
