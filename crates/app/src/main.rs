@@ -3,6 +3,8 @@
 use std::fs::File;
 use std::io::{self, BufRead, BufReader, Write};
 
+const MAX_SHELL_HISTORY: usize = 256;
+
 fn main() {
     let script = script_path();
     if let Some(port) = qemu_port() {
@@ -68,7 +70,8 @@ fn interactive(script: Option<&str>) {
         None => Box::new(stdin.lock()),
     };
     let mut monitor = luna_monitor::Monitor::new(64 * 1024);
-    println!("RVMonitor interactive; type 'help' for commands");
+    let mut history = Vec::new();
+    println!("RVMonitor interactive; type 'help' for commands (!! and !N replay history)");
     if script.is_none() {
         print!("rvmonitor> ");
         io::stdout().flush().unwrap();
@@ -79,6 +82,13 @@ fn interactive(script: Option<&str>) {
             Err(error) => {
                 eprintln!("input error: {error}");
                 break;
+            }
+        };
+        let line = match expand_history_line(&line, &mut history) {
+            Ok(line) => line,
+            Err(error) => {
+                eprintln!("{error}");
+                continue;
             }
         };
         let leave = matches!(line.trim(), "quit" | "exit");
@@ -111,6 +121,7 @@ fn qemu_interactive(port: u16, script: Option<&str>) {
         }
         None => Box::new(stdin.lock()),
     };
+    let mut history = Vec::new();
     println!("RVMonitor QEMU backend on 127.0.0.1:{port}; type 'help' for commands");
     if script.is_none() {
         print!("rvmonitor-qemu> ");
@@ -122,6 +133,13 @@ fn qemu_interactive(port: u16, script: Option<&str>) {
             Err(error) => {
                 eprintln!("input error: {error}");
                 break;
+            }
+        };
+        let line = match expand_history_line(&line, &mut history) {
+            Ok(line) => line,
+            Err(error) => {
+                eprintln!("{error}");
+                continue;
             }
         };
         let leave = matches!(line.trim(), "quit" | "exit");
@@ -137,5 +155,73 @@ fn qemu_interactive(port: u16, script: Option<&str>) {
             print!("rvmonitor-qemu> ");
             io::stdout().flush().unwrap();
         }
+    }
+}
+
+fn expand_history_line(line: &str, history: &mut Vec<String>) -> Result<String, String> {
+    let trimmed = line.trim();
+    let expanded = if trimmed == "!!" {
+        history
+            .last()
+            .cloned()
+            .ok_or_else(|| "APP-SHELL-001: command history is empty".to_string())?
+    } else if let Some(index) = trimmed.strip_prefix('!') {
+        if index.is_empty() || !index.chars().all(|character| character.is_ascii_digit()) {
+            return Err("APP-SHELL-002: history reference must be !! or !N".into());
+        }
+        let number = index
+            .parse::<usize>()
+            .map_err(|_| "APP-SHELL-003: invalid history number".to_string())?;
+        if number == 0 || number > history.len() {
+            return Err(format!(
+                "APP-SHELL-004: history entry !{number} does not exist"
+            ));
+        }
+        history[number - 1].clone()
+    } else {
+        line.to_string()
+    };
+
+    if !expanded.trim().is_empty() && (history.last() != Some(&expanded)) {
+        if history.len() == MAX_SHELL_HISTORY {
+            history.remove(0);
+        }
+        history.push(expanded.clone());
+    }
+    Ok(expanded)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn expands_last_and_numbered_commands_with_bounded_history() {
+        let mut history = Vec::new();
+        assert_eq!(expand_history_line("regs", &mut history).unwrap(), "regs");
+        assert_eq!(
+            expand_history_line("set a0 1", &mut history).unwrap(),
+            "set a0 1"
+        );
+        assert_eq!(expand_history_line("!!", &mut history).unwrap(), "set a0 1");
+        assert_eq!(expand_history_line("!1", &mut history).unwrap(), "regs");
+        assert_eq!(history.len(), 3);
+    }
+
+    #[test]
+    fn rejects_invalid_or_empty_history_references() {
+        let mut history = Vec::new();
+        assert_eq!(
+            expand_history_line("!!", &mut history).unwrap_err(),
+            "APP-SHELL-001: command history is empty"
+        );
+        assert_eq!(
+            expand_history_line("!foo", &mut history).unwrap_err(),
+            "APP-SHELL-002: history reference must be !! or !N"
+        );
+        assert_eq!(
+            expand_history_line("!1", &mut history).unwrap_err(),
+            "APP-SHELL-004: history entry !1 does not exist"
+        );
     }
 }

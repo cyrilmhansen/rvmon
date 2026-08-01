@@ -1035,6 +1035,23 @@ Une tâche est terminée seulement si sa condition de sortie est satisfaite.
 - **Parallélisable :** oui avec UI-001 après contracts.
 - **Contexte minimal :** SPEC §§12/21/22.
 
+### UI-000A — Historique de commandes du shell host/QEMU — TERMINÉ
+
+- **Jalon / exigences :** M6/M7; REQ-PROD-001, REQ-PROD-005, REQ-OBS-001.
+- **But :** permettre le rappel borné des commandes dans les deux boucles interactives de `luna-app` avec `!!` et `!N`.
+- **Non-but :** navigation fléchée ou édition de ligne native, historique persistant, modification de la grammaire du moniteur et TUI complète.
+- **Entrées/sources :** SPEC §§10/17/21; contraintes d’isolation et de limites §18; `luna-app` host/QEMU.
+- **Fichiers/modules :** `crates/app/src/main.rs`, tests binaires, `docs/TESTS.md`.
+- **Étapes réalisées :** ajouter une capacité de 256 commandes; développer `!!` et `!N` 1-based; refuser références invalides avec codes `APP-SHELL-001..004`; partager le comportement avec les scripts non interactifs.
+- **Dépendances et tâches bloquées :** commandes monitor existantes; l’édition de ligne et les raccourcis clavier restent dans UI-001.
+- **Tests :** rappel dernier/numéroté, historique vide, référence invalide, limites et exécution workspace.
+- **Critères de sortie :** une commande rappelée est exécutée exactement comme son texte original; aucune commande cible n’est envoyée en cas de référence invalide; l’historique est borné à 256 entrées.
+- **Cas limites et échecs :** `!!` sans entrée, `!0`, `!N` hors plage, `!foo`, ligne vide et doublon consécutif.
+- **Taille :** 2 points / 1 journée-agent, incertitude faible.
+- **Compétences/outils :** Rust stdio, tests de binaire, ergonomie shell.
+- **Parallélisable :** oui avec la préparation de UI-001; non avec une modification concurrente de la boucle interactive.
+- **Paquet de contexte minimal :** SPEC §§10/17/18/21, `crates/app/src/main.rs`, `crates/monitor/src/lib.rs`.
+
 ### UI-001 — Frontend terminal et cycle ASM-One modernisé
 
 - **Jalon / exigences :** M6–M9; REQ-PROD-001/005, E2E 2/3/4.

@@ -19,7 +19,7 @@ Validation locale complète :
     bash scripts/test-qemu-gdb-backend.sh
     git diff --check
 
-La suite actuelle exécute 170 tests unitaires/intégration répartis dans les crates. Les doc-tests compilent mais ne contiennent actuellement aucun cas. Les scripts FP oracle QEMU comparent treize cas F/D, trois conversions de format, treize conversions entières W/L et quatre mouvements binaires F/D, hors comptage Cargo. Le script QEMU ouvre en plus une session GDB RSP réelle, hors comptage Cargo.
+La suite actuelle exécute 172 tests unitaires/intégration répartis dans les crates. Les doc-tests compilent mais ne contiennent actuellement aucun cas. Les scripts FP oracle QEMU comparent treize cas F/D, trois conversions de format, treize conversions entières W/L et quatre mouvements binaires F/D, hors comptage Cargo. Le script QEMU ouvre en plus une session GDB RSP réelle, hors comptage Cargo.
 
 Démonstration M-mode/U-mode sous QEMU :
 
@@ -56,7 +56,7 @@ Moniteur texte interactif :
 | luna-target-api | 4 | Contexte de trap, capacités explicites RV64 bare-metal, codes `mcause`, contrat de layout, résultats et accès mémoire du backend commun. |
 | luna-qemu-backend | 7 | Framing GDB RSP, checksum, lecture mémoire, layouts RV64 entier et F/D, stop reply, initialisation `?`, pas et budget nul. |
 | luna-guest-monitor | 0 | Image bare-metal, boot QEMU, PMP, transition M→U, lecture/édition mémoire transactionnelle, `undo`, directives exactes `.word`/`.float`/`.binary128`, assemblage invité entier/flottant, `set`/`setf`, NaN-boxing, `fmv.w.x`/`fmv.x.w` et traps; vérifié par E2E UART QEMU. |
-| luna-app | 0 | Compilation du binaire et démonstration ; pas encore d’E2E terminal. |
+| luna-app | 2 | Rappel borné des commandes host/QEMU avec `!!` et `!N`, références invalides et codes `APP-SHELL-*`; compilation et démonstration. |
 | luna-diag | 0 | Types utilisés par les autres crates ; pas de test dédié. |
 
 ## Périmètre détaillé
