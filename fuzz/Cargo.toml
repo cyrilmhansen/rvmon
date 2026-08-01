@@ -1,0 +1,24 @@
+[package]
+name = "rvmonitor-fuzz"
+version = "0.1.0"
+edition = "2024"
+publish = false
+
+[workspace]
+
+[dependencies]
+libfuzzer-sys = "0.4.7"
+luna-disassembler = { path = "../crates/disassembler" }
+luna-monitor = { path = "../crates/monitor" }
+
+[[bin]]
+name = "commands"
+path = "fuzz_targets/commands.rs"
+test = false
+doc = false
+
+[[bin]]
+name = "disassembler"
+path = "fuzz_targets/disassembler.rs"
+test = false
+doc = false

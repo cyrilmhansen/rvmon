@@ -1904,6 +1904,35 @@ confondre code présent et exigence formellement auditée.
 - **Paquet de contexte minimal :** `tools/reduce-fuzz-case.sh`,
   `tests/fuzz/README.md`, SPEC §23.
 
+#### QUAL-001D — Cibles libFuzzer autonomes — TERMINÉ
+
+- **Jalon / exigences :** M9; REQ-PROD-002/004, ISA/ASM/DIS/CMD.
+- **But :** fournir des cibles libFuzzer exploitant les API publiques du
+  moniteur et du désassembleur sans rendre la dépendance obligatoire au build
+  principal.
+- **Non-but :** exécuter libFuzzer dans la CI de chaque commit, fournir un
+  oracle sémantique ou modifier le workspace de production.
+- **Entrées/sources :** SPEC §23; contrat public `Monitor::execute` et
+  `disassemble_word`; `libfuzzer-sys` 0.4.7.
+- **Fichiers/modules :** `fuzz/Cargo.toml`, `fuzz/fuzz_targets/`, README fuzz.
+- **Étapes réalisées :** créer un workspace fuzz autonome; ajouter cibles
+  `commands` et `disassembler`; fixer les budgets documentés timeout 5 s/
+  session 60 s; conserver smoke-fuzz comme garde-fou sans dépendance.
+- **Dépendances et tâches bloquées :** QUAL-001A/B/C; installation locale de
+  cargo-fuzz et exécution nightly restent dépendantes de l’outillage externe.
+- **Tests :** validation statique du manifest et smoke-fuzz principal; exécution
+  libFuzzer à faire dans l’environnement outillé.
+- **Critères de sortie :** le package est isolé du workspace; les deux cibles
+  ont des entrées bornées et une commande d’exécution reproductible.
+- **Cas limites et échecs :** octets UTF-8 invalides, entrée vide, fragment
+  binaire incomplet et opcode illégal ne doivent pas provoquer de panic.
+- **Taille :** 2 points / 1 journée-agent, incertitude moyenne.
+- **Compétences/outils :** Cargo fuzz, libFuzzer, Rust FFI, réduction de cas.
+- **Parallélisable :** oui avec QUAL-002; non avec une modification de l’API
+  publique du moniteur sans recompilation des cibles.
+- **Paquet de contexte minimal :** `fuzz/README.md`, `fuzz/Cargo.toml`,
+  `fuzz/fuzz_targets/*`, SPEC §23.
+
 ### QUAL-002 — Benchmarks, multi-plateforme et accessibilité
 
 - **Jalon / exigences :** M9; NFR-001..010.
