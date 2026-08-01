@@ -11,6 +11,8 @@
 
 ## Build reproductible
 
+- [x] Audit local reproductible disponible via `tools/release-audit.sh` ; le mode
+      `--strict-oracles` ajoute la vérification GNU/LLVM sans la masquer.
 - [ ] Clean checkout, toolchain Rust pinée et build offline après cache.
 - [ ] `fmt`, `clippy`, unit tests, component tests et E2E verts.
 - [ ] Artefacts générés identiques par hash sur deux builds séparés.
@@ -46,7 +48,9 @@
 
 ## Oracle, fuzzing et qualité
 
-- [ ] GNU/LLVM exécutés avec versions et sous-ensembles documentés.
+- [x] GNU/LLVM exécutés avec versions et sous-ensembles documentés par
+      `tools/release-audit.sh --strict-oracles` (GNU 2.44, LLVM 22.1.8,
+      corpus R1 de 7 encodages).
 - [ ] Sail/Spike exécutés quand applicables ; aucun oracle indisponible masqué.
 - [ ] Fuzz PR/nightly/pre-release exécuté selon budgets ; crashes réduits et replayables.
 - [ ] Couverture cœur ≥90 %, branches critiques ≥85 %, tous codes diagnostics testés.

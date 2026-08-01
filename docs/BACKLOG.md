@@ -2076,3 +2076,15 @@ confondre code présent et exigence formellement auditée.
 - **Compétences/outils :** release engineering, documentation.
 - **Parallélisable :** non, intégration finale.
 - **Contexte minimal :** tous documents du projet.
+
+### REL-001A — Audit local reproductible
+
+- **Statut :** TERMINÉ.
+- **Jalon / exigences :** M9; REQ-QUAL-001, REQ-QUAL-002, REQ-REL-001.
+- **Résultat :** `tools/release-audit.sh` enchaîne les contrôles locaux de
+  formatage, tests workspace, manifest fuzz, intégrité/génération R2, fuzz
+  smoke, accessibilité et benchmark, avec rapport texte stable optionnel.
+- **Limite explicite :** GNU/LLVM sont séparés derrière `--strict-oracles`;
+  Sail/Spike et la preuve de release complète restent des contrôles de M9.
+- **Critère de sortie :** l’audit local passe sur un checkout propre; les
+  contrôles externes non disponibles ne sont jamais présentés comme passés.
