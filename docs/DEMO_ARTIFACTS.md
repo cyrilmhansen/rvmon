@@ -58,3 +58,30 @@ lecteur Asciinema.
 La transcription ne remplace pas les tests automatisés : elle prouve la
 lisibilité et l’enchaînement d’une session interactive, tandis que les tests
 QEMU et leurs assertions restent la preuve fonctionnelle mécanisée.
+
+## Capture suivant exactement le tutoriel guest
+
+La capture compacte précédente n’est pas une reproduction littérale du
+tutoriel. Pour l’audit pédagogique, utiliser :
+
+```sh
+bash scripts/record-tutorial-guest.sh
+```
+
+Cette variante rejoue les sections de `docs/TUTORIAL-GUEST.md` dans leur ordre
+et attend trois secondes après chaque commande ou ligne saisie. Elle comprend
+les diagnostics, l’assembleur, les flottants, les snapshots, les watchpoints,
+le breakpoint `fdiv.d`, les exercices directs et le jeu Hammurabi final. Sa
+durée attendue est de plusieurs minutes ; `TUTORIAL_GUEST_TIMEOUT` permet
+d’augmenter la limite si une machine est plus lente.
+
+Elle produit `tutorial-guest.cast`, `tutorial-guest.txt` et
+`tutorial-manifest.toml` dans le même répertoire d’artefacts ignoré.
+Le moniteur guest laisse volontairement QEMU vivant après `q` ; le wrapper
+attend donc sa limite de 600 secondes et conserve le cast avant la terminaison
+normale du processus QEMU. Pour seulement régénérer la transcription et le
+manifeste d’un cast déjà capturé :
+
+```sh
+REUSE_CAST=1 bash scripts/record-tutorial-guest.sh
+```
