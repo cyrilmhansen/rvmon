@@ -1137,6 +1137,23 @@ Une tâche est terminée seulement si sa condition de sortie est satisfaite.
 - **Parallélisable :** oui avec le modèle de document; non avec une modification concurrente de `Diagnostic` ou `source_text`.
 - **Paquet de contexte minimal :** SPEC §§11/17/19/21, `crates/diag/src/lib.rs`, `crates/monitor/src/lib.rs`.
 
+### UI-000G — Remèdes diagnostics et affichage automatique après erreur — TERMINÉ
+
+- **Jalon / exigences :** M3/M6/M7; REQ-PROD-004, REQ-OBS-001, DIAG-001..006.
+- **But :** associer aux familles de diagnostics fréquentes un remède stable et afficher automatiquement le diagnostic source après une erreur dans les shells host/QEMU.
+- **Non-but :** appliquer automatiquement une correction, modifier la source sans commande explicite ou inférer un remède pour une norme inconnue.
+- **Entrées/sources :** SPEC §§17/19/21; `luna_diag::Diagnostic`; UI-000F; codes ASM/CMD/MON existants.
+- **Fichiers/modules :** `crates/monitor/src/lib.rs`, `crates/app/src/main.rs`, `docs/TESTS.md`.
+- **Étapes réalisées :** catalogue de remèdes par préfixe; ajout `remedy:` au rendu; affichage automatique de `diagnostic` après erreur dans les quatre boucles host/QEMU TTY/script.
+- **Dépendances et tâches bloquées :** UI-000F; correction interactive et suggestions de patch restent différées à l’éditeur UI-001.
+- **Tests :** erreur d’immédiat avec code, source, caret et remède; absence de mutation machine; tests app/workspace.
+- **Critères de sortie :** une erreur ne disparaît pas derrière un message brut; le remède reste informatif; aucune erreur secondaire ne remplace le diagnostic original.
+- **Cas limites et échecs :** code inconnu sans remède, diagnostic sans span, commande `diagnostic` elle-même sans historique, backend inaccessible.
+- **Taille :** 3 points / 1,5 journée-agent, incertitude faible.
+- **Compétences/outils :** diagnostics, UX CLI, Rust closures et gestion d’erreur.
+- **Parallélisable :** oui avec l’éditeur de source; non avec une modification concurrente de `format_diagnostic`.
+- **Paquet de contexte minimal :** SPEC §§17/19/21, `crates/diag/src/lib.rs`, `crates/monitor/src/lib.rs`, `crates/app/src/main.rs`.
+
 ### UI-001 — Frontend terminal et cycle ASM-One modernisé
 
 - **Jalon / exigences :** M6–M9; REQ-PROD-001/005, E2E 2/3/4.

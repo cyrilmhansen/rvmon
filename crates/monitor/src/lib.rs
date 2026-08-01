@@ -2627,6 +2627,9 @@ fn format_diagnostic(diagnostic: &Diagnostic, source: &str) -> String {
         "{severity} {}{}: {}",
         diagnostic.code, location, diagnostic.message
     );
+    if let Some(remedy) = diagnostic_remedy(diagnostic.code) {
+        write!(output, "\nremedy: {remedy}").unwrap();
+    }
     if let Some(line) = diagnostic.line {
         if let Some(text) = source.lines().nth(line.saturating_sub(1) as usize) {
             let column = diagnostic.column.unwrap_or(1).saturating_sub(1) as usize;
@@ -2642,6 +2645,24 @@ fn format_diagnostic(diagnostic: &Diagnostic, source: &str) -> String {
         }
     }
     output
+}
+
+fn diagnostic_remedy(code: &str) -> Option<&'static str> {
+    if code.starts_with("ASM-IMMEDIATE") || code.starts_with("ASM-BITS") {
+        Some("vérifier la largeur et le signe de l’immédiat ou du motif de bits")
+    } else if code.starts_with("ASM-SYNTAX") || code.starts_with("ASM-EXPR") {
+        Some("vérifier la syntaxe, les séparateurs et les parenthèses de l’expression")
+    } else if code.starts_with("ASM-SYMBOL") {
+        Some("déclarer le symbole avant usage ou vérifier sa portée locale")
+    } else if code.starts_with("MON-MEM") {
+        Some("vérifier l’adresse, la taille et la zone mémoire mappée")
+    } else if code.starts_with("MON-REG") {
+        Some("utiliser un registre et une valeur compatibles avec le profil RV64")
+    } else if code.starts_with("CMD-") {
+        Some("consulter help pour la syntaxe exacte de la commande")
+    } else {
+        None
+    }
 }
 
 fn parse_run_limit(argument: &str, default: u64) -> Result<u64> {
@@ -3296,6 +3317,7 @@ mod tests {
         assert!(diagnostic.contains(&error.code));
         assert!(diagnostic.contains("addi x1,x0,99999"));
         assert!(diagnostic.contains("^"));
+        assert!(diagnostic.contains("remedy:"));
     }
 
     #[test]

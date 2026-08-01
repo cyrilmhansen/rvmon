@@ -70,9 +70,12 @@ fn interactive(script: Option<&str>) {
     let mut history = Vec::new();
     if script.is_none() && io::stdin().is_terminal() {
         interactive_tty("rvmonitor> ", &mut history, |line| {
-            monitor
-                .execute(line)
-                .map_err(|error| format!("{}: {}", error.code, error.message))
+            monitor.execute(line).map_err(|error| {
+                let detail = monitor
+                    .execute("diagnostic")
+                    .unwrap_or_else(|_| "diagnostic unavailable".into());
+                format!("{}: {}\n{detail}", error.code, error.message)
+            })
         });
         return;
     }
@@ -109,7 +112,12 @@ fn interactive(script: Option<&str>) {
         match monitor.execute(&line) {
             Ok(output) if !output.is_empty() => println!("{output}"),
             Ok(_) => {}
-            Err(error) => eprintln!("{}: {}", error.code, error.message),
+            Err(error) => {
+                eprintln!("{}: {}", error.code, error.message);
+                if let Ok(detail) = monitor.execute("diagnostic") {
+                    eprintln!("{detail}");
+                }
+            }
         }
         if leave {
             break;
@@ -129,9 +137,12 @@ fn qemu_interactive(port: u16, script: Option<&str>) {
     let mut history = Vec::new();
     if script.is_none() && io::stdin().is_terminal() {
         interactive_tty("rvmonitor-qemu> ", &mut history, |line| {
-            console
-                .execute(line)
-                .map_err(|error| format!("{}: {}", error.code, error.message))
+            console.execute(line).map_err(|error| {
+                let detail = console
+                    .execute("diagnostic")
+                    .unwrap_or_else(|_| "diagnostic unavailable".into());
+                format!("{}: {}\n{detail}", error.code, error.message)
+            })
         });
         return;
     }
@@ -168,7 +179,12 @@ fn qemu_interactive(port: u16, script: Option<&str>) {
         match console.execute(&line) {
             Ok(output) if !output.is_empty() => println!("{output}"),
             Ok(_) => {}
-            Err(error) => eprintln!("{}: {}", error.code, error.message),
+            Err(error) => {
+                eprintln!("{}: {}", error.code, error.message);
+                if let Ok(detail) = console.execute("diagnostic") {
+                    eprintln!("{detail}");
+                }
+            }
         }
         if leave {
             break;
