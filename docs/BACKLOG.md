@@ -478,6 +478,38 @@ confondre code présent et exigence formellement auditée.
 - **Parallélisable :** oui avec delta/reprise; non avec une modification concurrente des bornes guest.
 - **Paquet de contexte minimal :** `crates/snapshot-format/src/lib.rs`, `crates/app/src/main.rs`, SPEC §§12/18/21.
 
+### GUEST-014 — FIFO NS16550 et synchronisation UART — TERMINÉ
+
+- **Jalon / exigences :** M8/M9; IO-001..004, OBS-001..003, REQ-ISO-003.
+- **But :** activer le tampon RX/TX du NS16550 virtuel pour toutes les
+  communications du moniteur guest, en conservant le protocole de transfert
+  binaire et les invites comme points de synchronisation.
+- **Non-but :** DMA, interruptions UART, virtio-console, réglage d'un débit
+  physique ou compression RLE dans cette sous-tranche.
+- **Entrées/sources :** QEMU `virt` (NS16550 compatible), contrat UART du
+  tutoriel guest, SPEC §§9/18/21.
+- **Fichiers/modules :** `crates/guest-monitor/src/main.rs`, scripts E2E UART,
+  `docs/TUTORIAL-GUEST.md`, `docs/TESTS.md`.
+- **Étapes réalisées :** activation FCR FIFO, seuil RX minimal d'un octet,
+  synchronisation des tests pipe après le boot, conservation du handshake
+  `snapshot binary ready` pour les payloads bruts.
+- **Dépendances :** GUEST-008/011/012; le regroupement logiciel des lectures,
+  la compression/delta et la reprise de transfert restent différés.
+- **Tests :** tous les scripts guest QEMU pipe, export TCP et handshake
+  `snapshot patchbin`, suite workspace et contrôle R2.
+- **Critères de sortie :** premier caractère conservé après boot; scripts
+  guest verts; aucun changement du format binaire ni de la sémantique des
+  commandes; le FIFO est documenté comme tampon matériel, non comme DMA.
+- **Cas limites et échecs :** entrée injectée avant l'invite, FIFO vide,
+  réponse binaire courte, timeout QEMU, surcharge persistante du polling.
+- **Taille :** 2 points / 0,5 journée-agent, incertitude faible.
+- **Compétences/outils :** Rust `no_std`, NS16550, QEMU, shell.
+- **Parallélisable :** oui avec metadata/projets; non avec une modification
+  concurrente du protocole UART guest.
+- **Paquet de contexte minimal :** `crates/guest-monitor/src/main.rs`,
+  `scripts/test-guest-*.sh`, `scripts/test-guest-snapshot-binary.sh`,
+  `docs/TUTORIAL-GUEST.md`.
+
 ### GUEST-013 — Contrat metadata RVSNAP01 — TERMINÉ
 
 - **Jalon / exigences :** M8; IO-001..009, OBS-001..006, REQ-PROD-006.

@@ -17,6 +17,7 @@ assembly_address="$(printf '0x%x' "$((16#$workspace_start_hex + 0x100))")"
 
 set +e
 output="$({
+    sleep 0.1
     printf 'assemble-program %s\naddi x1,x0,1\naddi x1,x1,1\nend\n' "$assembly_address"
     printf 'run 2\nregs\nrun 0\nrun 100001\nquit\n'
 } | timeout 5s qemu-system-riscv64 \

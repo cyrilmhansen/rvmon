@@ -21,6 +21,7 @@ data_address_full="$(printf '0x%016x' "$((16#$data_start_hex + 0x70))")"
 
 set +e
 output="$({
+    sleep 0.1
     printf 'assemble-program %s\naddi x1,x0,7\nend\n' "$assembly_address"
     printf 'set x1 0x7\ndata %s .word 0x11223344\nsnapshot save\nsnapshot info\nsnapshot manifest\nsnapshot dump data 112 4\nsnapshot patch data 112 aabbccdd\nsnapshot manifest\nsnapshot dump data 112 4\nsnapshot dump data 1048576 1\nsnapshot patch data 0 abc\nset x1 0x99\nedit %s deadbeef\nsource replace 1 "addi x1,x0,9"\n' "$data_address" "$data_address"
     printf 'snapshot restore\nregs\nmemory %s 4\nsource 1\nproject-save\nset x1 0x88\nproject-load\nregs\n' "$data_address"

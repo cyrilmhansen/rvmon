@@ -11,7 +11,10 @@ use luna_target_api::TargetCapabilities;
 use luna_target_api::TargetContext;
 
 const UART_BASE: usize = 0x1000_0000;
+const UART_FCR: usize = 2;
 const UART_LSR: usize = 5;
+const UART_FCR_ENABLE_FIFO: u8 = 1 << 0;
+const UART_FCR_TRIGGER_1: u8 = 0;
 const UART_LSR_DATA_READY: u8 = 1 << 0;
 const UART_LSR_EMPTY: u8 = 1 << 5;
 const COMMAND_CAPACITY: usize = 96;
@@ -169,6 +172,7 @@ fn panic(_info: &PanicInfo<'_>) -> ! {
 
 #[unsafe(no_mangle)]
 pub extern "C" fn rust_main() -> ! {
+    uart_init();
     let context = core::ptr::addr_of_mut!(CONTEXT) as usize;
     let trap = trap_entry as *const () as usize;
     unsafe {
@@ -2894,6 +2898,15 @@ unsafe extern "C" {
 fn uart_write(text: &str) {
     for byte in text.bytes() {
         uart_put(byte);
+    }
+}
+
+fn uart_init() {
+    unsafe {
+        core::ptr::write_volatile(
+            (UART_BASE + UART_FCR) as *mut u8,
+            UART_FCR_ENABLE_FIFO | UART_FCR_TRIGGER_1,
+        );
     }
 }
 

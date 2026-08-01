@@ -21,6 +21,7 @@ data_address_full="$(printf '0x%016x' "$((16#$data_start_hex + 0x60))")"
 
 set +e
 output="$({
+    sleep 0.1
     printf 'assemble-program %s\naddi x1,x0,1\nsd x1,0(x4)\nend\n' "$assembly_address"
     printf 'set x4 %s\nwatch %s 8\ninfo watch\nrun 2\nregs\nmemory %s 8\ndelete watch 1\ninfo watch\nquit\n' \
         "$data_address" "$data_address" "$data_address"

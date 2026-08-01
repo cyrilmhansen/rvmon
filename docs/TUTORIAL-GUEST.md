@@ -67,6 +67,14 @@ trap: breakpoint pc=0x000000008000....
 rvmonitor>
 ```
 
+Au démarrage, le moniteur active le FIFO RX/TX du NS16550 virtuel avec le
+seuil minimal d'un octet. Le pilote reste volontairement simple et lit les
+octets par polling, mais les caractères reçus peuvent désormais être
+tamponnés par le périphérique pendant que le moniteur traite une commande.
+Pour les scripts ou un autre hôte, attendre l'invite `rvmonitor> ` avant
+d'envoyer la première commande : envoyer des octets dès le lancement de QEMU
+peut sinon les soumettre avant l'initialisation du périphérique.
+
 Le premier `ebreak` du programme U-mode arrête volontairement la cible. Le
 PC exact dépend du placement final de l’image ; il faut utiliser l’adresse
 affichée par QEMU ou celle calculée avec `nm`, jamais supposer une adresse

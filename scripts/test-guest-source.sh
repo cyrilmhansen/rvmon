@@ -18,6 +18,7 @@ assembly_address_full="$(printf '0x%016x' "$((16#$workspace_start_hex + 0x1c0))"
 
 set +e
 output="$({
+    sleep 0.1
     printf 'assemble-program %s\naddi x1,x0,1\naddi x1,x1,2\nend\n' "$assembly_address"
     printf 'source\nsource 2\nsource replace 2 "addi x1,x1,5"\nsource 2\ndisasm %s 2\nrun 0\nassemble-source\nrun 2\nregs\n' "$assembly_address"
     printf 'source 2\nquit\n'

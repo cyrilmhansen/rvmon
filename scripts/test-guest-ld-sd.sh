@@ -20,6 +20,7 @@ data_address_full="$(printf '0x%016x' "$((16#$data_start_hex + 0x8))")"
 
 set +e
 output="$({
+    sleep 0.1
     printf 'assemble-program %s\n_start:\nauipc x4,0x1000\naddi x3,x0,42\nsd x3,8(x4)\nld x5,8(x4)\nend\nstep\nregs\nstep\nregs\nstep\nregs\nstep\nregs\nmemory %s 8\nquit\n' \
         "$execution_address" "$data_address"
 } | timeout 5s qemu-system-riscv64 \
