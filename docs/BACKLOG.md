@@ -359,6 +359,23 @@ confondre code présent et exigence formellement auditée.
 - **Parallélisable :** oui avec la conception des watchpoints host; non avec une modification concurrente du trap handler guest.
 - **Paquet de contexte minimal :** `crates/guest-monitor/src/main.rs`, `scripts/test-guest-watchpoint.sh`, `docs/TUTORIAL-GUEST.md`, SPEC §§8/14/16/18.
 
+### GUEST-006 — Source guest persistant et réassemblage explicite — TERMINÉ
+
+- **Jalon / exigences :** M3/M6/M7; REQ-PROD-003/004, REQ-OBS-001, ISO-001.
+- **But :** conserver le dernier programme source validé, le consulter, corriger une ligne sans mutation et réassembler explicitement cette version.
+- **Non-but :** éditeur plein écran, macros, expressions générales, historique des versions et sauvegarde persistante.
+- **Entrées/sources :** SPEC §§11/17–19/21; contrat guest 4B; diagnostics `GUEST-ASM-*`.
+- **Fichiers/modules :** `crates/guest-monitor/src/main.rs`, `scripts/test-guest-source.sh`, `docs/TUTORIAL-GUEST.md`, `docs/TESTS.md`.
+- **Étapes réalisées :** buffer borné de 16 lignes; commandes `source`, `source <n>`, `source replace <n> <text>`, `assemble-source`; conservation de l’adresse; validation atomique et texte quoté.
+- **Dépendances et tâches bloquées :** GUEST-003; persistance projet, navigation clavier et undo source restent différés.
+- **Tests :** assembler deux lignes, consulter/corriger la ligne 2, constater l’absence d’effet avant `assemble-source`, réassembler puis vérifier `x1=6` après deux pas.
+- **Critères de sortie :** `source replace` n’écrit jamais la RAM; `assemble-source` applique uniquement le buffer validé; les lignes et erreurs sont lisibles par UART.
+- **Cas limites et échecs :** source vide, ligne hors plage, remplacement trop long, document absent et `assemble-source` sans source.
+- **Taille :** 4 points / 2 journées-agent, incertitude moyenne.
+- **Compétences/outils :** Rust `no_std`, buffers statiques, assemblage deux passes, QEMU UART.
+- **Parallélisable :** oui avec l’éditeur terminal host; non avec une modification concurrente du buffer source guest.
+- **Paquet de contexte minimal :** `crates/guest-monitor/src/main.rs`, `scripts/test-guest-source.sh`, `docs/TUTORIAL-GUEST.md`, SPEC §§11/17–19.
+
 ## M3 — assembleur et désassembleur
 
 ### ISA-003 — Étendre la tranche RV64 aux loads/stores 64 bits — TERMINÉ

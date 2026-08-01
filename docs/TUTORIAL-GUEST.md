@@ -305,6 +305,26 @@ rvmonitor> regs
 Les budgets `0` et supérieurs à `100000` sont refusés avec
 `GUEST-RUN-003`.
 
+### Consulter et corriger le source
+
+Après un `assemble-program` réussi, le guest conserve jusqu’à 16 lignes du
+dernier programme et son adresse de chargement. `source` affiche le document,
+`source <n>` une ligne, et `source replace <n> "<texte>"` modifie uniquement le
+buffer. La mémoire cible n’est réécrite qu’après `assemble-source`.
+
+```text
+rvmonitor> source
+1 | addi x1,x0,1
+2 | addi x1,x1,2
+rvmonitor> source replace 2 "addi x1,x1,5"
+source line 2 updated; use assemble-source to apply
+rvmonitor> assemble-source
+assembled source: 2 instruction(s) at 0x00000000810001c0
+```
+
+Une ligne invalide ou une correction hors plage est rejetée avec un code
+`GUEST-SOURCE-*`, sans modification de la cible.
+
 ### Watchpoints logiciels
 
 Le guest fournit des watchpoints logiciels sur les accès RV64 `ld` et `sd`.

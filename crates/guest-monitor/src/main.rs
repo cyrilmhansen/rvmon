@@ -37,6 +37,11 @@ static mut WATCHPOINTS: [GuestWatchpoint; MAX_WATCHPOINTS] =
 static mut STEPPED_PERMANENT_BREAKPOINT: u8 = u8::MAX;
 static mut RUN_REMAINING: u64 = 0;
 static mut SYMBOLS: [GuestSymbol; MAX_SYMBOLS] = [GuestSymbol::empty(); MAX_SYMBOLS];
+static mut SOURCE_LINES: [[u8; COMMAND_CAPACITY]; MAX_SOURCE_LINES] =
+    [[0; COMMAND_CAPACITY]; MAX_SOURCE_LINES];
+static mut SOURCE_LENGTHS: [usize; MAX_SOURCE_LINES] = [0; MAX_SOURCE_LINES];
+static mut SOURCE_COUNT: usize = 0;
+static mut SOURCE_ADDRESS: u64 = 0;
 static mut MEMORY_UNDO: MemoryUndo = MemoryUndo::empty();
 static TARGET_STACK: [u8; 8192] = [0; 8192];
 
@@ -215,6 +220,9 @@ fn monitor_loop(context: *mut TargetContext) -> ! {
             command if command.starts_with(b"assemble-program ") => {
                 assemble_program_command(context, &command[17..])
             }
+            b"source" => print_source(None),
+            command if command.starts_with(b"source ") => source_command(&command[7..]),
+            b"assemble-source" => assemble_saved_source(context),
             b"symbols" => print_symbols(),
             command if command.starts_with(b"disasm ") => print_disassembly(&command[7..]),
             b"step" | b"s" => step_target(context),
@@ -245,7 +253,7 @@ fn monitor_loop(context: *mut TargetContext) -> ! {
 
 fn print_help() {
     uart_write(
-        "help/? regs/registers set <xreg> <hex64> setf <freg> <hex64> memory <addr> <length> edit <addr> <hex-bytes> data <addr> <directive> <bits> undo assemble <addr> <instruction> assemble-program <addr> ... end symbols disasm <addr|label> <count> step/s run <count> continue/c break <addr|label> watch/rwatch/awatch <addr> <width> delete <n>|watch <n> info break/watch quit/q\r\n",
+        "help/? regs/registers set <xreg> <hex64> setf <freg> <hex64> memory <addr> <length> edit <addr> <hex-bytes> data <addr> <directive> <bits> undo assemble <addr> <instruction> assemble-program <addr> ... end assemble-source source [line]|replace <n> <text> symbols disasm <addr|label> <count> step/s run <count> continue/c break <addr|label> watch/rwatch/awatch <addr> <width> delete <n>|watch <n> info break/watch quit/q\r\n",
     );
 }
 
@@ -1068,11 +1076,258 @@ fn assemble_program_command(context: *mut TargetContext, argument: &[u8]) {
             core::ptr::write_volatile(core::ptr::addr_of_mut!(SYMBOLS[index]), *symbol);
         }
     }
+    store_source(&lines, &lengths, count, address);
     uart_write("assembled program: ");
     uart_decimal(word_count as u64);
     uart_write(" instruction(s) at 0x");
     uart_hex(address);
     uart_write("\r\n");
+}
+
+fn store_source(
+    lines: &[[u8; COMMAND_CAPACITY]; MAX_SOURCE_LINES],
+    lengths: &[usize; MAX_SOURCE_LINES],
+    count: usize,
+    address: u64,
+) {
+    unsafe {
+        for index in 0..MAX_SOURCE_LINES {
+            core::ptr::write_volatile(core::ptr::addr_of_mut!(SOURCE_LINES[index]), lines[index]);
+            core::ptr::write_volatile(
+                core::ptr::addr_of_mut!(SOURCE_LENGTHS[index]),
+                lengths[index],
+            );
+        }
+        core::ptr::write_volatile(core::ptr::addr_of_mut!(SOURCE_COUNT), count);
+        core::ptr::write_volatile(core::ptr::addr_of_mut!(SOURCE_ADDRESS), address);
+    }
+}
+
+fn print_source(line: Option<usize>) {
+    let count = unsafe { core::ptr::read_volatile(core::ptr::addr_of!(SOURCE_COUNT)) };
+    if count == 0 {
+        uart_write("source: empty\r\n");
+        return;
+    }
+    if let Some(line) = line {
+        if line == 0 || line > count {
+            guest_error(
+                b"GUEST-SOURCE-001",
+                b"source line is outside the loaded document",
+            );
+            return;
+        }
+        uart_decimal(line as u64);
+        uart_write(" | ");
+        let length =
+            unsafe { core::ptr::read_volatile(core::ptr::addr_of!(SOURCE_LENGTHS[line - 1])) };
+        let bytes = unsafe { &*core::ptr::addr_of!(SOURCE_LINES[line - 1]) };
+        uart_bytes(&bytes[..length]);
+        uart_write("\r\n");
+        return;
+    }
+    for index in 0..count {
+        uart_decimal((index + 1) as u64);
+        uart_write(" | ");
+        let length =
+            unsafe { core::ptr::read_volatile(core::ptr::addr_of!(SOURCE_LENGTHS[index])) };
+        let bytes = unsafe { &*core::ptr::addr_of!(SOURCE_LINES[index]) };
+        uart_bytes(&bytes[..length]);
+        uart_write("\r\n");
+    }
+}
+
+fn source_command(argument: &[u8]) {
+    if let Some(spec) = argument.strip_prefix(b"replace ") {
+        let Some((line_bytes, replacement)) = split_token_space(spec) else {
+            guest_error(b"GUEST-SOURCE-002", b"source replace expects <line> <text>");
+            return;
+        };
+        let Some(line) = parse_decimal(line_bytes) else {
+            guest_error(b"GUEST-SOURCE-003", b"source line must be decimal");
+            return;
+        };
+        let count = unsafe { core::ptr::read_volatile(core::ptr::addr_of!(SOURCE_COUNT)) };
+        if line == 0 || line > count as u64 {
+            guest_error(
+                b"GUEST-SOURCE-001",
+                b"source line is outside the loaded document",
+            );
+            return;
+        }
+        let replacement = replacement
+            .strip_prefix(b"\"")
+            .and_then(|value| value.strip_suffix(b"\""))
+            .unwrap_or(replacement);
+        if replacement.len() > COMMAND_CAPACITY {
+            guest_error(b"GUEST-SOURCE-004", b"replacement line is too long");
+            return;
+        }
+        let index = line as usize - 1;
+        let mut updated = [0u8; COMMAND_CAPACITY];
+        updated[..replacement.len()].copy_from_slice(replacement);
+        unsafe {
+            core::ptr::write_volatile(core::ptr::addr_of_mut!(SOURCE_LINES[index]), updated);
+            core::ptr::write_volatile(
+                core::ptr::addr_of_mut!(SOURCE_LENGTHS[index]),
+                replacement.len(),
+            );
+        }
+        uart_write("source line ");
+        uart_decimal(line);
+        uart_write(" updated; use assemble-source to apply\r\n");
+        return;
+    }
+    let Some(line) = parse_decimal(argument.trim_ascii()) else {
+        guest_error(
+            b"GUEST-SOURCE-005",
+            b"source expects a line or replace command",
+        );
+        return;
+    };
+    print_source(Some(line as usize));
+}
+
+fn assemble_saved_source(context: *mut TargetContext) {
+    let count = unsafe { core::ptr::read_volatile(core::ptr::addr_of!(SOURCE_COUNT)) };
+    if count == 0 {
+        guest_error(b"GUEST-SOURCE-006", b"no source document is loaded");
+        monitor_loop(context);
+    }
+    let address = unsafe { core::ptr::read_volatile(core::ptr::addr_of!(SOURCE_ADDRESS)) };
+    let mut lines = [[0u8; COMMAND_CAPACITY]; MAX_SOURCE_LINES];
+    let mut lengths = [0usize; MAX_SOURCE_LINES];
+    unsafe {
+        for index in 0..count {
+            lines[index] = core::ptr::read_volatile(core::ptr::addr_of!(SOURCE_LINES[index]));
+            lengths[index] = core::ptr::read_volatile(core::ptr::addr_of!(SOURCE_LENGTHS[index]));
+        }
+    }
+    assemble_source_buffer(context, address, &lines, &lengths, count);
+}
+
+fn assemble_source_buffer(
+    context: *mut TargetContext,
+    address: u64,
+    lines: &[[u8; COMMAND_CAPACITY]; MAX_SOURCE_LINES],
+    lengths: &[usize; MAX_SOURCE_LINES],
+    count: usize,
+) -> ! {
+    let mut staged_symbols = [GuestSymbol::empty(); MAX_SYMBOLS];
+    let mut instruction_count = 0usize;
+    for index in 0..count {
+        let line = &lines[index][..lengths[index]];
+        if let Some(label) = line.strip_suffix(b":") {
+            let line_address = address + (instruction_count as u64) * 4;
+            let Some(symbol) = make_symbol(label, line_address) else {
+                guest_source_error(
+                    index + 1,
+                    b"GUEST-ASM-003",
+                    b"invalid, duplicate or too many source labels",
+                );
+                monitor_loop(context);
+            };
+            if staged_symbols
+                .iter()
+                .any(|slot| slot.enabled && &slot.name[..slot.length] == label)
+            {
+                guest_source_error(
+                    index + 1,
+                    b"GUEST-ASM-003",
+                    b"invalid, duplicate or too many source labels",
+                );
+                monitor_loop(context);
+            }
+            let Some(slot) = staged_symbols.iter_mut().find(|slot| !slot.enabled) else {
+                guest_source_error(
+                    index + 1,
+                    b"GUEST-ASM-003",
+                    b"invalid, duplicate or too many source labels",
+                );
+                monitor_loop(context);
+            };
+            *slot = symbol;
+        } else {
+            instruction_count += 1;
+        }
+    }
+    if instruction_count == 0 {
+        guest_error(b"GUEST-ASM-004", b"source program contains no instructions");
+        monitor_loop(context);
+    }
+    let Some(end_address) = address.checked_add((instruction_count as u64) * 4) else {
+        guest_error(b"GUEST-ASM-005", b"source program address overflows");
+        monitor_loop(context);
+    };
+    if end_address > TARGET_RAM_END {
+        guest_error(
+            b"GUEST-ASM-006",
+            b"source program does not fit in target RAM",
+        );
+        monitor_loop(context);
+    }
+    let mut words = [0u32; MAX_SOURCE_LINES];
+    let mut word_addresses = [0u64; MAX_SOURCE_LINES];
+    let mut word_count = 0usize;
+    for index in 0..count {
+        let line = &lines[index][..lengths[index]];
+        if line.ends_with(b":") {
+            continue;
+        }
+        let line_address = address + (word_count as u64) * 4;
+        if !valid_target_program_word_address(line_address) {
+            guest_source_error(
+                index + 1,
+                b"GUEST-ASM-007",
+                b"source program exceeds target workspace",
+            );
+            monitor_loop(context);
+        }
+        let Some(word) = parse_source_instruction(line, line_address, &staged_symbols) else {
+            guest_source_error(
+                index + 1,
+                b"GUEST-ASM-008",
+                b"supports integer/control, ld/sd, fadd.s/fadd.d or fmv syntax",
+            );
+            monitor_loop(context);
+        };
+        if permanent_breakpoint_at(line_address).is_some() || temporary_breakpoint_at(line_address)
+        {
+            guest_source_error(
+                index + 1,
+                b"GUEST-ASM-009",
+                b"source overlaps an active breakpoint",
+            );
+            monitor_loop(context);
+        }
+        words[word_count] = word;
+        word_addresses[word_count] = line_address;
+        word_count += 1;
+    }
+    clear_memory_undo();
+    for index in 0..word_count {
+        if !target_store32(word_addresses[index], words[index]) {
+            guest_error(b"GUEST-ASM-010", b"cannot write assembled source program");
+            monitor_loop(context);
+        }
+    }
+    flush_icache();
+    let context = unsafe { &mut *context };
+    context.pc = address;
+    context.mepc = address;
+    context.mcause = StopReason::Breakpoint as u64;
+    context.mtval = 0;
+    unsafe {
+        for (index, symbol) in staged_symbols.iter().enumerate() {
+            core::ptr::write_volatile(core::ptr::addr_of_mut!(SYMBOLS[index]), *symbol);
+        }
+    }
+    uart_write("assembled source: ");
+    uart_decimal(word_count as u64);
+    uart_write(" instruction(s) at 0x");
+    uart_hex(address);
+    uart_write("\r\n");
+    monitor_loop(context);
 }
 
 fn parse_source_instruction(
