@@ -39,6 +39,7 @@ struct MemoryEdit {
 struct BackendBreakpoint {
     id: u64,
     address: u64,
+    condition: Option<command::Expression>,
 }
 
 #[derive(Clone, Copy)]
@@ -92,6 +93,7 @@ pub struct Monitor {
     undo: Vec<MemoryEdit>,
     marks: BTreeMap<String, u64>,
     breakpoints: BTreeMap<u64, u64>,
+    breakpoint_conditions: BTreeMap<u64, command::Expression>,
     watchpoints: BTreeMap<u64, Watchpoint>,
     next_breakpoint_id: u64,
     next_watchpoint_id: u64,
@@ -115,6 +117,7 @@ impl Monitor {
             undo: Vec::new(),
             marks: BTreeMap::new(),
             breakpoints: BTreeMap::new(),
+            breakpoint_conditions: BTreeMap::new(),
             watchpoints: BTreeMap::new(),
             next_breakpoint_id: 1,
             next_watchpoint_id: 1,
@@ -196,6 +199,7 @@ impl Monitor {
                 self.undo.clear();
                 self.marks.clear();
                 self.breakpoints.clear();
+                self.breakpoint_conditions.clear();
                 self.watchpoints.clear();
                 self.history.clear();
                 self.call_stack.clear();
@@ -327,6 +331,7 @@ impl Monitor {
         self.undo.clear();
         self.marks.clear();
         self.breakpoints.clear();
+        self.breakpoint_conditions.clear();
         self.watchpoints.clear();
         self.history.clear();
         self.call_stack.clear();
@@ -508,7 +513,9 @@ impl Monitor {
             bypass_current_breakpoint && self.breakpoints.contains_key(&self.machine.pc);
         for _ in 0..limit {
             if !bypass {
-                if let Some(id) = self.breakpoints.get(&self.machine.pc) {
+                if let Some(id) = self.breakpoints.get(&self.machine.pc)
+                    && self.breakpoint_condition_holds(self.machine.pc)?
+                {
                     return Ok(format!(
                         "stopped: breakpoint #{id} at pc=0x{:016x}; total={}",
                         self.machine.pc, self.machine.instructions
@@ -1087,13 +1094,17 @@ impl Monitor {
     }
 
     fn add_breakpoint(&mut self, argument: &str) -> Result<String> {
-        let parts: Vec<_> = argument.split_whitespace().collect();
-        let [address_text] = parts.as_slice() else {
+        let (address_text, condition_text) = argument
+            .split_once(" if ")
+            .map_or((argument.trim(), None), |(address, condition)| {
+                (address.trim(), Some(condition.trim()))
+            });
+        if address_text.is_empty() {
             return Err(Diagnostic::error(
                 "MON-DBG-001",
-                "break expects one address",
+                "break expects <address> [if <expression>]",
             ));
-        };
+        }
         let address = self.resolve_address(address_text, "MON-DBG-002")?;
         if address % 4 != 0 {
             return Err(Diagnostic::error(
@@ -1104,12 +1115,40 @@ impl Monitor {
         if let Some(id) = self.breakpoints.get(&address) {
             return Ok(format!("breakpoint #{id} already enabled"));
         }
+        let condition = condition_text
+            .filter(|condition| !condition.is_empty())
+            .map(command::parse_expression)
+            .transpose()?;
         let id = self.next_breakpoint_id;
         self.next_breakpoint_id = id
             .checked_add(1)
             .ok_or_else(|| Diagnostic::error("MON-DBG-004", "breakpoint id exhausted"))?;
         self.breakpoints.insert(address, id);
-        Ok(format!("breakpoint #{id} set at 0x{address:016x}"))
+        if let Some(condition) = condition {
+            self.breakpoint_conditions.insert(address, condition);
+        }
+        let suffix = condition_text
+            .filter(|condition| !condition.is_empty())
+            .map(|condition| format!(" if {condition}"))
+            .unwrap_or_default();
+        Ok(format!("breakpoint #{id} set at 0x{address:016x}{suffix}"))
+    }
+
+    fn breakpoint_condition_holds(&self, address: u64) -> Result<bool> {
+        let Some(condition) = self.breakpoint_conditions.get(&address) else {
+            return Ok(true);
+        };
+        let context = TargetBackend::context(&self.machine);
+        let value = condition.evaluate(&|name| {
+            if name.eq_ignore_ascii_case("pc") {
+                return Some(context.pc as i128);
+            }
+            if name.eq_ignore_ascii_case("fcsr") {
+                return Some(context.fcsr as i128);
+            }
+            command::register_index(name).map(|index| context.x[index] as i128)
+        })?;
+        Ok(value != 0)
     }
 
     fn add_watchpoint(&mut self, argument: &str, kind: Option<MemoryAccessKind>) -> Result<String> {
@@ -1192,6 +1231,7 @@ impl Monitor {
             .find_map(|(address, current_id)| (*current_id == id).then_some(*address))
             .ok_or_else(|| Diagnostic::error("MON-DBG-012", "breakpoint does not exist"))?;
         self.breakpoints.remove(&address);
+        self.breakpoint_conditions.remove(&address);
         Ok(format!("breakpoint #{id} deleted"))
     }
 
@@ -1216,7 +1256,12 @@ impl Monitor {
         }
         let mut output = String::from("breakpoints:\n");
         for (address, id) in &self.breakpoints {
-            writeln!(output, "  #{id} addr=0x{address:016x}").unwrap();
+            let condition = self
+                .breakpoint_conditions
+                .contains_key(address)
+                .then_some(" condition=expression")
+                .unwrap_or("");
+            writeln!(output, "  #{id} addr=0x{address:016x}{condition}").unwrap();
         }
         Ok(output.trim_end().into())
     }
@@ -1675,10 +1720,12 @@ where
             let pc = self.backend.context().pc;
             if !bypass {
                 if let Some(breakpoint) = self.breakpoints.get(&pc) {
-                    return Ok(format!(
-                        "stopped: breakpoint #{} at pc=0x{pc:016x}",
-                        breakpoint.id
-                    ));
+                    if self.breakpoint_condition_holds(breakpoint)? {
+                        return Ok(format!(
+                            "stopped: breakpoint #{} at pc=0x{pc:016x}",
+                            breakpoint.id
+                        ));
+                    }
                 }
             }
             let word = self.read_word(pc)?;
@@ -2185,13 +2232,17 @@ where
     }
 
     fn add_breakpoint(&mut self, argument: &str) -> Result<String> {
-        let parts: Vec<_> = argument.split_whitespace().collect();
-        let [address_text] = parts.as_slice() else {
+        let (address_text, condition_text) = argument
+            .split_once(" if ")
+            .map_or((argument.trim(), None), |(address, condition)| {
+                (address.trim(), Some(condition.trim()))
+            });
+        if address_text.is_empty() {
             return Err(Diagnostic::error(
                 "MON-DEBUG-100",
-                "break expects one target address",
+                "break expects <address> [if <expression>]",
             ));
-        };
+        }
         let address = self.resolve_address(address_text, "MON-DEBUG-101")?;
         if address & 3 != 0 {
             return Err(Diagnostic::error(
@@ -2207,9 +2258,40 @@ where
         }
         let id = self.next_breakpoint_id;
         self.next_breakpoint_id = self.next_breakpoint_id.saturating_add(1);
-        self.breakpoints
-            .insert(address, BackendBreakpoint { id, address });
-        Ok(format!("breakpoint #{id} set at 0x{address:016x}"))
+        let condition = condition_text
+            .filter(|condition| !condition.is_empty())
+            .map(command::parse_expression)
+            .transpose()?;
+        self.breakpoints.insert(
+            address,
+            BackendBreakpoint {
+                id,
+                address,
+                condition,
+            },
+        );
+        let suffix = condition_text
+            .filter(|condition| !condition.is_empty())
+            .map(|condition| format!(" if {condition}"))
+            .unwrap_or_default();
+        Ok(format!("breakpoint #{id} set at 0x{address:016x}{suffix}"))
+    }
+
+    fn breakpoint_condition_holds(&self, breakpoint: &BackendBreakpoint) -> Result<bool> {
+        let Some(condition) = &breakpoint.condition else {
+            return Ok(true);
+        };
+        let context = self.backend.context();
+        let value = condition.evaluate(&|name| {
+            if name.eq_ignore_ascii_case("pc") {
+                return Some(context.pc as i128);
+            }
+            if name.eq_ignore_ascii_case("fcsr") {
+                return Some(context.fcsr as i128);
+            }
+            command::register_index(name).map(|index| context.x[index] as i128)
+        })?;
+        Ok(value != 0)
     }
 
     fn delete_breakpoint(&mut self, argument: &str) -> Result<String> {
@@ -2259,9 +2341,14 @@ where
         }
         let mut output = String::from("breakpoints:\n");
         for breakpoint in self.breakpoints.values() {
+            let condition = breakpoint
+                .condition
+                .as_ref()
+                .map(|_| " condition=expression")
+                .unwrap_or("");
             writeln!(
                 output,
-                "  #{} at 0x{:016x}",
+                "  #{} at 0x{:016x}{condition}",
                 breakpoint.id, breakpoint.address
             )
             .unwrap();
@@ -2688,7 +2775,7 @@ fn backend_help() -> String {
         "view <addr>          move memory view without changing pc",
         "edit <addr> <bytes>  write target bytes transactionally",
         "undo                 restore the last target memory edit",
-        "break <addr>         stop before a target address",
+        "break <addr> [if <expression>] stop before a target address",
         "delete <id>          remove a backend breakpoint",
         "info break           list backend breakpoints",
         "watch <addr> [w]     stop on target memory writes",
@@ -2829,7 +2916,7 @@ fn help() -> String {
         "mark <name> [addr]   name the current or specified address",
         "marks                list named addresses",
         "unmark <name>        remove a named address",
-        "break <addr>         add a logical breakpoint",
+        "break <addr> [if <expression>] add a logical breakpoint",
         "delete [kind] <id>   delete breakpoint or watchpoint",
         "info break|watch     list debugger stops",
         "watch <addr> [w]     stop on memory writes",
@@ -3111,7 +3198,14 @@ fn decode_backend_session(bytes: &[u8]) -> Result<DecodedBackendSession> {
         let address = reader.u64()?;
         if address & 3 != 0
             || breakpoints
-                .insert(address, BackendBreakpoint { id, address })
+                .insert(
+                    address,
+                    BackendBreakpoint {
+                        id,
+                        address,
+                        condition: None,
+                    },
+                )
                 .is_some()
         {
             return Err(Diagnostic::error(
@@ -3748,6 +3842,34 @@ mod tests {
                 .unwrap()
                 .contains("breakpoint #1 deleted")
         );
+    }
+
+    #[test]
+    fn conditional_breakpoint_skips_until_register_is_nonzero() {
+        let mut monitor = Monitor::new(128);
+        monitor.execute("assemble addi x1,x1,1").unwrap();
+        let breakpoint = monitor.execute("break 4 if x1").unwrap();
+        assert!(breakpoint.contains("if x1"));
+        let ran = monitor.execute("run 1").unwrap();
+        assert!(ran.contains("ran 1 step(s)"));
+        assert_eq!(monitor.machine.x[1], 1);
+        let stopped = monitor.execute("run 1").unwrap();
+        assert!(stopped.contains("stopped: breakpoint #1"));
+        assert_eq!(monitor.machine.x[1], 1);
+        assert!(
+            monitor
+                .execute("info break")
+                .unwrap()
+                .contains("condition=expression")
+        );
+    }
+
+    #[test]
+    fn conditional_breakpoint_rejects_invalid_expression() {
+        let mut monitor = Monitor::new(128);
+        let error = monitor.execute("break 0 if (").unwrap_err();
+        assert_eq!(error.code, "CMD-003");
+        assert_eq!(monitor.execute("info break").unwrap(), "breakpoints: none");
     }
 
     #[test]

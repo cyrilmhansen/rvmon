@@ -58,6 +58,18 @@ breakpoint courant une fois. Pour un programme multi-ligne, fournir le texte
 avec des retours à la ligne à l’API `BackendConsole::execute` ou utiliser
 `--script` avec un fichier de commandes.
 
+Une condition entière peut limiter l’arrêt :
+
+```text
+rvmonitor> break 0x0000000000000004 if x1
+breakpoint #2 set at 0x0000000000000004 if x1
+```
+
+La condition est évaluée avant l’instruction et s’arrête si sa valeur est
+non nulle. Les noms disponibles sont `pc`, `fcsr`, les registres `x0` à `x31`
+et leurs alias ABI. Les conditions ne sont pas encore persistées dans les
+fichiers projet/session.
+
 ## 3. Mémoire, watchpoint et annulation
 
 ```text

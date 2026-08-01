@@ -21,7 +21,7 @@ réimplémentée si les preuves indiquées existent.
 | FP-001A, FP-002A, FP-003A, FP-004A/B, FP-005A, GEN-003 | livré | tests `luna-machine`, probes QEMU et tests de formats | traiter FP-002 comme partiellement livré et FP-003 comme reste D/Q/Zfh |
 | CMD-001A/B/C, MON-001A/B, REG-001A..D | livré par sous-tranches | tests `luna-monitor` et commandes host/backend | clôturer les agrégats après matrice de couverture |
 | UI-000A..H | livré | tests app/monitor, TTY et documentation | conserver UI-001 pour l’éditeur/panneaux réellement interactifs |
-| DBG-001, FORMAT-001, QUAL-001/002, REL-001 | non livré ou partiel | absence de preuve de sortie complète | restent sur le chemin critique |
+| DBG-001, FORMAT-001, QUAL-001/002, REL-001 | partiel | conditions de breakpoint ajoutées ; step-over/out et persistance restent absents | restent sur le chemin critique |
 
 Les tâches BOOT-001 à BOOT-004, GEN-001, ISA-001/002, ASM-BOOT-001,
 MEM-001, MACHINE-001 et DEMO-001 sont des entrées de plan initial. Le dépôt
@@ -1406,6 +1406,38 @@ confondre code présent et exigence formellement auditée.
 - **Compétences/outils :** debugging/runtime.
 - **Parallélisable :** oui avec MON-001; intégration machine nécessaire.
 - **Contexte minimal :** SPEC §16/18/24.
+
+#### DBG-001A — Conditions de breakpoint entières — TERMINÉ
+
+- **Jalon / exigences :** M7; DBG-001..004, REQ-PROD-003.
+- **But :** permettre `break <adresse> if <expression>` dans le moniteur host
+  et le backend générique, avec évaluation sans effet de bord avant
+  l’instruction ciblée.
+- **Non-but :** conditions flottantes ou mémoire, opérateurs relationnels,
+  step-over/out et transport série.
+- **Entrées/sources :** SPEC §10/16; contrat d’expression existant; état
+  `TargetContext` du backend.
+- **Fichiers/modules :** `crates/monitor/src/lib.rs`, tests de commandes et
+  d’exécution.
+- **Étapes réalisées :** parser l’expression après `if`; exposer `pc`, `fcsr`
+  et les registres entiers numériques/ABI; considérer zéro comme faux et toute
+  valeur non nulle comme vraie; afficher la présence de la condition dans
+  `info break`.
+- **Dépendances et tâches bloquées :** DBG-001; la sérialisation des conditions
+  dans les projets/sessions et les conditions sur mémoire restent différées.
+- **Tests :** condition fausse puis vraie sur `x1`; expression invalide;
+  absence de mutation pendant l’évaluation.
+- **Critères de sortie :** le breakpoint est ignoré tant que l’expression vaut
+  zéro, puis arrête l’exécution avant l’instruction lorsqu’elle devient non
+  nulle; l’erreur de syntaxe est stable.
+- **Cas limites et échecs :** registre inconnu, parenthèse invalide, adresse
+  non alignée et collision sont refusés sans mutation partielle.
+- **Taille :** 2 points / 1 journée-agent, incertitude faible.
+- **Compétences/outils :** Rust, évaluateur d’expressions, débogage RV64.
+- **Parallélisable :** oui avec QUAL-001; non avec une modification simultanée
+  du contrat de breakpoint.
+- **Paquet de contexte minimal :** ce sous-ensemble, SPEC §16 et les tests
+  `conditional_breakpoint_*`.
 
 ### FORMAT-001 — Projets, snapshots et replay
 
