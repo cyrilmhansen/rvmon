@@ -1539,6 +1539,34 @@ confondre code présent et exigence formellement auditée.
 - **Dépendances/bloqués :** profile, assembler, debugger; bloque M8.
 - **Tests :** round-trip, hash cross-platform, corrupt file, migration, crash journal.
 - **Acceptation :** E2E 12 restaure bytes/symboles/état/breakpoints identiques.
+
+#### FORMAT-001A — Manifeste d’intégrité déterministe — TERMINÉ
+
+- **Jalon / exigences :** M8; IO-001..009, OBS-001..006, ISO-001..004.
+- **But :** détecter les fichiers snapshot, projet et session tronqués ou
+  accidentellement altérés avant tout décodage et toute mutation de cible.
+- **Non-but :** signature cryptographique, chiffrement, migration multi-version
+  ou transport série.
+- **Entrées/sources :** SPEC §§12/18/21/22; format local v4.
+- **Fichiers/modules :** `crates/monitor/src/lib.rs`, tests de persistance.
+- **Étapes réalisées :** ajouter un checksum FNV-1a 64 bits déterministe en fin
+  de chaque conteneur; vérifier magic, longueur et checksum dans `ByteReader`;
+  refuser toute divergence avec `MON-PERSIST-038`; passer le format en version
+  4.
+- **Dépendances et tâches bloquées :** FORMAT-001; une signature ou un hash
+  cryptographique reste explicitement hors périmètre.
+- **Tests :** troncature, corruption du payload, round-trip snapshot/projet/
+  session et absence de mutation après rejet.
+- **Critères de sortie :** tout fichier produit par le moniteur est accepté
+  après écriture; toute altération d’un octet est rejetée avant application.
+- **Cas limites et échecs :** fichier trop court, checksum invalide, trailing
+  bytes et magic inconnu produisent un diagnostic stable.
+- **Taille :** 2 points / 1 journée-agent, incertitude faible.
+- **Compétences/outils :** formats binaires, checksums déterministes, Rust.
+- **Parallélisable :** oui avec QUAL-001; non avec une modification concurrente
+  de `ByteReader` ou du schéma v4.
+- **Paquet de contexte minimal :** `ByteWriter`, `ByteReader`,
+  `persistence_checksum`, SPEC §§12/18/22.
 - **Limites/échecs :** version majeure, missing source, tampered hash → refusal with remedy.
 - **Taille :** 5 points / 2,5 j, incertitude moyenne.
 - **Compétences/outils :** formats canoniques, persistence.

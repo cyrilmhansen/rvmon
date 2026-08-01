@@ -29,7 +29,7 @@ const MAX_PERSISTED_BYTES: usize = 64 * 1024 * 1024;
 const SNAPSHOT_MAGIC: &[u8; 8] = b"RVSNAP01";
 const PROJECT_MAGIC: &[u8; 8] = b"RVPROJ01";
 const SESSION_MAGIC: &[u8; 8] = b"RVSESS01";
-const PERSISTENCE_VERSION: u32 = 3;
+const PERSISTENCE_VERSION: u32 = 4;
 
 struct MemoryEdit {
     address: u64,
@@ -3255,7 +3255,10 @@ impl ByteWriter {
     }
 
     fn finish(self) -> Vec<u8> {
-        self.bytes
+        let checksum = persistence_checksum(&self.bytes);
+        let mut bytes = self.bytes;
+        bytes.extend_from_slice(&checksum.to_le_bytes());
+        bytes
     }
 }
 
@@ -3266,14 +3269,23 @@ struct ByteReader<'a> {
 
 impl<'a> ByteReader<'a> {
     fn new(bytes: &'a [u8], magic: &[u8; 8]) -> Result<Self> {
-        if bytes.len() < magic.len() || &bytes[..magic.len()] != magic {
+        if bytes.len() < magic.len() + 8 || &bytes[..magic.len()] != magic {
             return Err(Diagnostic::error(
                 "MON-PERSIST-010",
                 "unrecognized persistence magic",
             ));
         }
+        let payload_length = bytes.len() - 8;
+        let expected = u64::from_le_bytes(bytes[payload_length..].try_into().unwrap());
+        let actual = persistence_checksum(&bytes[..payload_length]);
+        if actual != expected {
+            return Err(Diagnostic::error(
+                "MON-PERSIST-038",
+                "persistence checksum mismatch",
+            ));
+        }
         Ok(Self {
-            bytes,
+            bytes: &bytes[..payload_length],
             position: magic.len(),
         })
     }
@@ -3407,6 +3419,15 @@ impl<'a> ByteReader<'a> {
             ))
         }
     }
+}
+
+fn persistence_checksum(bytes: &[u8]) -> u64 {
+    let mut checksum = 0xcbf2_9ce4_8422_2325u64;
+    for byte in bytes {
+        checksum ^= u64::from(*byte);
+        checksum = checksum.wrapping_mul(0x0000_0100_0000_01b3);
+    }
+    checksum
 }
 
 fn decode_backend_session(bytes: &[u8]) -> Result<DecodedBackendSession> {
@@ -4332,7 +4353,7 @@ mod tests {
         let snapshot = monitor.snapshot_bytes().unwrap();
         let truncated = &snapshot[..snapshot.len() - 1];
         let error = monitor.restore_snapshot_bytes(truncated).unwrap_err();
-        assert_eq!(error.code, "MON-PERSIST-012");
+        assert_eq!(error.code, "MON-PERSIST-038");
         assert_eq!(monitor.machine.x[1], 7);
     }
 

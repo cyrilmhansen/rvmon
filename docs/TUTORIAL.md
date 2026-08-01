@@ -73,6 +73,10 @@ tail calls et informations DWARF ne sont pas encore pris en charge.
 La pile d’appels minimale est incluse dans les snapshots et projets/sessions,
 ce qui permet de reprendre un `step-out` après restauration.
 
+Les fichiers de persistance du moniteur sont versionnés et protégés par un
+checksum déterministe ; un fichier tronqué ou modifié est refusé avant son
+application.
+
 Une condition entière peut limiter l’arrêt :
 
 ```text
