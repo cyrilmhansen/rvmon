@@ -56,7 +56,7 @@ Moniteur texte interactif :
 | luna-target-api | 4 | Contexte de trap, capacités explicites RV64 bare-metal, codes `mcause`, contrat de layout, résultats et accès mémoire du backend commun. |
 | luna-qemu-backend | 7 | Framing GDB RSP, checksum, lecture mémoire, layouts RV64 entier et F/D, stop reply, initialisation `?`, pas et budget nul. |
 | luna-guest-monitor | 0 | Image bare-metal, boot QEMU, PMP, transition M→U, lecture/édition mémoire transactionnelle, `undo`, directives exactes `.word`/`.float`/`.binary128`, assemblage invité entier/flottant, `set`/`setf`, NaN-boxing, `fmv.w.x`/`fmv.x.w` et traps; vérifié par E2E UART QEMU. |
-| luna-app | 2 | Rappel borné des commandes host/QEMU avec `!!` et `!N`, références invalides et codes `APP-SHELL-*`; compilation et démonstration. |
+| luna-app | 2 | Rappel borné des commandes host/QEMU avec `!!` et `!N`, références invalides et codes `APP-SHELL-*`; éditeur TTY crossterm (chemin script conservé); compilation et démonstration. |
 | luna-diag | 0 | Types utilisés par les autres crates ; pas de test dédié. |
 
 ## Périmètre détaillé

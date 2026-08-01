@@ -1052,6 +1052,23 @@ Une tâche est terminée seulement si sa condition de sortie est satisfaite.
 - **Parallélisable :** oui avec la préparation de UI-001; non avec une modification concurrente de la boucle interactive.
 - **Paquet de contexte minimal :** SPEC §§10/17/18/21, `crates/app/src/main.rs`, `crates/monitor/src/lib.rs`.
 
+### UI-000B — Éditeur de ligne TTY avec navigation clavier — TERMINÉ
+
+- **Jalon / exigences :** M6/M7; REQ-PROD-001, REQ-PROD-005, NFR-010.
+- **But :** fournir dans les deux modes interactifs TTY une édition de ligne avec `↑/↓`, `←/→`, `Home/End`, `Backspace`, `Delete`, `Ctrl-C` et `Ctrl-D`.
+- **Non-but :** TUI multipanneaux, coloration syntaxique, édition de source multi-lignes et comportement raw mode pour les scripts/pipes.
+- **Entrées/sources :** SPEC §§10/17/18/20; `crossterm` 0.29.0; contrats host et backend QEMU.
+- **Fichiers/modules :** `crates/app/src/main.rs`, `crates/app/Cargo.toml`, `Cargo.lock`.
+- **Étapes réalisées :** détecter `stdin.is_terminal`; activer le raw mode seulement sur TTY; gérer insertion/suppression/navigation et resize; restaurer le terminal via guard RAII; conserver le chemin BufRead pour scripts.
+- **Dépendances et tâches bloquées :** UI-000A; les panneaux, raccourcis fonctionnels et navigation diagnostics restent dans UI-001.
+- **Tests :** compilation/test host et QEMU, suite workspace; chemin script inchangé; dépendance épinglée dans Cargo.lock.
+- **Critères de sortie :** un TTY reçoit des lignes éditables sans caractères d’échappement visibles; Ctrl-D quitte proprement; une panne restaure le mode terminal; un pipe reste déterministe.
+- **Cas limites et échecs :** terminal non interactif, resize, ligne vide, historique absent, Unicode de commande, échec activation raw mode.
+- **Taille :** 4 points / 2 journées-agent, incertitude moyenne.
+- **Compétences/outils :** Rust stdio, Crossterm, états clavier et restauration terminal.
+- **Parallélisable :** oui avec le modèle des panneaux UI; non avec une modification concurrente de la boucle `interactive_tty`.
+- **Paquet de contexte minimal :** SPEC §§10/17/20, `crates/app/src/main.rs`, `crates/app/Cargo.toml`.
+
 ### UI-001 — Frontend terminal et cycle ASM-One modernisé
 
 - **Jalon / exigences :** M6–M9; REQ-PROD-001/005, E2E 2/3/4.

@@ -1,7 +1,13 @@
 #![forbid(unsafe_code)]
 
 use std::fs::File;
-use std::io::{self, BufRead, BufReader, Write};
+use std::io::{self, BufRead, BufReader, IsTerminal, Write};
+
+use crossterm::cursor::MoveToColumn;
+use crossterm::event::{self, Event, KeyCode, KeyEvent, KeyModifiers};
+use crossterm::execute;
+use crossterm::style::Print;
+use crossterm::terminal::{self, Clear, ClearType};
 
 const MAX_SHELL_HISTORY: usize = 256;
 
@@ -60,6 +66,16 @@ fn demo() {
 }
 
 fn interactive(script: Option<&str>) {
+    let mut monitor = luna_monitor::Monitor::new(64 * 1024);
+    let mut history = Vec::new();
+    if script.is_none() && io::stdin().is_terminal() {
+        interactive_tty("rvmonitor> ", &mut history, |line| {
+            monitor
+                .execute(line)
+                .map_err(|error| format!("{}: {}", error.code, error.message))
+        });
+        return;
+    }
     let stdin = io::stdin();
     let input: Box<dyn BufRead> = match script {
         Some(path) => {
@@ -69,8 +85,6 @@ fn interactive(script: Option<&str>) {
         }
         None => Box::new(stdin.lock()),
     };
-    let mut monitor = luna_monitor::Monitor::new(64 * 1024);
-    let mut history = Vec::new();
     println!("RVMonitor interactive; type 'help' for commands (!! and !N replay history)");
     if script.is_none() {
         print!("rvmonitor> ");
@@ -112,6 +126,15 @@ fn qemu_interactive(port: u16, script: Option<&str>) {
     let backend = luna_qemu_backend::GdbRemote::connect(address)
         .unwrap_or_else(|error| panic!("cannot connect to QEMU GDB RSP: {error}"));
     let mut console = luna_monitor::BackendConsole::new(backend);
+    let mut history = Vec::new();
+    if script.is_none() && io::stdin().is_terminal() {
+        interactive_tty("rvmonitor-qemu> ", &mut history, |line| {
+            console
+                .execute(line)
+                .map_err(|error| format!("{}: {}", error.code, error.message))
+        });
+        return;
+    }
     let stdin = io::stdin();
     let input: Box<dyn BufRead> = match script {
         Some(path) => {
@@ -121,7 +144,6 @@ fn qemu_interactive(port: u16, script: Option<&str>) {
         }
         None => Box::new(stdin.lock()),
     };
-    let mut history = Vec::new();
     println!("RVMonitor QEMU backend on 127.0.0.1:{port}; type 'help' for commands");
     if script.is_none() {
         print!("rvmonitor-qemu> ");
@@ -156,6 +178,175 @@ fn qemu_interactive(port: u16, script: Option<&str>) {
             io::stdout().flush().unwrap();
         }
     }
+}
+
+fn interactive_tty<F>(prompt: &str, history: &mut Vec<String>, mut execute_command: F)
+where
+    F: FnMut(&str) -> Result<String, String>,
+{
+    if let Err(error) = terminal::enable_raw_mode() {
+        eprintln!("APP-TTY-001: cannot enable raw terminal mode: {error}");
+        return;
+    }
+    let _raw_mode = RawModeGuard;
+    println!("interactive keyboard: arrows edit/history, Ctrl-D exits");
+    loop {
+        let line = match read_tty_line(prompt, history) {
+            Ok(Some(line)) => line,
+            Ok(None) => break,
+            Err(error) => {
+                eprintln!("APP-TTY-002: terminal input failed: {error}");
+                break;
+            }
+        };
+        let line = match expand_history_line(&line, history) {
+            Ok(line) => line,
+            Err(error) => {
+                println!("\r\x1b[K{error}");
+                continue;
+            }
+        };
+        let leave = matches!(line.trim(), "quit" | "exit");
+        match execute_command(&line) {
+            Ok(output) if !output.is_empty() => println!("\r\x1b[K{output}"),
+            Ok(_) => {}
+            Err(error) => println!("\r\x1b[K{error}"),
+        }
+        if leave {
+            break;
+        }
+    }
+}
+
+struct RawModeGuard;
+
+impl Drop for RawModeGuard {
+    fn drop(&mut self) {
+        let _ = terminal::disable_raw_mode();
+        println!();
+    }
+}
+
+fn read_tty_line(prompt: &str, history: &[String]) -> io::Result<Option<String>> {
+    let mut stdout = io::stdout();
+    let mut line = String::new();
+    let mut cursor = 0usize;
+    let mut history_index = None;
+    let mut draft = String::new();
+    render_tty_line(&mut stdout, prompt, &line, cursor)?;
+    loop {
+        match event::read()? {
+            Event::Key(KeyEvent {
+                code,
+                modifiers,
+                kind: _,
+                state: _,
+            }) => match (code, modifiers) {
+                (KeyCode::Enter, _) => {
+                    println!();
+                    return Ok(Some(line));
+                }
+                (KeyCode::Char('d'), KeyModifiers::CONTROL) if line.is_empty() => {
+                    println!();
+                    return Ok(None);
+                }
+                (KeyCode::Char('c'), KeyModifiers::CONTROL) => {
+                    line.clear();
+                    cursor = 0;
+                    history_index = None;
+                    render_tty_line(&mut stdout, prompt, &line, cursor)?;
+                }
+                (KeyCode::Backspace, _) if cursor > 0 => {
+                    let start = line[..cursor]
+                        .char_indices()
+                        .last()
+                        .map_or(0, |(index, _)| index);
+                    line.replace_range(start..cursor, "");
+                    cursor = start;
+                    history_index = None;
+                    render_tty_line(&mut stdout, prompt, &line, cursor)?;
+                }
+                (KeyCode::Delete, _) if cursor < line.len() => {
+                    let end = line[cursor..]
+                        .char_indices()
+                        .nth(1)
+                        .map_or(line.len(), |(index, _)| cursor + index);
+                    line.replace_range(cursor..end, "");
+                    history_index = None;
+                    render_tty_line(&mut stdout, prompt, &line, cursor)?;
+                }
+                (KeyCode::Left, _) if cursor > 0 => {
+                    cursor = line[..cursor]
+                        .char_indices()
+                        .last()
+                        .map_or(0, |(index, _)| index);
+                    render_tty_line(&mut stdout, prompt, &line, cursor)?;
+                }
+                (KeyCode::Right, _) if cursor < line.len() => {
+                    cursor += line[cursor..].chars().next().map_or(0, char::len_utf8);
+                    render_tty_line(&mut stdout, prompt, &line, cursor)?;
+                }
+                (KeyCode::Home, _) => {
+                    cursor = 0;
+                    render_tty_line(&mut stdout, prompt, &line, cursor)?;
+                }
+                (KeyCode::End, _) => {
+                    cursor = line.len();
+                    render_tty_line(&mut stdout, prompt, &line, cursor)?;
+                }
+                (KeyCode::Up, _) if !history.is_empty() => {
+                    if history_index.is_none() {
+                        draft = line.clone();
+                        history_index = Some(history.len() - 1);
+                    } else if history_index.unwrap() > 0 {
+                        history_index = Some(history_index.unwrap() - 1);
+                    }
+                    line = history[history_index.unwrap()].clone();
+                    cursor = line.len();
+                    render_tty_line(&mut stdout, prompt, &line, cursor)?;
+                }
+                (KeyCode::Down, _) => {
+                    if let Some(index) = history_index {
+                        if index + 1 < history.len() {
+                            history_index = Some(index + 1);
+                            line = history[index + 1].clone();
+                        } else {
+                            history_index = None;
+                            line = draft.clone();
+                        }
+                        cursor = line.len();
+                        render_tty_line(&mut stdout, prompt, &line, cursor)?;
+                    }
+                }
+                (KeyCode::Char(character), KeyModifiers::NONE | KeyModifiers::SHIFT) => {
+                    line.insert(cursor, character);
+                    cursor += character.len_utf8();
+                    history_index = None;
+                    render_tty_line(&mut stdout, prompt, &line, cursor)?;
+                }
+                _ => {}
+            },
+            Event::Resize(_, _) => render_tty_line(&mut stdout, prompt, &line, cursor)?,
+            _ => {}
+        }
+    }
+}
+
+fn render_tty_line(
+    stdout: &mut io::Stdout,
+    prompt: &str,
+    line: &str,
+    cursor: usize,
+) -> io::Result<()> {
+    execute!(
+        stdout,
+        MoveToColumn(0),
+        Print(prompt),
+        Print(line),
+        Clear(ClearType::UntilNewLine),
+        MoveToColumn((prompt.len() + cursor).min(u16::MAX as usize) as u16)
+    )?;
+    stdout.flush()
 }
 
 fn expand_history_line(line: &str, history: &mut Vec<String>) -> Result<String, String> {

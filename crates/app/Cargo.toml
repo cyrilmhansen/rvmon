@@ -5,6 +5,7 @@ edition.workspace = true
 license.workspace = true
 
 [dependencies]
+crossterm = "=0.29.0"
 luna-assembler = { path = "../assembler" }
 luna-machine = { path = "../machine" }
 luna-monitor = { path = "../monitor" }
