@@ -1154,6 +1154,23 @@ Une tâche est terminée seulement si sa condition de sortie est satisfaite.
 - **Parallélisable :** oui avec l’éditeur de source; non avec une modification concurrente de `format_diagnostic`.
 - **Paquet de contexte minimal :** SPEC §§17/19/21, `crates/diag/src/lib.rs`, `crates/monitor/src/lib.rs`, `crates/app/src/main.rs`.
 
+### UI-000H — Correction source explicite avant réassemblage — TERMINÉ
+
+- **Jalon / exigences :** M3/M6/M7; REQ-PROD-003/004, REQ-OBS-001.
+- **But :** permettre une correction contrôlée avec `source replace <ligne> <texte>`, sans appliquer automatiquement le résultat à la cible.
+- **Non-but :** patch automatique basé sur le diagnostic, écriture mémoire implicite, assemblage silencieux et édition multi-document.
+- **Entrées/sources :** SPEC §§11/17–19/21; UI-000F/UI-000G; transactions et isolation §18.
+- **Fichiers/modules :** `crates/monitor/src/lib.rs`, `docs/TESTS.md`.
+- **Étapes réalisées :** parser ligne 1-based et texte restant; accepter texte entre guillemets et ligne vide; remplacer le document source uniquement; invalider le diagnostic; retourner l’instruction de réassembler explicitement.
+- **Dépendances et tâches bloquées :** UI-000F; le patch proposé automatiquement et la confirmation graphique restent différés à UI-001.
+- **Tests :** correction de ligne, diagnostic effacé, PC/mémoire inchangés, texte relu par `source`, erreurs de ligne hors plage.
+- **Critères de sortie :** aucune commande `source replace` n’écrit la cible; seul `assemble`/`assemble-program` applique la nouvelle source.
+- **Cas limites et échecs :** ligne inexistante, arité incomplète, texte vide, guillemets, source vide.
+- **Taille :** 3 points / 1,5 journée-agent, incertitude moyenne.
+- **Compétences/outils :** édition textuelle transactionnelle, parsing de ligne, tests d’isolation.
+- **Parallélisable :** oui avec l’éditeur multi-document; non avec une modification concurrente de `source_text`.
+- **Paquet de contexte minimal :** SPEC §§11/17–19/21, `crates/monitor/src/lib.rs`, `docs/TESTS.md`.
+
 ### UI-001 — Frontend terminal et cycle ASM-One modernisé
 
 - **Jalon / exigences :** M6–M9; REQ-PROD-001/005, E2E 2/3/4.

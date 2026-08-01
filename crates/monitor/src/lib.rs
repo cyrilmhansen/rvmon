@@ -224,12 +224,35 @@ impl Monitor {
         })
     }
 
-    fn source_view(&self, argument: &str) -> Result<String> {
+    fn source_view(&mut self, argument: &str) -> Result<String> {
         let lines: Vec<_> = self.source_text.lines().collect();
+        let text = argument.trim();
+        if let Some(spec) = text.strip_prefix("replace ") {
+            let (line_text, replacement) =
+                spec.split_once(char::is_whitespace).ok_or_else(|| {
+                    Diagnostic::error("MON-SRC-004", "source replace expects <line> <text>")
+                })?;
+            let line = line_text.parse::<usize>().map_err(|_| {
+                Diagnostic::error("MON-SRC-005", "source replace line must be positive")
+            })?;
+            if line == 0 || line > lines.len() {
+                return Err(Diagnostic::error(
+                    "MON-SRC-006",
+                    "source replace line is outside the loaded document",
+                ));
+            }
+            let replacement = replacement.trim().trim_matches('"').to_string();
+            let mut updated: Vec<String> = lines.iter().map(|line| (*line).to_string()).collect();
+            updated[line - 1] = replacement;
+            self.source_text = updated.join("\n");
+            self.last_diagnostic = None;
+            return Ok(format!(
+                "source line {line} updated; reassemble explicitly to apply"
+            ));
+        }
         if lines.is_empty() {
             return Ok("source: empty".into());
         }
-        let text = argument.trim();
         if text.is_empty() {
             return Ok(lines
                 .iter()
@@ -1487,12 +1510,35 @@ where
         ))
     }
 
-    fn source_view(&self, argument: &str) -> Result<String> {
+    fn source_view(&mut self, argument: &str) -> Result<String> {
         let lines: Vec<_> = self.source_text.lines().collect();
+        let text = argument.trim();
+        if let Some(spec) = text.strip_prefix("replace ") {
+            let (line_text, replacement) =
+                spec.split_once(char::is_whitespace).ok_or_else(|| {
+                    Diagnostic::error("MON-SRC-104", "source replace expects <line> <text>")
+                })?;
+            let line = line_text.parse::<usize>().map_err(|_| {
+                Diagnostic::error("MON-SRC-105", "source replace line must be positive")
+            })?;
+            if line == 0 || line > lines.len() {
+                return Err(Diagnostic::error(
+                    "MON-SRC-106",
+                    "source replace line is outside the loaded document",
+                ));
+            }
+            let replacement = replacement.trim().trim_matches('"').to_string();
+            let mut updated: Vec<String> = lines.iter().map(|line| (*line).to_string()).collect();
+            updated[line - 1] = replacement;
+            self.source_text = updated.join("\n");
+            self.last_diagnostic = None;
+            return Ok(format!(
+                "source line {line} updated; reassemble explicitly to apply"
+            ));
+        }
         if lines.is_empty() {
             return Ok("source: empty".into());
         }
-        let text = argument.trim();
         if text.is_empty() {
             return Ok(lines
                 .iter()
@@ -2571,6 +2617,7 @@ fn backend_help() -> String {
         "symbols              list loaded symbols",
         "where                show pc, nearest symbol and memory view",
         "source [line]        show loaded source with stable line numbers",
+        "source replace <n> <text> edit one source line; reassemble explicitly",
         "diagnostic            show the last diagnostic with source excerpt",
         "memory [addr] [n]    show target memory as hex/ASCII",
         "find <addr> <n> <bytes> search target memory",
@@ -2729,6 +2776,7 @@ fn help() -> String {
         "symbols              list loaded symbols",
         "where                show pc, nearest symbol and memory view",
         "source [line]        show loaded source with stable line numbers",
+        "source replace <n> <text> edit one source line; reassemble explicitly",
         "diagnostic            show the last diagnostic with source excerpt",
         "stack                show inferred jal/jalr call stack",
         "history [count]      show bounded execution history",
@@ -3318,6 +3366,24 @@ mod tests {
         assert!(diagnostic.contains("addi x1,x0,99999"));
         assert!(diagnostic.contains("^"));
         assert!(diagnostic.contains("remedy:"));
+        let memory_before = monitor.machine.memory.load32(0).unwrap();
+        assert!(
+            monitor
+                .execute("source replace 1 \"addi x1,x0,1\"")
+                .unwrap()
+                .contains("reassemble explicitly")
+        );
+        assert!(
+            monitor
+                .execute("source 1")
+                .unwrap()
+                .contains("addi x1,x0,1")
+        );
+        assert_eq!(monitor.machine.memory.load32(0).unwrap(), memory_before);
+        assert_eq!(
+            monitor.execute("diagnostic").unwrap_err().code,
+            "MON-DIAG-001"
+        );
     }
 
     #[test]
