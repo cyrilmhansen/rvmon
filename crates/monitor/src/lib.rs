@@ -136,7 +136,19 @@ impl Monitor {
         let result = match name.as_str() {
             "help" | "?" => Ok(help()),
             "dashboard" | "dash" => self.dashboard(argument),
-            "regs" | "registers" => self.registers(),
+            "regs" | "registers" => {
+                if argument.trim().eq_ignore_ascii_case("blinkenlights") {
+                    Ok(self.blinkenlights())
+                } else if argument.trim().is_empty() {
+                    self.registers()
+                } else {
+                    Err(Diagnostic::error(
+                        "MON-REG-020",
+                        "regs expects no argument or blinkenlights",
+                    ))
+                }
+            }
+            "blinkenlights" => Ok(self.blinkenlights()),
             "set" => self.set_integer_register(argument),
             "setf" => self.set_float_register(argument),
             "setcsr" => self.set_csr(argument),
@@ -797,7 +809,18 @@ impl Monitor {
     }
 
     fn memory_view(&mut self, argument: &str) -> Result<String> {
-        let parts: Vec<_> = argument.split_whitespace().collect();
+        let mut parts: Vec<_> = argument.split_whitespace().collect();
+        let encoding = match parts.last().copied() {
+            Some("cp437") => {
+                parts.pop();
+                memory_view::TextEncoding::Cp437
+            }
+            Some("ascii") => {
+                parts.pop();
+                memory_view::TextEncoding::Ascii
+            }
+            _ => memory_view::TextEncoding::Ascii,
+        };
         let (address, count) = match parts.as_slice() {
             [] => (self.view_address, DEFAULT_MEMORY_VIEW_BYTES),
             [address] => (
@@ -811,7 +834,7 @@ impl Monitor {
             _ => {
                 return Err(Diagnostic::error(
                     "MON-MEM-001",
-                    "memory expects [address] [count]",
+                    "memory expects [address] [count] [ascii|cp437]",
                 ));
             }
         };
@@ -825,7 +848,7 @@ impl Monitor {
         TargetBackend::read_memory(&mut self.machine, address, &mut bytes)?;
         self.view_address = address;
 
-        memory_view::render_hex_ascii(address, &bytes, "MON-MEM-002")
+        memory_view::render_hex_ascii(address, &bytes, "MON-MEM-002", encoding)
     }
 
     fn edit_memory(&mut self, argument: &str) -> Result<String> {
@@ -1294,6 +1317,13 @@ impl Monitor {
         Ok(output.trim_end().into())
     }
 
+    fn blinkenlights(&self) -> String {
+        register_view::format_blinkenlights(
+            register_view::RegisterSnapshot::from_context(&TargetBackend::context(&self.machine)),
+            self.register_baseline,
+        )
+    }
+
     fn dashboard(&mut self, argument: &str) -> Result<String> {
         match argument.trim() {
             "" | "all" => Ok(format!(
@@ -1304,10 +1334,11 @@ impl Monitor {
             )),
             "location" | "where" => self.show_location(),
             "regs" | "registers" => self.registers(),
+            "blinkenlights" | "lights" => Ok(self.blinkenlights()),
             "memory" | "mem" => self.memory_view(""),
             _ => Err(Diagnostic::error(
                 "MON-UI-001",
-                "dashboard expects all, location, regs, or memory",
+                "dashboard expects all, location, regs, blinkenlights, or memory",
             )),
         }
     }
@@ -1420,7 +1451,19 @@ where
             "step" | "s" => self.step(),
             "run" | "r" => self.run(argument),
             "continue" | "c" => self.continue_target(argument),
-            "regs" | "registers" => Ok(self.registers()),
+            "regs" | "registers" => {
+                if argument.trim().eq_ignore_ascii_case("blinkenlights") {
+                    Ok(self.blinkenlights())
+                } else if argument.trim().is_empty() {
+                    Ok(self.registers())
+                } else {
+                    Err(Diagnostic::error(
+                        "MON-REG-120",
+                        "regs expects no argument or blinkenlights",
+                    ))
+                }
+            }
+            "blinkenlights" => Ok(self.blinkenlights()),
             "disasm" | "d" => self.disassemble(argument),
             "disasm-mixed" | "mixed" | "dm" => self.disassemble_mixed(argument, false),
             "disasm-mixed-c" | "mixed-c" => self.disassemble_mixed(argument, true),
@@ -1737,6 +1780,13 @@ where
         output.trim_end().into()
     }
 
+    fn blinkenlights(&self) -> String {
+        register_view::format_blinkenlights(
+            register_view::RegisterSnapshot::from_context(&self.backend.context()),
+            self.register_baseline,
+        )
+    }
+
     fn dashboard(&mut self, argument: &str) -> Result<String> {
         match argument.trim() {
             "" | "all" => Ok(format!(
@@ -1747,10 +1797,11 @@ where
             )),
             "location" | "where" => Ok(self.show_location()),
             "regs" | "registers" => Ok(self.registers()),
+            "blinkenlights" | "lights" => Ok(self.blinkenlights()),
             "memory" | "mem" => self.memory(""),
             _ => Err(Diagnostic::error(
                 "MON-UI-101",
-                "dashboard expects all, location, regs, or memory",
+                "dashboard expects all, location, regs, blinkenlights, or memory",
             )),
         }
     }
@@ -1920,7 +1971,18 @@ where
     }
 
     fn memory(&mut self, argument: &str) -> Result<String> {
-        let parts: Vec<_> = argument.split_whitespace().collect();
+        let mut parts: Vec<_> = argument.split_whitespace().collect();
+        let encoding = match parts.last().copied() {
+            Some("cp437") => {
+                parts.pop();
+                memory_view::TextEncoding::Cp437
+            }
+            Some("ascii") => {
+                parts.pop();
+                memory_view::TextEncoding::Ascii
+            }
+            _ => memory_view::TextEncoding::Ascii,
+        };
         let (address, count) = match parts.as_slice() {
             [] => (self.view_address, DEFAULT_MEMORY_VIEW_BYTES),
             [address] => (
@@ -1934,7 +1996,7 @@ where
             _ => {
                 return Err(Diagnostic::error(
                     "MON-MEM-100",
-                    "memory expects [address] [count]",
+                    "memory expects [address] [count] [ascii|cp437]",
                 ));
             }
         };
@@ -1949,7 +2011,7 @@ where
             .read_memory(address, &mut bytes)
             .map_err(target_error)?;
         self.view_address = address;
-        memory_view::render_hex_ascii(address, &bytes, "MON-MEM-101")
+        memory_view::render_hex_ascii(address, &bytes, "MON-MEM-101", encoding)
     }
 
     fn set_view(&mut self, argument: &str) -> Result<String> {
@@ -2604,13 +2666,13 @@ fn format_backend_console_outcome(outcome: ExecutionOutcome) -> String {
 fn backend_help() -> String {
     [
         "help                 show backend-neutral commands",
-        "dashboard [panel]     show all or one location/regs/memory panel",
+        "dashboard [panel]     show all or one location/regs/blinkenlights/memory panel",
         "assemble <source>    assemble and write at target pc",
         "assemble-program <source> load a multi-line image and symbols",
         "step                 execute one target instruction",
         "run [count]          execute up to count target steps",
         "continue [count]     resume, bypassing a breakpoint at current pc",
-        "regs                 show target registers and capabilities",
+        "regs [blinkenlights]  show exact registers or a bit-light panel",
         "disasm [addr] [n]    disassemble target words with symbols",
         "disasm-mixed [addr] c:n,d:n,...  disassemble marked code/data",
         "disasm-mixed-c [addr] c:n,d:n,...  allow compressed 16-bit code",
@@ -2619,7 +2681,7 @@ fn backend_help() -> String {
         "source [line]        show loaded source with stable line numbers",
         "source replace <n> <text> edit one source line; reassemble explicitly",
         "diagnostic            show the last diagnostic with source excerpt",
-        "memory [addr] [n]    show target memory as hex/ASCII",
+        "memory [addr] [n] [ascii|cp437] show target memory as hex/text",
         "find <addr> <n> <bytes> search target memory",
         "fill <addr> <n> <byte> fill target memory transactionally",
         "copy <src> <dst> <n> copy target memory transactionally",
@@ -2747,7 +2809,7 @@ fn format_watchpoint_stop(
 fn help() -> String {
     [
         "help                 show commands",
-        "dashboard [panel]     show all or one location/regs/memory panel",
+        "dashboard [panel]     show all or one location/regs/blinkenlights/memory panel",
         "assemble <source>    assemble and load one source line at pc",
         "assemble-program <source> load a multi-line program and symbols",
         "step                 execute one instruction",
@@ -2757,7 +2819,7 @@ fn help() -> String {
         "setf <freg> <bits>   edit an exact floating-register bit pattern",
         "setcsr <field> <value> edit fcsr, frm, or fflags (host only)",
         "disasm [addr] [count] show instructions (default pc, 4)",
-        "memory [addr] [count] show hex and ASCII (default view, 64)",
+        "memory [addr] [count] [ascii|cp437] show hex and text (default 64)",
         "find <addr> <count> <bytes> search memory for a byte pattern",
         "fill <addr> <count> <byte> fill memory transactionally",
         "copy <src> <dst> <count> copy memory transactionally",
@@ -2784,7 +2846,7 @@ fn help() -> String {
         "restore <path>       restore a snapshot atomically",
         "project-save <path>  save source plus state",
         "project-load <path>  restore a project",
-        "regs                 show x/f/fcsr exactly (* = changed since stop)",
+        "regs [blinkenlights]  show x/f/fcsr exactly or bit-light view",
         "disasm-mixed [addr] c:n,d:n,...  disassemble marked code/data",
         "disasm-mixed-c [addr] c:n,d:n,...  allow compressed 16-bit code",
         "reset                reset machine state",
@@ -3321,6 +3383,27 @@ mod tests {
         assert_eq!(
             monitor.execute("dashboard nope").unwrap_err().code,
             "MON-UI-001"
+        );
+    }
+
+    #[test]
+    fn optional_blinkenlights_and_cp437_views_are_non_destructive() {
+        let mut monitor = Monitor::new(128);
+        monitor.execute("edit 0 41 82 b3 ff").unwrap();
+        let cp437 = monitor.execute("memory 0 4 cp437").unwrap();
+        assert!(cp437.contains("41 82 b3 ff"));
+        assert!(cp437.contains("|Aé│ |"));
+        let lights = monitor.execute("regs blinkenlights").unwrap();
+        assert!(lights.contains("blinkenlights registers"));
+        assert!(lights.contains("x00"));
+        assert!(lights.contains("●"));
+        assert_eq!(monitor.machine.x[0], 0);
+        assert_eq!(monitor.machine.memory.load8(0).unwrap(), 0x41);
+        assert!(
+            monitor
+                .execute("dashboard blinkenlights")
+                .unwrap()
+                .contains("blinkenlights registers")
         );
     }
 
@@ -3953,6 +4036,27 @@ mod tests {
             .unwrap();
         assert_eq!(symbol_console.backend.x[5], 0x1234);
         std::fs::remove_file(snapshot_path).unwrap();
+    }
+
+    #[test]
+    fn backend_console_exposes_optional_register_lights_and_cp437_memory() {
+        let mut console = BackendConsole::new(Machine::new(128));
+        console.execute("edit 0 41 82 b3 ff").unwrap();
+        let cp437 = console.execute("memory 0 4 cp437").unwrap();
+        assert!(cp437.contains("41 82 b3 ff"));
+        assert!(cp437.contains("|Aé│ |"));
+        assert!(
+            console
+                .execute("blinkenlights")
+                .unwrap()
+                .contains("blinkenlights registers")
+        );
+        assert!(
+            console
+                .execute("dashboard blinkenlights")
+                .unwrap()
+                .contains("blinkenlights registers")
+        );
     }
 
     #[test]

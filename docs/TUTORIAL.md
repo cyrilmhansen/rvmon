@@ -83,6 +83,21 @@ stopped: watchpoint #1 at pc=0x0000000000000004; read addr=0x0000000000000020 wi
 `history` conserve un nombre borné d’étapes et affiche le texte désassemblé,
 l’adresse avant/après et l’accès mémoire lorsqu’il existe.
 
+Pour une lecture façon panneau matériel, utiliser `blinkenlights` ou
+`regs blinkenlights`. La vue indique les bits 63 à 0 par registre et marque les
+valeurs différentes de la baseline avec `*`. Elle est disponible aussi comme
+`dashboard blinkenlights`.
+
+La mémoire peut afficher les caractères étendus en CP437 sans modifier les
+octets ni la colonne hexadécimale :
+
+```text
+rvmonitor> memory 0x20 16 cp437
+```
+
+Sans suffixe, le rendu reste ASCII et remplace les octets non imprimables par
+un point.
+
 ## 4. Sauvegarder une session
 
 Le moniteur interne historique sauvegarde un projet complet avec

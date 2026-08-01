@@ -5,6 +5,12 @@ use luna_diag::{Diagnostic, Result};
 pub(crate) const BYTES_PER_ROW: usize = 16;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum TextEncoding {
+    Ascii,
+    Cp437,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 #[allow(dead_code)]
 pub(crate) struct MemoryRange {
     /// Inclusive start, exclusive end.
@@ -91,7 +97,12 @@ impl MemoryViewModel {
     }
 }
 
-pub(crate) fn render_hex_ascii(address: u64, bytes: &[u8], code: &'static str) -> Result<String> {
+pub(crate) fn render_hex_ascii(
+    address: u64,
+    bytes: &[u8],
+    code: &'static str,
+    encoding: TextEncoding,
+) -> Result<String> {
     let mut output = String::new();
     for (row, chunk) in bytes.chunks(BYTES_PER_ROW).enumerate() {
         let row_address = address
@@ -106,16 +117,37 @@ pub(crate) fn render_hex_ascii(address: u64, bytes: &[u8], code: &'static str) -
         }
         output.push('|');
         for byte in chunk {
-            output.push(if (0x20..=0x7e).contains(byte) {
-                *byte as char
-            } else {
-                '.'
-            });
+            output.push(render_text_byte(*byte, encoding));
         }
         output.push('|');
         output.push('\n');
     }
     Ok(output.trim_end().into())
+}
+
+fn render_text_byte(byte: u8, encoding: TextEncoding) -> char {
+    match encoding {
+        TextEncoding::Ascii => {
+            if (0x20..=0x7e).contains(&byte) {
+                byte as char
+            } else {
+                '.'
+            }
+        }
+        TextEncoding::Cp437 => {
+            if (0x20..=0x7e).contains(&byte) {
+                return byte as char;
+            }
+            if byte == 0x7f {
+                return '⌂';
+            }
+            const EXTENDED: &str = "ÇüéâäàåçêëèïîìÄÅÉæÆôöòûùÿÖÜ¢£¥₧ƒáíóúñÑªº¿⌐¬½¼¡«»░▒▓│┤╡╢╖╕╣║╗╝╜╛┐└┴┬├─┼╞╟╚╔╩╦╠═╬╧╨╤╥╙╘╒╓╫╪┘┌█▄▌▐▀αßΓπΣσµτΦΘΩδ∞φε∩≡±≥≤⌠⌡÷≈°∙·√ⁿ²■ ";
+            EXTENDED
+                .chars()
+                .nth(usize::from(byte - 0x80))
+                .unwrap_or('·')
+        }
+    }
 }
 
 #[cfg(test)]
@@ -157,10 +189,23 @@ mod tests {
 
     #[test]
     fn hex_ascii_rendering_is_shared_and_byte_exact() {
-        let rendered = render_hex_ascii(0x10, b"A\nxyz", "TEST-MEM").unwrap();
+        let rendered = render_hex_ascii(0x10, b"A\nxyz", "TEST-MEM", TextEncoding::Ascii).unwrap();
         assert_eq!(
             rendered,
             "0x0000000000000010: 41 0a 78 79 7a                                  |A.xyz|"
         );
+    }
+
+    #[test]
+    fn cp437_rendering_preserves_bytes_and_maps_extended_glyphs() {
+        let rendered = render_hex_ascii(
+            0,
+            &[0x41, 0x82, 0xb3, 0xff],
+            "TEST-MEM",
+            TextEncoding::Cp437,
+        )
+        .unwrap();
+        assert!(rendered.contains("|Aé│ |"));
+        assert!(rendered.contains("41 82 b3 ff"));
     }
 }

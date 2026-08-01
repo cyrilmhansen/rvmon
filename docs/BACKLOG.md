@@ -1263,6 +1263,23 @@ confondre code présent et exigence formellement auditée.
 - **Parallélisable :** oui avec l’éditeur multi-document; non avec une modification concurrente de `source_text`.
 - **Paquet de contexte minimal :** SPEC §§11/17–19/21, `crates/monitor/src/lib.rs`, `docs/TESTS.md`.
 
+### UI-000I — Blinkenlights registres et rendu mémoire CP437 — TERMINÉ
+
+- **Jalon / exigences :** M6/M7; REQ-PROD-003/005, NFR-010.
+- **But :** proposer une vue de registres façon blinkenlights et une vue texte CP437 optionnelle sans altérer les octets ni perdre l’adresse.
+- **Non-but :** couleur ANSI obligatoire, animation temps réel, conversion de données ou émulation d’un terminal matériel Amiga.
+- **Entrées/sources :** SPEC §§14/15/17/20; A1 ch.6–9 pour l’inspiration d’affichage; contrat renderer mémoire partagé.
+- **Fichiers/modules :** `crates/monitor/src/register_view.rs`, `crates/monitor/src/memory_view.rs`, `crates/monitor/src/lib.rs`, `docs/TESTS.md`.
+- **Étapes réalisées :** commandes `blinkenlights` et `regs blinkenlights`; panneau `dashboard blinkenlights`; `memory [addr] [count] cp437`; mapping CP437 étendu déterministe avec colonne hex inchangée; support host/backend.
+- **Dépendances et tâches bloquées :** UI-000C/E; animation, navigation clavier dédiée et palette terminal restent différées.
+- **Tests :** glyphes ASCII/CP437, bytes inchangés, panneaux host/backend, marqueurs de baseline des registres.
+- **Critères de sortie :** même adresse et même hex avant/après changement de rendu; mode blinkenlights lisible en terminal sans couleur obligatoire; aucune mutation de la cible.
+- **Cas limites et échecs :** octets de contrôle rendus par points en ASCII, glyphes CP437 étendus, terminal ne supportant pas Unicode.
+- **Taille :** 3 points / 1,5 journée-agent, incertitude faible.
+- **Compétences/outils :** rendu texte, CP437, UX terminal, tests Rust.
+- **Parallélisable :** oui avec UI-001; non avec une modification concurrente des renderers mémoire/registres.
+- **Paquet de contexte minimal :** `crates/monitor/src/register_view.rs`, `crates/monitor/src/memory_view.rs`, `crates/monitor/src/lib.rs`, SPEC §§14/15/17.
+
 ### UI-001 — Frontend terminal et cycle ASM-One modernisé
 
 - **Jalon / exigences :** M6–M9; REQ-PROD-001/005, E2E 2/3/4.

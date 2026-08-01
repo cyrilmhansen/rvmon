@@ -46,6 +46,62 @@ pub(crate) fn format_changes(before: RegisterSnapshot, after: RegisterSnapshot) 
     }
 }
 
+pub(crate) fn format_blinkenlights(
+    snapshot: RegisterSnapshot,
+    baseline: RegisterSnapshot,
+) -> String {
+    let mut output = String::from("blinkenlights registers (●=1 ·=0; bit 63→0)\n");
+    output.push_str("integer registers\n");
+    for index in 0..32 {
+        output.push_str(&format!(
+            "x{index:02}{} {}\n",
+            if snapshot.x[index] != baseline.x[index] {
+                " *"
+            } else {
+                "  "
+            },
+            light_bits(snapshot.x[index])
+        ));
+    }
+    output.push_str("floating registers\n");
+    for index in 0..32 {
+        output.push_str(&format!(
+            "f{index:02}{} {}\n",
+            if snapshot.f[index] != baseline.f[index] {
+                " *"
+            } else {
+                "  "
+            },
+            light_bits(snapshot.f[index])
+        ));
+    }
+    output.push_str(&format!(
+        "fcsr{} {}\n",
+        if snapshot.fcsr != baseline.fcsr {
+            " *"
+        } else {
+            "  "
+        },
+        light_bits(u64::from(snapshot.fcsr))
+    ));
+    output.trim_end().to_string()
+}
+
+fn light_bits(value: u64) -> String {
+    let mut output = String::with_capacity(8 * 8 + 7);
+    for bit in (0..64).rev() {
+        if bit != 63 && bit % 8 == 7 {
+            output.push(' ');
+        }
+        output.push(if value & (1u64 << bit) != 0 {
+            '●'
+        } else {
+            '·'
+        });
+    }
+    output
+}
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum RegisterEdit {
     Integer { index: usize, value: u64 },
