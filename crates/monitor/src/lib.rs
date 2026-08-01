@@ -29,7 +29,7 @@ const MAX_PERSISTED_BYTES: usize = 64 * 1024 * 1024;
 const SNAPSHOT_MAGIC: &[u8; 8] = b"RVSNAP01";
 const PROJECT_MAGIC: &[u8; 8] = b"RVPROJ01";
 const SESSION_MAGIC: &[u8; 8] = b"RVSESS01";
-const PERSISTENCE_VERSION: u32 = 2;
+const PERSISTENCE_VERSION: u32 = 3;
 
 struct MemoryEdit {
     address: u64,
@@ -71,6 +71,7 @@ struct DecodedSnapshot {
     breakpoints: BTreeMap<u64, u64>,
     breakpoint_conditions: BTreeMap<u64, command::Expression>,
     watchpoints: BTreeMap<u64, Watchpoint>,
+    call_stack: Vec<CallFrame>,
     next_breakpoint_id: u64,
     next_watchpoint_id: u64,
     view_address: u64,
@@ -82,6 +83,7 @@ struct DecodedBackendSession {
     view_address: u64,
     breakpoints: BTreeMap<u64, BackendBreakpoint>,
     watchpoints: BTreeMap<u64, Watchpoint>,
+    call_stack: Vec<CallFrame>,
     next_breakpoint_id: u64,
     next_watchpoint_id: u64,
 }
@@ -388,6 +390,11 @@ impl Monitor {
                 Some(MemoryAccessKind::Write) => 2,
             });
         }
+        writer.u32(self.call_stack.len() as u32);
+        for frame in &self.call_stack {
+            writer.u64(frame.return_pc);
+            writer.u64(frame.target);
+        }
         writer.bytes(&memory);
         let bytes = writer.finish();
         if bytes.len() > MAX_PERSISTED_BYTES {
@@ -419,7 +426,7 @@ impl Monitor {
         self.view_address = decoded.view_address;
         self.undo.clear();
         self.history.clear();
-        self.call_stack.clear();
+        self.call_stack = decoded.call_stack;
     }
 
     fn snapshot_file(&mut self, argument: &str) -> Result<String> {
@@ -2645,6 +2652,11 @@ where
                 Some(MemoryAccessKind::Write) => 2,
             });
         }
+        writer.u32(self.call_stack.len() as u32);
+        for frame in &self.call_stack {
+            writer.u64(frame.return_pc);
+            writer.u64(frame.target);
+        }
         let bytes = writer.finish();
         if bytes.len() > MAX_PERSISTED_BYTES {
             return Err(Diagnostic::error(
@@ -2675,7 +2687,7 @@ where
         self.undo.clear();
         self.history.clear();
         self.next_history_sequence = 1;
-        self.call_stack.clear();
+        self.call_stack = decoded.call_stack;
         Ok(format!(
             "session loaded ({} bytes; target registers and memory unchanged)",
             bytes.len()
@@ -3494,6 +3506,14 @@ fn decode_backend_session(bytes: &[u8]) -> Result<DecodedBackendSession> {
             ));
         }
     }
+    let call_frame_count = checked_count(reader.u32()?, "session call stack")?;
+    let mut call_stack = Vec::with_capacity(call_frame_count);
+    for _ in 0..call_frame_count {
+        call_stack.push(CallFrame {
+            return_pc: reader.u64()?,
+            target: reader.u64()?,
+        });
+    }
     reader.finish()?;
     Ok(DecodedBackendSession {
         source_text,
@@ -3501,6 +3521,7 @@ fn decode_backend_session(bytes: &[u8]) -> Result<DecodedBackendSession> {
         view_address,
         breakpoints,
         watchpoints,
+        call_stack,
         next_breakpoint_id,
         next_watchpoint_id,
     })
@@ -3609,6 +3630,14 @@ fn decode_snapshot(bytes: &[u8]) -> Result<DecodedSnapshot> {
             ));
         }
     }
+    let call_frame_count = checked_count(reader.u32()?, "call stack")?;
+    let mut call_stack = Vec::with_capacity(call_frame_count);
+    for _ in 0..call_frame_count {
+        call_stack.push(CallFrame {
+            return_pc: reader.u64()?,
+            target: reader.u64()?,
+        });
+    }
     let memory = reader.bytes_vec(memory_length)?;
     reader.finish()?;
 
@@ -3626,6 +3655,7 @@ fn decode_snapshot(bytes: &[u8]) -> Result<DecodedSnapshot> {
         breakpoints,
         breakpoint_conditions,
         watchpoints,
+        call_stack,
         next_breakpoint_id,
         next_watchpoint_id,
         view_address,
@@ -4212,6 +4242,29 @@ mod tests {
     }
 
     #[test]
+    fn snapshot_roundtrip_restores_call_stack_for_step_out() {
+        let mut monitor = Monitor::new(128);
+        monitor
+            .assemble_program(
+                "_start: jal ra,func\n        addi x2,x0,9\nfunc:   addi x3,x0,7\n        jalr x0,0(ra)",
+            )
+            .unwrap();
+        monitor.execute("step").unwrap();
+        let snapshot = monitor.snapshot_bytes().unwrap();
+
+        monitor.execute("reset").unwrap();
+        monitor.restore_snapshot_bytes(&snapshot).unwrap();
+
+        assert_eq!(monitor.call_stack.len(), 1);
+        assert!(
+            monitor
+                .execute("step-out")
+                .unwrap()
+                .contains("pc=0x0000000000000004")
+        );
+    }
+
+    #[test]
     fn execution_history_is_bounded_and_fifo() {
         let mut monitor = Monitor::new(128);
         monitor.assemble_program("_start: jal x0,0").unwrap();
@@ -4459,6 +4512,38 @@ mod tests {
             .unwrap();
         assert_eq!(symbol_console.backend.x[5], 0x1234);
         std::fs::remove_file(snapshot_path).unwrap();
+    }
+
+    #[test]
+    fn backend_session_roundtrip_restores_call_stack_for_step_out() {
+        let path = std::env::temp_dir().join(format!(
+            "rvmonitor-step-session-{}-{}.rvs",
+            std::process::id(),
+            987_654u64
+        ));
+        let path_text = path.to_string_lossy().into_owned();
+        let mut console = BackendConsole::new(Machine::new(128));
+        console
+            .execute("assemble-program _start: jal ra,func\naddi x2,x0,9\nfunc: addi x3,x0,7\njalr x0,0(ra)")
+            .unwrap();
+        console.execute("step").unwrap();
+        console
+            .execute(&format!("project-save {path_text}"))
+            .unwrap();
+        console.call_stack.clear();
+
+        console
+            .execute(&format!("project-load {path_text}"))
+            .unwrap();
+
+        assert_eq!(console.call_stack.len(), 1);
+        assert!(
+            console
+                .execute("step-out")
+                .unwrap()
+                .contains("pc=0x0000000000000004")
+        );
+        std::fs::remove_file(path).unwrap();
     }
 
     #[test]

@@ -70,6 +70,8 @@ Depuis une fonction déjà appelée, `step-out` exécute jusqu’à l’adresse 
 retour contenue dans le cadre `ra` courant. Ces commandes utilisent une
 heuristique RV64 volontairement limitée : appels indirects non conventionnels,
 tail calls et informations DWARF ne sont pas encore pris en charge.
+La pile d’appels minimale est incluse dans les snapshots et projets/sessions,
+ce qui permet de reprendre un `step-out` après restauration.
 
 Une condition entière peut limiter l’arrêt :
 

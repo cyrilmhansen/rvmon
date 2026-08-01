@@ -21,7 +21,7 @@ réimplémentée si les preuves indiquées existent.
 | FP-001A, FP-002A, FP-003A, FP-004A/B, FP-005A, GEN-003 | livré | tests `luna-machine`, probes QEMU et tests de formats | traiter FP-002 comme partiellement livré et FP-003 comme reste D/Q/Zfh |
 | CMD-001A/B/C, MON-001A/B, REG-001A..D | livré par sous-tranches | tests `luna-monitor` et commandes host/backend | clôturer les agrégats après matrice de couverture |
 | UI-000A..H | livré | tests app/monitor, TTY et documentation | conserver UI-001 pour l’éditeur/panneaux réellement interactifs |
-| DBG-001, FORMAT-001, QUAL-001/002, REL-001 | partiel | conditions, step-over/out et persistance des conditions livrés ; migration et état complet restent absents | restent sur le chemin critique |
+| DBG-001, FORMAT-001, QUAL-001/002, REL-001 | partiel | conditions, step-over/out et état de pile persisté ; migration et historique complet restent absents | restent sur le chemin critique |
 
 Les tâches BOOT-001 à BOOT-004, GEN-001, ISA-001/002, ASM-BOOT-001,
 MEM-001, MACHINE-001 et DEMO-001 sont des entrées de plan initial. Le dépôt
@@ -1499,6 +1499,34 @@ confondre code présent et exigence formellement auditée.
   du format snapshot/session.
 - **Paquet de contexte minimal :** ce sous-ensemble, `ByteWriter`/
   `ByteReader`, SPEC §§12/21/22.
+
+#### DBG-001D — Persister la pile de stepping — TERMINÉ
+
+- **Jalon / exigences :** M8; DBG-009, IO-001..009, OBS-001..006.
+- **But :** restaurer l’état minimal nécessaire à `step-out` après un snapshot
+  host ou une session backend.
+- **Non-but :** persister l’historique d’exécution, les baselines d’affichage
+  ou une trace complète des appels indirects.
+- **Entrées/sources :** SPEC §§8/12/16/21/22; `CallFrame` déduit de `jal`/
+  `jalr`; contrat de versionnement local.
+- **Fichiers/modules :** `crates/monitor/src/lib.rs`, tests de restauration.
+- **Étapes réalisées :** sérialiser `return_pc` et `target` pour chaque cadre;
+  restaurer la pile dans snapshots host et sessions backend; passer le format
+  de persistance en version 3; réinitialiser la pile sur reset/restore cible.
+- **Dépendances et tâches bloquées :** DBG-001B/C; migration automatique des
+  formats antérieurs et persistance de l’historique restent différées.
+- **Tests :** snapshot host puis `step-out`; session backend puis `step-out`;
+  contrôle du retour à l’adresse `ra+4`.
+- **Critères de sortie :** un cadre actif avant sauvegarde est encore actif
+  après chargement et `step-out` s’arrête à la même adresse de retour.
+- **Cas limites et échecs :** pile vide, fichier tronqué, profondeur excessive
+  et version inconnue sont refusés sans mutation partielle.
+- **Taille :** 2 points / 1 journée-agent, incertitude faible.
+- **Compétences/outils :** formats binaires versionnés, débogage RV64, Rust.
+- **Parallélisable :** oui avec QUAL-001; non avec une modification concurrente
+  des schémas snapshot/session.
+- **Paquet de contexte minimal :** ce sous-ensemble, `CallFrame`,
+  `ByteWriter`/`ByteReader`, SPEC §§12/16/22.
 
 ### FORMAT-001 — Projets, snapshots et replay
 
