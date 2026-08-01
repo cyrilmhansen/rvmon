@@ -1069,6 +1069,23 @@ Une tâche est terminée seulement si sa condition de sortie est satisfaite.
 - **Parallélisable :** oui avec le modèle des panneaux UI; non avec une modification concurrente de la boucle `interactive_tty`.
 - **Paquet de contexte minimal :** SPEC §§10/17/20, `crates/app/src/main.rs`, `crates/app/Cargo.toml`.
 
+### UI-000C — Panneau dashboard déterministe host/QEMU — TERMINÉ
+
+- **Jalon / exigences :** M6/M7; REQ-PROD-001, REQ-PROD-005, REQ-OBS-001.
+- **But :** fournir une commande `dashboard`/`dash` qui regroupe position, registres et mémoire dans des sections lisibles et scriptables.
+- **Non-but :** créer une UI plein écran, persister la mise en page ou ajouter des mutations implicites de la cible.
+- **Entrées/sources :** SPEC §§14–16/21; modèles `Monitor` et `BackendConsole`; rendu mémoire hex/ASCII et registres exacts existants.
+- **Fichiers/modules :** `crates/monitor/src/lib.rs`, `docs/TESTS.md`.
+- **Étapes réalisées :** composer `=== location ===`, `=== registers ===`, `=== memory ===`; réutiliser les renderers existants; exposer la commande et l’aide dans les deux consoles.
+- **Dépendances et tâches bloquées :** REG-001D, UI-000B; les panneaux interactifs redimensionnables et raccourcis fonctionnels restent dans UI-001.
+- **Tests :** sections présentes en host et backend après exécution; valeurs exactes et marqueurs conservés; suite workspace.
+- **Critères de sortie :** `dashboard` ne modifie pas le PC ni la mémoire; les trois en-têtes sont stables; toute erreur mémoire reste explicitement visible.
+- **Cas limites et échecs :** mémoire non mappée, cible distante indisponible, vue à la fin de RAM, terminal étroit.
+- **Taille :** 2 points / 1 journée-agent, incertitude faible.
+- **Compétences/outils :** composition de vues, Rust, tests d’intégration.
+- **Parallélisable :** oui avec le futur keymap; non avec une modification concurrente des renderers `regs`/`memory`.
+- **Paquet de contexte minimal :** SPEC §§14–16, `crates/monitor/src/lib.rs`, `docs/TESTS.md`.
+
 ### UI-001 — Frontend terminal et cycle ASM-One modernisé
 
 - **Jalon / exigences :** M6–M9; REQ-PROD-001/005, E2E 2/3/4.
