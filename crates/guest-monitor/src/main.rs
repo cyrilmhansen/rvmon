@@ -49,6 +49,8 @@ static mut SOURCE_COUNT: usize = 0;
 static mut SOURCE_ADDRESS: u64 = 0;
 static mut MEMORY_UNDO: MemoryUndo = MemoryUndo::empty();
 static mut GUEST_SNAPSHOT: GuestSnapshot = GuestSnapshot::empty();
+static mut SNAPSHOT_BINARY_PATCH: [u8; MAX_SNAPSHOT_DUMP as usize] =
+    [0; MAX_SNAPSHOT_DUMP as usize];
 static TARGET_STACK: [u8; 8192] = [0; 8192];
 
 #[derive(Clone, Copy)]
@@ -267,6 +269,9 @@ fn monitor_loop(context: *mut TargetContext) -> ! {
             b"snapshot info" => snapshot_info(),
             b"snapshot manifest" => snapshot_manifest(),
             command if command.starts_with(b"snapshot dump ") => snapshot_dump(&command[14..]),
+            command if command.starts_with(b"snapshot patchbin ") => {
+                snapshot_patch_binary(&command[18..])
+            }
             command if command.starts_with(b"snapshot patch ") => snapshot_patch(&command[15..]),
             b"symbols" => print_symbols(),
             command if command.starts_with(b"disasm ") => print_disassembly(&command[7..]),
@@ -298,7 +303,7 @@ fn monitor_loop(context: *mut TargetContext) -> ! {
 
 fn print_help() {
     uart_write(
-        "help/? regs/registers set <xreg> <hex64> setf <freg> <hex64> memory <addr> <length> edit <addr> <hex-bytes> data <addr> <directive> <bits> undo assemble <addr> <instruction> assemble-program <addr> ... end assemble-source source [line]|replace <n> <text> snapshot save|restore|info|manifest|dump|patch project-save|project-load symbols disasm <addr|label> <count> step/s run <count> continue/c break <addr|label> watch/rwatch/awatch <addr> <width> delete <n>|watch <n> info break/watch quit/q\r\n",
+        "help/? regs/registers set <xreg> <hex64> setf <freg> <hex64> memory <addr> <length> edit <addr> <hex-bytes> data <addr> <directive> <bits> undo assemble <addr> <instruction> assemble-program <addr> ... end assemble-source source [line]|replace <n> <text> snapshot save|restore|info|manifest|dump|patch|patchbin project-save|project-load symbols disasm <addr|label> <count> step/s run <count> continue/c break <addr|label> watch/rwatch/awatch <addr> <width> delete <n>|watch <n> info break/watch quit/q\r\n",
     );
 }
 
@@ -1594,6 +1599,77 @@ fn snapshot_patch(argument: &[u8]) {
     uart_decimal(offset);
     uart_write(" length=");
     uart_decimal(length as u64);
+    uart_write("\r\n");
+}
+
+fn snapshot_patch_binary(argument: &[u8]) {
+    let Some((region_bytes, rest)) = split_token_space(argument) else {
+        guest_error(
+            b"GUEST-SNAPSHOT-010",
+            b"patchbin expects <workspace|data> <offset> <length> followed by raw bytes",
+        );
+        return;
+    };
+    let Some(workspace) = snapshot_region_name(region_bytes) else {
+        guest_error(
+            b"GUEST-SNAPSHOT-004",
+            b"snapshot region must be workspace or data",
+        );
+        return;
+    };
+    let Some((offset_bytes, length_bytes)) = split_token_space(rest) else {
+        guest_error(
+            b"GUEST-SNAPSHOT-010",
+            b"patchbin expects <workspace|data> <offset> <length> followed by raw bytes",
+        );
+        return;
+    };
+    let Some(offset) = parse_decimal(offset_bytes) else {
+        guest_error(b"GUEST-SNAPSHOT-005", b"snapshot offset must be decimal");
+        return;
+    };
+    let Some(length) = parse_decimal(length_bytes) else {
+        guest_error(b"GUEST-SNAPSHOT-006", b"snapshot length must be decimal");
+        return;
+    };
+    if length == 0 || length > MAX_SNAPSHOT_DUMP || !snapshot_valid_chunk(workspace, offset, length)
+    {
+        guest_error(
+            b"GUEST-SNAPSHOT-007",
+            b"snapshot binary chunk must be 1..4096 bytes inside its region",
+        );
+        return;
+    }
+    let snapshot = core::ptr::addr_of_mut!(GUEST_SNAPSHOT);
+    let valid = unsafe { core::ptr::read_volatile(core::ptr::addr_of!((*snapshot).valid)) };
+    if !valid {
+        guest_error(b"GUEST-SNAPSHOT-002", b"no snapshot or project is saved");
+        return;
+    }
+    uart_write("snapshot binary ready\r\n");
+    for index in 0..length as usize {
+        unsafe {
+            core::ptr::write_volatile(
+                core::ptr::addr_of_mut!(SNAPSHOT_BINARY_PATCH[index]),
+                uart_get(),
+            );
+        }
+    }
+    unsafe {
+        if workspace {
+            (&mut (*snapshot).workspace)[offset as usize..offset as usize + length as usize]
+                .copy_from_slice(&SNAPSHOT_BINARY_PATCH[..length as usize]);
+        } else {
+            (&mut (*snapshot).data)[offset as usize..offset as usize + length as usize]
+                .copy_from_slice(&SNAPSHOT_BINARY_PATCH[..length as usize]);
+        }
+    }
+    uart_write("snapshot binary chunk patched ");
+    uart_bytes(region_bytes);
+    uart_write(" offset=");
+    uart_decimal(offset);
+    uart_write(" length=");
+    uart_decimal(length);
     uart_write("\r\n");
 }
 

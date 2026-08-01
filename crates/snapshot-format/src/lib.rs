@@ -57,7 +57,12 @@ pub trait GuestCommandTransport {
     fn command(&mut self, command: &str) -> Result<String, Self::Error>;
 }
 
+pub trait GuestBinaryCommandTransport: GuestCommandTransport {
+    fn command_binary(&mut self, command: &str, payload: &[u8]) -> Result<String, Self::Error>;
+}
+
 const GUEST_PROMPT: &[u8] = b"rvmonitor> ";
+const GUEST_BINARY_READY: &[u8] = b"snapshot binary ready\r\n";
 const MAX_UART_RESPONSE: usize = 2 * 1024 * 1024;
 
 pub struct TcpGuestCommandTransport {
@@ -81,20 +86,28 @@ impl TcpGuestCommandTransport {
     }
 
     fn read_until_prompt(&mut self) -> io::Result<String> {
+        let (response, _) = self.read_until_markers(&[GUEST_PROMPT])?;
+        String::from_utf8(response)
+            .map_err(|_| io::Error::new(io::ErrorKind::InvalidData, "UART is not UTF-8"))
+    }
+
+    fn read_until_markers(&mut self, markers: &[&[u8]]) -> io::Result<(Vec<u8>, usize)> {
+        let max_marker = markers.iter().map(|marker| marker.len()).max().unwrap_or(0);
         let mut response = Vec::new();
-        let mut window = Vec::with_capacity(GUEST_PROMPT.len());
+        let mut window = Vec::with_capacity(max_marker);
         let mut byte = [0u8; 1];
         loop {
             self.stream.read_exact(&mut byte)?;
             response.push(byte[0]);
             window.push(byte[0]);
-            if window.len() > GUEST_PROMPT.len() {
+            if window.len() > max_marker {
                 window.remove(0);
             }
-            if window == GUEST_PROMPT {
-                response.truncate(response.len() - GUEST_PROMPT.len());
-                return String::from_utf8(response)
-                    .map_err(|_| io::Error::new(io::ErrorKind::InvalidData, "UART is not UTF-8"));
+            for (index, marker) in markers.iter().enumerate() {
+                if window.ends_with(marker) {
+                    response.truncate(response.len() - marker.len());
+                    return Ok((response, index));
+                }
             }
             if response.len() > MAX_UART_RESPONSE {
                 return Err(io::Error::new(
@@ -114,6 +127,26 @@ impl GuestCommandTransport for TcpGuestCommandTransport {
         self.stream.write_all(b"\n")?;
         self.stream.flush()?;
         self.read_until_prompt()
+    }
+}
+
+impl GuestBinaryCommandTransport for TcpGuestCommandTransport {
+    fn command_binary(&mut self, command: &str, payload: &[u8]) -> Result<String, Self::Error> {
+        self.stream.write_all(command.as_bytes())?;
+        self.stream.write_all(b"\n")?;
+        self.stream.flush()?;
+        let (prefix, marker) = self.read_until_markers(&[GUEST_BINARY_READY, GUEST_PROMPT])?;
+        if marker == 1 {
+            return String::from_utf8(prefix)
+                .map_err(|_| io::Error::new(io::ErrorKind::InvalidData, "UART is not UTF-8"));
+        }
+        self.stream.write_all(payload)?;
+        self.stream.flush()?;
+        let suffix = self.read_until_prompt()?;
+        let mut response = String::from_utf8(prefix)
+            .map_err(|_| io::Error::new(io::ErrorKind::InvalidData, "UART is not UTF-8"))?;
+        response.push_str(&suffix);
+        Ok(response)
     }
 }
 
@@ -153,7 +186,7 @@ where
 
 pub fn apply_guest_snapshot<T>(transport: &mut T, image: &SnapshotImage) -> Result<(), ApplyError>
 where
-    T: GuestCommandTransport,
+    T: GuestBinaryCommandTransport,
 {
     image.manifest().map_err(ApplyError::Format)?;
     apply_region(transport, "workspace", &image.workspace)?;
@@ -169,21 +202,20 @@ where
     Ok(())
 }
 
-fn apply_region<T: GuestCommandTransport>(
+fn apply_region<T: GuestBinaryCommandTransport>(
     transport: &mut T,
     region: &str,
     bytes: &[u8],
 ) -> Result<(), ApplyError> {
     for (offset, chunk) in bytes.chunks(32).enumerate() {
         let offset = offset * 32;
-        let hex = chunk
-            .iter()
-            .map(|byte| format!("{byte:02x}"))
-            .collect::<String>();
         let response = transport
-            .command(&format!("snapshot patch {region} {offset} {hex}"))
+            .command_binary(
+                &format!("snapshot patchbin {region} {offset} {}", chunk.len()),
+                chunk,
+            )
             .map_err(|error| ApplyError::Transport(format!("{error:?}")))?;
-        if response.contains("error [") || !response.contains("snapshot chunk patched") {
+        if response.contains("error [") || !response.contains("snapshot binary chunk patched") {
             return Err(ApplyError::Protocol(format!(
                 "guest rejected snapshot patch {region} offset={offset}"
             )));
@@ -654,6 +686,17 @@ mod tests {
         }
     }
 
+    impl GuestBinaryCommandTransport for ApplyGuest {
+        fn command_binary(
+            &mut self,
+            command: &str,
+            _payload: &[u8],
+        ) -> Result<String, Self::Error> {
+            self.patches.push(command.into());
+            Ok("snapshot binary chunk patched data offset=0 length=32".into())
+        }
+    }
+
     #[test]
     fn applies_regions_in_32_byte_patches_before_restore() {
         let image = SnapshotImage {
@@ -667,8 +710,8 @@ mod tests {
         };
         apply_guest_snapshot(&mut guest, &image).unwrap();
         assert_eq!(guest.patches.len(), 5);
-        assert!(guest.patches[0].starts_with("snapshot patch workspace 0 "));
-        assert!(guest.patches[2].starts_with("snapshot patch data 0 "));
+        assert!(guest.patches[0].starts_with("snapshot patchbin workspace 0 "));
+        assert!(guest.patches[2].starts_with("snapshot patchbin data 0 "));
         assert!(guest.restored);
     }
 }

@@ -403,10 +403,13 @@ $ cargo run -p luna-app -- \
 guest snapshot imported from session.rvsnap (workspace=65536 data=1048576 source-lines=0)
 ```
 
-L’import décode et contrôle le fichier avant d’envoyer le moindre patch. Les
-patches restent limités à 32 octets par commande UART, puis une seule commande
-`snapshot restore` rend l’ensemble actif ; une erreur laisse donc le slot
-partiellement préparé mais ne modifie pas la cible active avant la restauration.
+L’import décode et contrôle le fichier, initialise le slot par `snapshot save`
+et vérifie la réponse avant d’envoyer le moindre patch. Il
+utilise le canal binaire `snapshot patchbin` avec des blocs jusqu’à 4096 octets,
+puis une seule commande `snapshot restore` rend l’ensemble actif ; une erreur
+laisse donc le slot partiellement préparé mais ne modifie pas la cible active
+avant la restauration. Le canal texte `snapshot patch` de 32 octets reste
+disponible pour le dépannage manuel.
 
 ### Watchpoints logiciels
 

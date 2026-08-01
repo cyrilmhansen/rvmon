@@ -112,6 +112,12 @@ fn import_guest_snapshot(port: u16, input: &str) {
     let mut transport =
         luna_snapshot_format::TcpGuestCommandTransport::connect(("127.0.0.1", port))
             .unwrap_or_else(|error| panic!("cannot connect to guest UART: {error}"));
+    let save_response = transport
+        .command("snapshot save")
+        .unwrap_or_else(|error| panic!("cannot initialize guest snapshot slot: {error}"));
+    if save_response.contains("error [") {
+        panic!("guest snapshot slot initialization failed: {save_response}");
+    }
     luna_snapshot_format::apply_guest_snapshot(&mut transport, &image)
         .unwrap_or_else(|error| panic!("cannot apply guest snapshot: {error:?}"));
     println!(

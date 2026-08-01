@@ -465,14 +465,14 @@ confondre code présent et exigence formellement auditée.
 
 - **Jalon / exigences :** M8; IO-001..009, OBS-001..006, REQ-PROD-006.
 - **But :** restaurer dans le slot guest les régions d’une image RVSNAP01 validée par l’hôte.
-- **Non-but :** écrire la RAM active avant `snapshot restore`, importer des registres/source absents du format, optimiser les 32 octets historiques ou reprendre une connexion interrompue.
+- **Non-but :** écrire la RAM active avant `snapshot restore`, importer des registres/source absents du format, optimiser davantage le débit UART ou reprendre une connexion interrompue.
 - **Entrées/sources :** SPEC §§12/18/21; RVSNAP01; commandes guest `snapshot patch` et `snapshot restore`.
 - **Fichiers/modules :** `crates/snapshot-format/src/lib.rs`, `crates/app/src/main.rs`, `docs/TUTORIAL-GUEST.md`, `docs/TESTS.md`.
-- **Étapes réalisées :** `apply_guest_snapshot`; décodage et CRC avant transport; patches workspace/data en blocs de 32 octets; détection des réponses guest négatives; restauration finale obligatoire; option `--snapshot-in`.
-- **Dépendances et tâches bloquées :** GUEST-010/011; import réel complet QEMU est différé à cause du coût de 34 k commandes UART; reprise, compression/delta et métadonnées restent différées.
-- **Tests :** image multi-blocs appliquée par fake guest, ordre patches puis restore, refus de réponse invalide et couverture `cargo test --workspace`.
+- **Étapes réalisées :** `apply_guest_snapshot`; décodage et CRC avant transport; initialisation contrôlée du slot par `snapshot save`; commande `snapshot patchbin` avec payload brut; blocs binaires jusqu’à 4096 octets; détection des réponses guest négatives; restauration finale obligatoire; option `--snapshot-in`.
+- **Dépendances et tâches bloquées :** GUEST-010/011; l’import complet QEMU dépasse actuellement 90 secondes sur UART 16550 à cause du débit émulé; reprise, compression/delta et métadonnées restent différées.
+- **Tests :** image multi-blocs appliquée par fake guest, ordre patches puis restore, refus de réponse invalide, handshake/payload `patchbin` QEMU sur un bloc via `scripts/test-guest-snapshot-binary.sh`, export QEMU réel et couverture `cargo test --workspace`.
 - **Critères de sortie :** fichier invalide rejeté avant connexion; aucun restore si un patch est refusé; image valide confirmée seulement après réponse `snapshot restored`.
-- **Cas limites et échecs :** fichier tronqué/corrompu, image vide, patch final court, slot absent, coupure transport et restore refusé.
+- **Cas limites et échecs :** fichier tronqué/corrompu, image vide, patch binaire final court, slot absent, coupure transport et restore refusé.
 - **Taille :** 4 points / 2 journées-agent, incertitude moyenne.
 - **Compétences/outils :** Rust, protocole UART, formats binaires, QEMU.
 - **Parallélisable :** oui avec delta/reprise; non avec une modification concurrente des bornes guest.
