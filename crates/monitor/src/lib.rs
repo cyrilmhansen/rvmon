@@ -131,6 +131,7 @@ impl Monitor {
             "regs" | "registers" => self.registers(),
             "set" => self.set_integer_register(argument),
             "setf" => self.set_float_register(argument),
+            "setcsr" => self.set_csr(argument),
             "assemble" | "a" => self.assemble(argument),
             "assemble-program" | "load" => self.assemble_program(argument),
             "step" | "s" => self.step(),
@@ -1206,6 +1207,24 @@ impl Monitor {
         };
         self.machine.f[index] = bits;
         Ok(format!("f{index:02}={}", register_view::format_raw(bits)))
+    }
+
+    fn set_csr(&mut self, argument: &str) -> Result<String> {
+        let edit = register_view::parse_csr_edit(argument)?;
+        let next = match edit {
+            register_view::CsrEdit::Fcsr(value) => value,
+            register_view::CsrEdit::Frm(value) => {
+                (self.machine.fcsr & !0xe0) | (u32::from(value) << 5)
+            }
+            register_view::CsrEdit::Fflags(value) => (self.machine.fcsr & !0x1f) | u32::from(value),
+        };
+        self.machine.fcsr = next;
+        Ok(format!(
+            "fcsr=0x{:08x} frm={} fflags={}",
+            self.machine.fcsr,
+            self.machine.frm(),
+            format_flags(self.machine.fflags())
+        ))
     }
 }
 
@@ -2437,6 +2456,7 @@ fn help() -> String {
         "continue [count]     resume, bypassing a breakpoint at current pc",
         "set <xreg> <value>   edit an integer register (x0 is read-only)",
         "setf <freg> <bits>   edit an exact floating-register bit pattern",
+        "setcsr <field> <value> edit fcsr, frm, or fflags (host only)",
         "disasm [addr] [count] show instructions (default pc, 4)",
         "memory [addr] [count] show hex and ASCII (default view, 64)",
         "find <addr> <count> <bytes> search memory for a byte pattern",
@@ -3054,6 +3074,28 @@ mod tests {
         let error = monitor.execute("setf x3 1").unwrap_err();
         assert_eq!(error.code, "MON-REG-005");
         assert_eq!(monitor.machine.f[3], 0xffff_ffff_0000_0001);
+    }
+
+    #[test]
+    fn csr_edits_are_field_validated_and_preserve_other_fields() {
+        let mut monitor = Monitor::new(128);
+        monitor.machine.fcsr = 0x41;
+        assert_eq!(
+            monitor.execute("setcsr frm 2").unwrap(),
+            "fcsr=0x00000041 frm=2 fflags=NX"
+        );
+        assert_eq!(monitor.machine.fcsr, 0x41);
+        assert_eq!(
+            monitor.execute("setcsr fflags 0x11").unwrap(),
+            "fcsr=0x00000051 frm=2 fflags=NV|NX"
+        );
+        assert_eq!(monitor.machine.fcsr, 0x51);
+        let error = monitor.execute("setcsr frm 7").unwrap_err();
+        assert_eq!(error.code, "MON-REG-011");
+        assert_eq!(monitor.machine.fcsr, 0x51);
+        let error = monitor.execute("setcsr fcsr 0x100").unwrap_err();
+        assert_eq!(error.code, "MON-REG-010");
+        assert_eq!(monitor.machine.fcsr, 0x51);
     }
 
     #[test]

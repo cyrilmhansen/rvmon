@@ -950,6 +950,23 @@ Une tâche est terminée seulement si sa condition de sortie est satisfaite.
 - **Parallélisable :** oui avec la préparation UI; non avec une modification concurrente de `HistoryEntry` ou du format de sortie.
 - **Paquet de contexte minimal :** SPEC §§9/15/16/21, `crates/target-api/src/lib.rs`, `crates/monitor/src/register_view.rs`, `docs/TESTS.md`.
 
+### REG-001C — Éditer fcsr par champs avec validation architecturale — TERMINÉ
+
+- **Jalon / exigences :** M7; REQ-DBG-004, REQ-DBG-008, FP-CSR-001.
+- **But :** permettre au simulateur interne d’éditer `fcsr`, `frm` ou `fflags` sans écraser silencieusement les autres champs.
+- **Non-but :** écrire les CSR d’un backend distant, exposer les CSR privilégiés ou ajouter un mode d’arrondi non défini par l’ISA.
+- **Entrées/sources :** SPEC §§8/15/16; R1 chapitre F, registre `fcsr`; contrat `TargetBackend` read-only.
+- **Fichiers/modules :** `crates/monitor/src/register_view.rs`, `crates/monitor/src/command.rs`, `crates/monitor/src/lib.rs`, `docs/TESTS.md`.
+- **Étapes réalisées :** parser `setcsr fcsr|frm|fflags`; préserver les champs non ciblés; refuser bits hors `fcsr[7:0]`, flags hors 5 bits et `frm=5..7`; conserver l’état inchangé après erreur.
+- **Dépendances et tâches bloquées :** REG-001A/REG-001B; l’édition CSR distante reste bloquée par l’absence d’opération d’écriture dans `TargetBackend`.
+- **Tests :** écritures partielles, valeur complète, modes réservés, overflow et absence de mutation; diagnostics `MON-REG-008..011`.
+- **Critères de sortie :** toute écriture valide donne un `fcsr` déterministe et les champs `frm`/`fflags` correspondants; aucune écriture invalide ne modifie l’état.
+- **Cas limites et échecs :** `frm=7`, `fcsr=0x100`, `fflags=0x20`, nom CSR inconnu et arité incorrecte.
+- **Taille :** 3 points / 1,5 journée-agent, incertitude faible.
+- **Compétences/outils :** Rust, RISC-V F/Zicsr, diagnostics structurés.
+- **Parallélisable :** oui avec la préparation de l’interface; non avec une modification concurrente du format `fcsr`.
+- **Paquet de contexte minimal :** SPEC §§8/15/16, R1 chapitre F, `crates/monitor/src/register_view.rs`.
+
 ### REG-001 — Contrat et vues exactes des registres
 
 - **Jalon / exigences :** M6/M7; REQ-PROD-003/005, DBG-001..014, FP-001..018.

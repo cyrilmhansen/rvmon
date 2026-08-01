@@ -52,6 +52,75 @@ pub(crate) enum RegisterEdit {
     Float { index: usize, bits: u64 },
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum CsrEdit {
+    Fcsr(u32),
+    Frm(u8),
+    Fflags(u8),
+}
+
+pub(crate) fn parse_csr_edit(argument: &str) -> Result<CsrEdit> {
+    let parts: Vec<_> = argument.split_whitespace().collect();
+    let [name, value] = parts.as_slice() else {
+        return Err(Diagnostic::error(
+            "MON-REG-008",
+            "setcsr expects <fcsr|frm|fflags> <value>",
+        ));
+    };
+    let value = parse_u64(value).map_err(|message| Diagnostic::error("MON-REG-009", message))?;
+    match name.to_ascii_lowercase().as_str() {
+        "fcsr" => {
+            let value = u32::try_from(value).map_err(|_| {
+                Diagnostic::error("MON-REG-010", "fcsr value does not fit in 32 bits")
+            })?;
+            validate_fcsr(value)?;
+            Ok(CsrEdit::Fcsr(value))
+        }
+        "frm" => {
+            let value = u8::try_from(value)
+                .map_err(|_| Diagnostic::error("MON-REG-010", "frm must be in the range 0..4"))?;
+            if value > 4 {
+                return Err(Diagnostic::error(
+                    "MON-REG-011",
+                    "frm rounding mode 5..7 is reserved",
+                ));
+            }
+            Ok(CsrEdit::Frm(value))
+        }
+        "fflags" => {
+            let value = u8::try_from(value)
+                .map_err(|_| Diagnostic::error("MON-REG-010", "fflags must fit in 5 bits"))?;
+            if value & !0x1f != 0 {
+                return Err(Diagnostic::error(
+                    "MON-REG-010",
+                    "fflags must fit in 5 bits",
+                ));
+            }
+            Ok(CsrEdit::Fflags(value))
+        }
+        _ => Err(Diagnostic::error(
+            "MON-REG-008",
+            "setcsr name must be fcsr, frm, or fflags",
+        )),
+    }
+}
+
+fn validate_fcsr(value: u32) -> Result<()> {
+    if value & !0xff != 0 {
+        return Err(Diagnostic::error(
+            "MON-REG-010",
+            "fcsr may only contain bits 0..7",
+        ));
+    }
+    if (value >> 5) & 0x7 > 4 {
+        return Err(Diagnostic::error(
+            "MON-REG-011",
+            "fcsr frm field contains a reserved rounding mode",
+        ));
+    }
+    Ok(())
+}
+
 pub(crate) fn parse_integer_edit(argument: &str) -> Result<RegisterEdit> {
     let parts: Vec<_> = argument.split_whitespace().collect();
     let [name, value] = parts.as_slice() else {
@@ -223,5 +292,24 @@ mod tests {
         );
         before = after;
         assert_eq!(format_changes(before, after), "none");
+    }
+
+    #[test]
+    fn parses_csr_fields_and_rejects_reserved_or_out_of_range_values() {
+        assert_eq!(parse_csr_edit("fcsr 0x51").unwrap(), CsrEdit::Fcsr(0x51));
+        assert_eq!(parse_csr_edit("frm 4").unwrap(), CsrEdit::Frm(4));
+        assert_eq!(
+            parse_csr_edit("fflags 0x11").unwrap(),
+            CsrEdit::Fflags(0x11)
+        );
+        assert_eq!(parse_csr_edit("frm 5").unwrap_err().code, "MON-REG-011");
+        assert_eq!(
+            parse_csr_edit("fcsr 0x100").unwrap_err().code,
+            "MON-REG-010"
+        );
+        assert_eq!(
+            parse_csr_edit("fflags 0x20").unwrap_err().code,
+            "MON-REG-010"
+        );
     }
 }
