@@ -7,7 +7,8 @@
 - [ ] R2↔R1 contrôlé ; toute divergence possède un ADR et un test.
 - [ ] `CONFLICT-ABI-001` et flags RV64ILP32 documentés dans les notes de release.
 - [ ] Licences des normes, oracles, bibliothèques et binaires distribués archivées.
-- [ ] SBOM et liste des dépendances avec versions exactes générés.
+- [x] SBOM et liste des dépendances avec versions exactes générés dans
+      `docs/release/SBOM.tsv`.
 
 ## Build reproductible
 
@@ -69,7 +70,7 @@
 - [ ] Changelog distingue repris, modernisé, rejeté et limitations.
 - [x] Format projet/snapshot/session v4 strict documenté ; les versions
       antérieures sont refusées explicitement (aucune migration automatique).
-- [ ] Rapport de traçabilité REQ→source→composant→test livré.
+- [x] Rapport de traçabilité REQ→source→composant→test livré (`docs/TRACEABILITY.md`).
 - [ ] Rapport des waivers, risques résiduels et questions différées approuvé.
 - [ ] Hashes des packages, sources, tables et fixtures publiés.
 - [ ] Cas reproductible de référence exporté et rejoué depuis clean checkout.

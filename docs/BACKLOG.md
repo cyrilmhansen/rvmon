@@ -2088,3 +2088,20 @@ confondre code présent et exigence formellement auditée.
   Sail/Spike et la preuve de release complète restent des contrôles de M9.
 - **Critère de sortie :** l’audit local passe sur un checkout propre; les
   contrôles externes non disponibles ne sont jamais présentés comme passés.
+
+### REL-001B — Dossier provenance, SBOM et licences
+
+- **Statut :** EN COURS DE VALIDATION.
+- **Jalon / exigences :** M9; REQ-REL-001, REQ-REL-002, REQ-OBS-006.
+- **But :** livrer un dossier déterministe de release avec commit, hash des
+  entrées, provenance R2, SBOM Cargo et statut des licences.
+- **Non-but :** redistribuer les normes externes ou ajouter un format de
+  migration; aucun document externe non vérifié n’est vendored.
+- **Fichiers/modules :** `docs/release/`, `tools/generate-release-dossier.sh`,
+  `tools/release-audit.sh`.
+- **Tests :** génération puis `--check`, hash R2, metadata Cargo et audit
+  local complet.
+- **Critère de sortie :** artefacts générés identiques au checkout et toute
+  licence externe non vérifiée explicitement signalée.
+- **Limite :** signature cryptographique, archive binaire et preuve Sail/Spike
+  restent des étapes M9 distinctes.

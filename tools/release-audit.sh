@@ -55,6 +55,7 @@ run_check 'working-tree-whitespace' git diff --check
 run_check 'rustfmt' cargo fmt --all -- --check
 run_check 'workspace-tests' cargo test --workspace --quiet
 run_check 'fuzz-manifest' cargo metadata --manifest-path fuzz/Cargo.toml --no-deps --format-version 1 >/dev/null
+run_check 'release-dossier' bash tools/generate-release-dossier.sh --check
 run_check 'r2-generated-tables' bash tools/check-r2.sh
 run_check 'fuzz-smoke' bash tools/fuzz-smoke.sh
 run_check 'terminal-accessibility-smoke' bash tools/accessibility-smoke.sh
