@@ -615,7 +615,7 @@ confondre code présent et exigence formellement auditée.
 - **Dépendances :** GUEST-017; application guest et migration de projets
   existants restent différées.
 - **Tests :** round-trip `RVPROJ01`, export QEMU image + projet, magics,
-  tailles, workspace et contrôle R2.
+  tailles, workspace et contrôle R2; import host couvert par fake transport.
 - **Critères de sortie :** un projet exporté se décode bit-exactement; un
   metadata tronqué ou une image incohérente est refusé avant écriture utile.
 - **Cas limites et échecs :** metadata vide/tronqué, magic/version inconnue,
@@ -626,6 +626,35 @@ confondre code présent et exigence formellement auditée.
   `RVPROJ01`.
 - **Paquet de contexte minimal :** `crates/snapshot-format/src/lib.rs`,
   `crates/app/src/main.rs`, `scripts/test-guest-snapshot-export.sh`.
+
+### GUEST-019 — Import guest du projet RVPROJ01 — IMPLÉMENTÉ, E2E DIFFÉRÉ
+
+- **Jalon / exigences :** M8; IO-006..009, OBS-001..006.
+- **But :** décoder un projet hôte, préparer le slot mémoire, appliquer le
+  metadata par handshake binaire et restaurer en dernier.
+- **Non-but :** optimiser la copie des 1 MiB du slot ou promettre un temps
+  d’import interactif sur UART 16550 émulée.
+- **Entrées/sources :** contrats `RVPROJ01`, `RVSNAP01`, `RVMETA01`.
+- **Fichiers/modules :** `crates/snapshot-format/src/lib.rs`,
+  `crates/app/src/main.rs`, `crates/guest-monitor/src/main.rs`.
+- **Étapes réalisées :** `apply_guest_project`, `--project-in`, commande guest
+  `snapshot metadata apply <length>`, validation complète avant mutation du
+  slot et restauration finale unique.
+- **Dépendances :** GUEST-018; le smoke QEMU complet reste différé car la
+  copie/restauration des régions fixes de 1 MiB dépasse le budget d’exécution
+  CI; le contrat est couvert par tests de format et fake transport.
+- **Tests :** round-trip projet, application host fake dans l’ordre patches →
+  metadata → restore, compilation guest; aucun E2E QEMU complet déclaré vert.
+- **Critères de sortie :** payload invalide refusé sans restauration; metadata
+  valide appliqué au slot; restauration demandée seulement après confirmation.
+- **Cas limites et échecs :** metadata tronqué, source trop longue, symbole
+  hors limite, longueur résiduelle et coupure avant restore.
+- **Taille :** 5 points / 1,5 journée-agent, incertitude moyenne.
+- **Compétences/outils :** Rust std/no_std, protocoles binaires, QEMU.
+- **Parallélisable :** oui avec UI/profil; non avec une modification concurrente
+  du layout `RVPROJ01`.
+- **Paquet de contexte minimal :** `crates/snapshot-format/src/lib.rs`,
+  `crates/guest-monitor/src/main.rs`, `crates/app/src/main.rs`.
 
 ### GUEST-013 — Contrat metadata RVSNAP01 — TERMINÉ
 

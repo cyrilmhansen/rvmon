@@ -20,6 +20,9 @@ fn main() {
                 export_guest_project(port, &output)
             }
             GuestSnapshotOperation::Import { port, input } => import_guest_snapshot(port, &input),
+            GuestSnapshotOperation::ImportProject { port, input } => {
+                import_guest_project(port, &input)
+            }
         }
         return;
     }
@@ -37,6 +40,7 @@ enum GuestSnapshotOperation {
     Export { port: u16, output: String },
     ExportProject { port: u16, output: String },
     Import { port: u16, input: String },
+    ImportProject { port: u16, input: String },
 }
 
 fn guest_snapshot_options() -> Option<GuestSnapshotOperation> {
@@ -45,6 +49,7 @@ fn guest_snapshot_options() -> Option<GuestSnapshotOperation> {
     let mut output = None;
     let mut input = None;
     let mut project = None;
+    let mut project_input = None;
     while let Some(argument) = arguments.next() {
         match argument.as_str() {
             "--guest-uart-port" => {
@@ -78,23 +83,35 @@ fn guest_snapshot_options() -> Option<GuestSnapshotOperation> {
                         .unwrap_or_else(|| panic!("--project-out expects a file path")),
                 );
             }
+            "--project-in" => {
+                project_input = Some(
+                    arguments
+                        .next()
+                        .unwrap_or_else(|| panic!("--project-in expects a file path")),
+                );
+            }
             _ => {}
         }
     }
-    match (port, output, input, project) {
-        (Some(port), Some(output), None, None) => {
+    match (port, output, input, project, project_input) {
+        (Some(port), Some(output), None, None, None) => {
             Some(GuestSnapshotOperation::Export { port, output })
         }
-        (Some(port), None, None, Some(project)) => Some(GuestSnapshotOperation::ExportProject {
-            port,
-            output: project,
-        }),
-        (Some(port), None, Some(input), None) => {
+        (Some(port), None, None, Some(project), None) => {
+            Some(GuestSnapshotOperation::ExportProject {
+                port,
+                output: project,
+            })
+        }
+        (Some(port), None, Some(input), None, None) => {
             Some(GuestSnapshotOperation::Import { port, input })
         }
-        (None, None, None, None) => None,
+        (Some(port), None, None, None, Some(input)) => {
+            Some(GuestSnapshotOperation::ImportProject { port, input })
+        }
+        (None, None, None, None, None) => None,
         _ => panic!(
-            "--guest-uart-port must be combined with exactly one of --snapshot-out or --snapshot-in"
+            "--guest-uart-port must be combined with exactly one snapshot/project input or output"
         ),
     }
 }
@@ -173,6 +190,25 @@ fn import_guest_snapshot(port: u16, input: &str) {
         image.data.len(),
         image.source_lines
     );
+}
+
+fn import_guest_project(port: u16, input: &str) {
+    let encoded =
+        std::fs::read(input).unwrap_or_else(|error| panic!("cannot read project {input}: {error}"));
+    let project = luna_snapshot_format::SnapshotProject::decode(&encoded)
+        .unwrap_or_else(|error| panic!("cannot decode project {input}: {error:?}"));
+    let mut transport =
+        luna_snapshot_format::TcpGuestCommandTransport::connect(("127.0.0.1", port))
+            .unwrap_or_else(|error| panic!("cannot connect to guest UART: {error}"));
+    let save_response = transport
+        .command("snapshot save")
+        .unwrap_or_else(|error| panic!("cannot initialize guest snapshot slot: {error}"));
+    if save_response.contains("error [") {
+        panic!("guest snapshot slot initialization failed: {save_response}");
+    }
+    luna_snapshot_format::apply_guest_project(&mut transport, &project)
+        .unwrap_or_else(|error| panic!("cannot apply guest project: {error:?}"));
+    println!("guest project imported from {input}");
 }
 
 fn qemu_port() -> Option<u16> {

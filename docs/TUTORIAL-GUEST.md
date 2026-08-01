@@ -417,8 +417,17 @@ Cette version exporte les régions mémoire et le nombre de lignes source ; les
 registres, symboles et texte source ne sont pas encore sérialisés.
 Le guest expose désormais le sous-format `RVMETA01` par
 `snapshot metadata` puis `snapshot metadata dump <offset> <length>` ; son
-intégration dans `RVPROJ01` est maintenant disponible à l’export. L’import du
-metadata reste différé jusqu’à l’ajout d’une commande d’application côté guest.
+intégration dans `RVPROJ01` est maintenant disponible à l’export. Un projet
+peut être réinjecté avec :
+
+```sh
+$ cargo run -p luna-app -- \
+    --guest-uart-port 12353 --project-in session.rvproj
+guest project imported from session.rvproj
+```
+
+La copie complète des régions fixes reste lente sous QEMU/16550 ; le contrat
+d’import est donc validé par tests de format et de transport borné.
 
 Pour importer une image vérifiée dans le slot guest :
 

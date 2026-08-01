@@ -382,9 +382,24 @@ pub fn apply_guest_snapshot<T>(transport: &mut T, image: &SnapshotImage) -> Resu
 where
     T: GuestBinaryCommandTransport,
 {
+    apply_guest_image(transport, image)?;
+    restore_guest_snapshot(transport)
+}
+
+fn apply_guest_image<T>(transport: &mut T, image: &SnapshotImage) -> Result<(), ApplyError>
+where
+    T: GuestBinaryCommandTransport,
+{
     image.manifest().map_err(ApplyError::Format)?;
     apply_region(transport, "workspace", &image.workspace)?;
     apply_region(transport, "data", &image.data)?;
+    Ok(())
+}
+
+fn restore_guest_snapshot<T>(transport: &mut T) -> Result<(), ApplyError>
+where
+    T: GuestCommandTransport,
+{
     let response = transport
         .command("snapshot restore")
         .map_err(|error| ApplyError::Transport(format!("{error:?}")))?;
@@ -394,6 +409,31 @@ where
         ));
     }
     Ok(())
+}
+
+pub fn apply_guest_project<T>(
+    transport: &mut T,
+    project: &SnapshotProject,
+) -> Result<(), ApplyError>
+where
+    T: GuestBinaryCommandTransport,
+{
+    apply_guest_image(transport, &project.image)?;
+    let metadata = project.metadata.encode().map_err(|error| {
+        ApplyError::Protocol(format!("cannot encode project metadata: {error}"))
+    })?;
+    let response = transport
+        .command_binary(
+            &format!("snapshot metadata apply {}", metadata.len()),
+            &metadata,
+        )
+        .map_err(|error| ApplyError::Transport(format!("{error:?}")))?;
+    if response.contains("error [") || !response.contains("snapshot metadata applied") {
+        return Err(ApplyError::Protocol(
+            "guest did not confirm metadata application".into(),
+        ));
+    }
+    restore_guest_snapshot(transport)
 }
 
 fn apply_region<T: GuestBinaryCommandTransport>(
@@ -1131,7 +1171,11 @@ mod tests {
             _payload: &[u8],
         ) -> Result<String, Self::Error> {
             self.patches.push(command.into());
-            Ok("snapshot binary chunk patched data offset=0 length=32".into())
+            if command.starts_with("snapshot metadata apply ") {
+                Ok("snapshot metadata applied\r\n".into())
+            } else {
+                Ok("snapshot binary chunk patched data offset=0 length=32".into())
+            }
         }
     }
 
@@ -1150,6 +1194,34 @@ mod tests {
         assert_eq!(guest.patches.len(), 2);
         assert!(guest.patches[0].starts_with("snapshot patchrle workspace 0 "));
         assert!(guest.patches[1].starts_with("snapshot patchrle data 0 "));
+        assert!(guest.restored);
+    }
+
+    #[test]
+    fn applies_project_metadata_between_patches_and_restore() {
+        let project = SnapshotProject {
+            image: SnapshotImage {
+                workspace: vec![0x11; 2],
+                data: vec![0x22; 2],
+                source_lines: 0,
+            },
+            metadata: SnapshotMetadata {
+                context: SnapshotContext::empty(),
+                source: Vec::new(),
+                symbols: Vec::new(),
+            },
+        };
+        let mut guest = ApplyGuest {
+            patches: Vec::new(),
+            restored: false,
+        };
+        apply_guest_project(&mut guest, &project).unwrap();
+        assert!(
+            guest
+                .patches
+                .iter()
+                .any(|patch| patch.starts_with("snapshot metadata apply "))
+        );
         assert!(guest.restored);
     }
 

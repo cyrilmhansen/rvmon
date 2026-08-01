@@ -32,6 +32,7 @@ const MAX_MEMORY_DUMP: u64 = 128;
 const MAX_EDIT_BYTES: usize = 32;
 const MAX_SNAPSHOT_DUMP: u64 = 4096;
 const MAX_METADATA_BYTES: usize = 4096;
+const MAX_METADATA_SOURCE_BYTES: usize = MAX_SOURCE_LINES * COMMAND_CAPACITY;
 const MAX_SOURCE_LINES: usize = 16;
 const MAX_SYMBOLS: usize = 8;
 const SYMBOL_NAME_CAPACITY: usize = 16;
@@ -281,6 +282,9 @@ fn monitor_loop(context: *mut TargetContext) -> ! {
             b"snapshot info" => snapshot_info(),
             b"snapshot manifest" => snapshot_manifest(),
             b"snapshot metadata" => snapshot_metadata_info(),
+            command if command.starts_with(b"snapshot metadata apply ") => {
+                snapshot_metadata_apply(&command[24..])
+            }
             command if command.starts_with(b"snapshot metadata dump ") => {
                 snapshot_metadata_dump(&command[23..])
             }
@@ -1498,6 +1502,151 @@ fn snapshot_metadata_dump(argument: &[u8]) {
         }
     }
     uart_write("\r\n");
+}
+
+fn snapshot_metadata_apply(argument: &[u8]) {
+    let Some(length) = parse_decimal(argument) else {
+        guest_error(
+            b"GUEST-SNAPSHOT-017",
+            b"metadata apply expects a byte length",
+        );
+        return;
+    };
+    if length == 0 || length > MAX_METADATA_BYTES as u64 {
+        guest_error(
+            b"GUEST-SNAPSHOT-018",
+            b"metadata payload is outside its bounds",
+        );
+        return;
+    }
+    let snapshot = core::ptr::addr_of_mut!(GUEST_SNAPSHOT);
+    let valid = unsafe { core::ptr::read_volatile(core::ptr::addr_of!((*snapshot).valid)) };
+    if !valid {
+        guest_error(b"GUEST-SNAPSHOT-002", b"no snapshot or project is saved");
+        return;
+    }
+    uart_write("snapshot binary ready\r\n");
+    for index in 0..length as usize {
+        unsafe {
+            core::ptr::write_volatile(
+                core::ptr::addr_of_mut!(SNAPSHOT_BINARY_COMPRESSED[index]),
+                uart_get(),
+            );
+        }
+    }
+    let bytes = unsafe { &SNAPSHOT_BINARY_COMPRESSED[..length as usize] };
+    let Some(metadata) = decode_guest_metadata(bytes) else {
+        guest_error(b"GUEST-SNAPSHOT-019", b"invalid RVMETA01 payload");
+        return;
+    };
+    unsafe {
+        (*snapshot).context = metadata.context;
+        (*snapshot).source_count = metadata.source_count;
+        for index in 0..MAX_SOURCE_LINES {
+            (*snapshot).source_lines[index] = metadata.source_lines[index];
+            (*snapshot).source_lengths[index] = metadata.source_lengths[index];
+        }
+        for index in 0..MAX_SYMBOLS {
+            (*snapshot).symbols[index] = metadata.symbols[index];
+        }
+    }
+    uart_write("snapshot metadata applied\r\n");
+}
+
+struct GuestMetadata {
+    context: TargetContext,
+    source_lines: [[u8; COMMAND_CAPACITY]; MAX_SOURCE_LINES],
+    source_lengths: [usize; MAX_SOURCE_LINES],
+    source_count: usize,
+    symbols: [GuestSymbol; MAX_SYMBOLS],
+}
+
+fn decode_guest_metadata(bytes: &[u8]) -> Option<GuestMetadata> {
+    let mut reader = GuestMetadataReader { bytes, offset: 0 };
+    if reader.take(8)? != b"RVMETA01" || reader.u32()? != 1 {
+        return None;
+    }
+    let mut context = TargetContext::empty();
+    for value in &mut context.x {
+        *value = reader.u64()?;
+    }
+    for value in &mut context.f {
+        *value = reader.u64()?;
+    }
+    context.pc = reader.u64()?;
+    context.fcsr = reader.u32()?;
+    context.mstatus = reader.u64()?;
+    context.mepc = reader.u64()?;
+    context.mcause = reader.u64()?;
+    context.mtval = reader.u64()?;
+    let source_length = reader.u32()? as usize;
+    let symbol_count = reader.u32()? as usize;
+    if source_length > MAX_METADATA_SOURCE_BYTES || symbol_count > MAX_SYMBOLS {
+        return None;
+    }
+    let source = reader.take(source_length)?;
+    let mut source_lines = [[0u8; COMMAND_CAPACITY]; MAX_SOURCE_LINES];
+    let mut source_lengths = [0usize; MAX_SOURCE_LINES];
+    let mut source_count = 0usize;
+    for line in source.split(|byte| *byte == b'\n') {
+        if line.len() > COMMAND_CAPACITY || source_count == MAX_SOURCE_LINES {
+            return None;
+        }
+        source_lines[source_count][..line.len()].copy_from_slice(line);
+        source_lengths[source_count] = line.len();
+        source_count += 1;
+    }
+    if source.is_empty() {
+        source_count = 0;
+    }
+    let mut symbols = [GuestSymbol::empty(); MAX_SYMBOLS];
+    for symbol in symbols.iter_mut().take(symbol_count) {
+        let address = reader.u64()?;
+        let name_length = reader.u16()? as usize;
+        if name_length > SYMBOL_NAME_CAPACITY {
+            return None;
+        }
+        symbol.address = address;
+        symbol.length = name_length;
+        symbol.name[..name_length].copy_from_slice(reader.take(name_length)?);
+        symbol.enabled = true;
+    }
+    if reader.offset != bytes.len() {
+        return None;
+    }
+    Some(GuestMetadata {
+        context,
+        source_lines,
+        source_lengths,
+        source_count,
+        symbols,
+    })
+}
+
+struct GuestMetadataReader<'a> {
+    bytes: &'a [u8],
+    offset: usize,
+}
+
+impl<'a> GuestMetadataReader<'a> {
+    fn take(&mut self, length: usize) -> Option<&'a [u8]> {
+        let end = self.offset.checked_add(length)?;
+        let bytes = self.bytes.get(self.offset..end)?;
+        self.offset = end;
+        Some(bytes)
+    }
+
+    fn u16(&mut self) -> Option<u16> {
+        Some(u16::from_le_bytes(self.take(2)?.try_into().ok()?))
+    }
+
+    fn u32(&mut self) -> Option<u32> {
+        Some(u32::from_le_bytes(self.take(4)?.try_into().ok()?))
+    }
+
+    fn u64(&mut self) -> Option<u64> {
+        Some(u64::from_le_bytes(self.take(8)?.try_into().ok()?))
+    }
 }
 
 fn build_snapshot_metadata() -> Option<usize> {
