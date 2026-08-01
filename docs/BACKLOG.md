@@ -1600,6 +1600,33 @@ confondre code présent et exigence formellement auditée.
 - **Paquet de contexte minimal :** commande `manifest`, `ByteReader`,
   `persistence_checksum`, SPEC §§12/18/21.
 
+#### FORMAT-001C — Replay de projet byte-déterministe — TERMINÉ
+
+- **Jalon / exigences :** M8; IO-001..009, OBS-001..006, REQ-PROD-006.
+- **But :** garantir qu’un projet sauvegardé puis rechargé et resauvegardé
+  produit exactement le même conteneur canonique.
+- **Non-but :** journal d’exécution complet, reverse debugging, migration de
+  schéma ou transport série.
+- **Entrées/sources :** SPEC §§8/12/21/22; format RVPROJ01 v4; checksum local.
+- **Fichiers/modules :** `crates/monitor/src/lib.rs`, tests de persistance.
+- **Étapes réalisées :** construire un projet avec source, symbole, breakpoint
+  conditionnel et état machine; effectuer reset → project-load → project-save;
+  comparer byte-à-byte les deux fichiers.
+- **Dépendances et tâches bloquées :** FORMAT-001A/B; journal de commandes,
+  trace d’exécution et replay temporel restent différés.
+- **Tests :** round-trip projet byte-identique et manifestes valides avant/après.
+- **Critères de sortie :** les octets, checksum et taille sont identiques après
+  un cycle de restauration sans mutation supplémentaire.
+- **Cas limites et échecs :** source vide, breakpoint conditionnel, pile
+  d’appels active, fichier corrompu et mémoire modifiée restent diagnostiqués
+  sans résultat non déterministe.
+- **Taille :** 1 point / 0,5 journée-agent, incertitude faible.
+- **Compétences/outils :** tests de formats binaires, Rust, reproductibilité.
+- **Parallélisable :** oui avec QUAL-001; non avec une modification concurrente
+  du schéma RVPROJ01.
+- **Paquet de contexte minimal :** test `project_roundtrip_is_byte_deterministic`,
+  `project_save_file`, `project_load_file`, SPEC §§12/21/22.
+
 ### UI-000A — Historique de commandes du shell host/QEMU — TERMINÉ
 
 - **Jalon / exigences :** M6/M7; REQ-PROD-001, REQ-PROD-005, REQ-OBS-001.

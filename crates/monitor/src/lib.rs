@@ -4445,6 +4445,44 @@ mod tests {
     }
 
     #[test]
+    fn project_roundtrip_is_byte_deterministic() {
+        let first_path = std::env::temp_dir().join(format!(
+            "rvmonitor-replay-first-{}-{}.rvp",
+            std::process::id(),
+            567_890u64
+        ));
+        let second_path = std::env::temp_dir().join(format!(
+            "rvmonitor-replay-second-{}-{}.rvp",
+            std::process::id(),
+            678_901u64
+        ));
+        let first_text = first_path.to_string_lossy().into_owned();
+        let second_text = second_path.to_string_lossy().into_owned();
+        let mut monitor = Monitor::new(128);
+        monitor
+            .assemble_program("_start: addi x1,x0,1\ndone: addi x2,x0,2")
+            .unwrap();
+        monitor.execute("break done if x1").unwrap();
+        monitor
+            .execute(&format!("project-save {first_text}"))
+            .unwrap();
+        let first = std::fs::read(&first_path).unwrap();
+
+        monitor.execute("reset").unwrap();
+        monitor
+            .execute(&format!("project-load {first_text}"))
+            .unwrap();
+        monitor
+            .execute(&format!("project-save {second_text}"))
+            .unwrap();
+        let second = std::fs::read(&second_path).unwrap();
+
+        assert_eq!(first, second);
+        std::fs::remove_file(first_path).unwrap();
+        std::fs::remove_file(second_path).unwrap();
+    }
+
+    #[test]
     fn backend_console_exposes_mixed_disassembly() {
         let mut console = BackendConsole::new(Machine::new(128));
         console.execute("assemble addi x1,x0,1").unwrap();
