@@ -2091,7 +2091,7 @@ confondre code présent et exigence formellement auditée.
 
 ### REL-001B — Dossier provenance, SBOM et licences
 
-- **Statut :** EN COURS DE VALIDATION.
+- **Statut :** TERMINÉ.
 - **Jalon / exigences :** M9; REQ-REL-001, REQ-REL-002, REQ-OBS-006.
 - **But :** livrer un dossier déterministe de release avec commit, hash des
   entrées, provenance R2, SBOM Cargo et statut des licences.

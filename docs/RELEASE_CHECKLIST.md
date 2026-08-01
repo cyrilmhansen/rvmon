@@ -18,7 +18,8 @@
 - [ ] `fmt`, `clippy`, unit tests, component tests et E2E verts.
 - [ ] Artefacts générés identiques par hash sur deux builds séparés.
 - [ ] Aucun timestamp, chemin absolu ou locale hôte dans `.luna`, snapshot, listing ou trace canonique.
-- [ ] Package contient manifest de profil, hashes de tables et schema version.
+- [x] Le dossier `docs/release/` contient le manifest de profil, le hash R2,
+      le schema de snapshot et le manifest de provenance vérifiable.
 
 ## ISA, ABI et runtime
 
