@@ -42,7 +42,7 @@ fi
 
 for expected in \
     'snapshot saved (workspace=65536 data=1048576)' \
-    'snapshot: valid workspace=65536 data=1048576 source-lines=1 chunk-max=32' \
+    'snapshot: valid workspace=65536 data=1048576 source-lines=1 chunk-max=4096' \
     'snapshot-manifest format=RVSNAP01 workspace-size=65536 data-size=1048576 source-lines=1' \
     'snapshot-chunk data offset=112 length=4 hex=44332211' \
     'snapshot chunk patched data offset=112 length=4' \
@@ -73,7 +73,7 @@ if [[ -z "$first_data_crc" || "$first_data_crc" == "$second_data_crc" ]]; then
     exit 1
 fi
 for expected in \
-    'error [GUEST-SNAPSHOT-007]: snapshot chunk must be 1..32 bytes inside its region' \
+    'error [GUEST-SNAPSHOT-007]: snapshot chunk must be 1..4096 bytes inside its region' \
     'error [GUEST-SNAPSHOT-009]: snapshot patch expects 1..32 hexadecimal bytes'; do
     if ! [[ "$output" == *"$expected"* ]]; then
         printf '%s\n' "$output"

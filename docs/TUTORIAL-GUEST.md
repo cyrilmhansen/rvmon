@@ -350,9 +350,9 @@ d’archiver ou de reconstruire progressivement les deux régions capturées :
 
 ```text
 rvmonitor> snapshot info
-snapshot: valid workspace=65536 data=1048576 source-lines=1 chunk-max=32
+snapshot: valid workspace=65536 data=1048576 source-lines=1 chunk-max=4096
 rvmonitor> snapshot manifest
-snapshot-manifest format=RVSNAP01 workspace-size=65536 data-size=1048576 source-lines=1 workspace-crc32=0x... data-crc32=0x... chunk-max=32
+snapshot-manifest format=RVSNAP01 workspace-size=65536 data-size=1048576 source-lines=1 workspace-crc32=0x... data-crc32=0x... chunk-max=4096
 rvmonitor> snapshot dump data 112 4
 snapshot-chunk data offset=112 length=4 hex=44332211
 rvmonitor> snapshot patch data 112 aabbccdd
@@ -362,7 +362,7 @@ snapshot restored (workspace=65536 data=1048576)
 ```
 
 `snapshot dump` accepte `workspace` ou `data`, un offset décimal et une
-longueur de 1 à 32 octets. `snapshot patch` accepte les mêmes régions et une
+longueur de 1 à 4096 octets. `snapshot patch` accepte les mêmes régions et une
 suite hexadécimale de 1 à 32 octets. Le patch ne touche pas la mémoire cible
 active : il modifie uniquement le slot ; `snapshot restore` est nécessaire
 pour l’appliquer. Cette tranche fournit le transport UART déterministe, pas
@@ -370,6 +370,30 @@ encore un fichier persistant, plusieurs slots ou la capture des 64 MiB
 complets. `snapshot manifest` décrit le profil `RVSNAP01`, les tailles fixes
 et un CRC-32 IEEE indépendant pour chaque région ; l’hôte doit comparer ces
 valeurs après avoir transféré tous les blocs.
+
+### Export depuis l’hôte par UART TCP
+
+Pour automatiser le transfert depuis l’hôte, démarrer QEMU avec l’UART guest
+sur un port TCP :
+
+```sh
+$ qemu-system-riscv64 -M virt -m 64M -bios none \
+    -kernel target/riscv64gc-unknown-none-elf/debug/luna-guest-monitor \
+    -display none -serial tcp:127.0.0.1:12353,server=on,wait=on
+```
+
+Dans un autre terminal :
+
+```sh
+$ cargo run -p luna-app -- \
+    --guest-uart-port 12353 --snapshot-out session.rvsnap
+guest snapshot exported to session.rvsnap (workspace=65536 data=1048576 source-lines=0)
+```
+
+L’application attend l’invite UART, exécute `snapshot save`, collecte les
+blocs, contrôle le manifeste et écrit un fichier `RVSNAP01` déterministe.
+Cette version exporte les régions mémoire et le nombre de lignes source ; les
+registres, symboles et texte source ne sont pas encore sérialisés.
 
 ### Watchpoints logiciels
 

@@ -26,6 +26,7 @@ const MAX_PERMANENT_BREAKPOINTS: usize = 4;
 const MAX_WATCHPOINTS: usize = 4;
 const MAX_MEMORY_DUMP: u64 = 128;
 const MAX_EDIT_BYTES: usize = 32;
+const MAX_SNAPSHOT_DUMP: u64 = 4096;
 const MAX_SOURCE_LINES: usize = 16;
 const MAX_SYMBOLS: usize = 8;
 const SYMBOL_NAME_CAPACITY: usize = 16;
@@ -1411,7 +1412,7 @@ fn snapshot_info() {
         unsafe { core::ptr::read_volatile(core::ptr::addr_of!((*snapshot).source_count)) };
     uart_write("snapshot: valid workspace=65536 data=1048576 source-lines=");
     uart_decimal(source_count as u64);
-    uart_write(" chunk-max=32\r\n");
+    uart_write(" chunk-max=4096\r\n");
 }
 
 fn snapshot_manifest() {
@@ -1433,7 +1434,7 @@ fn snapshot_manifest() {
     uart_hex(u64::from(workspace_crc));
     uart_write(" data-crc32=0x");
     uart_hex(u64::from(data_crc));
-    uart_write(" chunk-max=32\r\n");
+    uart_write(" chunk-max=4096\r\n");
 }
 
 fn snapshot_crc32(workspace: bool) -> u32 {
@@ -1497,10 +1498,11 @@ fn snapshot_dump(argument: &[u8]) {
         guest_error(b"GUEST-SNAPSHOT-006", b"snapshot length must be decimal");
         return;
     };
-    if !snapshot_valid_chunk(workspace, offset, length) || length == 0 || length > 32 {
+    if !snapshot_valid_chunk(workspace, offset, length) || length == 0 || length > MAX_SNAPSHOT_DUMP
+    {
         guest_error(
             b"GUEST-SNAPSHOT-007",
-            b"snapshot chunk must be 1..32 bytes inside its region",
+            b"snapshot chunk must be 1..4096 bytes inside its region",
         );
         return;
     }

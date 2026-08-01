@@ -400,11 +400,11 @@ confondre code présent et exigence formellement auditée.
 - **Non-but :** persistance hôte, compression, checksum de flux complet, plusieurs slots ou modification directe de la cible active.
 - **Entrées/sources :** SPEC §§12/18/21/22; contrat guest 4B; protocole UART du tutoriel guest.
 - **Fichiers/modules :** `crates/guest-monitor/src/main.rs`, `scripts/test-guest-snapshot.sh`, `docs/TUTORIAL-GUEST.md`, `docs/TESTS.md`.
-- **Étapes réalisées :** `snapshot info`; `snapshot manifest`; `snapshot dump <region> <offset> <length>`; `snapshot patch <region> <offset> <hex>`; régions workspace/data bornées; chunks limités à 32 octets; CRC-32 IEEE par région; patch appliqué uniquement au slot jusqu’à `snapshot restore`.
+- **Étapes réalisées :** `snapshot info`; `snapshot manifest`; `snapshot dump <region> <offset> <length>` jusqu’à 4096 octets; `snapshot patch <region> <offset> <hex>` jusqu’à 32 octets; régions workspace/data bornées; CRC-32 IEEE par région; patch appliqué uniquement au slot jusqu’à `snapshot restore`.
 - **Dépendances et tâches bloquées :** GUEST-007; le format persistant RVSNAP/RVPROJ et le transfert complet avec intégrité restent différés.
 - **Tests :** QEMU sauvegarde un mot little-endian, vérifie deux manifestes et le changement de CRC après patch, le lit, le patche dans le slot, refuse les chunks invalides, restaure, puis vérifie registre, mémoire, source et alias projet.
 - **Critères de sortie :** commande valide produisant une réponse déterministe; refus des régions, offsets, longueurs et hexadécimaux invalides; aucune mutation de la RAM active avant restauration.
-- **Cas limites et échecs :** snapshot absent, offset hors région, chunk vide, chunk de plus de 32 octets, hexadécimal impair ou trop long, frontière exacte de région.
+- **Cas limites et échecs :** snapshot absent, offset hors région, chunk vide, dump de plus de 4096 octets, patch de plus de 32 octets, hexadécimal impair ou trop long, frontière exacte de région.
 - **Taille :** 3 points / 1,5 journée-agent, incertitude faible.
 - **Compétences/outils :** Rust `no_std`, UART, QEMU, tests shell.
 - **Parallélisable :** oui avec le format projet host; non avec une modification concurrente de `GuestSnapshot`.
@@ -432,17 +432,34 @@ confondre code présent et exigence formellement auditée.
 - **Jalon / exigences :** M8; IO-001..009, OBS-001..006, REQ-PROD-006.
 - **But :** fournir une représentation binaire déterministe des régions guest et un collecteur indépendant du transport.
 - **Non-but :** connexion UART concrète, persistance des registres/source/symboles, reprise réseau ou remplacement direct de l’état QEMU.
-- **Entrées/sources :** SPEC §§12/18/21/22; manifeste `RVSNAP01` guest; contrat de blocs de 32 octets.
+- **Entrées/sources :** SPEC §§12/18/21/22; manifeste `RVSNAP01` guest; contrat de blocs de lecture jusqu’à 4096 octets et patch jusqu’à 32 octets.
 - **Fichiers/modules :** `crates/snapshot-format/src/lib.rs`, `crates/snapshot-format/Cargo.toml`, `Cargo.toml`, `Cargo.lock`.
 - **Étapes réalisées :** en-tête little-endian de 32 octets; tailles bornées workspace/data; CRC-32 par région; encode/decode strict sans octets résiduels; trait `GuestCommandTransport`; collecteur qui demande le manifeste, récupère tous les blocs et vérifie les CRC.
 - **Dépendances et tâches bloquées :** GUEST-008/009; l’adaptateur UART/TCP et l’extension du fichier aux registres, source et symboles restent différés.
 - **Tests :** round-trip déterministe, corruption data, troncature, octets résiduels, régions surdimensionnées, collecte multi-blocs et corruption détectée après collecte.
 - **Critères de sortie :** un flux de réponses guest valide produit une image identique; tout manifeste ou bloc incohérent est refusé avant export.
-- **Cas limites et échecs :** longueur 0 autorisée pour le crate générique mais non produite par le guest, frontière 32 octets, dernier bloc court, CRC invalide, ordre/région/offset inattendus.
+- **Cas limites et échecs :** longueur 0 autorisée pour le crate générique mais non produite par le guest, frontière 4096 octets, dernier bloc court, CRC invalide, ordre/région/offset inattendus.
 - **Taille :** 5 points / 2,5 journées-agent, incertitude moyenne.
 - **Compétences/outils :** Rust stable, formats binaires, CRC-32, protocole texte, tests unitaires.
 - **Parallélisable :** oui avec l’adaptateur UART concret; non avec une modification du format RVSNAP01.
 - **Paquet de contexte minimal :** `crates/snapshot-format/src/lib.rs`, `crates/guest-monitor/src/main.rs`, docs §§12/18/21.
+
+### GUEST-011 — Adaptateur UART TCP et export hôte — TERMINÉ
+
+- **Jalon / exigences :** M8; IO-001..009, OBS-001..006, REQ-PROD-006.
+- **But :** relier le collecteur RVSNAP01 à l’UART virtuelle QEMU via TCP et produire un fichier hôte vérifié.
+- **Non-but :** GDB RSP, reprise après coupure, import/restauration et transport réseau distant non authentifié.
+- **Entrées/sources :** SPEC §§9/12/18/21; protocole UART guest et invite `rvmonitor> `.
+- **Fichiers/modules :** `crates/snapshot-format/src/lib.rs`, `crates/app/src/main.rs`, `scripts/test-guest-snapshot-export.sh`, docs.
+- **Étapes réalisées :** `TcpGuestCommandTransport`; synchronisation sur l’invite; options `--guest-uart-port` et `--snapshot-out`; `snapshot save` avant collecte; écriture atomique logique après validation du format.
+- **Dépendances et tâches bloquées :** GUEST-010; import guest, reprise de transfert et métadonnées de contexte restent différés.
+- **Tests :** QEMU réel avec UART TCP, export des 1 114 624 octets, magic `RVSNAP01`, taille exacte et validation CRC pendant la collecte.
+- **Critères de sortie :** export non vide, magic et taille attendus, absence d’export si le manifeste ou un bloc est invalide.
+- **Cas limites et échecs :** port indisponible, invite absente, EOF UART, réponse trop grande, erreur `snapshot save`, fichier impossible à écrire.
+- **Taille :** 4 points / 2 journées-agent, incertitude moyenne.
+- **Compétences/outils :** Rust std, TCP, UART QEMU, formats binaires, shell.
+- **Parallélisable :** oui avec l’import; non avec une modification du protocole d’invite guest.
+- **Paquet de contexte minimal :** `crates/snapshot-format/src/lib.rs`, `crates/app/src/main.rs`, `scripts/test-guest-snapshot-export.sh`, docs §§9/12/18/21.
 
 ## M3 — assembleur et désassembleur
 

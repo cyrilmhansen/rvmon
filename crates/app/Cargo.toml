@@ -10,6 +10,7 @@ luna-assembler = { path = "../assembler" }
 luna-machine = { path = "../machine" }
 luna-monitor = { path = "../monitor" }
 luna-qemu-backend = { path = "../qemu-backend" }
+luna-snapshot-format = { path = "../snapshot-format" }
 
 [lints]
 workspace = true

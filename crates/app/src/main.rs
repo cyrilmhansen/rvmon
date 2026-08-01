@@ -8,10 +8,15 @@ use crossterm::event::{self, Event, KeyCode, KeyEvent, KeyModifiers};
 use crossterm::execute;
 use crossterm::style::Print;
 use crossterm::terminal::{self, Clear, ClearType};
+use luna_snapshot_format::GuestCommandTransport;
 
 const MAX_SHELL_HISTORY: usize = 256;
 
 fn main() {
+    if let Some((port, output)) = guest_snapshot_options() {
+        export_guest_snapshot(port, &output);
+        return;
+    }
     let script = script_path();
     if let Some(port) = qemu_port() {
         qemu_interactive(port, script.as_deref());
@@ -20,6 +25,64 @@ fn main() {
     } else {
         demo();
     }
+}
+
+fn guest_snapshot_options() -> Option<(u16, String)> {
+    let mut arguments = std::env::args().skip(1);
+    let mut port = None;
+    let mut output = None;
+    while let Some(argument) = arguments.next() {
+        match argument.as_str() {
+            "--guest-uart-port" => {
+                let value = arguments
+                    .next()
+                    .unwrap_or_else(|| panic!("--guest-uart-port expects a TCP port"));
+                port = Some(
+                    value
+                        .parse()
+                        .unwrap_or_else(|_| panic!("invalid guest UART TCP port: {value}")),
+                );
+            }
+            "--snapshot-out" => {
+                output = Some(
+                    arguments
+                        .next()
+                        .unwrap_or_else(|| panic!("--snapshot-out expects a file path")),
+                );
+            }
+            _ => {}
+        }
+    }
+    match (port, output) {
+        (Some(port), Some(output)) => Some((port, output)),
+        (None, None) => None,
+        _ => panic!("--guest-uart-port and --snapshot-out must be used together"),
+    }
+}
+
+fn export_guest_snapshot(port: u16, output: &str) {
+    let mut transport =
+        luna_snapshot_format::TcpGuestCommandTransport::connect(("127.0.0.1", port))
+            .unwrap_or_else(|error| panic!("cannot connect to guest UART: {error}"));
+    let save_response = transport
+        .command("snapshot save")
+        .unwrap_or_else(|error| panic!("cannot save guest snapshot: {error}"));
+    if save_response.contains("error [") {
+        panic!("guest snapshot save failed: {save_response}");
+    }
+    let image = luna_snapshot_format::fetch_guest_snapshot(&mut transport)
+        .unwrap_or_else(|error| panic!("cannot fetch guest snapshot: {error:?}"));
+    let encoded = image
+        .encode()
+        .unwrap_or_else(|error| panic!("cannot encode guest snapshot: {error}"));
+    std::fs::write(output, encoded)
+        .unwrap_or_else(|error| panic!("cannot write snapshot {output}: {error}"));
+    println!(
+        "guest snapshot exported to {output} (workspace={} data={} source-lines={})",
+        image.workspace.len(),
+        image.data.len(),
+        image.source_lines
+    );
 }
 
 fn qemu_port() -> Option<u16> {

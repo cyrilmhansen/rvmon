@@ -137,6 +137,7 @@ dependencies = [
  "luna-machine",
  "luna-monitor",
  "luna-qemu-backend",
+ "luna-snapshot-format",
 ]
 
 [[package]]

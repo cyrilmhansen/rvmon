@@ -1,11 +1,14 @@
 #![forbid(unsafe_code)]
 
 use std::fmt;
+use std::io::{self, Read, Write};
+use std::net::{TcpStream, ToSocketAddrs};
 
 pub const MAGIC: &[u8; 8] = b"RVSNAP01";
 pub const HEADER_LEN: usize = 32;
 pub const MAX_WORKSPACE: usize = 0x1_0000;
 pub const MAX_DATA: usize = 0x10_0000;
+pub const MAX_TRANSPORT_CHUNK: usize = 4096;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct SnapshotImage {
@@ -47,6 +50,66 @@ pub trait GuestCommandTransport {
     fn command(&mut self, command: &str) -> Result<String, Self::Error>;
 }
 
+const GUEST_PROMPT: &[u8] = b"rvmonitor> ";
+const MAX_UART_RESPONSE: usize = 2 * 1024 * 1024;
+
+pub struct TcpGuestCommandTransport {
+    stream: TcpStream,
+}
+
+impl TcpGuestCommandTransport {
+    pub fn connect(address: impl ToSocketAddrs) -> io::Result<Self> {
+        let stream = TcpStream::connect(address)?;
+        stream.set_nodelay(true)?;
+        let mut transport = Self { stream };
+        transport.read_until_prompt()?;
+        Ok(transport)
+    }
+
+    pub fn from_stream(stream: TcpStream) -> io::Result<Self> {
+        stream.set_nodelay(true)?;
+        let mut transport = Self { stream };
+        transport.read_until_prompt()?;
+        Ok(transport)
+    }
+
+    fn read_until_prompt(&mut self) -> io::Result<String> {
+        let mut response = Vec::new();
+        let mut window = Vec::with_capacity(GUEST_PROMPT.len());
+        let mut byte = [0u8; 1];
+        loop {
+            self.stream.read_exact(&mut byte)?;
+            response.push(byte[0]);
+            window.push(byte[0]);
+            if window.len() > GUEST_PROMPT.len() {
+                window.remove(0);
+            }
+            if window == GUEST_PROMPT {
+                response.truncate(response.len() - GUEST_PROMPT.len());
+                return String::from_utf8(response)
+                    .map_err(|_| io::Error::new(io::ErrorKind::InvalidData, "UART is not UTF-8"));
+            }
+            if response.len() > MAX_UART_RESPONSE {
+                return Err(io::Error::new(
+                    io::ErrorKind::InvalidData,
+                    "guest UART response exceeds safety limit",
+                ));
+            }
+        }
+    }
+}
+
+impl GuestCommandTransport for TcpGuestCommandTransport {
+    type Error = io::Error;
+
+    fn command(&mut self, command: &str) -> Result<String, Self::Error> {
+        self.stream.write_all(command.as_bytes())?;
+        self.stream.write_all(b"\n")?;
+        self.stream.flush()?;
+        self.read_until_prompt()
+    }
+}
+
 pub fn fetch_guest_snapshot<T>(transport: &mut T) -> Result<SnapshotImage, FetchError>
 where
     T: GuestCommandTransport,
@@ -54,9 +117,14 @@ where
     let manifest_line = transport
         .command("snapshot manifest")
         .map_err(|error| FetchError::Transport(format!("{error:?}")))?;
-    let manifest = parse_manifest(&manifest_line)?;
-    let workspace = fetch_region(transport, "workspace", manifest.workspace_len as usize)?;
-    let data = fetch_region(transport, "data", manifest.data_len as usize)?;
+    let (manifest, chunk_max) = parse_manifest(&manifest_line)?;
+    let workspace = fetch_region(
+        transport,
+        "workspace",
+        manifest.workspace_len as usize,
+        chunk_max,
+    )?;
+    let data = fetch_region(transport, "data", manifest.data_len as usize, chunk_max)?;
     let image = SnapshotImage {
         workspace,
         data,
@@ -76,7 +144,12 @@ where
     Ok(image)
 }
 
-fn parse_manifest(line: &str) -> Result<SnapshotManifest, FetchError> {
+fn parse_manifest(line: &str) -> Result<(SnapshotManifest, usize), FetchError> {
+    let line = line
+        .lines()
+        .map(str::trim)
+        .find(|line| line.starts_with("snapshot-manifest "))
+        .ok_or_else(|| FetchError::Protocol("expected snapshot-manifest response".into()))?;
     let mut fields = line.split_whitespace();
     if fields.next() != Some("snapshot-manifest") {
         return Err(FetchError::Protocol(
@@ -89,6 +162,7 @@ fn parse_manifest(line: &str) -> Result<SnapshotManifest, FetchError> {
     let mut source_lines = None;
     let mut workspace_crc32 = None;
     let mut data_crc32 = None;
+    let mut chunk_max = None;
     for field in fields {
         let (key, value) = field
             .split_once('=')
@@ -100,7 +174,9 @@ fn parse_manifest(line: &str) -> Result<SnapshotManifest, FetchError> {
             "source-lines" => source_lines = Some(parse_decimal_field(key, value)?),
             "workspace-crc32" => workspace_crc32 = Some(parse_hex_field(key, value)?),
             "data-crc32" => data_crc32 = Some(parse_hex_field(key, value)?),
-            "chunk-max" if value == "32" => {}
+            "chunk-max" => {
+                chunk_max = Some(parse_decimal_field(key, value)? as usize);
+            }
             _ => {}
         }
     }
@@ -121,7 +197,10 @@ fn parse_manifest(line: &str) -> Result<SnapshotManifest, FetchError> {
     };
     validate_lengths(manifest.workspace_len as usize, manifest.data_len as usize)
         .map_err(FetchError::Format)?;
-    Ok(manifest)
+    let chunk_max = chunk_max
+        .filter(|chunk| (1..=MAX_TRANSPORT_CHUNK).contains(chunk))
+        .ok_or_else(|| FetchError::Protocol("manifest has invalid chunk-max".into()))?;
+    Ok((manifest, chunk_max))
 }
 
 fn parse_decimal_field(key: &str, value: &str) -> Result<u32, FetchError> {
@@ -141,11 +220,12 @@ fn fetch_region<T: GuestCommandTransport>(
     transport: &mut T,
     region: &str,
     length: usize,
+    chunk_max: usize,
 ) -> Result<Vec<u8>, FetchError> {
     let mut result = Vec::with_capacity(length);
     let mut offset = 0usize;
     while offset < length {
-        let chunk_len = (length - offset).min(32);
+        let chunk_len = (length - offset).min(chunk_max);
         let response = transport
             .command(&format!("snapshot dump {region} {offset} {chunk_len}"))
             .map_err(|error| FetchError::Transport(format!("{error:?}")))?;
@@ -162,6 +242,11 @@ fn parse_chunk(
     expected_offset: usize,
     expected_length: usize,
 ) -> Result<Vec<u8>, FetchError> {
+    let line = line
+        .lines()
+        .map(str::trim)
+        .find(|line| line.starts_with("snapshot-chunk "))
+        .ok_or_else(|| FetchError::Protocol("expected snapshot-chunk response".into()))?;
     let mut fields = line.split_whitespace();
     if fields.next() != Some("snapshot-chunk") {
         return Err(FetchError::Protocol(
@@ -444,7 +529,7 @@ mod tests {
             let manifest = self.image.manifest().unwrap();
             if command == "snapshot manifest" {
                 return Ok(format!(
-                    "snapshot-manifest format=RVSNAP01 workspace-size={} data-size={} source-lines={} workspace-crc32=0x{:08x} data-crc32=0x{:08x} chunk-max=32",
+                    "snapshot-manifest format=RVSNAP01 workspace-size={} data-size={} source-lines={} workspace-crc32=0x{:08x} data-crc32=0x{:08x} chunk-max=4096",
                     manifest.workspace_len,
                     manifest.data_len,
                     manifest.source_lines,
