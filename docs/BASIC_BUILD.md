@@ -25,6 +25,14 @@ MINIBASIC_TRANSCRIPT=docs/BASIC_DEMO_TRANSCRIPT.txt bash scripts/test-minibasic.
 Le build utilise le guest QEMU et les services `ecall` du moniteur ; aucun
 interpréteur BASIC hôte n’est invoqué.
 
+Pour inspecter le contrat du futur payload depuis la cible :
+
+```text
+rvmonitor> info payload
+```
+
+Cette commande est informative et ne modifie ni les registres ni la mémoire.
+
 ## Statut du chargement
 
 Dans cette version, MiniBASIC est lié dans l’ELF guest et `basic` saute vers

@@ -1810,7 +1810,7 @@ confondre code présent et exigence formellement auditée.
 Les tâches suivantes deviennent prioritaires avant la clôture publique de la
 release. Elles n’ajoutent aucune extension ISA.
 
-### BASIC-LOAD-001 — Figer l’ABI et la carte mémoire du MiniBASIC chargé
+### BASIC-LOAD-001 — Figer l’ABI et la carte mémoire du MiniBASIC chargé — TERMINÉ
 
 - **Priorité :** P0, première tâche.
 - **But :** séparer le runtime MiniBASIC de l’image résidente et documenter
@@ -1822,8 +1822,11 @@ release. Elles n’ajoutent aucune extension ISA.
 - **Dépendances :** aucune nouvelle dépendance ISA ; bloque BASIC-LOAD-002..006.
 - **Tests :** fixture d’ABI, vérification des bornes workspace/pile et échec
   explicite d’un point d’entrée invalide.
-- **Acceptation :** contrat versionné, carte mémoire publiée, symboles
-  d’entrée et de faute résolus sans adresse codée en dur.
+- **Étapes réalisées :** contrat `RVMPAY01`, commande non mutante `info
+  payload`, tailles de piles et fenêtres mémoire exposées depuis le guest,
+  vérification QEMU intégrée au test `run-at`.
+- **Acceptation :** contrat versionné, carte mémoire publiée, valeurs observées
+  depuis l’image guest et aucun résultat dépendant d’une adresse codée en dur.
 - **Taille :** 2 points / 1 journée-agent, incertitude moyenne.
 
 ### BASIC-LOAD-002 — Extraire et inspecter le squelette assembleur du runtime

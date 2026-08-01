@@ -27,6 +27,9 @@ const TARGET_WORKSPACE_BYTES: usize = 0x1_0000;
 const TARGET_DATA_BYTES: usize = 0x10_0000;
 const TARGET_WORKSPACE_START: u64 = 0x8100_0000;
 const TARGET_DATA_START: u64 = 0x8200_0000;
+const M_MODE_STACK_BYTES: usize = 64 * 1024;
+const U_MODE_STACK_BYTES: usize = 8192;
+const PAYLOAD_ABI_NAME: &str = "RVMPAY01";
 const EBREAK_WORD: u32 = 0x0010_0073;
 const MAX_PERMANENT_BREAKPOINTS: usize = 4;
 const MAX_WATCHPOINTS: usize = 4;
@@ -349,6 +352,7 @@ fn monitor_loop(context: *mut TargetContext) -> ! {
             b"snapshot save" | b"project-save" => save_guest_snapshot(context),
             b"snapshot restore" | b"project-load" => restore_guest_snapshot(context),
             b"basic" => launch_minibasic(context),
+            b"info payload" | b"info p" => print_payload_info(),
             b"snapshot info" => snapshot_info(),
             b"snapshot manifest" => snapshot_manifest(),
             b"snapshot metadata" => snapshot_metadata_info(),
@@ -400,6 +404,7 @@ fn print_help() {
         "RVMonitor guest commands\r\n\
           help/?                         this help\r\n\
           basic                          launch resident MiniBASIC-RV\r\n\
+          info payload|p                 show loaded-payload ABI and memory map\r\n\
           regs|registers                 show integer/floating registers\r\n\
           set <xreg> <hex64>             edit an integer register\r\n\
           setf <freg> <hex64>            edit raw floating bits\r\n\
@@ -425,6 +430,32 @@ fn print_help() {
           quit|q                          leave the monitor command loop\r\n\
         Errors are non-fatal: read the code/message, correct the command, and retry.\r\n",
     );
+}
+
+fn print_payload_info() {
+    uart_write("payload abi=");
+    uart_write(PAYLOAD_ABI_NAME);
+    uart_write(" profile=RV64ILP32D-MON-1 endian=little\r\n");
+    uart_write("  workspace=0x");
+    uart_hex(TARGET_WORKSPACE_START);
+    uart_write("..0x");
+    uart_hex(target_workspace_end());
+    uart_write(" bytes=");
+    uart_decimal(TARGET_WORKSPACE_BYTES as u64);
+    uart_write("\r\n");
+    uart_write("  data=0x");
+    uart_hex(TARGET_DATA_START);
+    uart_write("..0x");
+    uart_hex(TARGET_DATA_START + TARGET_DATA_BYTES as u64);
+    uart_write(" bytes=");
+    uart_decimal(TARGET_DATA_BYTES as u64);
+    uart_write("\r\n");
+    uart_write("  entry-alignment=4 u-stack-bytes=");
+    uart_decimal(U_MODE_STACK_BYTES as u64);
+    uart_write(" m-stack-bytes=");
+    uart_decimal(M_MODE_STACK_BYTES as u64);
+    uart_write("\r\n");
+    uart_write("  ecall: 1=write-char 2=read-char 3=exit 4=write-buffer 5=poll-char\r\n");
 }
 
 fn launch_minibasic(context: *mut TargetContext) -> ! {
