@@ -20,6 +20,7 @@ mod memory_view;
 
 const DEFAULT_MEMORY_VIEW_BYTES: usize = 64;
 const MAX_MEMORY_VIEW_BYTES: usize = 4096;
+const MAX_MEMORY_OPERATION_BYTES: usize = 4096;
 const MAX_EDIT_BYTES: usize = 4096;
 const MAX_UNDO_ENTRIES: usize = 64;
 const MAX_HISTORY_ENTRIES: usize = 4096;
@@ -135,6 +136,9 @@ impl Monitor {
             "disasm-mixed" | "mixed" | "dm" => self.disassemble_mixed(argument, false),
             "disasm-mixed-c" | "mixed-c" => self.disassemble_mixed(argument, true),
             "memory" | "mem" | "hex" | "ascii" => self.memory_view(argument),
+            "find" => self.find_memory(argument),
+            "fill" => self.fill_memory(argument),
+            "copy" => self.copy_memory(argument),
             "view" | "jump" => self.set_view(argument),
             "edit" | "e" => self.edit_memory(argument),
             "undo" | "u" => self.undo_memory(),
@@ -758,6 +762,103 @@ impl Monitor {
         ))
     }
 
+    fn find_memory(&mut self, argument: &str) -> Result<String> {
+        let parts: Vec<_> = argument.split_whitespace().collect();
+        let [address, count, pattern] = parts.as_slice() else {
+            return Err(Diagnostic::error(
+                "MON-MEM-009",
+                "find expects <address> <count> <hex-bytes>",
+            ));
+        };
+        let address = self.resolve_address(address, "MON-MEM-002")?;
+        let count = parse_count(count, "MON-MEM-003")?;
+        if count > MAX_MEMORY_OPERATION_BYTES {
+            return Err(Diagnostic::error(
+                "MON-MEM-010",
+                "find exceeds the 4096-byte operation limit",
+            ));
+        }
+        let mut needle = Vec::new();
+        parse_byte_token(pattern, &mut needle)?;
+        if needle.is_empty() {
+            return Err(Diagnostic::error(
+                "MON-MEM-009",
+                "find pattern cannot be empty",
+            ));
+        }
+        let mut bytes = vec![0u8; count];
+        TargetBackend::read_memory(&mut self.machine, address, &mut bytes)?;
+        let matches: Vec<_> = bytes
+            .windows(needle.len())
+            .enumerate()
+            .filter_map(|(offset, window)| (window == needle).then_some(address + offset as u64))
+            .collect();
+        if let Some(first) = matches.first().copied() {
+            self.view_address = first;
+        }
+        Ok(format_memory_matches(&matches))
+    }
+
+    fn fill_memory(&mut self, argument: &str) -> Result<String> {
+        let parts: Vec<_> = argument.split_whitespace().collect();
+        let [address, count, value] = parts.as_slice() else {
+            return Err(Diagnostic::error(
+                "MON-MEM-011",
+                "fill expects <address> <count> <byte>",
+            ));
+        };
+        let address = self.resolve_address(address, "MON-MEM-002")?;
+        let count = parse_count(count, "MON-MEM-003")?;
+        if count == 0 || count > MAX_MEMORY_OPERATION_BYTES {
+            return Err(Diagnostic::error(
+                "MON-MEM-012",
+                "fill count must be between 1 and 4096 bytes",
+            ));
+        }
+        let mut value_bytes = Vec::new();
+        parse_byte_token(value, &mut value_bytes)?;
+        if value_bytes.len() != 1 {
+            return Err(Diagnostic::error(
+                "MON-MEM-011",
+                "fill value must be one byte",
+            ));
+        }
+        let mut previous = vec![0u8; count];
+        TargetBackend::read_memory(&mut self.machine, address, &mut previous)?;
+        let bytes = vec![value_bytes[0]; count];
+        TargetBackend::write_memory(&mut self.machine, address, &bytes)?;
+        push_memory_undo(&mut self.undo, address, previous);
+        self.view_address = address;
+        Ok(format!("filled {count} byte(s) at 0x{address:016x}"))
+    }
+
+    fn copy_memory(&mut self, argument: &str) -> Result<String> {
+        let parts: Vec<_> = argument.split_whitespace().collect();
+        let [source, destination, count] = parts.as_slice() else {
+            return Err(Diagnostic::error(
+                "MON-MEM-013",
+                "copy expects <source> <destination> <count>",
+            ));
+        };
+        let source = self.resolve_address(source, "MON-MEM-002")?;
+        let destination = self.resolve_address(destination, "MON-MEM-002")?;
+        let count = parse_count(count, "MON-MEM-003")?;
+        if count == 0 || count > MAX_MEMORY_OPERATION_BYTES {
+            return Err(Diagnostic::error(
+                "MON-MEM-014",
+                "copy count must be between 1 and 4096 bytes",
+            ));
+        }
+        let mut bytes = vec![0u8; count];
+        TargetBackend::read_memory(&mut self.machine, source, &mut bytes)?;
+        let mut previous = vec![0u8; count];
+        TargetBackend::read_memory(&mut self.machine, destination, &mut previous)?;
+        TargetBackend::write_memory(&mut self.machine, destination, &bytes)?;
+        push_memory_undo(&mut self.undo, destination, previous);
+        self.view_address = destination;
+        Ok(format!("copied {count} byte(s) to 0x{destination:016x}"))
+    }
+
     fn mark(&mut self, argument: &str) -> Result<String> {
         let parts: Vec<_> = argument.split_whitespace().collect();
         let (name, address) = match parts.as_slice() {
@@ -1126,6 +1227,9 @@ where
             "symbols" => self.show_symbols(),
             "where" => Ok(self.show_location()),
             "memory" | "mem" | "hex" | "ascii" => self.memory(argument),
+            "find" => self.find_memory(argument),
+            "fill" => self.fill_memory(argument),
+            "copy" => self.copy_memory(argument),
             "view" | "jump" => self.set_view(argument),
             "edit" | "e" => self.edit(argument),
             "undo" | "u" => self.undo_edit(),
@@ -1574,6 +1678,115 @@ where
             .map_err(target_error)?;
         self.view_address = edit.address;
         Ok(format!("undid edit at 0x{:016x}", edit.address))
+    }
+
+    fn find_memory(&mut self, argument: &str) -> Result<String> {
+        let parts: Vec<_> = argument.split_whitespace().collect();
+        let [address, count, pattern] = parts.as_slice() else {
+            return Err(Diagnostic::error(
+                "MON-MEM-109",
+                "find expects <address> <count> <hex-bytes>",
+            ));
+        };
+        let address = self.resolve_address(address, "MON-MEM-101")?;
+        let count = parse_count(count, "MON-MEM-102")?;
+        if count > MAX_MEMORY_OPERATION_BYTES {
+            return Err(Diagnostic::error(
+                "MON-MEM-110",
+                "find exceeds the 4096-byte operation limit",
+            ));
+        }
+        let mut needle = Vec::new();
+        parse_byte_token(pattern, &mut needle)?;
+        if needle.is_empty() {
+            return Err(Diagnostic::error(
+                "MON-MEM-109",
+                "find pattern cannot be empty",
+            ));
+        }
+        let mut bytes = vec![0u8; count];
+        self.backend
+            .read_memory(address, &mut bytes)
+            .map_err(target_error)?;
+        let matches: Vec<_> = bytes
+            .windows(needle.len())
+            .enumerate()
+            .filter_map(|(offset, window)| (window == needle).then_some(address + offset as u64))
+            .collect();
+        if let Some(first) = matches.first().copied() {
+            self.view_address = first;
+        }
+        Ok(format_memory_matches(&matches))
+    }
+
+    fn fill_memory(&mut self, argument: &str) -> Result<String> {
+        let parts: Vec<_> = argument.split_whitespace().collect();
+        let [address, count, value] = parts.as_slice() else {
+            return Err(Diagnostic::error(
+                "MON-MEM-111",
+                "fill expects <address> <count> <byte>",
+            ));
+        };
+        let address = self.resolve_address(address, "MON-MEM-101")?;
+        let count = parse_count(count, "MON-MEM-102")?;
+        if count == 0 || count > MAX_MEMORY_OPERATION_BYTES {
+            return Err(Diagnostic::error(
+                "MON-MEM-112",
+                "fill count must be between 1 and 4096 bytes",
+            ));
+        }
+        let mut value_bytes = Vec::new();
+        parse_byte_token(value, &mut value_bytes)?;
+        if value_bytes.len() != 1 {
+            return Err(Diagnostic::error(
+                "MON-MEM-111",
+                "fill value must be one byte",
+            ));
+        }
+        let mut previous = vec![0u8; count];
+        self.backend
+            .read_memory(address, &mut previous)
+            .map_err(target_error)?;
+        let bytes = vec![value_bytes[0]; count];
+        self.backend
+            .write_memory(address, &bytes)
+            .map_err(target_error)?;
+        push_memory_undo(&mut self.undo, address, previous);
+        self.view_address = address;
+        Ok(format!("filled {count} byte(s) at 0x{address:016x}"))
+    }
+
+    fn copy_memory(&mut self, argument: &str) -> Result<String> {
+        let parts: Vec<_> = argument.split_whitespace().collect();
+        let [source, destination, count] = parts.as_slice() else {
+            return Err(Diagnostic::error(
+                "MON-MEM-113",
+                "copy expects <source> <destination> <count>",
+            ));
+        };
+        let source = self.resolve_address(source, "MON-MEM-101")?;
+        let destination = self.resolve_address(destination, "MON-MEM-101")?;
+        let count = parse_count(count, "MON-MEM-102")?;
+        if count == 0 || count > MAX_MEMORY_OPERATION_BYTES {
+            return Err(Diagnostic::error(
+                "MON-MEM-114",
+                "copy count must be between 1 and 4096 bytes",
+            ));
+        }
+        let mut bytes = vec![0u8; count];
+        self.backend
+            .read_memory(source, &mut bytes)
+            .map_err(target_error)?;
+        let mut previous = vec![0u8; count];
+        self.backend
+            .read_memory(destination, &mut previous)
+            .map_err(target_error)?;
+        self.backend
+            .write_memory(destination, &bytes)
+            .map_err(target_error)?;
+        push_memory_undo(&mut self.undo, destination, previous);
+        self.view_address = destination;
+        Ok(format!("copied {count} byte(s) to 0x{destination:016x}"))
     }
 
     fn add_breakpoint(&mut self, argument: &str) -> Result<String> {
@@ -2067,6 +2280,9 @@ fn backend_help() -> String {
         "symbols              list loaded symbols",
         "where                show pc, nearest symbol and memory view",
         "memory [addr] [n]    show target memory as hex/ASCII",
+        "find <addr> <n> <bytes> search target memory",
+        "fill <addr> <n> <byte> fill target memory transactionally",
+        "copy <src> <dst> <n> copy target memory transactionally",
         "view <addr>          move memory view without changing pc",
         "edit <addr> <bytes>  write target bytes transactionally",
         "undo                 restore the last target memory edit",
@@ -2149,6 +2365,9 @@ fn help() -> String {
         "continue [count]     resume, bypassing a breakpoint at current pc",
         "disasm [addr] [count] show instructions (default pc, 4)",
         "memory [addr] [count] show hex and ASCII (default view, 64)",
+        "find <addr> <count> <bytes> search memory for a byte pattern",
+        "fill <addr> <count> <byte> fill memory transactionally",
+        "copy <src> <dst> <count> copy memory transactionally",
         "view <addr>          move memory view without changing pc",
         "edit <addr> <bytes>  write bytes transactionally (hex)",
         "undo                 undo the last memory edit",
@@ -2211,6 +2430,25 @@ fn parse_byte_token(token: &str, output: &mut Vec<u8>) -> Result<()> {
         output.push(byte);
     }
     Ok(())
+}
+
+fn push_memory_undo(undo: &mut Vec<MemoryEdit>, address: u64, previous: Vec<u8>) {
+    if undo.len() == MAX_UNDO_ENTRIES {
+        undo.remove(0);
+    }
+    undo.push(MemoryEdit { address, previous });
+}
+
+fn format_memory_matches(matches: &[u64]) -> String {
+    if matches.is_empty() {
+        return "find: no matches".into();
+    }
+    let addresses = matches
+        .iter()
+        .map(|address| format!("0x{address:016x}"))
+        .collect::<Vec<_>>()
+        .join(" ");
+    format!("find: {} match(es): {addresses}", matches.len())
 }
 
 fn validate_mark_name(name: &str) -> Result<()> {
@@ -2798,6 +3036,34 @@ mod tests {
     }
 
     #[test]
+    fn find_fill_copy_and_undo_are_bounded_and_overlap_safe() {
+        let mut monitor = Monitor::new(128);
+        monitor.execute("edit 0 0102030405").unwrap();
+        assert_eq!(
+            monitor.execute("find 0 5 0203").unwrap(),
+            "find: 1 match(es): 0x0000000000000001"
+        );
+        assert_eq!(monitor.view_address, 1);
+
+        monitor.execute("fill 8 3 aa").unwrap();
+        assert_eq!(
+            monitor.machine.memory.load32(8).unwrap() & 0x00ff_ffff,
+            0x00aa_aaaa
+        );
+        monitor.execute("undo").unwrap();
+        assert_eq!(monitor.machine.memory.load32(8).unwrap(), 0);
+
+        monitor.execute("copy 0 1 4").unwrap();
+        assert_eq!(monitor.machine.memory.load32(1).unwrap(), 0x0403_0201);
+        monitor.execute("undo").unwrap();
+        assert_eq!(monitor.machine.memory.load32(1).unwrap(), 0x0504_0302);
+
+        let error = monitor.execute("fill 8 0 ff").unwrap_err();
+        assert_eq!(error.code, "MON-MEM-012");
+        assert_eq!(monitor.machine.memory.load32(8).unwrap(), 0);
+    }
+
+    #[test]
     fn invalid_memory_edit_has_no_side_effect() {
         let mut monitor = Monitor::new(128);
         let error = monitor.execute("edit 0x10 123").unwrap_err();
@@ -3168,5 +3434,27 @@ mod tests {
             .unwrap();
         assert_eq!(symbol_console.backend.x[5], 0x1234);
         std::fs::remove_file(snapshot_path).unwrap();
+    }
+
+    #[test]
+    fn backend_console_memory_operations_share_transactional_semantics() {
+        let mut console = BackendConsole::new(Machine::new(128));
+        console.execute("edit 0 0102030405").unwrap();
+        assert!(
+            console
+                .execute("find 0 5 0203")
+                .unwrap()
+                .contains("0x0000000000000001")
+        );
+        console.execute("fill 8 2 aa").unwrap();
+        assert_eq!(console.backend.memory.load8(8).unwrap(), 0xaa);
+        assert_eq!(console.backend.memory.load8(9).unwrap(), 0xaa);
+        console.execute("undo").unwrap();
+        assert_eq!(console.backend.memory.load8(8).unwrap(), 0);
+        assert_eq!(console.backend.memory.load8(9).unwrap(), 0);
+        console.execute("copy 0 1 4").unwrap();
+        assert_eq!(console.backend.memory.load32(1).unwrap(), 0x0403_0201);
+        console.execute("undo").unwrap();
+        assert_eq!(console.backend.memory.load32(1).unwrap(), 0x0504_0302);
     }
 }

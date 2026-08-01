@@ -882,6 +882,23 @@ Une tâche est terminée seulement si sa condition de sortie est satisfaite.
 - **Parallélisable :** oui avec REG-001; non avec une modification concurrente du format hex/ASCII.
 - **Paquet de contexte minimal :** SPEC §14/15, `crates/monitor/src/memory_view.rs`, `crates/monitor/src/lib.rs`.
 
+### MON-001B — Recherche, remplissage et copie mémoire transactionnels — TERMINÉ
+
+- **Jalon / exigences :** M6; MEM-001..012, REQ-PROD-003/005, ISO-001.
+- **But :** compléter la surface mémoire avec `find`, `fill` et `copy`, bornées et annulables, sur le simulateur comme sur le backend cible.
+- **Non-but :** recherche regex, wildcards, MMIO spécialisé, sélection clavier ou copie directe vers la mémoire hôte.
+- **Entrées/sources :** SPEC §§14/18/19; A1 ch. 6–9; DECISIONS D-007/D-008.
+- **Fichiers/modules :** `crates/monitor/src/lib.rs`, `crates/monitor/src/memory_view.rs`.
+- **Étapes réalisées :** `find <addr> <count> <hex-bytes>`; `fill <addr> <count> <byte>`; `copy <src> <dst> <count>`; limite 4096 octets; lecture complète avant écriture; undo des destinations; buffer temporaire pour les copies chevauchantes; aide des deux consoles.
+- **Dépendances/bloqués :** MON-001A/CMD-001C; la sélection interactive et les marques dans le modèle UI restent à intégrer.
+- **Tests :** correspondances multiples, motif absent, remplissage et undo, copie chevauchante, compte nul, sémantique identique du backend.
+- **Critères de sortie :** aucune écriture partielle avant validation et lecture de l’ancien contenu; `undo` restaure exactement la destination; une copie `src`/`dst` recouvrante respecte les octets source initiaux; `cargo test -p luna-monitor` passe.
+- **Cas limites et échecs :** motif vide, octet mal formé, compte nul ou >4096, mémoire non mappée, destination non accessible; la cible reste inchangée en cas d’échec avant écriture.
+- **Taille :** 4 points / 2 journées-agent, incertitude moyenne.
+- **Compétences/outils :** mémoire transactionnelle, backend abstrait, tests d’overlap.
+- **Parallélisable :** oui avec REG-001; non avec une modification concurrente de `MemoryEdit` ou des limites mémoire.
+- **Paquet de contexte minimal :** SPEC §§14/18/19, `crates/monitor/src/lib.rs`, `crates/monitor/src/memory_view.rs`.
+
 ### MON-001 — Vues mémoire, marks et QuickJump
 
 - **Jalon / exigences :** M6; MEM-001..012, REQ-PROD-003/005.

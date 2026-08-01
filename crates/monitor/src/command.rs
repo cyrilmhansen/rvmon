@@ -453,7 +453,7 @@ pub(crate) fn validate_required_arguments(name: &str, count: usize) -> Result<()
         "assemble" | "a" | "assemble-program" | "load" | "view" | "jump" | "edit" | "e"
         | "mark" | "unmark" | "break" | "b" | "watch" | "rwatch" | "awatch" | "delete" | "del"
         | "info" | "snapshot" | "restore" | "project-save" | "project-load" | "session-save"
-        | "session-load" => 1,
+        | "session-load" | "find" | "fill" | "copy" => 1,
         _ => 0,
     };
     if count < required {
