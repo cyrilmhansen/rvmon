@@ -325,6 +325,23 @@ confondre code présent et exigence formellement auditée.
 - **Parallélisable :** oui avec la spécification de l’éditeur source; non avec une modification concurrente du protocole d’erreur UART.
 - **Paquet de contexte minimal :** `crates/guest-monitor/src/main.rs`, `scripts/test-guest-monitor.sh`, `docs/TUTORIAL-GUEST.md`, SPEC §§11/17–19.
 
+### GUEST-004 — Exécution guest bornée — TERMINÉ
+
+- **Jalon / exigences :** M7; REQ-PROD-002/003, DBG-001..014, ISO-001..004.
+- **But :** exécuter au plus N instructions depuis un arrêt guest et revenir au prompt lorsque le budget est épuisé.
+- **Non-but :** exécution asynchrone, conditions de breakpoint, watchpoints matériels et step-over ABI complet.
+- **Entrées/sources :** SPEC §§6/8/16/18/24; contrat `StopReason`; mécanisme guest de breakpoint temporaire.
+- **Fichiers/modules :** `crates/guest-monitor/src/main.rs`, `scripts/test-guest-run.sh`, `docs/TUTORIAL-GUEST.md`, `docs/TESTS.md`.
+- **Étapes réalisées :** factoriser la reprise d’une instruction; ajouter `run <count>`; porter le budget dans le trap handler; arrêter sur breakpoint permanent, `ebreak` réel ou trap non-borne; refuser `0` et les budgets supérieurs à 100000.
+- **Dépendances et tâches bloquées :** GUEST-001/003; les watchpoints nécessitent encore des événements d’accès mémoire ou une instrumentation dédiée.
+- **Tests :** programme de deux `addi`, `run 2`, vérification `x1=2`, budget nul et budget excessif; QEMU timeout borné.
+- **Critères de sortie :** aucun run ne dépasse son budget; l’état est observable au prompt; les erreurs de budget ne modifient pas la cible.
+- **Cas limites et échecs :** budget nul, dépassement, breakpoint permanent rencontré, instruction `ebreak`, boucle de contrôle et trap illégal.
+- **Taille :** 4 points / 2 journées-agent, incertitude moyenne.
+- **Compétences/outils :** trap M-mode, breakpoints logiciels, Rust `no_std`, QEMU UART.
+- **Parallélisable :** oui avec le design des watchpoints; non avec une modification concurrente de `rust_trap` ou des breakpoints temporaires.
+- **Paquet de contexte minimal :** `crates/guest-monitor/src/main.rs`, `scripts/test-guest-run.sh`, `docs/TUTORIAL-GUEST.md`, SPEC §§8/16/18.
+
 ## M3 — assembleur et désassembleur
 
 ### ISA-003 — Étendre la tranche RV64 aux loads/stores 64 bits — TERMINÉ

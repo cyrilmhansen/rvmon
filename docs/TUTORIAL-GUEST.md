@@ -78,7 +78,7 @@ La commande `help` affiche la grammaire actuellement implémentée :
 
 ```text
 rvmonitor> help
-help/? regs/registers set <xreg> <hex64> setf <freg> <hex64> memory <addr> <length> edit <addr> <hex-bytes> data <addr> <directive> <bits> undo assemble <addr> <instruction> assemble-program <addr> ... end symbols disasm <addr|label> <count> step/s continue/c break <addr|label> delete <n> info break quit/q
+help/? regs/registers set <xreg> <hex64> setf <freg> <hex64> memory <addr> <length> edit <addr> <hex-bytes> data <addr> <directive> <bits> undo assemble <addr> <instruction> assemble-program <addr> ... end symbols disasm <addr|label> <count> step/s run <count> continue/c break <addr|label> delete <n> info break quit/q
 ```
 
 ### Lire les registres
@@ -284,6 +284,26 @@ pas à un état de breakpoint exploitable, la commande est refusée :
 ```text
 error: target is not stopped at a breakpoint
 ```
+
+Pour exécuter un nombre borné d’instructions, utiliser `run <count>`. Le
+budget est décrémenté à chaque instruction retirée. Un breakpoint permanent,
+un `ebreak` réel ou un trap interrompt le run avant l’épuisement ; sinon le
+moniteur revient au prompt avec `run: budget exhausted`.
+
+```text
+rvmonitor> assemble-program 0x81000100
+source> addi x1,x0,1
+source> addi x1,x1,1
+source> end
+rvmonitor> run 2
+trap: breakpoint pc=0x0000000081000108
+run: budget exhausted
+rvmonitor> regs
+... x1=0x0000000000000002 ...
+```
+
+Les budgets `0` et supérieurs à `100000` sont refusés avec
+`GUEST-RUN-003`.
 
 ### Poser un breakpoint logiciel
 

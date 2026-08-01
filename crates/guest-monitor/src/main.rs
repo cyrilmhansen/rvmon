@@ -32,6 +32,7 @@ static mut TEMPORARY_BREAKPOINT: Breakpoint = Breakpoint::disabled();
 static mut PERMANENT_BREAKPOINTS: [Breakpoint; MAX_PERMANENT_BREAKPOINTS] =
     [Breakpoint::disabled(); MAX_PERMANENT_BREAKPOINTS];
 static mut STEPPED_PERMANENT_BREAKPOINT: u8 = u8::MAX;
+static mut RUN_REMAINING: u64 = 0;
 static mut SYMBOLS: [GuestSymbol; MAX_SYMBOLS] = [GuestSymbol::empty(); MAX_SYMBOLS];
 static mut MEMORY_UNDO: MemoryUndo = MemoryUndo::empty();
 static TARGET_STACK: [u8; 8192] = [0; 8192];
@@ -126,6 +127,24 @@ pub extern "C" fn rust_trap(context: *mut TargetContext) -> ! {
     let context = unsafe { &mut *context };
     restore_temporary_breakpoint();
     restore_stepped_permanent_breakpoint();
+    let budget_stop = context.mcause == StopReason::Breakpoint as u64
+        && permanent_breakpoint_at(context.mepc).is_none()
+        && target_load32(context.mepc) != Some(EBREAK_WORD);
+    if budget_stop {
+        let remaining = unsafe { core::ptr::read_volatile(core::ptr::addr_of!(RUN_REMAINING)) };
+        if remaining > 0 {
+            unsafe {
+                core::ptr::write_volatile(core::ptr::addr_of_mut!(RUN_REMAINING), remaining - 1);
+            }
+            if remaining > 1 {
+                resume_single_step(context as *mut TargetContext);
+            }
+        }
+    } else {
+        unsafe {
+            core::ptr::write_volatile(core::ptr::addr_of_mut!(RUN_REMAINING), 0);
+        }
+    }
     uart_write("trap: ");
     if context.mcause == StopReason::Breakpoint as u64 {
         if let Some(slot) = permanent_breakpoint_at(context.mepc) {
@@ -141,6 +160,9 @@ pub extern "C" fn rust_trap(context: *mut TargetContext) -> ! {
     uart_write(" pc=0x");
     uart_hex(context.mepc);
     uart_write("\r\n");
+    if budget_stop {
+        uart_write("run: budget exhausted\r\n");
+    }
     monitor_loop(context as *const TargetContext as *mut TargetContext);
 }
 
@@ -167,6 +189,7 @@ fn monitor_loop(context: *mut TargetContext) -> ! {
             b"symbols" => print_symbols(),
             command if command.starts_with(b"disasm ") => print_disassembly(&command[7..]),
             b"step" | b"s" => step_target(context),
+            command if command.starts_with(b"run ") => run_target(context, &command[4..]),
             b"continue" | b"c" => continue_target(context),
             command if command.starts_with(b"break ") => break_target(&command[6..]),
             command if command.starts_with(b"delete ") => delete_breakpoint(&command[7..]),
@@ -182,7 +205,7 @@ fn monitor_loop(context: *mut TargetContext) -> ! {
 
 fn print_help() {
     uart_write(
-        "help/? regs/registers set <xreg> <hex64> setf <freg> <hex64> memory <addr> <length> edit <addr> <hex-bytes> data <addr> <directive> <bits> undo assemble <addr> <instruction> assemble-program <addr> ... end symbols disasm <addr|label> <count> step/s continue/c break <addr|label> delete <n> info break quit/q\r\n",
+        "help/? regs/registers set <xreg> <hex64> setf <freg> <hex64> memory <addr> <length> edit <addr> <hex-bytes> data <addr> <directive> <bits> undo assemble <addr> <instruction> assemble-program <addr> ... end symbols disasm <addr|label> <count> step/s run <count> continue/c break <addr|label> delete <n> info break quit/q\r\n",
     );
 }
 
@@ -1323,6 +1346,32 @@ fn step_target(context: *mut TargetContext) -> ! {
         uart_write("error: target is not stopped at a breakpoint\r\n");
         monitor_loop(context);
     }
+
+    resume_single_step(context);
+}
+
+fn run_target(context: *mut TargetContext, argument: &[u8]) -> ! {
+    let context = unsafe { &mut *context };
+    if context.mcause != StopReason::Breakpoint as u64 {
+        guest_error(b"GUEST-RUN-001", b"target is not stopped at a breakpoint");
+        monitor_loop(context);
+    }
+    let Some(budget) = parse_decimal(argument.trim_ascii()) else {
+        guest_error(b"GUEST-RUN-002", b"run expects a decimal instruction count");
+        monitor_loop(context);
+    };
+    if budget == 0 || budget > 100_000 {
+        guest_error(b"GUEST-RUN-003", b"run count must be between 1 and 100000");
+        monitor_loop(context);
+    }
+    unsafe {
+        core::ptr::write_volatile(core::ptr::addr_of_mut!(RUN_REMAINING), budget);
+    }
+    resume_single_step(context);
+}
+
+fn resume_single_step(context: *mut TargetContext) -> ! {
+    let context = unsafe { &mut *context };
 
     let current_pc = context.pc;
     let current_word = match target_load32(current_pc) {
