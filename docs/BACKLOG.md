@@ -2032,6 +2032,34 @@ confondre code présent et exigence formellement auditée.
 - **Paquet de contexte minimal :** `tools/accessibility-smoke.sh`,
   `examples/internal-first-step.rv`, SPEC §§17/20.
 
+#### QUAL-002D — Matrice CI Linux/macOS/Windows — TERMINÉ
+
+- **Jalon / exigences :** M9; NFR-006..010, REQ-PROD-002/005.
+- **But :** exécuter formatage, workspace et validation du package fuzz sur
+  trois familles d’hôte sans dépendre d’un benchmark identique.
+- **Non-but :** garantir les mêmes performances, lancer le transport série,
+  installer libFuzzer nightly ou remplacer les oracles ISA.
+- **Entrées/sources :** SPEC §20/23; `rust-toolchain.toml`; scripts QUAL-001
+  et QUAL-002C.
+- **Fichiers/modules :** `.github/workflows/quality.yml`.
+- **Étapes réalisées :** matrice GitHub Actions Linux/macOS/Windows; ajout
+  rustfmt explicite; `cargo fmt`, `cargo test --workspace`, metadata fuzz;
+  smoke scripts Unix conditionnels; permissions de contenu en lecture seule.
+- **Dépendances et tâches bloquées :** QUAL-001, QUAL-002A/C; runners arm64,
+  comparaison de performance et TTY réel restent à compléter.
+- **Tests :** validation locale du YAML et mêmes commandes sur Linux; preuve
+  distante obtenue lorsque GitHub Actions exécute le workflow.
+- **Critères de sortie :** chaque runner produit un résultat Cargo/fmt lisible;
+  Windows n’est pas artificiellement bloqué par les scripts Bash Unix.
+- **Cas limites et échecs :** composant rustfmt absent, test workspace échoué,
+  manifest fuzz invalide ou runner Unix sans shell attendu → job rouge.
+- **Taille :** 2 points / 1 journée-agent, incertitude moyenne.
+- **Compétences/outils :** GitHub Actions, Rust toolchains, CI matrix.
+- **Parallélisable :** oui avec QUAL-001/QUAL-002; non avec une modification
+  concurrente de la politique toolchain.
+- **Paquet de contexte minimal :** `.github/workflows/quality.yml`,
+  `rust-toolchain.toml`, `tools/*-smoke.sh`, SPEC §20.
+
 ### REL-001 — Release candidate et dossier de preuve
 
 - **Jalon / exigences :** M9; toutes exigences couvertes.

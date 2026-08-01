@@ -337,7 +337,7 @@ breakpoint permanent et le breakpoint temporaire du pas-à-pas est refusée.
 | Différentiel externe | Partiel | GNU/LLVM sont branchés sur sept encodages R1 ; Sail, Spike et SoftFloat restent à intégrer. |
 | Génératif/fuzzing | Smoke + corpus + reducer | `tools/fuzz-smoke.sh`, seeds versionnés, réducteur texte et cibles libFuzzer autonomes ; exécution nightly libFuzzer reste différée. |
 | E2E terminal | Partiel | Smoke test UART/QEMU et session TCP GDB RSP automatisés ; protocole interactif complet encore absent. |
-| Multi-plateforme | Instrumentation locale | Benchmark identifie OS/architecture et smoke accessibilité pipe ; matrice Linux/macOS/Windows et x86_64/arm64 reste à exécuter. |
+| Multi-plateforme | CI Linux/macOS/Windows | `.github/workflows/quality.yml` exécute fmt, workspace, manifest fuzz et smoke Unix ; runners ARM64 et comparaison de performance restent à exécuter. |
 
 ## Limites actuelles
 
