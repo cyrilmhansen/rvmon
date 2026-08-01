@@ -264,6 +264,7 @@ fn monitor_loop(context: *mut TargetContext) -> ! {
             b"snapshot save" | b"project-save" => save_guest_snapshot(context),
             b"snapshot restore" | b"project-load" => restore_guest_snapshot(context),
             b"snapshot info" => snapshot_info(),
+            b"snapshot manifest" => snapshot_manifest(),
             command if command.starts_with(b"snapshot dump ") => snapshot_dump(&command[14..]),
             command if command.starts_with(b"snapshot patch ") => snapshot_patch(&command[15..]),
             b"symbols" => print_symbols(),
@@ -296,7 +297,7 @@ fn monitor_loop(context: *mut TargetContext) -> ! {
 
 fn print_help() {
     uart_write(
-        "help/? regs/registers set <xreg> <hex64> setf <freg> <hex64> memory <addr> <length> edit <addr> <hex-bytes> data <addr> <directive> <bits> undo assemble <addr> <instruction> assemble-program <addr> ... end assemble-source source [line]|replace <n> <text> snapshot save|restore|info|dump|patch project-save|project-load symbols disasm <addr|label> <count> step/s run <count> continue/c break <addr|label> watch/rwatch/awatch <addr> <width> delete <n>|watch <n> info break/watch quit/q\r\n",
+        "help/? regs/registers set <xreg> <hex64> setf <freg> <hex64> memory <addr> <length> edit <addr> <hex-bytes> data <addr> <directive> <bits> undo assemble <addr> <instruction> assemble-program <addr> ... end assemble-source source [line]|replace <n> <text> snapshot save|restore|info|manifest|dump|patch project-save|project-load symbols disasm <addr|label> <count> step/s run <count> continue/c break <addr|label> watch/rwatch/awatch <addr> <width> delete <n>|watch <n> info break/watch quit/q\r\n",
     );
 }
 
@@ -1411,6 +1412,51 @@ fn snapshot_info() {
     uart_write("snapshot: valid workspace=65536 data=1048576 source-lines=");
     uart_decimal(source_count as u64);
     uart_write(" chunk-max=32\r\n");
+}
+
+fn snapshot_manifest() {
+    let snapshot = core::ptr::addr_of!(GUEST_SNAPSHOT);
+    let valid = unsafe { core::ptr::read_volatile(core::ptr::addr_of!((*snapshot).valid)) };
+    if !valid {
+        guest_error(b"GUEST-SNAPSHOT-002", b"no snapshot or project is saved");
+        return;
+    }
+    let source_count =
+        unsafe { core::ptr::read_volatile(core::ptr::addr_of!((*snapshot).source_count)) };
+    let workspace_crc = snapshot_crc32(true);
+    let data_crc = snapshot_crc32(false);
+    uart_write(
+        "snapshot-manifest format=RVSNAP01 workspace-size=65536 data-size=1048576 source-lines=",
+    );
+    uart_decimal(source_count as u64);
+    uart_write(" workspace-crc32=0x");
+    uart_hex(u64::from(workspace_crc));
+    uart_write(" data-crc32=0x");
+    uart_hex(u64::from(data_crc));
+    uart_write(" chunk-max=32\r\n");
+}
+
+fn snapshot_crc32(workspace: bool) -> u32 {
+    let snapshot = core::ptr::addr_of!(GUEST_SNAPSHOT);
+    let bytes = unsafe {
+        if workspace {
+            &(&(*snapshot).workspace)[..]
+        } else {
+            &(&(*snapshot).data)[..]
+        }
+    };
+    let mut crc = u32::MAX;
+    for byte in bytes {
+        crc ^= u32::from(*byte);
+        for _ in 0..8 {
+            crc = if crc & 1 != 0 {
+                (crc >> 1) ^ 0xedb8_8320
+            } else {
+                crc >> 1
+            };
+        }
+    }
+    !crc
 }
 
 fn snapshot_region_name(input: &[u8]) -> Option<bool> {

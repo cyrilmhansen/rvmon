@@ -400,14 +400,31 @@ confondre code présent et exigence formellement auditée.
 - **Non-but :** persistance hôte, compression, checksum de flux complet, plusieurs slots ou modification directe de la cible active.
 - **Entrées/sources :** SPEC §§12/18/21/22; contrat guest 4B; protocole UART du tutoriel guest.
 - **Fichiers/modules :** `crates/guest-monitor/src/main.rs`, `scripts/test-guest-snapshot.sh`, `docs/TUTORIAL-GUEST.md`, `docs/TESTS.md`.
-- **Étapes réalisées :** `snapshot info`; `snapshot dump <region> <offset> <length>`; `snapshot patch <region> <offset> <hex>`; régions workspace/data bornées; chunks limités à 32 octets; patch appliqué uniquement au slot jusqu’à `snapshot restore`.
+- **Étapes réalisées :** `snapshot info`; `snapshot manifest`; `snapshot dump <region> <offset> <length>`; `snapshot patch <region> <offset> <hex>`; régions workspace/data bornées; chunks limités à 32 octets; CRC-32 IEEE par région; patch appliqué uniquement au slot jusqu’à `snapshot restore`.
 - **Dépendances et tâches bloquées :** GUEST-007; le format persistant RVSNAP/RVPROJ et le transfert complet avec intégrité restent différés.
-- **Tests :** QEMU sauvegarde un mot little-endian, le lit, le patche dans le slot, vérifie l’octetage exporté, restaure, puis vérifie registre, mémoire, source et alias projet.
+- **Tests :** QEMU sauvegarde un mot little-endian, vérifie deux manifestes et le changement de CRC après patch, le lit, le patche dans le slot, refuse les chunks invalides, restaure, puis vérifie registre, mémoire, source et alias projet.
 - **Critères de sortie :** commande valide produisant une réponse déterministe; refus des régions, offsets, longueurs et hexadécimaux invalides; aucune mutation de la RAM active avant restauration.
 - **Cas limites et échecs :** snapshot absent, offset hors région, chunk vide, chunk de plus de 32 octets, hexadécimal impair ou trop long, frontière exacte de région.
 - **Taille :** 3 points / 1,5 journée-agent, incertitude faible.
 - **Compétences/outils :** Rust `no_std`, UART, QEMU, tests shell.
 - **Parallélisable :** oui avec le format projet host; non avec une modification concurrente de `GuestSnapshot`.
+- **Paquet de contexte minimal :** `crates/guest-monitor/src/main.rs`, `scripts/test-guest-snapshot.sh`, `docs/TUTORIAL-GUEST.md`, SPEC §§12/18/21.
+
+### GUEST-009 — Manifeste et intégrité des snapshots guest — TERMINÉ
+
+- **Jalon / exigences :** M8; IO-001..009, OBS-001..006, REQ-PROD-006.
+- **But :** permettre à l’hôte de vérifier qu’un transfert par blocs couvre exactement les deux régions du slot.
+- **Non-but :** rendre le guest responsable du stockage hôte, du protocole de reprise ou de la restauration directe d’un fichier.
+- **Entrées/sources :** SPEC §§12/18/21/22; profil de transport RVSNAP01; CRC-32 IEEE 802.3.
+- **Fichiers/modules :** `crates/guest-monitor/src/main.rs`, `scripts/test-guest-snapshot.sh`, `docs/TUTORIAL-GUEST.md`, `docs/TESTS.md`.
+- **Étapes réalisées :** commande `snapshot manifest`; tailles et compte source; CRC-32 séparé du workspace et de data; vérification du changement de CRC après patch.
+- **Dépendances et tâches bloquées :** GUEST-008; le flux hôte complet, l’accusé de réception par bloc et la persistance restent différés.
+- **Tests :** manifestes avant/après modification, CRC distincts, snapshot absent, offset hors région, longueur excessive et chaîne hexadécimale impaire.
+- **Critères de sortie :** CRC reproductible sur QEMU; manifestes machine-lisibles; erreurs stables; aucune mutation de la cible active.
+- **Cas limites et échecs :** région vide impossible, slot absent, frontière exacte, patch qui ne change pas les données et corruption détectée côté hôte.
+- **Taille :** 2 points / 1 journée-agent, incertitude faible.
+- **Compétences/outils :** Rust `no_std`, CRC-32, UART, shell, QEMU.
+- **Parallélisable :** oui avec le format persistant host; non avec une évolution concurrente de `GuestSnapshot`.
 - **Paquet de contexte minimal :** `crates/guest-monitor/src/main.rs`, `scripts/test-guest-snapshot.sh`, `docs/TUTORIAL-GUEST.md`, SPEC §§12/18/21.
 
 ## M3 — assembleur et désassembleur

@@ -351,6 +351,8 @@ d’archiver ou de reconstruire progressivement les deux régions capturées :
 ```text
 rvmonitor> snapshot info
 snapshot: valid workspace=65536 data=1048576 source-lines=1 chunk-max=32
+rvmonitor> snapshot manifest
+snapshot-manifest format=RVSNAP01 workspace-size=65536 data-size=1048576 source-lines=1 workspace-crc32=0x... data-crc32=0x... chunk-max=32
 rvmonitor> snapshot dump data 112 4
 snapshot-chunk data offset=112 length=4 hex=44332211
 rvmonitor> snapshot patch data 112 aabbccdd
@@ -365,7 +367,9 @@ suite hexadécimale de 1 à 32 octets. Le patch ne touche pas la mémoire cible
 active : il modifie uniquement le slot ; `snapshot restore` est nécessaire
 pour l’appliquer. Cette tranche fournit le transport UART déterministe, pas
 encore un fichier persistant, plusieurs slots ou la capture des 64 MiB
-complets.
+complets. `snapshot manifest` décrit le profil `RVSNAP01`, les tailles fixes
+et un CRC-32 IEEE indépendant pour chaque région ; l’hôte doit comparer ces
+valeurs après avoir transféré tous les blocs.
 
 ### Watchpoints logiciels
 
