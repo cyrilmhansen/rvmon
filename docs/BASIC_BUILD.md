@@ -63,3 +63,10 @@ peut être rejoué ainsi :
 ```text
 bash scripts/test-guest-payload-skeleton.sh
 ```
+
+La première primitive arithmétique du futur runtime assembleur est testée par
+`bash scripts/test-guest-expression-d.sh`. Elle charge trois `binary64`,
+exécute `fmul.d`, `fadd.d`, `fsub.d`, puis `fsd` et s’arrête sur `ebreak` pour
+inspecter les bits exacts. Cette étape ne fournit pas encore le lexer BASIC ni
+la conversion décimale ; elle prouve seulement que l’évaluation D pourra être
+faite dans le payload cible.

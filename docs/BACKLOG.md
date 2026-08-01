@@ -1860,6 +1860,37 @@ release. Elles n’ajoutent aucune extension ISA.
   la sortie depuis ses propres données et instructions D.
 - **Taille :** 8 points / 4 journées-agent, incertitude très élevée.
 
+#### BASIC-LOAD-003A — Primitive binary64 D dans le payload — TERMINÉ
+
+- **Priorité :** P0.
+- **But :** rendre le dialecte guest capable d’assembler `fld`, `fsd`,
+  `fsub.d` et `fmul.d`, puis d’exécuter une expression D dans U-mode.
+- **Non-but :** lexer BASIC, conversion décimale, variables ou sortie texte.
+- **Entrées :** R1 chapitre F/D, tables R2 `rv_d`, contrat `RVMPAY01`.
+- **Fichiers/modules :** `crates/guest-monitor/src/main.rs`, fixture
+  `examples/minibasic-expression-d.rv`, test QEMU associé.
+- **Dépendances :** BASIC-LOAD-002 ; prépare BASIC-LOAD-003B.
+- **Tests :** chargement de 2, 3 et 4 en binary64, `fmul.d` (12), `fadd.d`
+  (14), `fsub.d` (10), stockage et comparaison des motifs exacts/fcsr.
+- **Acceptation :** le résultat `2+3*4` et les opérations intermédiaires sont
+  produits par les instructions D du payload, sans calcul hôte ni sortie
+  préenregistrée.
+- **Taille :** 3 points / 1,5 journée-agent, incertitude faible.
+
+#### BASIC-LOAD-003B — Conversion binary64 vers affichage décimal cible
+
+- **Priorité :** P0, prochaine sous-tranche.
+- **But :** ajouter une conversion bornée target-side compatible avec le format
+  V1, afin que `PRINT` puisse afficher un résultat sans aide de l’hôte.
+- **Non-but :** dtoa général illimité ou compatibilité de toutes les locales.
+- **Dépendances :** BASIC-LOAD-003A, ABI `write-buffer` ; bloque le lexer
+  d’expressions et le `PRINT` chargé.
+- **Tests :** 14, 22/7, ±0, valeurs entières, six décimales, buffer plein et
+  absence de conversion hôte.
+- **Acceptation :** la chaîne produite par le payload est déterministe et est
+  envoyée uniquement par ecall.
+- **Taille :** 5 points / 2,5 journées-agent, incertitude élevée.
+
 ### BASIC-LOAD-004 — Porter le magasin de lignes et le contrôle de flot
 
 - **Priorité :** P0.

@@ -1,0 +1,21 @@
+data 0x82000000 .double 0x4000000000000000
+data 0x82000008 .double 0x4008000000000000
+data 0x82000010 .double 0x4010000000000000
+assemble-program 0x81000100
+entry:
+auipc x5,0x1000
+addi x5,x5,-256
+fld f1,0(x5)
+fld f2,8(x5)
+fld f3,16(x5)
+fmul.d f4,f2,f3
+fadd.d f5,f1,f4
+fsub.d f6,f4,f1
+fsd f5,24(x5)
+fsd f6,32(x5)
+ebreak
+end
+run-at 0x81000100
+regs
+memory 0x82000018 16
+q

@@ -65,7 +65,7 @@ for expected in \
     'ld x3,-8(x4)' \
     'x31=0x' \
     'f31=0x' \
-    'source mode: enter integer/control, ld/sd, fadd.s/fadd.d or fmv lines, finish with end' \
+    'source mode: enter integer/control, ld/sd/fld/fsd, f arithmetic or fmv lines, finish with end' \
     "assembled program: 8 instruction(s) at $assembly_address_full" \
     "edited 4 byte(s) at $edit_address_full" \
     "$edit_address_full: de ad be ef" \

@@ -245,7 +245,7 @@ Chaque ligne est validée avant toute écriture ; `end` termine la saisie :
 
 ```text
 rvmonitor> assemble-program 0x80010a30
-source mode: enter integer/control, lui/auipc, ld/sd, fadd.s/fadd.d or fmv lines, finish with end
+source mode: enter integer/control, lui/auipc, ld/sd/fld/fsd, f arithmetic or fmv lines, finish with end
 source> _start:
 source> addi x1,x0,1
 source> beq x1,x1,next
@@ -282,7 +282,7 @@ rvmonitor> assemble-program 0x81000100
 source> addi x1,x0,7
 source> not-an-instruction x1
 source> end
-error [GUEST-ASM-008] source line 2: supports integer/control, ld/sd, fadd.s/fadd.d or fmv syntax
+error [GUEST-ASM-008] source line 2: supports integer/control, ld/sd/fld/fsd, f arithmetic or fmv syntax
 ```
 
 Le parseur invité accepte `addi`, `lui`, `auipc`, `beq`, `bne`, `jal`, `jalr`, `ld`, `sd`,

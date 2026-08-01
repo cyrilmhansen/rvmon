@@ -1167,7 +1167,7 @@ fn assemble_program_command(context: *mut TargetContext, argument: &[u8]) {
     }
 
     uart_write(
-        "source mode: enter integer/control, ld/sd, fadd.s/fadd.d or fmv lines, finish with end\r\n",
+        "source mode: enter integer/control, ld/sd/fld/fsd, f arithmetic or fmv lines, finish with end\r\n",
     );
     let mut lines = [[0u8; COMMAND_CAPACITY]; MAX_SOURCE_LINES];
     let mut lengths = [0usize; MAX_SOURCE_LINES];
@@ -1281,7 +1281,7 @@ fn assemble_program_command(context: *mut TargetContext, argument: &[u8]) {
             guest_source_error(
                 index + 1,
                 b"GUEST-ASM-008",
-                b"supports integer/control, ld/sd, fadd.s/fadd.d or fmv syntax",
+                b"supports integer/control, ld/sd/fld/fsd, f arithmetic or fmv syntax",
             );
             return;
         };
@@ -2362,7 +2362,7 @@ fn assemble_source_buffer(
             guest_source_error(
                 index + 1,
                 b"GUEST-ASM-008",
-                b"supports integer/control, ld/sd, fadd.s/fadd.d or fmv syntax",
+                b"supports integer/control, ld/sd/fld/fsd, f arithmetic or fmv syntax",
             );
             monitor_loop(context);
         };
@@ -2440,14 +2440,25 @@ fn parse_source_instruction(
     if let Some(operands) = source.strip_prefix(b"sd ") {
         return parse_load_store_operands("sd", operands, symbols);
     }
-    if let Some(operands) = source.strip_prefix(b"fadd.s ") {
-        return parse_fadd_operands("fadd.s", operands);
+    if let Some(operands) = source.strip_prefix(b"fld ") {
+        return parse_float_load_store_operands("fld", operands, symbols);
     }
-    if let Some(operands) = source.strip_prefix(b"fadd.d ") {
-        return parse_fadd_operands("fadd.d", operands);
+    if let Some(operands) = source.strip_prefix(b"fsd ") {
+        return parse_float_load_store_operands("fsd", operands, symbols);
     }
-    if let Some(operands) = source.strip_prefix(b"fdiv.d ") {
-        return parse_fadd_operands("fdiv.d", operands);
+    for (prefix, mnemonic) in [
+        (b"fadd.s " as &[u8], "fadd.s"),
+        (b"fadd.d ", "fadd.d"),
+        (b"fsub.s ", "fsub.s"),
+        (b"fsub.d ", "fsub.d"),
+        (b"fmul.s ", "fmul.s"),
+        (b"fmul.d ", "fmul.d"),
+        (b"fdiv.s ", "fdiv.s"),
+        (b"fdiv.d ", "fdiv.d"),
+    ] {
+        if let Some(operands) = source.strip_prefix(prefix) {
+            return parse_fadd_operands(mnemonic, operands);
+        }
     }
     for mnemonic in ["add", "sub", "mul", "div"] {
         if let Some(operands) = source.strip_prefix(mnemonic.as_bytes()) {
@@ -2561,6 +2572,24 @@ fn parse_load_store_operands(
             base,
             offset,
         )
+    }
+}
+
+fn parse_float_load_store_operands(
+    mnemonic: &str,
+    operands: &[u8],
+    symbols: &[GuestSymbol; MAX_SYMBOLS],
+) -> Option<u32> {
+    let (register_bytes, rest) = split_once_comma(operands)?;
+    let rest = rest.trim_ascii().strip_suffix(b")")?;
+    let (offset_bytes, base_bytes) = split_once_left_paren(rest)?;
+    let offset = parse_signed_decimal_or_symbol(offset_bytes.trim_ascii(), symbols)?;
+    let base = parse_register(base_bytes.trim_ascii())?;
+    let register = parse_float_register(register_bytes.trim_ascii())?;
+    if mnemonic == "fld" {
+        luna_isa_core::encode_load(mnemonic, register, base, offset)
+    } else {
+        luna_isa_core::encode_store(mnemonic, register, base, offset)
     }
 }
 
