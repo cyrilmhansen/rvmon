@@ -1877,6 +1877,33 @@ confondre code présent et exigence formellement auditée.
 - **Paquet de contexte minimal :** `tests/fuzz/seeds/*`, test seed corpus,
   `tools/fuzz-smoke.sh`, SPEC §23.
 
+#### QUAL-001C — Réducteur de contre-exemples texte — TERMINÉ
+
+- **Jalon / exigences :** M9; REQ-PROD-002/004, OBS-001..006.
+- **But :** réduire automatiquement un cas de commandes ou diagnostics en
+  conservant un prédicat externe de reproduction.
+- **Non-but :** réduire des binaires, comprendre la cause sémantique ou
+  remplacer un oracle indépendant.
+- **Entrées/sources :** SPEC §§19/21/23; corpus `tests/fuzz/seeds`.
+- **Fichiers/modules :** `tools/reduce-fuzz-case.sh`, README fuzz.
+- **Étapes réalisées :** vérifier d’abord que le checker reproduit le cas;
+  supprimer gloutonnement chaque ligne conservant le succès; produire un
+  fichier minimal et déterministe; nettoyer les temporaires même sur erreur.
+- **Dépendances et tâches bloquées :** QUAL-001A/B; réduction binaire et
+  intégration libFuzzer restent différées.
+- **Tests :** seed avec checker `grep`, cas non reproductible refusé et sortie
+  réduite rejouable.
+- **Critères de sortie :** aucun retrait accepté si le checker échoue; le
+  fichier produit est lisible et le checker y reste positif.
+- **Cas limites et échecs :** entrée absente, arguments incomplets, checker
+  négatif, seed vide et lignes dupliquées sont traités sans perte silencieuse.
+- **Taille :** 2 points / 1 journée-agent, incertitude faible.
+- **Compétences/outils :** shell POSIX, réduction delta, tests reproductibles.
+- **Parallélisable :** oui avec FORMAT-001; non avec une modification du
+  contrat d’artefact fuzz.
+- **Paquet de contexte minimal :** `tools/reduce-fuzz-case.sh`,
+  `tests/fuzz/README.md`, SPEC §23.
+
 ### QUAL-002 — Benchmarks, multi-plateforme et accessibilité
 
 - **Jalon / exigences :** M9; NFR-001..010.
