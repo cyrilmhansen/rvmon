@@ -510,6 +510,35 @@ confondre code présent et exigence formellement auditée.
   `scripts/test-guest-*.sh`, `scripts/test-guest-snapshot-binary.sh`,
   `docs/TUTORIAL-GUEST.md`.
 
+### GUEST-015 — Tampon logiciel de réception UART — TERMINÉ
+
+- **Jalon / exigences :** M8/M9; IO-001..004, REQ-PROD-004, REQ-ISO-003.
+- **But :** regrouper les octets déjà présents dans le FIFO NS16550 avant leur
+  consommation par la console ou par un payload `snapshot patchbin`.
+- **Non-but :** modifier la grammaire, ajouter des interruptions/DMA ou
+  prétendre fournir une compression.
+- **Entrées/sources :** QEMU `virt` NS16550; contrat `snapshot binary ready`;
+  SPEC §§9/12/18/21.
+- **Fichiers/modules :** `crates/guest-monitor/src/main.rs`, tests QEMU et
+  documentation UART.
+- **Étapes réalisées :** tampon RX de 64 octets; remplissage bloquant sur le
+  premier octet puis drainage des octets disponibles; réutilisation implicite
+  par `uart_read_line` et la réception binaire.
+- **Dépendances :** GUEST-014; compression RLE/delta, reprise et débit
+  instrumenté restent différés.
+- **Tests :** scénarios console pipe, snapshot binaire TCP, export TCP, suite
+  workspace et contrôle R2.
+- **Critères de sortie :** aucun octet perdu, ordre conservé, payload de
+  longueur exacte accepté et mêmes réponses fonctionnelles qu'avant.
+- **Cas limites et échecs :** tampon plein, FIFO vide, payload supérieur à 64
+  octets, EOF/timeout et octets de commandes préchargés.
+- **Taille :** 2 points / 0,5 journée-agent, incertitude faible.
+- **Compétences/outils :** Rust `no_std`, NS16550, QEMU, tests shell.
+- **Parallélisable :** oui avec l'intégration metadata; non avec une autre
+  modification des primitives UART.
+- **Paquet de contexte minimal :** `crates/guest-monitor/src/main.rs`,
+  `scripts/test-guest-snapshot-binary.sh`, `docs/TUTORIAL-GUEST.md`.
+
 ### GUEST-013 — Contrat metadata RVSNAP01 — TERMINÉ
 
 - **Jalon / exigences :** M8; IO-001..009, OBS-001..006, REQ-PROD-006.

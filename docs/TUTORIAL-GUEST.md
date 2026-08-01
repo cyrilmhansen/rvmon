@@ -71,6 +71,8 @@ Au démarrage, le moniteur active le FIFO RX/TX du NS16550 virtuel avec le
 seuil minimal d'un octet. Le pilote reste volontairement simple et lit les
 octets par polling, mais les caractères reçus peuvent désormais être
 tamponnés par le périphérique pendant que le moniteur traite une commande.
+Le moniteur les regroupe ensuite dans un tampon logiciel de 64 octets, utilisé
+par la console et par les payloads binaires.
 Pour les scripts ou un autre hôte, attendre l'invite `rvmonitor> ` avant
 d'envoyer la première commande : envoyer des octets dès le lancement de QEMU
 peut sinon les soumettre avant l'initialisation du périphérique.

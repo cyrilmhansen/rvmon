@@ -17,6 +17,7 @@ const UART_FCR_ENABLE_FIFO: u8 = 1 << 0;
 const UART_FCR_TRIGGER_1: u8 = 0;
 const UART_LSR_DATA_READY: u8 = 1 << 0;
 const UART_LSR_EMPTY: u8 = 1 << 5;
+const UART_RX_BUFFER_CAPACITY: usize = 64;
 const COMMAND_CAPACITY: usize = 96;
 const TARGET_RAM_START: u64 = 0x8000_0000;
 const TARGET_RAM_END: u64 = 0x8400_0000;
@@ -54,6 +55,9 @@ static mut MEMORY_UNDO: MemoryUndo = MemoryUndo::empty();
 static mut GUEST_SNAPSHOT: GuestSnapshot = GuestSnapshot::empty();
 static mut SNAPSHOT_BINARY_PATCH: [u8; MAX_SNAPSHOT_DUMP as usize] =
     [0; MAX_SNAPSHOT_DUMP as usize];
+static mut UART_RX_BUFFER: [u8; UART_RX_BUFFER_CAPACITY] = [0; UART_RX_BUFFER_CAPACITY];
+static mut UART_RX_LENGTH: usize = 0;
+static mut UART_RX_INDEX: usize = 0;
 static TARGET_STACK: [u8; 8192] = [0; 8192];
 
 #[derive(Clone, Copy)]
@@ -2926,9 +2930,25 @@ fn uart_put(byte: u8) {
 }
 
 fn uart_get() -> u8 {
-    while unsafe { core::ptr::read_volatile((UART_BASE + UART_LSR) as *const u8) }
-        & UART_LSR_DATA_READY
-        == 0
-    {}
-    unsafe { core::ptr::read_volatile(UART_BASE as *const u8) }
+    unsafe {
+        if UART_RX_INDEX == UART_RX_LENGTH {
+            UART_RX_INDEX = 0;
+            UART_RX_LENGTH = 0;
+            while core::ptr::read_volatile((UART_BASE + UART_LSR) as *const u8)
+                & UART_LSR_DATA_READY
+                == 0
+            {}
+            while UART_RX_LENGTH < UART_RX_BUFFER_CAPACITY
+                && core::ptr::read_volatile((UART_BASE + UART_LSR) as *const u8)
+                    & UART_LSR_DATA_READY
+                    != 0
+            {
+                UART_RX_BUFFER[UART_RX_LENGTH] = core::ptr::read_volatile(UART_BASE as *const u8);
+                UART_RX_LENGTH += 1;
+            }
+        }
+        let byte = UART_RX_BUFFER[UART_RX_INDEX];
+        UART_RX_INDEX += 1;
+        byte
+    }
 }
