@@ -57,6 +57,20 @@ A
 target exit status=0
 ```
 
+Une fixture complète et reproductible est fournie dans
+[`examples/minibasic-payload-skeleton.rv`](../examples/minibasic-payload-skeleton.rv).
+Elle montre la séquence actuelle : écriture de données dans la région cible,
+labels `entry`/`payload_exit`, `lui`, `ld`/`sd`, `jal`, appels ecall, listing
+des symboles, désassemblage, `run-at` et inspection mémoire. Le test QEMU
+correspondant est `bash scripts/test-guest-payload-skeleton.sh`.
+
+Cette fixture n’est pas encore un MiniBASIC : elle constitue le squelette
+assembleur utilisateur et son oracle de chargement. Le dialecte guest ne
+possède pas encore de directive de section `.text`/`.data` dans une même
+session ; la donnée est donc déposée explicitement par `data` avant
+l’assemblage du texte. Le futur chargeur `assemble-load` devra réunir ces
+sections atomiquement.
+
 `run-at` est un lanceur de payload, pas encore un chargeur de fichier : le
 source est toujours saisi par `assemble-program`. La commande valide l’adresse
 et réinitialise le contexte avant le saut ; une entrée hors workspace, non

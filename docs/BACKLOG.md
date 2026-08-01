@@ -1829,7 +1829,7 @@ release. Elles n’ajoutent aucune extension ISA.
   depuis l’image guest et aucun résultat dépendant d’une adresse codée en dur.
 - **Taille :** 2 points / 1 journée-agent, incertitude moyenne.
 
-### BASIC-LOAD-002 — Extraire et inspecter le squelette assembleur du runtime
+### BASIC-LOAD-002 — Extraire et inspecter le squelette assembleur du runtime — TERMINÉ
 
 - **Priorité :** P0.
 - **But :** produire un squelette RV64 accepté par l’assembleur guest avec
@@ -1837,9 +1837,13 @@ release. Elles n’ajoutent aucune extension ISA.
 - **Non-but :** prétendre que le désassemblage Rust constitue la source finale.
 - **Entrées :** ABI BASIC-LOAD-001, `nm`/`objdump`, assembleur guest actuel.
 - **Dépendances :** BASIC-LOAD-001 ; bloque BASIC-LOAD-003.
-- **Tests :** assemble→load→`run-at`, symbole d’entrée, ecall console et exit.
+- **Tests :** `bash scripts/test-guest-payload-skeleton.sh`; assemble→load→
+  `run-at`, labels, `jal`, `ld`/`sd`, ecall console/exit, listing et mémoire.
+- **Étapes réalisées :** fixture `examples/minibasic-payload-skeleton.rv`,
+  chargement sous QEMU, carte des symboles `entry`/`payload_exit`, et
+  construction d’adresse distante par `auipc`/`addi` sans immédiat LUI signé.
 - **Acceptation :** un payload assembleur minimal est chargé et exécuté sous
-  QEMU, avec listing et carte de symboles reproductibles.
+  QEMU, avec listing, carte de symboles et données observables reproductibles.
 - **Taille :** 4 points / 2 journées-agent, incertitude élevée.
 
 ### BASIC-LOAD-003 — Ajouter les primitives assembleur du runtime BASIC

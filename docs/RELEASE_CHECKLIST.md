@@ -42,7 +42,8 @@
 ## Débogueur et interaction
 
 - [x] Campagne E2E guest/QEMU disponible et rapportée dans
-      `docs/release/E2E-REPORT.md` : 14/14 scripts PASS.
+      `docs/release/E2E-REPORT.md` : 14/14 scripts PASS dans le dernier
+      rapport historique ; le smoke de payload est validé séparément.
 - [ ] Couverture exhaustive des scénarios SPEC 1–14 et rapport complet encore
       à produire.
 - [ ] Code↔hex↔ASCII conserve adresse ; marks/QuickJump fonctionnent.

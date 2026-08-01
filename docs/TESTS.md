@@ -48,7 +48,7 @@ La commande complète reste :
 
     bash tools/e2e-release-smoke.sh --strict
 
-Elle exécute les quatorze scripts E2E UART, payloads, MiniBASIC, snapshots,
+Elle exécute les quinze scripts E2E UART, payloads, MiniBASIC, snapshots,
 watchpoints, guest et GDB
 RSP présents dans `scripts/`. Elle est volontairement séparée de l’audit court
 ; `RELEASE_E2E=1 bash tools/release-audit.sh --strict-oracles` la rend

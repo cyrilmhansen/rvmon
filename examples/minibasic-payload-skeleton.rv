@@ -1,0 +1,22 @@
+info payload
+data 0x82000000 .dword 0x2a
+assemble-program 0x81000100
+entry:
+auipc x5,0x1000
+addi x5,x5,-256
+addi x6,x0,42
+sd x6,0(x5)
+ld x10,0(x5)
+addi x17,x0,1
+ecall
+jal x1,payload_exit
+payload_exit:
+addi x10,x0,0
+addi x17,x0,3
+ecall
+end
+symbols
+disasm 0x81000100 10
+run-at 0x81000100
+memory 0x82000000 8
+q

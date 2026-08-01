@@ -56,3 +56,10 @@ rvmonitor> run-at 0x81000100
 `run-at` lance ce payload U-mode déjà assemblé. Le contrat est décrit dans
 [`GUEST_PAYLOAD_ABI.md`](GUEST_PAYLOAD_ABI.md) ; le remplacement de MiniBASIC
 résident par un payload BASIC assembleur est une étape ultérieure.
+
+Le squelette assembleur utilisateur, indépendant du runtime Rust résident,
+peut être rejoué ainsi :
+
+```text
+bash scripts/test-guest-payload-skeleton.sh
+```

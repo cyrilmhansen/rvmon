@@ -28,6 +28,11 @@ Commande : `bash tools/e2e-release-smoke.sh --strict`
 
 Résultat global : **14/14 PASS, 0 skip, 0 échec**.
 
+Le nouveau smoke `test-guest-payload-skeleton.sh` passe également seul, mais
+n’est pas inclus dans ce rapport de campagne historique ; une nouvelle
+campagne complète devra être enregistrée après stabilisation du smoke guest
+historique.
+
 Ce rapport ne prétend pas couvrir à lui seul tous les scénarios SPEC 1–14,
 la couverture seuil release ni les preuves Sail/Spike. Ces écarts restent
 référencés dans `WAIVERS.md`.
