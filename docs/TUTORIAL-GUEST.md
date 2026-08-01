@@ -14,11 +14,11 @@ terminal                           <-- commandes et diagnostics UART
 ```
 
 Ce binaire invité est actuellement un moniteur de démarrage et de débogage
-minimal. Il fournit déjà l’inspection des registres, la lecture mémoire et
-des commandes `assemble` et `assemble-program` limitées à `addi`, `lui`,
-`beq`, `bne`, `jal`, `jalr`, `ld`, `sd`, `fadd.s`, `fadd.d`, `fmv.w.x` et
-`fmv.x.w`. Les vues, les directives et les snapshots restent à porter. Le
-programme U-mode de
+minimal. Il fournit déjà l’inspection des registres, les vues mémoire hex/ASCII,
+les directives de données exactes et des commandes `assemble` et
+`assemble-program` limitées à `addi`, `lui`, `beq`, `bne`, `jal`, `jalr`, `ld`,
+`sd`, `fadd.s`, `fadd.d`, `fmv.w.x` et `fmv.x.w`. Les vues avancées, les
+watchpoints, l’historique et les snapshots restent à porter. Le programme U-mode de
 démonstration est lié dans l’image et sert à valider les traps, les
 breakpoints logiciels et le pas-à-pas.
 
@@ -78,7 +78,7 @@ La commande `help` affiche la grammaire actuellement implémentée :
 
 ```text
 rvmonitor> help
-help/? regs/registers setf <freg> <hex64> memory <addr> <length> edit <addr> <hex-bytes> data <addr> <directive> <bits> undo assemble <addr> <instruction> assemble-program <addr> ... end symbols disasm <addr|label> <count> step/s continue/c break <addr|label> delete <n> info break quit/q
+help/? regs/registers set <xreg> <hex64> setf <freg> <hex64> memory <addr> <length> edit <addr> <hex-bytes> data <addr> <directive> <bits> undo assemble <addr> <instruction> assemble-program <addr> ... end symbols disasm <addr|label> <count> step/s continue/c break <addr|label> delete <n> info break quit/q
 ```
 
 ### Lire les registres
@@ -377,10 +377,12 @@ watch, rwatch, history, project-save, project-load, snapshot, restore
 ```
 
 Le cycle d’une ligne et le source buffer multi-ligne existent désormais pour
-`addi`, les branches, les sauts et `fadd.s`/`fadd.d` avec résolution de labels,
-ainsi que le désassemblage des mots 32 bits. Les expressions générales et
-directives restent à venir, en conservant le moniteur M-mode et le programme
-cible U-mode séparés.
+`addi`, les branches, les sauts, les loads/stores 64 bits et
+`fadd.s`/`fadd.d` avec résolution de labels, ainsi que le désassemblage des
+mots 32 bits. Les expressions générales, les macros, les directives dans le
+source assembleur et les snapshots restent à venir, en conservant le moniteur
+M-mode et le programme cible U-mode séparés. Les directives `data` documentées
+plus haut sont déjà disponibles pour écrire une valeur isolée en mémoire.
 
 ## 6. Différence avec les deux autres parcours
 
