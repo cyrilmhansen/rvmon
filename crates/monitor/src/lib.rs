@@ -98,12 +98,16 @@ pub struct Monitor {
     history: Vec<HistoryEntry>,
     call_stack: Vec<CallFrame>,
     source_text: String,
+    register_baseline: register_view::RegisterSnapshot,
 }
 
 impl Monitor {
     pub fn new(memory_size: usize) -> Self {
+        let machine = Machine::new(memory_size);
+        let register_baseline =
+            register_view::RegisterSnapshot::from_context(&TargetBackend::context(&machine));
         Self {
-            machine: Machine::new(memory_size),
+            machine,
             symbols: BTreeMap::new(),
             max_run_steps: 1000,
             view_address: 0,
@@ -116,6 +120,7 @@ impl Monitor {
             history: Vec::new(),
             call_stack: Vec::new(),
             source_text: String::new(),
+            register_baseline,
         }
     }
 
@@ -166,6 +171,9 @@ impl Monitor {
             "project-load" => self.project_load_file(argument),
             "reset" => {
                 self.machine = Machine::new(self.machine.memory_size());
+                self.register_baseline = register_view::RegisterSnapshot::from_context(
+                    &TargetBackend::context(&self.machine),
+                );
                 self.symbols.clear();
                 self.view_address = 0;
                 self.undo.clear();
@@ -218,6 +226,8 @@ impl Monitor {
         self.machine = Machine::new(self.machine.memory_size());
         self.machine.load(image.entry, &image.text)?;
         self.machine.pc = image.entry;
+        self.register_baseline =
+            register_view::RegisterSnapshot::from_context(&TargetBackend::context(&self.machine));
         self.symbols = image
             .symbols
             .into_iter()
@@ -294,6 +304,8 @@ impl Monitor {
 
     fn apply_snapshot(&mut self, decoded: DecodedSnapshot) {
         self.machine = decoded.machine;
+        self.register_baseline =
+            register_view::RegisterSnapshot::from_context(&TargetBackend::context(&self.machine));
         self.symbols = decoded.symbols;
         self.marks = decoded.marks;
         self.breakpoints = decoded.breakpoints;
@@ -359,6 +371,7 @@ impl Monitor {
         let registers_before =
             register_view::RegisterSnapshot::from_context(&TargetBackend::context(&self.machine));
         let outcome = TargetBackend::step(&mut self.machine)?;
+        self.register_baseline = registers_before;
         let register_changes = register_view::format_changes(
             registers_before,
             register_view::RegisterSnapshot::from_context(&TargetBackend::context(&self.machine)),
@@ -399,6 +412,8 @@ impl Monitor {
     }
 
     fn run_with_limit(&mut self, limit: u64, bypass_current_breakpoint: bool) -> Result<String> {
+        self.register_baseline =
+            register_view::RegisterSnapshot::from_context(&TargetBackend::context(&self.machine));
         let start = self.machine.instructions;
         let mut bypass =
             bypass_current_breakpoint && self.breakpoints.contains_key(&self.machine.pc);
@@ -1147,8 +1162,13 @@ impl Monitor {
                 let register = row * 4 + column;
                 write!(
                     output,
-                    "x{register:02}=0x{:016x}  ",
-                    self.machine.x[register]
+                    "x{register:02}=0x{:016x}{}  ",
+                    self.machine.x[register],
+                    if self.register_baseline.x[register] != self.machine.x[register] {
+                        " *"
+                    } else {
+                        ""
+                    }
                 )
                 .unwrap();
             }
@@ -1162,8 +1182,15 @@ impl Monitor {
                 let double = self.machine.format_f64(register)?;
                 writeln!(
                     output,
-                    "f{register:02}=0x{:016x}  s:{}={} {:?}  d:{}={} {:?}",
+                    "f{register:02}=0x{:016x}{}  s:{}={} {:?}  d:{}={} {:?}",
                     self.machine.f[register as usize],
+                    if self.register_baseline.f[register as usize]
+                        != self.machine.f[register as usize]
+                    {
+                        " *"
+                    } else {
+                        ""
+                    },
                     single.exact_hex,
                     single.shortest_decimal,
                     single.class,
@@ -1176,8 +1203,13 @@ impl Monitor {
         }
         writeln!(
             output,
-            "fcsr=0x{:08x} frm={} fflags={}",
+            "fcsr=0x{:08x}{} frm={} fflags={}",
             self.machine.fcsr,
+            if self.register_baseline.fcsr != self.machine.fcsr {
+                " *"
+            } else {
+                ""
+            },
             self.machine.frm(),
             format_flags(self.machine.fflags())
         )
@@ -1248,6 +1280,7 @@ pub struct BackendConsole<B> {
     history: Vec<HistoryEntry>,
     next_history_sequence: u64,
     max_run_steps: u64,
+    register_baseline: register_view::RegisterSnapshot,
 }
 
 impl<B> BackendConsole<B>
@@ -1257,6 +1290,7 @@ where
 {
     pub fn new(backend: B) -> Self {
         let view_address = backend.context().pc;
+        let register_baseline = register_view::RegisterSnapshot::from_context(&backend.context());
         Self {
             backend,
             source_text: String::new(),
@@ -1270,6 +1304,7 @@ where
             history: Vec::new(),
             next_history_sequence: 1,
             max_run_steps: 1000,
+            register_baseline,
         }
     }
 
@@ -1378,6 +1413,7 @@ where
         let registers_before =
             register_view::RegisterSnapshot::from_context(&self.backend.context());
         let outcome = self.backend.step().map_err(target_error)?;
+        self.register_baseline = registers_before;
         let register_changes = register_view::format_changes(
             registers_before,
             register_view::RegisterSnapshot::from_context(&self.backend.context()),
@@ -1423,6 +1459,8 @@ where
     }
 
     fn run_with_limit(&mut self, limit: u64, bypass_current: bool) -> Result<String> {
+        self.register_baseline =
+            register_view::RegisterSnapshot::from_context(&self.backend.context());
         let mut bypass =
             bypass_current && self.breakpoints.contains_key(&self.backend.context().pc);
         let mut executed = 0u64;
@@ -1487,7 +1525,17 @@ where
         for row in 0..8 {
             for column in 0..4 {
                 let register = row * 4 + column;
-                write!(output, "x{register:02}=0x{:016x}  ", context.x[register]).unwrap();
+                write!(
+                    output,
+                    "x{register:02}=0x{:016x}{}  ",
+                    context.x[register],
+                    if self.register_baseline.x[register] != context.x[register] {
+                        " *"
+                    } else {
+                        ""
+                    }
+                )
+                .unwrap();
             }
             output.push('\n');
         }
@@ -1495,15 +1543,30 @@ where
         for row in 0..8 {
             for column in 0..4 {
                 let register = row * 4 + column;
-                write!(output, "f{register:02}=0x{:016x}  ", context.f[register]).unwrap();
+                write!(
+                    output,
+                    "f{register:02}=0x{:016x}{}  ",
+                    context.f[register],
+                    if self.register_baseline.f[register] != context.f[register] {
+                        " *"
+                    } else {
+                        ""
+                    }
+                )
+                .unwrap();
             }
             output.push('\n');
         }
         writeln!(
             output,
-            "pc=0x{:016x} fcsr=0x{:08x} capabilities={:?}",
+            "pc=0x{:016x} fcsr=0x{:08x}{} capabilities={:?}",
             context.pc,
             context.fcsr,
+            if self.register_baseline.fcsr != context.fcsr {
+                " *"
+            } else {
+                ""
+            },
             self.backend.capabilities()
         )
         .unwrap();
@@ -2482,7 +2545,7 @@ fn help() -> String {
         "restore <path>       restore a snapshot atomically",
         "project-save <path>  save source plus state",
         "project-load <path>  restore a project",
-        "regs                 show x/f registers and fcsr exactly",
+        "regs                 show x/f/fcsr exactly (* = changed since stop)",
         "disasm-mixed [addr] c:n,d:n,...  disassemble marked code/data",
         "disasm-mixed-c [addr] c:n,d:n,...  allow compressed 16-bit code",
         "reset                reset machine state",
@@ -3004,7 +3067,7 @@ mod tests {
             monitor
                 .execute("regs")
                 .unwrap()
-                .contains("x01=0x0000000000000001")
+                .contains("x01=0x0000000000000001 *")
         );
     }
 
@@ -3049,6 +3112,7 @@ mod tests {
         );
         let registers = monitor.execute("regs").unwrap();
         assert!(registers.contains("0x40700000"));
+        assert!(registers.contains("f03=0xffffffff40700000 *"));
         assert!(registers.contains("s:0x40700000=3.75"));
         assert!(registers.contains("fcsr=0x00000000"));
     }
@@ -3090,6 +3154,12 @@ mod tests {
             "fcsr=0x00000051 frm=2 fflags=NV|NX"
         );
         assert_eq!(monitor.machine.fcsr, 0x51);
+        assert!(
+            monitor
+                .execute("regs")
+                .unwrap()
+                .contains("fcsr=0x00000051 *")
+        );
         let error = monitor.execute("setcsr frm 7").unwrap_err();
         assert_eq!(error.code, "MON-REG-011");
         assert_eq!(monitor.machine.fcsr, 0x51);
@@ -3484,7 +3554,7 @@ mod tests {
             console
                 .execute("regs")
                 .unwrap()
-                .contains("x01=0x0000000000000001")
+                .contains("x01=0x0000000000000001 *")
         );
         assert_eq!(
             console.execute("delete 1").unwrap(),

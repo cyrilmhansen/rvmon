@@ -967,6 +967,23 @@ Une tâche est terminée seulement si sa condition de sortie est satisfaite.
 - **Parallélisable :** oui avec la préparation de l’interface; non avec une modification concurrente du format `fcsr`.
 - **Paquet de contexte minimal :** SPEC §§8/15/16, R1 chapitre F, `crates/monitor/src/register_view.rs`.
 
+### REG-001D — Surligner les registres modifiés dans la vue `regs` — TERMINÉ
+
+- **Jalon / exigences :** M7; REQ-DBG-004, REQ-DBG-008, REQ-OBS-001.
+- **But :** rendre visibles dans les consoles host et backend les registres modifiés depuis le dernier arrêt, sans altérer leur représentation exacte.
+- **Non-but :** introduire une bibliothèque TUI, modifier le protocole QEMU ou rendre l’édition distante accessible.
+- **Entrées/sources :** SPEC §§15/16/21; contrat `TargetContext`; format de delta REG-001B.
+- **Fichiers/modules :** `crates/monitor/src/lib.rs`, `crates/monitor/src/register_view.rs`, `docs/TESTS.md`.
+- **Étapes réalisées :** mémoriser une baseline à la création, au chargement et au dernier step/run; marquer `x`, `f` et `fcsr` avec `*`; réinitialiser la baseline après reset/restauration.
+- **Dépendances et tâches bloquées :** REG-001B/REG-001C; les widgets clavier et le rendu couleur restent une étape UI ultérieure.
+- **Tests :** `addi`, `fadd.s`, `fcsr`, `run/continue`, reset et backend vérifient le marqueur; les bits et décimaux existants restent inchangés.
+- **Critères de sortie :** `regs` affiche `*` uniquement quand la valeur diffère de la baseline; le marqueur disparaît après une nouvelle baseline; aucun changement de valeur n’est introduit.
+- **Cas limites et échecs :** `x0` reste zéro; instruction sans effet sans marque; restauration de snapshot ne conserve pas une baseline étrangère.
+- **Taille :** 3 points / 1,5 journée-agent, incertitude faible.
+- **Compétences/outils :** Rust, modèle de vue, débogage interactif.
+- **Parallélisable :** oui avec le shell interactif; non avec une modification concurrente de `RegisterSnapshot`.
+- **Paquet de contexte minimal :** SPEC §§15/16/21, `crates/monitor/src/lib.rs`, `crates/monitor/src/register_view.rs`.
+
 ### REG-001 — Contrat et vues exactes des registres
 
 - **Jalon / exigences :** M6/M7; REQ-PROD-003/005, DBG-001..014, FP-001..018.
