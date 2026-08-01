@@ -13,6 +13,7 @@ fi
 scripts=(
     scripts/test-guest-monitor.sh
     scripts/test-guest-ecall.sh
+    scripts/test-guest-run-at.sh
     scripts/test-guest-fdiv.sh
     scripts/test-minibasic.sh
     scripts/test-hammurabi.sh

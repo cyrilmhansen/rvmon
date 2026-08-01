@@ -373,6 +373,29 @@ rvmonitor> regs
 Les budgets `0` et supérieurs à `100000` sont refusés avec
 `GUEST-RUN-003`.
 
+Pour lancer un programme assemblé dans le workspace, utiliser `run-at` avec
+son adresse d’entrée. Cette commande réinitialise le contexte U-mode puis
+saute à cette adresse ; elle constitue le premier chemin de payload utilisateur
+chargé par le moniteur :
+
+```text
+rvmonitor> assemble-program 0x81000100
+source> addi x10,x0,65
+source> addi x17,x0,1
+source> ecall
+source> addi x10,x0,0
+source> addi x17,x0,3
+source> ecall
+source> end
+rvmonitor> run-at 0x81000100
+A
+target exit status=0
+```
+
+`run-at` ne charge pas encore un fichier et ne fournit pas encore de
+relocations ; il lance le programme déjà assemblé dans le workspace. Pour le
+contrat détaillé et ses limites, voir [GUEST_PAYLOAD_ABI.md](GUEST_PAYLOAD_ABI.md).
+
 ### Consulter et corriger le source
 
 Après un `assemble-program` réussi, le guest conserve jusqu’à 16 lignes du

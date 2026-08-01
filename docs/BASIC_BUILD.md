@@ -24,3 +24,27 @@ MINIBASIC_TRANSCRIPT=docs/BASIC_DEMO_TRANSCRIPT.txt bash scripts/test-minibasic.
 
 Le build utilise le guest QEMU et les services `ecall` du moniteur ; aucun
 interpréteur BASIC hôte n’est invoqué.
+
+## Statut du chargement
+
+Dans cette version, MiniBASIC est lié dans l’ELF guest et `basic` saute vers
+`minibasic_entry`. Il s’exécute bien en U-mode, mais n’est pas encore chargé
+depuis le workspace par l’assembleur du moniteur.
+
+La première brique du futur chemin utilisateur est maintenant disponible :
+
+```text
+rvmonitor> assemble-program 0x81000100
+source> addi x10,x0,65
+source> addi x17,x0,1
+source> ecall
+source> addi x10,x0,0
+source> addi x17,x0,3
+source> ecall
+source> end
+rvmonitor> run-at 0x81000100
+```
+
+`run-at` lance ce payload U-mode déjà assemblé. Le contrat est décrit dans
+[`GUEST_PAYLOAD_ABI.md`](GUEST_PAYLOAD_ABI.md) ; le remplacement de MiniBASIC
+résident par un payload BASIC assembleur est une étape ultérieure.

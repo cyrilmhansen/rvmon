@@ -370,6 +370,7 @@ fn monitor_loop(context: *mut TargetContext) -> ! {
             command if command.starts_with(b"disasm ") => print_disassembly(&command[7..]),
             b"step" | b"s" => step_target(context),
             command if command.starts_with(b"run ") => run_target(context, &command[4..]),
+            command if command.starts_with(b"run-at ") => run_target_at(context, &command[7..]),
             b"continue" | b"c" => continue_target(context),
             command if command.starts_with(b"break ") => break_target(&command[6..]),
             command if command.starts_with(b"watch ") => {
@@ -412,6 +413,7 @@ fn print_help() {
           symbols                         list source symbols\r\n\
           disasm <addr|label> <count>    disassemble target words\r\n\
           step|s, run <count>             execute with a bounded budget\r\n\
+          run-at <addr>                  launch an assembled U-mode payload\r\n\
           continue|c                      resume from a breakpoint\r\n\
           break <addr|label>              software breakpoint\r\n\
           watch|rwatch|awatch <addr> <width>  memory watchpoint\r\n\
@@ -435,6 +437,31 @@ fn launch_minibasic(context: *mut TargetContext) -> ! {
     context.x[2] = stack;
     context.pc = entry;
     context.mepc = entry;
+    context.mcause = StopReason::Breakpoint as u64;
+    context.mtval = 0;
+    unsafe { resume_user(context as *mut TargetContext) }
+}
+
+fn run_target_at(context: *mut TargetContext, argument: &[u8]) -> ! {
+    let context = unsafe { &mut *context };
+    let Some(address) = parse_hex(argument.trim_ascii()) else {
+        guest_error(b"GUEST-RUNAT-001", b"run-at expects a hexadecimal address");
+        monitor_loop(context);
+    };
+    let workspace_end = target_workspace_end();
+    if address % 4 != 0 || address < target_workspace_start() || address >= workspace_end {
+        guest_error(
+            b"GUEST-RUNAT-002",
+            b"entry must be an aligned address inside target workspace",
+        );
+        monitor_loop(context);
+    }
+    context.x = [0; 32];
+    context.f = [0xffff_ffff_0000_0000; 32];
+    context.fcsr = 0;
+    context.x[2] = TARGET_STACK.as_ptr() as u64 + TARGET_STACK.len() as u64;
+    context.pc = address;
+    context.mepc = address;
     context.mcause = StopReason::Breakpoint as u64;
     context.mtval = 0;
     unsafe { resume_user(context as *mut TargetContext) }
