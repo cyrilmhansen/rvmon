@@ -41,7 +41,10 @@
 
 ## Débogueur et interaction
 
-- [ ] Scénarios SPEC 1–14 exécutés par script.
+- [x] Campagne E2E guest/QEMU disponible et rapportée dans
+      `docs/release/E2E-REPORT.md` : 9/9 scripts PASS.
+- [ ] Couverture exhaustive des scénarios SPEC 1–14 et rapport complet encore
+      à produire.
 - [ ] Code↔hex↔ASCII conserve adresse ; marks/QuickJump fonctionnent.
 - [ ] Breakpoint label, watch condition, step-over/out et source↔adresse vérifiés.
 - [ ] Undo transactionnel mémoire/registres et restore snapshot vérifiés.

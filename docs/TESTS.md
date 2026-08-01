@@ -37,6 +37,22 @@ et de l’arbre d’entrée, hash du toolchain et de R2, SBOM TSV issu de Cargo 
 notice de licences. `tools/generate-release-dossier.sh --check` échoue si les
 artefacts commis ne correspondent plus au checkout.
 
+La campagne guest/QEMU unifiée se lance avec :
+
+    bash tools/e2e-release-smoke.sh --strict
+
+Le dernier passage de référence a obtenu 9/9 PASS, sans skip ni échec ; le
+détail est archivé dans `docs/release/E2E-REPORT.md`.
+
+La commande complète reste :
+
+    bash tools/e2e-release-smoke.sh --strict
+
+Elle exécute les neuf scripts E2E UART, snapshots, watchpoints, guest et GDB
+RSP présents dans `scripts/`. Elle est volontairement séparée de l’audit court
+; `RELEASE_E2E=1 bash tools/release-audit.sh --strict-oracles` la rend
+bloquante dans un environnement de release.
+
 La suite actuelle exécute 177 tests unitaires/intégration répartis dans les crates. Les doc-tests compilent mais ne contiennent actuellement aucun cas. Les scripts FP oracle QEMU comparent treize cas F/D, trois conversions de format, treize conversions entières W/L et quatre mouvements binaires F/D, hors comptage Cargo. Le script QEMU ouvre en plus une session GDB RSP réelle, hors comptage Cargo.
 
 Démonstration M-mode/U-mode sous QEMU :

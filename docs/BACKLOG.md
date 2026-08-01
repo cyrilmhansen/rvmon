@@ -2121,3 +2121,19 @@ confondre code présent et exigence formellement auditée.
   externes manquantes.
 - **Critère de sortie :** contrôle de politique PASS et chaque exception
   explicite, localisée et actionnable.
+
+### REL-001D — Campagne E2E guest/QEMU unifiée
+
+- **Statut :** TERMINÉ pour la campagne disponible; couverture SPEC complète
+  encore ouverte.
+- **Jalon / exigences :** M9; REQ-REL-004, REQ-DBG-003, REQ-PROD-005.
+- **But :** orchestrer les neuf scripts E2E existants et rendre leur résultat
+  global lisible, reproductible et bloquant en mode `--strict`.
+- **Non-but :** inventer les scénarios SPEC encore absents ou remplacer les
+  tests unitaires par QEMU.
+- **Fichiers/modules :** `tools/e2e-release-smoke.sh`, `docs/TESTS.md`,
+  `docs/RELEASE_CHECKLIST.md`.
+- **Critère de sortie :** chaque script est PASS, ou explicitement SKIP avec
+  dépendance manquante; le mode strict échoue sur tout SKIP ou FAIL.
+- **Résultat :** 9/9 scripts PASS sur QEMU 11.0.2, sans skip ni échec; rapport
+  archivé dans `docs/release/E2E-REPORT.md`.

@@ -61,6 +61,11 @@ run_check 'r2-generated-tables' bash tools/check-r2.sh
 run_check 'fuzz-smoke' bash tools/fuzz-smoke.sh
 run_check 'terminal-accessibility-smoke' bash tools/accessibility-smoke.sh
 run_check 'release-benchmark-smoke' bash tools/bench-smoke.sh
+if [[ "${RELEASE_E2E:-0}" == 1 ]]; then
+    run_check 'guest-qemu-e2e' bash tools/e2e-release-smoke.sh --strict
+else
+    printf '[SEPARATE] guest-qemu-e2e (set RELEASE_E2E=1)\n\n'
+fi
 
 if ((strict_oracles)); then
     run_check 'gnu-llvm-independent-oracles' bash tools/check-oracles.sh

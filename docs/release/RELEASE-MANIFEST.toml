@@ -3,10 +3,10 @@
 # dossier checker ignores that one self-referential field.
 schema_version = 1
 project = "rvmonitor"
-git_commit = "b51ca4558b1f8f84645e05e0bb80d75c2839ed32"
+git_commit = "b2592104d90cd264002362f373063eedb81d1d68"
 profile = "RV64ILP32D-MON-1"
-input_file_count = 126
-input_tree_sha256 = "f1df677dd3c990746f6823ca7ea1110f9da9070328a6de39f9ebcfc8837d3c96"
+input_file_count = 127
+input_tree_sha256 = "593b79e5507aefff0d5f856ae485ee09e2d83199da5ee0a2d066ab27f8634396"
 rust_toolchain_sha256 = "75cd8d73777ba32f23fcf6d5a7f49019b4a7c8ebe34a06ceb5a40d1c21ab8ffc"
 r2_sources_manifest = "norms/r2/SHA256SUMS"
 r2_sources_manifest_sha256 = "d4e3b33c63f2b7ab1c010d3a3463b8f74aa6fb0ea601e631807e7cfd3f8fb079"
