@@ -1795,7 +1795,7 @@ confondre code présent et exigence formellement auditée.
 - **Non-but :** frontend graphique ou compatibilité Amiga pixel-perfect.
 - **Entrées/sources :** SPEC §§10/14–17; A1 ch.6–9.
 - **Fichiers/modules :** `frontend-terminal`, `app`.
-- **Étapes :** pane model; keymap; error navigation; Ctrl+Enter/F5/F10/F11; state highlighting; accessibility baseline.
+- **Étapes :** pane model; keymap; error navigation; Ctrl+Enter/F5=`run`/F10=`step-over`/F11=`step-out`; state highlighting; accessibility baseline.
 - **Dépendances/bloqués :** CMD-001, MON-001, DBG-001, FORMAT-001 partiel.
 - **Tests :** scripted terminal interaction, keymap coverage, no address loss, crash restore.
 - **Acceptation :** démonstration M6/M7 sans mutation hors commande et clavier complet.

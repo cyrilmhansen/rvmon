@@ -556,7 +556,8 @@ fn read_tty_line(prompt: &str, history: &[String]) -> io::Result<Option<String>>
 fn shortcut_command(code: KeyCode, modifiers: KeyModifiers) -> Option<&'static str> {
     match (code, modifiers) {
         (KeyCode::F(5), _) => Some("run"),
-        (KeyCode::F(10), _) | (KeyCode::F(11), _) => Some("step"),
+        (KeyCode::F(10), _) => Some("step-over"),
+        (KeyCode::F(11), _) => Some("step-out"),
         (KeyCode::Char('1'), KeyModifiers::CONTROL) => Some("regs"),
         (KeyCode::Char('2'), KeyModifiers::CONTROL) => Some("memory"),
         (KeyCode::Char('3'), KeyModifiers::CONTROL) => Some("dashboard"),
@@ -656,11 +657,11 @@ mod tests {
         );
         assert_eq!(
             shortcut_command(KeyCode::F(10), KeyModifiers::NONE),
-            Some("step")
+            Some("step-over")
         );
         assert_eq!(
             shortcut_command(KeyCode::F(11), KeyModifiers::NONE),
-            Some("step")
+            Some("step-out")
         );
         assert_eq!(
             shortcut_command(KeyCode::Char('1'), KeyModifiers::CONTROL),
