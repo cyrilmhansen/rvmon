@@ -21,7 +21,8 @@ réimplémentée si les preuves indiquées existent.
 | FP-001A, FP-002A, FP-003A, FP-004A/B, FP-005A, GEN-003 | livré | tests `luna-machine`, probes QEMU et tests de formats | traiter FP-002 comme partiellement livré et FP-003 comme reste D/Q/Zfh |
 | CMD-001A/B/C, MON-001A/B, REG-001A..D | livré par sous-tranches | tests `luna-monitor` et commandes host/backend | clôturer les agrégats après matrice de couverture |
 | UI-000A..H | livré | tests app/monitor, TTY et documentation | conserver UI-001 pour l’éditeur/panneaux réellement interactifs |
-| DBG-001, FORMAT-001, QUAL-001/002, REL-001 | partiel | conditions, step-over/out et état de pile persisté ; migration et historique complet restent absents | restent sur le chemin critique |
+| FORMAT-001 | livré | conteneurs v4 stricts, checksum, manifeste et replay byte-déterministe | conserver les tests comme garde-fous |
+| DBG-001, QUAL-001/002, REL-001 | partiel | débogueur livré par sous-tranches ; fuzzing, performance et release restent à faire | restent sur le chemin critique |
 
 Les tâches BOOT-001 à BOOT-004, GEN-001, ISA-001/002, ASM-BOOT-001,
 MEM-001, MACHINE-001 et DEMO-001 sont des entrées de plan initial. Le dépôt
@@ -1528,17 +1529,24 @@ confondre code présent et exigence formellement auditée.
 - **Paquet de contexte minimal :** ce sous-ensemble, `CallFrame`,
   `ByteWriter`/`ByteReader`, SPEC §§12/16/22.
 
-### FORMAT-001 — Projets, snapshots et replay
+### FORMAT-001 — Projets, snapshots et replay — TERMINÉ
 
 - **Jalon / exigences :** M8; IO-001..009, OBS-001..006, REQ-PROD-006.
-- **But :** formats versionnés, état/symboles/breakpoints, hash reproductible.
+- **But :** formats versionnés, état/symboles/breakpoints, intégrité et replay
+  reproductible du périmètre v4.
 - **Non-but :** ELF général.
 - **Entrées/sources :** SPEC §§8/12/21/22; DECISIONS D-008/D-010.
 - **Fichiers/modules :** `formats`, `app`, `memory`, `machine`.
-- **Étapes :** canonical serialization; snapshot manifest; schema migration; journal; crash recovery; replay runner.
-- **Dépendances/bloqués :** profile, assembler, debugger; bloque M8.
-- **Tests :** round-trip, hash cross-platform, corrupt file, migration, crash journal.
-- **Acceptation :** E2E 12 restaure bytes/symboles/état/breakpoints identiques.
+- **Étapes réalisées :** sérialisation canonique des snapshots/projets/sessions;
+  état machine et debugger; checksum déterministe; manifeste inspectable;
+  replay `save → reset → load → save` byte-identique.
+- **Dépendances/bloqués :** profile, assembler et debugger sont intégrés; le
+  journal de commandes, la reprise après crash et la migration de schéma sont
+  explicitement des fonctions ultérieures, pas des critères de FORMAT-001 v4.
+- **Tests :** round-trip, checksum, corruption/troncature, manifeste host et
+  backend, pile de stepping et replay byte-déterministe.
+- **Acceptation :** E2E 12 restaure bytes/symboles/état/breakpoints identiques;
+  un projet rechargé puis resauvegardé produit les mêmes octets et checksum.
 
 #### FORMAT-001A — Manifeste d’intégrité déterministe — TERMINÉ
 

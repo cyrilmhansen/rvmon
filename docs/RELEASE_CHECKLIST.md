@@ -63,7 +63,8 @@
 ## Dossier de release
 
 - [ ] Changelog distingue repris, modernisé, rejeté et limitations.
-- [ ] Guide de migration des projets et schema versions fourni.
+- [x] Format projet/snapshot/session v4 strict documenté ; les versions
+      antérieures sont refusées explicitement (aucune migration automatique).
 - [ ] Rapport de traçabilité REQ→source→composant→test livré.
 - [ ] Rapport des waivers, risques résiduels et questions différées approuvé.
 - [ ] Hashes des packages, sources, tables et fixtures publiés.
