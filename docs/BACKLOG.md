@@ -831,6 +831,23 @@ Une tâche est terminée seulement si sa condition de sortie est satisfaite.
 - **Parallélisable :** oui avec MON-001; non avec une modification concurrente de la syntaxe d’adresse.
 - **Paquet de contexte minimal :** SPEC §10/19, `crates/monitor/src/command.rs`, contrat `TargetContext`.
 
+### CMD-001C — Valider l’arité et les plages avant dispatch — TERMINÉ
+
+- **Jalon / exigences :** M6; CMD-001, CMD-002, CMD-004, REQ-PROD-005.
+- **But :** rejeter les commandes manifestement incomplètes et les plages inversées avant tout accès ou mutation de la cible.
+- **Non-but :** valider encore les conditions `if`, les watchpoints structurés, les expressions de script ou l’état `run` asynchrone.
+- **Entrées/sources :** SPEC §10/19; DECISIONS D-007/D-008.
+- **Fichiers/modules :** `crates/monitor/src/command.rs`, `crates/monitor/src/lib.rs`.
+- **Étapes réalisées :** arité minimale commune aux deux consoles; `CMD-002` pour argument obligatoire absent; `CMD-004` pour `start..end` inversé; validation exécutée avant le dispatch; conservation des diagnostics spécialisés pour la syntaxe détaillée.
+- **Dépendances/bloqués :** CMD-001A/CMD-001B; la validation de contexte cible et des mutations pendant l’exécution reste à faire.
+- **Tests :** `view` sans argument, commande optionnelle `run`, plage inversée, absence d’effet de bord et compatibilité des deux surfaces de commande.
+- **Critères de sortie :** une commande incomplète ne lit ni n’écrit la cible; `disasm 0x20..0x10` renvoie `CMD-004`; `cargo test -p luna-monitor` passe.
+- **Cas limites et échecs :** alias et casse mélangés, argument quoté, expression complexe, plage non alignée; ces derniers restent diagnostiqués par le handler spécialisé.
+- **Taille :** 2 points / 1 journée-agent, incertitude faible.
+- **Compétences/outils :** validation de grammaire, diagnostics, tests Rust.
+- **Parallélisable :** oui avec MON-001; non avec une modification concurrente du catalogue de commandes.
+- **Paquet de contexte minimal :** SPEC §10/19, `crates/monitor/src/command.rs`, `crates/monitor/src/lib.rs`.
+
 ### CMD-001 — Parser commandes et expressions contrôlées
 
 - **Jalon / exigences :** M6; CMD-001..005, REQ-PROD-005.

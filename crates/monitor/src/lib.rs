@@ -119,6 +119,7 @@ impl Monitor {
         let Some(command) = command::parse(command)? else {
             return Ok(String::new());
         };
+        command::validate_required_arguments(&command.name, command.tokens.len())?;
         let name = command.name.to_ascii_lowercase();
         let argument = command.raw_arguments.as_str();
         match name.as_str() {
@@ -578,7 +579,7 @@ impl Monitor {
             let end = self.resolve_expression(&end, "MON-DISASM-002")?;
             let bytes = end
                 .checked_sub(address)
-                .ok_or_else(|| Diagnostic::error("MON-DISASM-002", "range is reversed"))?;
+                .ok_or_else(|| Diagnostic::error("CMD-004", "range is reversed"))?;
             if bytes % 4 != 0 {
                 return Err(Diagnostic::error(
                     "MON-DISASM-001",
@@ -1130,6 +1131,7 @@ where
         let Some(command) = command::parse(command)? else {
             return Ok(String::new());
         };
+        command::validate_required_arguments(&command.name, command.tokens.len())?;
         let name = command.name.to_ascii_lowercase();
         let argument = command.raw_arguments.as_str();
         match name.as_str() {
@@ -1349,7 +1351,7 @@ where
             let end = self.resolve_expression(&end, "MON-DISASM-102")?;
             let bytes = end
                 .checked_sub(address)
-                .ok_or_else(|| Diagnostic::error("MON-DISASM-102", "range is reversed"))?;
+                .ok_or_else(|| Diagnostic::error("CMD-004", "range is reversed"))?;
             if bytes % 4 != 0 {
                 return Err(Diagnostic::error(
                     "MON-DISASM-101",
@@ -2736,6 +2738,14 @@ mod tests {
         let error = monitor.execute("memory \"unterminated").unwrap_err();
         assert_eq!(error.code, "CMD-003");
         assert_eq!(monitor.machine.x[1], 0x55);
+        assert_eq!(monitor.machine.pc, 0x10);
+
+        let error = monitor.execute("view").unwrap_err();
+        assert_eq!(error.code, "CMD-002");
+        assert_eq!(monitor.machine.x[1], 0x55);
+
+        let error = monitor.execute("disasm 0x20..0x10").unwrap_err();
+        assert_eq!(error.code, "CMD-004");
         assert_eq!(monitor.machine.pc, 0x10);
     }
 

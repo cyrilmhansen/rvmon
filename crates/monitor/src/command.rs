@@ -445,6 +445,26 @@ pub(crate) fn parse(input: &str) -> Result<Option<CommandLine>> {
     }))
 }
 
+/// Validate only the command-level arity shared by both consoles. Operation-
+/// specific syntax remains owned by the operation so its diagnostics retain
+/// their memory, debugger, or persistence context.
+pub(crate) fn validate_required_arguments(name: &str, count: usize) -> Result<()> {
+    let required = match name.to_ascii_lowercase().as_str() {
+        "assemble" | "a" | "assemble-program" | "load" | "view" | "jump" | "edit" | "e"
+        | "mark" | "unmark" | "break" | "b" | "watch" | "rwatch" | "awatch" | "delete" | "del"
+        | "info" | "snapshot" | "restore" | "project-save" | "project-load" | "session-save"
+        | "session-load" => 1,
+        _ => 0,
+    };
+    if count < required {
+        return Err(Diagnostic::error(
+            "CMD-002",
+            format!("command {name} expects at least {required} argument(s)"),
+        ));
+    }
+    Ok(())
+}
+
 fn validate_name(name: &str) -> Result<()> {
     if name == "?" {
         return Ok(());
@@ -576,6 +596,16 @@ mod tests {
     #[test]
     fn accepts_question_mark_alias() {
         assert_eq!(parse("?").unwrap().unwrap().name, "?");
+    }
+
+    #[test]
+    fn validates_required_arguments_without_restricting_optional_commands() {
+        assert_eq!(
+            validate_required_arguments("view", 0).unwrap_err().code,
+            "CMD-002"
+        );
+        assert!(validate_required_arguments("run", 0).is_ok());
+        assert!(validate_required_arguments("assemble", 2).is_ok());
     }
 
     #[test]
