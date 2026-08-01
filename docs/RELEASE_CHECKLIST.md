@@ -72,6 +72,8 @@
 - [x] Format projet/snapshot/session v4 strict documenté ; les versions
       antérieures sont refusées explicitement (aucune migration automatique).
 - [x] Rapport de traçabilité REQ→source→composant→test livré (`docs/TRACEABILITY.md`).
-- [ ] Rapport des waivers, risques résiduels et questions différées approuvé.
+- [x] Rapport des waivers, risques résiduels et questions différées livré dans
+      `docs/release/WAIVERS.md`; son approbation finale reste une décision de
+      publication.
 - [ ] Hashes des packages, sources, tables et fixtures publiés.
 - [ ] Cas reproductible de référence exporté et rejoué depuis clean checkout.

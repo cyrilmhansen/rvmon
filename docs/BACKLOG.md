@@ -2105,3 +2105,19 @@ confondre code présent et exigence formellement auditée.
   licence externe non vérifiée explicitement signalée.
 - **Limite :** signature cryptographique, archive binaire et preuve Sail/Spike
   restent des étapes M9 distinctes.
+
+### REL-001C — Audit de politique de release et waivers
+
+- **Statut :** TERMINÉ.
+- **Jalon / exigences :** M9; REQ-REL-001, REQ-REL-003, REQ-SEC-004.
+- **But :** rendre visibles les limites de publication et refuser les dossiers
+  incohérents, incomplets, contenant des chemins hôte ou des questions
+  bloquantes non classées.
+- **Résultat :** `tools/check-release-policy.sh` contrôle le dossier, la
+  politique d’archivage externe, la structure SBOM, les chemins, les waivers
+  et les questions ouvertes; `docs/release/WAIVERS.md` porte les blocages
+  résiduels.
+- **Non-but :** approuver une release publique ou fabriquer les preuves
+  externes manquantes.
+- **Critère de sortie :** contrôle de politique PASS et chaque exception
+  explicite, localisée et actionnable.
