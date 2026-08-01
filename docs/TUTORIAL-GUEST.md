@@ -325,6 +325,29 @@ assembled source: 2 instruction(s) at 0x00000000810001c0
 Une ligne invalide ou une correction hors plage est rejetée avec un code
 `GUEST-SOURCE-*`, sans modification de la cible.
 
+### Snapshots et projets pendant la session
+
+Le guest ne dispose pas d’un système de fichiers. `snapshot save` conserve donc
+un slot volatil en RAM : le `TargetContext`, le workspace de 64 KiB, la région
+de données de 1 MiB, le source, les symboles, les breakpoints et les
+watchpoints. `snapshot restore` restitue cet état. `project-save` et
+`project-load` sont les alias pédagogiques du même slot.
+
+```text
+rvmonitor> set x1 0x7
+rvmonitor> snapshot save
+snapshot saved (workspace=65536 data=1048576)
+rvmonitor> set x1 0x99
+rvmonitor> snapshot restore
+snapshot restored (workspace=65536 data=1048576)
+rvmonitor> regs
+... x1=0x0000000000000007 ...
+```
+
+Le slot est perdu lors d’un reset ou de l’arrêt de QEMU. Les 64 MiB complets,
+les exports binaires UART et plusieurs slots seront traités dans une tranche
+ultérieure.
+
 ### Watchpoints logiciels
 
 Le guest fournit des watchpoints logiciels sur les accès RV64 `ld` et `sd`.

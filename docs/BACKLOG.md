@@ -376,6 +376,23 @@ confondre code présent et exigence formellement auditée.
 - **Parallélisable :** oui avec l’éditeur terminal host; non avec une modification concurrente du buffer source guest.
 - **Paquet de contexte minimal :** `crates/guest-monitor/src/main.rs`, `scripts/test-guest-source.sh`, `docs/TUTORIAL-GUEST.md`, SPEC §§11/17–19.
 
+### GUEST-007 — Snapshot et projet guest volatils — TERMINÉ
+
+- **Jalon / exigences :** M8; IO-001..009, OBS-001..006, REQ-PROD-006.
+- **But :** sauvegarder et restaurer pendant la session QEMU l’état U-mode, les régions cible utilisées, le source et les arrêts du moniteur.
+- **Non-but :** fichier hôte, export UART binaire, plusieurs slots, restauration après reset QEMU ou capture des 64 MiB complets.
+- **Entrées/sources :** SPEC §§8/12/18/21/22; carte guest 4B; contrat snapshot versionné adapté au stockage bare-metal.
+- **Fichiers/modules :** `crates/guest-monitor/src/main.rs`, `scripts/test-guest-snapshot.sh`, `docs/TUTORIAL-GUEST.md`, `docs/TESTS.md`.
+- **Étapes réalisées :** slot RAM volatil; capture workspace 64 KiB, données 1 MiB, `TargetContext`, source, symboles, breakpoints et watchpoints; restauration des régions et réapplication des breakpoints; commandes `snapshot save|restore` et alias `project-save|project-load`.
+- **Dépendances et tâches bloquées :** GUEST-005/006; export/import persistant et snapshots multi-slots restent différés.
+- **Tests :** sauvegarde avec `x1=7` et un mot de données, mutations registre/mémoire/source, restauration et vérification des trois valeurs; alias projet vérifié.
+- **Critères de sortie :** la restauration retrouve l’état capturé dans les régions bornées; une absence de snapshot est diagnostiquée; le reset QEMU invalide implicitement le slot.
+- **Cas limites et échecs :** snapshot absent, breakpoint hors régions capturées, source vide, restauration avec watchpoints et budget actif.
+- **Taille :** 6 points / 3 journées-agent, incertitude élevée.
+- **Compétences/outils :** Rust `no_std`, linker/RAM, copie mémoire sûre, état de trap, QEMU.
+- **Parallélisable :** oui avec le format projet host; non avec une modification concurrente de la carte mémoire guest ou du trap handler.
+- **Paquet de contexte minimal :** `crates/guest-monitor/src/main.rs`, `scripts/test-guest-snapshot.sh`, `docs/TUTORIAL-GUEST.md`, SPEC §§8/12/18/21.
+
 ## M3 — assembleur et désassembleur
 
 ### ISA-003 — Étendre la tranche RV64 aux loads/stores 64 bits — TERMINÉ

@@ -17,6 +17,10 @@ const UART_LSR_EMPTY: u8 = 1 << 5;
 const COMMAND_CAPACITY: usize = 96;
 const TARGET_RAM_START: u64 = 0x8000_0000;
 const TARGET_RAM_END: u64 = 0x8400_0000;
+const TARGET_WORKSPACE_BYTES: usize = 0x1_0000;
+const TARGET_DATA_BYTES: usize = 0x10_0000;
+const TARGET_WORKSPACE_START: u64 = 0x8100_0000;
+const TARGET_DATA_START: u64 = 0x8200_0000;
 const EBREAK_WORD: u32 = 0x0010_0073;
 const MAX_PERMANENT_BREAKPOINTS: usize = 4;
 const MAX_WATCHPOINTS: usize = 4;
@@ -43,6 +47,7 @@ static mut SOURCE_LENGTHS: [usize; MAX_SOURCE_LINES] = [0; MAX_SOURCE_LINES];
 static mut SOURCE_COUNT: usize = 0;
 static mut SOURCE_ADDRESS: u64 = 0;
 static mut MEMORY_UNDO: MemoryUndo = MemoryUndo::empty();
+static mut GUEST_SNAPSHOT: GuestSnapshot = GuestSnapshot::empty();
 static TARGET_STACK: [u8; 8192] = [0; 8192];
 
 #[derive(Clone, Copy)]
@@ -71,6 +76,39 @@ struct MemoryUndo {
     original: [u8; MAX_EDIT_BYTES],
     edited: [u8; MAX_EDIT_BYTES],
     valid: bool,
+}
+
+#[derive(Clone, Copy)]
+struct GuestSnapshot {
+    valid: bool,
+    context: TargetContext,
+    workspace: [u8; TARGET_WORKSPACE_BYTES],
+    data: [u8; TARGET_DATA_BYTES],
+    source_lines: [[u8; COMMAND_CAPACITY]; MAX_SOURCE_LINES],
+    source_lengths: [usize; MAX_SOURCE_LINES],
+    source_count: usize,
+    source_address: u64,
+    symbols: [GuestSymbol; MAX_SYMBOLS],
+    breakpoints: [Breakpoint; MAX_PERMANENT_BREAKPOINTS],
+    watchpoints: [GuestWatchpoint; MAX_WATCHPOINTS],
+}
+
+impl GuestSnapshot {
+    const fn empty() -> Self {
+        Self {
+            valid: false,
+            context: TargetContext::empty(),
+            workspace: [0; TARGET_WORKSPACE_BYTES],
+            data: [0; TARGET_DATA_BYTES],
+            source_lines: [[0; COMMAND_CAPACITY]; MAX_SOURCE_LINES],
+            source_lengths: [0; MAX_SOURCE_LINES],
+            source_count: 0,
+            source_address: 0,
+            symbols: [GuestSymbol::empty(); MAX_SYMBOLS],
+            breakpoints: [Breakpoint::disabled(); MAX_PERMANENT_BREAKPOINTS],
+            watchpoints: [GuestWatchpoint::disabled(); MAX_WATCHPOINTS],
+        }
+    }
 }
 
 #[derive(Clone, Copy)]
@@ -223,6 +261,8 @@ fn monitor_loop(context: *mut TargetContext) -> ! {
             b"source" => print_source(None),
             command if command.starts_with(b"source ") => source_command(&command[7..]),
             b"assemble-source" => assemble_saved_source(context),
+            b"snapshot save" | b"project-save" => save_guest_snapshot(context),
+            b"snapshot restore" | b"project-load" => restore_guest_snapshot(context),
             b"symbols" => print_symbols(),
             command if command.starts_with(b"disasm ") => print_disassembly(&command[7..]),
             b"step" | b"s" => step_target(context),
@@ -253,7 +293,7 @@ fn monitor_loop(context: *mut TargetContext) -> ! {
 
 fn print_help() {
     uart_write(
-        "help/? regs/registers set <xreg> <hex64> setf <freg> <hex64> memory <addr> <length> edit <addr> <hex-bytes> data <addr> <directive> <bits> undo assemble <addr> <instruction> assemble-program <addr> ... end assemble-source source [line]|replace <n> <text> symbols disasm <addr|label> <count> step/s run <count> continue/c break <addr|label> watch/rwatch/awatch <addr> <width> delete <n>|watch <n> info break/watch quit/q\r\n",
+        "help/? regs/registers set <xreg> <hex64> setf <freg> <hex64> memory <addr> <length> edit <addr> <hex-bytes> data <addr> <directive> <bits> undo assemble <addr> <instruction> assemble-program <addr> ... end assemble-source source [line]|replace <n> <text> snapshot save|restore project-save|project-load symbols disasm <addr|label> <count> step/s run <count> continue/c break <addr|label> watch/rwatch/awatch <addr> <width> delete <n>|watch <n> info break/watch quit/q\r\n",
     );
 }
 
@@ -1204,6 +1244,156 @@ fn assemble_saved_source(context: *mut TargetContext) {
         }
     }
     assemble_source_buffer(context, address, &lines, &lengths, count);
+}
+
+fn snapshot_region(address: u64, length: usize) -> Option<(bool, usize)> {
+    let end = address.checked_add(length as u64)?;
+    let workspace_end = TARGET_WORKSPACE_START + TARGET_WORKSPACE_BYTES as u64;
+    if address >= TARGET_WORKSPACE_START && end <= workspace_end {
+        return Some((true, (address - TARGET_WORKSPACE_START) as usize));
+    }
+    let data_end = TARGET_DATA_START + TARGET_DATA_BYTES as u64;
+    if address >= TARGET_DATA_START && end <= data_end {
+        return Some((false, (address - TARGET_DATA_START) as usize));
+    }
+    None
+}
+
+fn save_guest_snapshot(context: *mut TargetContext) {
+    let context_value = unsafe { core::ptr::read_volatile(context) };
+    if context_value.mcause != StopReason::Breakpoint as u64 {
+        guest_error(
+            b"GUEST-SNAPSHOT-001",
+            b"target must be stopped at a breakpoint",
+        );
+        return;
+    }
+    let snapshot = core::ptr::addr_of_mut!(GUEST_SNAPSHOT);
+    unsafe {
+        (*snapshot).valid = false;
+        (*snapshot).context = context_value;
+        core::ptr::copy_nonoverlapping(
+            TARGET_WORKSPACE_START as *const u8,
+            (*snapshot).workspace.as_mut_ptr(),
+            TARGET_WORKSPACE_BYTES,
+        );
+        core::ptr::copy_nonoverlapping(
+            TARGET_DATA_START as *const u8,
+            (*snapshot).data.as_mut_ptr(),
+            TARGET_DATA_BYTES,
+        );
+        (*snapshot).source_count = core::ptr::read_volatile(core::ptr::addr_of!(SOURCE_COUNT));
+        (*snapshot).source_address = core::ptr::read_volatile(core::ptr::addr_of!(SOURCE_ADDRESS));
+        for index in 0..MAX_SOURCE_LINES {
+            (*snapshot).source_lines[index] =
+                core::ptr::read_volatile(core::ptr::addr_of!(SOURCE_LINES[index]));
+            (*snapshot).source_lengths[index] =
+                core::ptr::read_volatile(core::ptr::addr_of!(SOURCE_LENGTHS[index]));
+        }
+        for index in 0..MAX_SYMBOLS {
+            (*snapshot).symbols[index] =
+                core::ptr::read_volatile(core::ptr::addr_of!(SYMBOLS[index]));
+        }
+        for index in 0..MAX_WATCHPOINTS {
+            (*snapshot).watchpoints[index] =
+                core::ptr::read_volatile(core::ptr::addr_of!(WATCHPOINTS[index]));
+        }
+        for index in 0..MAX_PERMANENT_BREAKPOINTS {
+            let breakpoint =
+                core::ptr::read_volatile(core::ptr::addr_of!(PERMANENT_BREAKPOINTS[index]));
+            (*snapshot).breakpoints[index] = if breakpoint.enabled
+                && snapshot_region(breakpoint.address, 4).is_some()
+            {
+                if let Some((workspace, offset)) = snapshot_region(breakpoint.address, 4) {
+                    let bytes = breakpoint.original_word.to_le_bytes();
+                    if workspace {
+                        (&mut (*snapshot).workspace)[offset..offset + 4].copy_from_slice(&bytes);
+                    } else {
+                        (&mut (*snapshot).data)[offset..offset + 4].copy_from_slice(&bytes);
+                    }
+                }
+                breakpoint
+            } else {
+                Breakpoint::disabled()
+            };
+        }
+        (*snapshot).valid = true;
+    }
+    uart_write("snapshot saved (workspace=65536 data=1048576)\r\n");
+}
+
+fn restore_guest_snapshot(context: *mut TargetContext) {
+    let snapshot = core::ptr::addr_of_mut!(GUEST_SNAPSHOT);
+    let valid = unsafe { core::ptr::read_volatile(core::ptr::addr_of!((*snapshot).valid)) };
+    if !valid {
+        guest_error(b"GUEST-SNAPSHOT-002", b"no snapshot or project is saved");
+        return;
+    }
+    unsafe {
+        core::ptr::copy_nonoverlapping(
+            (*snapshot).workspace.as_ptr(),
+            TARGET_WORKSPACE_START as *mut u8,
+            TARGET_WORKSPACE_BYTES,
+        );
+        core::ptr::copy_nonoverlapping(
+            (*snapshot).data.as_ptr(),
+            TARGET_DATA_START as *mut u8,
+            TARGET_DATA_BYTES,
+        );
+        for index in 0..MAX_PERMANENT_BREAKPOINTS {
+            let breakpoint = (*snapshot).breakpoints[index];
+            core::ptr::write_volatile(
+                core::ptr::addr_of_mut!(PERMANENT_BREAKPOINTS[index]),
+                breakpoint,
+            );
+            if breakpoint.enabled {
+                let _ = target_store32(breakpoint.address, EBREAK_WORD);
+            }
+        }
+        core::ptr::write_volatile(
+            core::ptr::addr_of_mut!(TEMPORARY_BREAKPOINT),
+            Breakpoint::disabled(),
+        );
+        core::ptr::write_volatile(
+            core::ptr::addr_of_mut!(STEPPED_PERMANENT_BREAKPOINT),
+            u8::MAX,
+        );
+        for index in 0..MAX_WATCHPOINTS {
+            core::ptr::write_volatile(
+                core::ptr::addr_of_mut!(WATCHPOINTS[index]),
+                (*snapshot).watchpoints[index],
+            );
+        }
+        for index in 0..MAX_SOURCE_LINES {
+            core::ptr::write_volatile(
+                core::ptr::addr_of_mut!(SOURCE_LINES[index]),
+                (*snapshot).source_lines[index],
+            );
+            core::ptr::write_volatile(
+                core::ptr::addr_of_mut!(SOURCE_LENGTHS[index]),
+                (*snapshot).source_lengths[index],
+            );
+        }
+        core::ptr::write_volatile(
+            core::ptr::addr_of_mut!(SOURCE_COUNT),
+            (*snapshot).source_count,
+        );
+        core::ptr::write_volatile(
+            core::ptr::addr_of_mut!(SOURCE_ADDRESS),
+            (*snapshot).source_address,
+        );
+        for index in 0..MAX_SYMBOLS {
+            core::ptr::write_volatile(
+                core::ptr::addr_of_mut!(SYMBOLS[index]),
+                (*snapshot).symbols[index],
+            );
+        }
+        core::ptr::write_volatile(core::ptr::addr_of_mut!(RUN_REMAINING), 0);
+        core::ptr::write_volatile(core::ptr::addr_of_mut!(MEMORY_UNDO), MemoryUndo::empty());
+        core::ptr::write_volatile(context, (*snapshot).context);
+    }
+    flush_icache();
+    uart_write("snapshot restored (workspace=65536 data=1048576)\r\n");
 }
 
 fn assemble_source_buffer(
