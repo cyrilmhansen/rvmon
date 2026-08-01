@@ -1120,6 +1120,23 @@ Une tâche est terminée seulement si sa condition de sortie est satisfaite.
 - **Parallélisable :** oui avec source/diagnostic; non avec une modification concurrente des signatures dashboard.
 - **Paquet de contexte minimal :** SPEC §§14–17, `crates/monitor/src/lib.rs`, `docs/TESTS.md`.
 
+### UI-000F — Navigation source et diagnostics structurés — TERMINÉ
+
+- **Jalon / exigences :** M3/M6/M7; REQ-PROD-004, REQ-OBS-001, DIAG-001..006.
+- **But :** conserver le dernier diagnostic, afficher le texte source numéroté et relier code/ligne/colonne à un extrait avec caret.
+- **Non-but :** éditeur multi-lignes, correction automatique et navigation graphique entre plusieurs documents.
+- **Entrées/sources :** SPEC §§11/17/19/21; `luna_diag::Diagnostic`; source lexer/assembler avec spans.
+- **Fichiers/modules :** `crates/monitor/src/lib.rs`, `docs/TESTS.md`.
+- **Étapes réalisées :** ajouter `source [line]`, `diagnostic`/`diag`; capturer les erreurs host/backend; conserver le texte tenté lors d’un assemblage invalide; formater gravité, code, position, ligne et caret.
+- **Dépendances et tâches bloquées :** UI-000E; la correction/navigation source interactive et le multi-document restent dans UI-001.
+- **Tests :** assemblage invalide sans mutation machine; extrait source et caret; code/position; source host/backend; workspace.
+- **Critères de sortie :** après erreur, `diagnostic` est consultable sans réexécuter la cible; `source N` renvoie une ligne stable; une opération réussie n’efface pas silencieusement le diagnostic précédent.
+- **Cas limites et échecs :** aucun diagnostic, ligne hors plage, source vide, colonne absente, diagnostic sans span et backend distant en erreur.
+- **Taille :** 4 points / 2 journées-agent, incertitude moyenne.
+- **Compétences/outils :** diagnostics structurés, spans Unicode, Rust formatting.
+- **Parallélisable :** oui avec le modèle de document; non avec une modification concurrente de `Diagnostic` ou `source_text`.
+- **Paquet de contexte minimal :** SPEC §§11/17/19/21, `crates/diag/src/lib.rs`, `crates/monitor/src/lib.rs`.
+
 ### UI-001 — Frontend terminal et cycle ASM-One modernisé
 
 - **Jalon / exigences :** M6–M9; REQ-PROD-001/005, E2E 2/3/4.

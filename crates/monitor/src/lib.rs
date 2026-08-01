@@ -99,6 +99,7 @@ pub struct Monitor {
     call_stack: Vec<CallFrame>,
     source_text: String,
     register_baseline: register_view::RegisterSnapshot,
+    last_diagnostic: Option<Diagnostic>,
 }
 
 impl Monitor {
@@ -121,6 +122,7 @@ impl Monitor {
             call_stack: Vec::new(),
             source_text: String::new(),
             register_baseline,
+            last_diagnostic: None,
         }
     }
 
@@ -131,7 +133,7 @@ impl Monitor {
         command::validate_required_arguments(&command.name, command.tokens.len())?;
         let name = command.name.to_ascii_lowercase();
         let argument = command.raw_arguments.as_str();
-        match name.as_str() {
+        let result = match name.as_str() {
             "help" | "?" => Ok(help()),
             "dashboard" | "dash" => self.dashboard(argument),
             "regs" | "registers" => self.registers(),
@@ -166,6 +168,8 @@ impl Monitor {
             "stack" | "bt" => self.show_stack(),
             "where" => self.show_location(),
             "symbols" => self.show_symbols(),
+            "source" => self.source_view(argument),
+            "diagnostic" | "diag" => self.show_diagnostic(),
             "snapshot" => self.snapshot_file(argument),
             "restore" => self.restore_snapshot_file(argument),
             "project-save" => self.project_save_file(argument),
@@ -191,7 +195,11 @@ impl Monitor {
                 "CMD-001",
                 format!("unknown command: {}; use help", command.name),
             )),
+        };
+        if let Err(error) = &result {
+            self.last_diagnostic = Some(error.clone());
         }
+        result
     }
 
     fn assemble(&mut self, source: &str) -> Result<String> {
@@ -201,11 +209,11 @@ impl Monitor {
                 "assemble expects one source line",
             ));
         }
+        self.source_text = source.to_string();
         let image = assemble(source)?;
         let address = self.machine.pc;
         self.machine.load(address, &image.text)?;
         self.view_address = address;
-        self.source_text.clear();
         let word = image
             .text
             .get(..4)
@@ -216,13 +224,59 @@ impl Monitor {
         })
     }
 
+    fn source_view(&self, argument: &str) -> Result<String> {
+        let lines: Vec<_> = self.source_text.lines().collect();
+        if lines.is_empty() {
+            return Ok("source: empty".into());
+        }
+        let text = argument.trim();
+        if text.is_empty() {
+            return Ok(lines
+                .iter()
+                .enumerate()
+                .map(|(index, line)| format!("{:04} | {line}", index + 1))
+                .collect::<Vec<_>>()
+                .join("\n"));
+        }
+        let requested = text.parse::<u32>().map_err(|_| {
+            Diagnostic::error("MON-SRC-002", "source line must be a positive integer")
+        })?;
+        if requested == 0 || requested as usize > lines.len() {
+            return Err(Diagnostic::error(
+                "MON-SRC-003",
+                "source line is outside the loaded document",
+            ));
+        }
+        Ok(format!(
+            "{:04} | {}",
+            requested,
+            lines[requested as usize - 1]
+        ))
+    }
+
+    fn show_diagnostic(&self) -> Result<String> {
+        self.last_diagnostic
+            .as_ref()
+            .map(|diagnostic| format_diagnostic(diagnostic, &self.source_text))
+            .ok_or_else(|| Diagnostic::error("MON-DIAG-001", "no diagnostic is recorded"))
+    }
+
     pub fn assemble_program(&mut self, source: &str) -> Result<String> {
+        let result = self.assemble_program_inner(source);
+        if let Err(error) = &result {
+            self.last_diagnostic = Some(error.clone());
+        }
+        result
+    }
+
+    fn assemble_program_inner(&mut self, source: &str) -> Result<String> {
         if source.trim().is_empty() {
             return Err(Diagnostic::error(
                 "MON-ASM-002",
                 "assemble-program expects at least one source line",
             ));
         }
+        self.source_text = source.to_string();
         let image = assemble_source_program(source)?;
         self.machine = Machine::new(self.machine.memory_size());
         self.machine.load(image.entry, &image.text)?;
@@ -241,7 +295,6 @@ impl Monitor {
         self.watchpoints.clear();
         self.history.clear();
         self.call_stack.clear();
-        self.source_text = source.to_string();
         Ok(format!(
             "loaded {} bytes at 0x{:016x}; {} symbol(s)",
             image.text.len(),
@@ -1300,6 +1353,7 @@ pub struct BackendConsole<B> {
     next_history_sequence: u64,
     max_run_steps: u64,
     register_baseline: register_view::RegisterSnapshot,
+    last_diagnostic: Option<Diagnostic>,
 }
 
 impl<B> BackendConsole<B>
@@ -1324,6 +1378,7 @@ where
             next_history_sequence: 1,
             max_run_steps: 1000,
             register_baseline,
+            last_diagnostic: None,
         }
     }
 
@@ -1334,7 +1389,7 @@ where
         command::validate_required_arguments(&command.name, command.tokens.len())?;
         let name = command.name.to_ascii_lowercase();
         let argument = command.raw_arguments.as_str();
-        match name.as_str() {
+        let result = match name.as_str() {
             "help" | "?" => Ok(backend_help()),
             "dashboard" | "dash" => self.dashboard(argument),
             "assemble" | "a" => self.assemble(argument),
@@ -1348,6 +1403,8 @@ where
             "disasm-mixed-c" | "mixed-c" => self.disassemble_mixed(argument, true),
             "symbols" => self.show_symbols(),
             "where" => Ok(self.show_location()),
+            "source" => self.source_view(argument),
+            "diagnostic" | "diag" => self.show_diagnostic(),
             "memory" | "mem" | "hex" | "ascii" => self.memory(argument),
             "find" => self.find_memory(argument),
             "fill" => self.fill_memory(argument),
@@ -1371,7 +1428,11 @@ where
                 "CMD-001",
                 format!("unknown backend command: {}; use help", command.name),
             )),
+        };
+        if let Err(error) = &result {
+            self.last_diagnostic = Some(error.clone());
         }
+        result
     }
 
     fn assemble(&mut self, source: &str) -> Result<String> {
@@ -1381,12 +1442,12 @@ where
                 "assemble expects one source line",
             ));
         }
+        self.source_text = source.to_string();
         let image = assemble(source)?;
         let address = self.backend.context().pc;
         self.backend
             .write_memory(address, &image.text)
             .map_err(target_error)?;
-        self.source_text = source.to_string();
         self.view_address = address;
         Ok(format!(
             "loaded {} byte(s) at 0x{address:016x}",
@@ -1401,12 +1462,12 @@ where
                 "assemble-program expects at least one source line",
             ));
         }
+        self.source_text = source.to_string();
         let image = assemble_source_program(source)?;
         let base = self.backend.context().pc;
         self.backend
             .write_memory(base, &image.text)
             .map_err(target_error)?;
-        self.source_text = source.to_string();
         let mut symbols = BTreeMap::new();
         for (name, offset) in image.symbols {
             let address = base
@@ -1424,6 +1485,43 @@ where
             image.text.len(),
             self.symbols.len()
         ))
+    }
+
+    fn source_view(&self, argument: &str) -> Result<String> {
+        let lines: Vec<_> = self.source_text.lines().collect();
+        if lines.is_empty() {
+            return Ok("source: empty".into());
+        }
+        let text = argument.trim();
+        if text.is_empty() {
+            return Ok(lines
+                .iter()
+                .enumerate()
+                .map(|(index, line)| format!("{:04} | {line}", index + 1))
+                .collect::<Vec<_>>()
+                .join("\n"));
+        }
+        let requested = text.parse::<u32>().map_err(|_| {
+            Diagnostic::error("MON-SRC-102", "source line must be a positive integer")
+        })?;
+        if requested == 0 || requested as usize > lines.len() {
+            return Err(Diagnostic::error(
+                "MON-SRC-103",
+                "source line is outside the loaded document",
+            ));
+        }
+        Ok(format!(
+            "{:04} | {}",
+            requested,
+            lines[requested as usize - 1]
+        ))
+    }
+
+    fn show_diagnostic(&self) -> Result<String> {
+        self.last_diagnostic
+            .as_ref()
+            .map(|diagnostic| format_diagnostic(diagnostic, &self.source_text))
+            .ok_or_else(|| Diagnostic::error("MON-DIAG-101", "no diagnostic is recorded"))
     }
 
     fn step(&mut self) -> Result<String> {
@@ -2472,6 +2570,8 @@ fn backend_help() -> String {
         "disasm-mixed-c [addr] c:n,d:n,...  allow compressed 16-bit code",
         "symbols              list loaded symbols",
         "where                show pc, nearest symbol and memory view",
+        "source [line]        show loaded source with stable line numbers",
+        "diagnostic            show the last diagnostic with source excerpt",
         "memory [addr] [n]    show target memory as hex/ASCII",
         "find <addr> <n> <bytes> search target memory",
         "fill <addr> <n> <byte> fill target memory transactionally",
@@ -2514,6 +2614,34 @@ fn format_flags(flags: u8) -> String {
     } else {
         names.join("|")
     }
+}
+
+fn format_diagnostic(diagnostic: &Diagnostic, source: &str) -> String {
+    let severity = format!("{:?}", diagnostic.severity).to_ascii_lowercase();
+    let location = match (diagnostic.line, diagnostic.column) {
+        (Some(line), Some(column)) => format!(" line {line}, column {column}"),
+        (Some(line), None) => format!(" line {line}"),
+        _ => String::new(),
+    };
+    let mut output = format!(
+        "{severity} {}{}: {}",
+        diagnostic.code, location, diagnostic.message
+    );
+    if let Some(line) = diagnostic.line {
+        if let Some(text) = source.lines().nth(line.saturating_sub(1) as usize) {
+            let column = diagnostic.column.unwrap_or(1).saturating_sub(1) as usize;
+            let length = diagnostic.length.unwrap_or(1).max(1) as usize;
+            writeln!(output, "\n{:04} | {text}", line).unwrap();
+            writeln!(
+                output,
+                "     | {}{}",
+                " ".repeat(column),
+                "^".repeat(length)
+            )
+            .unwrap();
+        }
+    }
+    output
 }
 
 fn parse_run_limit(argument: &str, default: u64) -> Result<u64> {
@@ -2579,6 +2707,8 @@ fn help() -> String {
         "awatch <addr> [w]    stop on reads or writes",
         "symbols              list loaded symbols",
         "where                show pc, nearest symbol and memory view",
+        "source [line]        show loaded source with stable line numbers",
+        "diagnostic            show the last diagnostic with source excerpt",
         "stack                show inferred jal/jalr call stack",
         "history [count]      show bounded execution history",
         "snapshot <path>      save machine/debugger state",
@@ -3148,6 +3278,24 @@ mod tests {
         let error = monitor.execute("disasm 0x20..0x10").unwrap_err();
         assert_eq!(error.code, "CMD-004");
         assert_eq!(monitor.machine.pc, 0x10);
+    }
+
+    #[test]
+    fn assembly_diagnostic_keeps_source_excerpt_without_mutating_machine() {
+        let mut monitor = Monitor::new(128);
+        let error = monitor.assemble_program("addi x1,x0,99999").unwrap_err();
+        assert!(error.code.starts_with("ASM-") || error.code.starts_with("ISA-"));
+        assert_eq!(monitor.machine.pc, 0);
+        assert!(
+            monitor
+                .execute("source 1")
+                .unwrap()
+                .contains("addi x1,x0,99999")
+        );
+        let diagnostic = monitor.execute("diagnostic").unwrap();
+        assert!(diagnostic.contains(&error.code));
+        assert!(diagnostic.contains("addi x1,x0,99999"));
+        assert!(diagnostic.contains("^"));
     }
 
     #[test]
