@@ -571,6 +571,34 @@ confondre code présent et exigence formellement auditée.
 - **Paquet de contexte minimal :** `crates/snapshot-format/src/lib.rs`,
   `crates/guest-monitor/src/main.rs`, `scripts/test-guest-snapshot-binary.sh`.
 
+### GUEST-017 — Exposition guest du metadata RVMETA01 — TERMINÉ
+
+- **Jalon / exigences :** M8; IO-006..009, OBS-001..006, REQ-PROD-006.
+- **But :** rendre le contexte, le source et les symboles du slot snapshot
+  lisibles depuis le guest avec le format `RVMETA01` déjà testé côté hôte.
+- **Non-but :** modifier encore le conteneur `RVSNAP01`, importer le metadata,
+  persister les historiques ou ajouter une négociation de capacités.
+- **Entrées/sources :** SPEC §§8/12/21/22; contrat `RVMETA01` de GUEST-013.
+- **Fichiers/modules :** `crates/guest-monitor/src/main.rs`, smoke snapshot et
+  tutoriel/tests guest.
+- **Étapes réalisées :** sérialisation little-endian bornée depuis le slot;
+  commandes `snapshot metadata` et `snapshot metadata dump`; chunks de 128
+  octets en hexadécimal; validation de la magic et de la longueur dans QEMU.
+- **Dépendances :** GUEST-013/016; collecte hôte et intégration au fichier
+  persistent restent la prochaine sous-tranche.
+- **Tests :** snapshot QEMU sauvegardé, annonce `RVMETA01`, premier chunk
+  `52564d4554413031`, suite workspace et contrôles R2.
+- **Critères de sortie :** metadata absent refusé, buffer borné, octets exacts
+  et ordre stable, aucune modification des régions snapshot.
+- **Cas limites et échecs :** source/symboles vides, metadata trop grand,
+  plage inversée ou hors limites, chunk de 128 octets.
+- **Taille :** 4 points / 1 journée-agent, incertitude moyenne.
+- **Compétences/outils :** Rust `no_std`, formats binaires, QEMU, UART.
+- **Parallélisable :** oui avec l’intégration hôte; non avec une modification
+  concurrente du contrat `RVMETA01`.
+- **Paquet de contexte minimal :** `crates/guest-monitor/src/main.rs`,
+  `crates/snapshot-format/src/lib.rs`, `scripts/test-guest-snapshot.sh`.
+
 ### GUEST-013 — Contrat metadata RVSNAP01 — TERMINÉ
 
 - **Jalon / exigences :** M8; IO-001..009, OBS-001..006, REQ-PROD-006.

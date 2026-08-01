@@ -31,6 +31,7 @@ const MAX_WATCHPOINTS: usize = 4;
 const MAX_MEMORY_DUMP: u64 = 128;
 const MAX_EDIT_BYTES: usize = 32;
 const MAX_SNAPSHOT_DUMP: u64 = 4096;
+const MAX_METADATA_BYTES: usize = 4096;
 const MAX_SOURCE_LINES: usize = 16;
 const MAX_SYMBOLS: usize = 8;
 const SYMBOL_NAME_CAPACITY: usize = 16;
@@ -57,6 +58,7 @@ static mut SNAPSHOT_BINARY_PATCH: [u8; MAX_SNAPSHOT_DUMP as usize] =
     [0; MAX_SNAPSHOT_DUMP as usize];
 static mut SNAPSHOT_BINARY_COMPRESSED: [u8; MAX_SNAPSHOT_DUMP as usize] =
     [0; MAX_SNAPSHOT_DUMP as usize];
+static mut SNAPSHOT_METADATA: [u8; MAX_METADATA_BYTES] = [0; MAX_METADATA_BYTES];
 static mut UART_RX_BUFFER: [u8; UART_RX_BUFFER_CAPACITY] = [0; UART_RX_BUFFER_CAPACITY];
 static mut UART_RX_LENGTH: usize = 0;
 static mut UART_RX_INDEX: usize = 0;
@@ -278,6 +280,10 @@ fn monitor_loop(context: *mut TargetContext) -> ! {
             b"snapshot restore" | b"project-load" => restore_guest_snapshot(context),
             b"snapshot info" => snapshot_info(),
             b"snapshot manifest" => snapshot_manifest(),
+            b"snapshot metadata" => snapshot_metadata_info(),
+            command if command.starts_with(b"snapshot metadata dump ") => {
+                snapshot_metadata_dump(&command[23..])
+            }
             command if command.starts_with(b"snapshot dump ") => snapshot_dump(&command[14..]),
             command if command.starts_with(b"snapshot patchbin ") => {
                 snapshot_patch_binary(&command[18..])
@@ -316,7 +322,7 @@ fn monitor_loop(context: *mut TargetContext) -> ! {
 
 fn print_help() {
     uart_write(
-        "help/? regs/registers set <xreg> <hex64> setf <freg> <hex64> memory <addr> <length> edit <addr> <hex-bytes> data <addr> <directive> <bits> undo assemble <addr> <instruction> assemble-program <addr> ... end assemble-source source [line]|replace <n> <text> snapshot save|restore|info|manifest|dump|patch|patchbin|patchrle project-save|project-load symbols disasm <addr|label> <count> step/s run <count> continue/c break <addr|label> watch/rwatch/awatch <addr> <width> delete <n>|watch <n> info break/watch quit/q\r\n",
+        "help/? regs/registers set <xreg> <hex64> setf <freg> <hex64> memory <addr> <length> edit <addr> <hex-bytes> data <addr> <directive> <bits> undo assemble <addr> <instruction> assemble-program <addr> ... end assemble-source source [line]|replace <n> <text> snapshot save|restore|info|manifest|metadata|dump|patch|patchbin|patchrle project-save|project-load symbols disasm <addr|label> <count> step/s run <count> continue/c break <addr|label> watch/rwatch/awatch <addr> <width> delete <n>|watch <n> info break/watch quit/q\r\n",
     );
 }
 
@@ -1431,6 +1437,153 @@ fn snapshot_info() {
     uart_write("snapshot: valid workspace=65536 data=1048576 source-lines=");
     uart_decimal(source_count as u64);
     uart_write(" chunk-max=4096\r\n");
+}
+
+fn snapshot_metadata_info() {
+    let Some(length) = build_snapshot_metadata() else {
+        guest_error(
+            b"GUEST-SNAPSHOT-014",
+            b"metadata does not fit its bounded buffer",
+        );
+        return;
+    };
+    uart_write("snapshot-metadata format=RVMETA01 size=");
+    uart_decimal(length as u64);
+    uart_write(" chunk-max=128\r\n");
+}
+
+fn snapshot_metadata_dump(argument: &[u8]) {
+    let Some((offset_bytes, length_bytes)) = split_token_space(argument) else {
+        guest_error(
+            b"GUEST-SNAPSHOT-015",
+            b"metadata dump expects <offset> <length>",
+        );
+        return;
+    };
+    let Some(offset) = parse_decimal(offset_bytes) else {
+        guest_error(b"GUEST-SNAPSHOT-005", b"snapshot offset must be decimal");
+        return;
+    };
+    let Some(length) = parse_decimal(length_bytes) else {
+        guest_error(b"GUEST-SNAPSHOT-006", b"snapshot length must be decimal");
+        return;
+    };
+    let Some(metadata_length) = build_snapshot_metadata() else {
+        guest_error(
+            b"GUEST-SNAPSHOT-014",
+            b"metadata does not fit its bounded buffer",
+        );
+        return;
+    };
+    if length == 0
+        || length > MAX_MEMORY_DUMP
+        || offset
+            .checked_add(length)
+            .is_none_or(|end| end > metadata_length as u64)
+    {
+        guest_error(
+            b"GUEST-SNAPSHOT-016",
+            b"metadata chunk is outside its bounds",
+        );
+        return;
+    }
+    uart_write("snapshot-metadata-chunk offset=");
+    uart_decimal(offset);
+    uart_write(" length=");
+    uart_decimal(length);
+    uart_write(" hex=");
+    unsafe {
+        for byte in &SNAPSHOT_METADATA[offset as usize..(offset + length) as usize] {
+            uart_hex_byte(*byte);
+        }
+    }
+    uart_write("\r\n");
+}
+
+fn build_snapshot_metadata() -> Option<usize> {
+    let snapshot = core::ptr::addr_of!(GUEST_SNAPSHOT);
+    let valid = unsafe { core::ptr::read_volatile(core::ptr::addr_of!((*snapshot).valid)) };
+    if !valid {
+        return None;
+    }
+    let mut writer = MetadataWriter { offset: 0 };
+    writer.bytes(b"RVMETA01")?;
+    writer.u32(1)?;
+    unsafe {
+        for value in (*snapshot)
+            .context
+            .x
+            .iter()
+            .chain((*snapshot).context.f.iter())
+        {
+            writer.u64(*value)?;
+        }
+        writer.u64((*snapshot).context.pc)?;
+        writer.u32((*snapshot).context.fcsr)?;
+        writer.u64((*snapshot).context.mstatus)?;
+        writer.u64((*snapshot).context.mepc)?;
+        writer.u64((*snapshot).context.mcause)?;
+        writer.u64((*snapshot).context.mtval)?;
+        let mut source_length = 0usize;
+        for index in 0..(*snapshot).source_count {
+            source_length += (*snapshot).source_lengths[index];
+            if index + 1 < (*snapshot).source_count {
+                source_length += 1;
+            }
+        }
+        writer.u32(source_length as u32)?;
+        let symbol_count = (*snapshot)
+            .symbols
+            .iter()
+            .filter(|symbol| symbol.enabled)
+            .count();
+        writer.u32(symbol_count as u32)?;
+        for index in 0..(*snapshot).source_count {
+            writer
+                .bytes(&(&(*snapshot).source_lines[index])[..(*snapshot).source_lengths[index]])?;
+            if index + 1 < (*snapshot).source_count {
+                writer.bytes(b"\n")?;
+            }
+        }
+        for symbol in &(*snapshot).symbols {
+            if symbol.enabled {
+                writer.u64(symbol.address)?;
+                writer.u16(symbol.length as u16)?;
+                writer.bytes(&symbol.name[..symbol.length])?;
+            }
+        }
+    }
+    Some(writer.offset)
+}
+
+struct MetadataWriter {
+    offset: usize,
+}
+
+impl MetadataWriter {
+    fn bytes(&mut self, bytes: &[u8]) -> Option<()> {
+        let end = self.offset.checked_add(bytes.len())?;
+        if end > MAX_METADATA_BYTES {
+            return None;
+        }
+        unsafe {
+            SNAPSHOT_METADATA[self.offset..end].copy_from_slice(bytes);
+        }
+        self.offset = end;
+        Some(())
+    }
+
+    fn u16(&mut self, value: u16) -> Option<()> {
+        self.bytes(&value.to_le_bytes())
+    }
+
+    fn u32(&mut self, value: u32) -> Option<()> {
+        self.bytes(&value.to_le_bytes())
+    }
+
+    fn u64(&mut self, value: u64) -> Option<()> {
+        self.bytes(&value.to_le_bytes())
+    }
 }
 
 fn snapshot_manifest() {

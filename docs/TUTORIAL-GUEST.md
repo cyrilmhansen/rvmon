@@ -407,8 +407,9 @@ L’application attend l’invite UART, exécute `snapshot save`, collecte les
 blocs, contrôle le manifeste et écrit un fichier `RVSNAP01` déterministe.
 Cette version exporte les régions mémoire et le nombre de lignes source ; les
 registres, symboles et texte source ne sont pas encore sérialisés.
-Le sous-format `RVMETA01` est déjà défini et testé côté hôte pour ces données ;
-son émission par les commandes guest sera ajoutée dans la prochaine sous-tranche.
+Le guest expose désormais le sous-format `RVMETA01` par
+`snapshot metadata` puis `snapshot metadata dump <offset> <length>` ; son
+intégration dans le fichier hôte reste la prochaine étape de cette famille.
 
 Pour importer une image vérifiée dans le slot guest :
 
