@@ -461,6 +461,23 @@ confondre code présent et exigence formellement auditée.
 - **Parallélisable :** oui avec l’import; non avec une modification du protocole d’invite guest.
 - **Paquet de contexte minimal :** `crates/snapshot-format/src/lib.rs`, `crates/app/src/main.rs`, `scripts/test-guest-snapshot-export.sh`, docs §§9/12/18/21.
 
+### GUEST-012 — Import hôte vers le slot guest — TERMINÉ
+
+- **Jalon / exigences :** M8; IO-001..009, OBS-001..006, REQ-PROD-006.
+- **But :** restaurer dans le slot guest les régions d’une image RVSNAP01 validée par l’hôte.
+- **Non-but :** écrire la RAM active avant `snapshot restore`, importer des registres/source absents du format, optimiser les 32 octets historiques ou reprendre une connexion interrompue.
+- **Entrées/sources :** SPEC §§12/18/21; RVSNAP01; commandes guest `snapshot patch` et `snapshot restore`.
+- **Fichiers/modules :** `crates/snapshot-format/src/lib.rs`, `crates/app/src/main.rs`, `docs/TUTORIAL-GUEST.md`, `docs/TESTS.md`.
+- **Étapes réalisées :** `apply_guest_snapshot`; décodage et CRC avant transport; patches workspace/data en blocs de 32 octets; détection des réponses guest négatives; restauration finale obligatoire; option `--snapshot-in`.
+- **Dépendances et tâches bloquées :** GUEST-010/011; import réel complet QEMU est différé à cause du coût de 34 k commandes UART; reprise, compression/delta et métadonnées restent différées.
+- **Tests :** image multi-blocs appliquée par fake guest, ordre patches puis restore, refus de réponse invalide et couverture `cargo test --workspace`.
+- **Critères de sortie :** fichier invalide rejeté avant connexion; aucun restore si un patch est refusé; image valide confirmée seulement après réponse `snapshot restored`.
+- **Cas limites et échecs :** fichier tronqué/corrompu, image vide, patch final court, slot absent, coupure transport et restore refusé.
+- **Taille :** 4 points / 2 journées-agent, incertitude moyenne.
+- **Compétences/outils :** Rust, protocole UART, formats binaires, QEMU.
+- **Parallélisable :** oui avec delta/reprise; non avec une modification concurrente des bornes guest.
+- **Paquet de contexte minimal :** `crates/snapshot-format/src/lib.rs`, `crates/app/src/main.rs`, SPEC §§12/18/21.
+
 ## M3 — assembleur et désassembleur
 
 ### ISA-003 — Étendre la tranche RV64 aux loads/stores 64 bits — TERMINÉ

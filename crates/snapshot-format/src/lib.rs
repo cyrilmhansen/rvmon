@@ -44,6 +44,13 @@ pub enum FetchError {
     Format(SnapshotError),
 }
 
+#[derive(Debug, PartialEq, Eq)]
+pub enum ApplyError {
+    Transport(String),
+    Protocol(String),
+    Format(SnapshotError),
+}
+
 pub trait GuestCommandTransport {
     type Error: fmt::Debug;
 
@@ -142,6 +149,47 @@ where
         ));
     }
     Ok(image)
+}
+
+pub fn apply_guest_snapshot<T>(transport: &mut T, image: &SnapshotImage) -> Result<(), ApplyError>
+where
+    T: GuestCommandTransport,
+{
+    image.manifest().map_err(ApplyError::Format)?;
+    apply_region(transport, "workspace", &image.workspace)?;
+    apply_region(transport, "data", &image.data)?;
+    let response = transport
+        .command("snapshot restore")
+        .map_err(|error| ApplyError::Transport(format!("{error:?}")))?;
+    if response.contains("error [") || !response.contains("snapshot restored") {
+        return Err(ApplyError::Protocol(
+            "guest did not confirm snapshot restore".into(),
+        ));
+    }
+    Ok(())
+}
+
+fn apply_region<T: GuestCommandTransport>(
+    transport: &mut T,
+    region: &str,
+    bytes: &[u8],
+) -> Result<(), ApplyError> {
+    for (offset, chunk) in bytes.chunks(32).enumerate() {
+        let offset = offset * 32;
+        let hex = chunk
+            .iter()
+            .map(|byte| format!("{byte:02x}"))
+            .collect::<String>();
+        let response = transport
+            .command(&format!("snapshot patch {region} {offset} {hex}"))
+            .map_err(|error| ApplyError::Transport(format!("{error:?}")))?;
+        if response.contains("error [") || !response.contains("snapshot chunk patched") {
+            return Err(ApplyError::Protocol(format!(
+                "guest rejected snapshot patch {region} offset={offset}"
+            )));
+        }
+    }
+    Ok(())
 }
 
 fn parse_manifest(line: &str) -> Result<(SnapshotManifest, usize), FetchError> {
@@ -583,5 +631,44 @@ mod tests {
                 "data CRC-32 differs from guest manifest".into()
             ))
         );
+    }
+
+    struct ApplyGuest {
+        patches: Vec<String>,
+        restored: bool,
+    }
+
+    impl GuestCommandTransport for ApplyGuest {
+        type Error = &'static str;
+
+        fn command(&mut self, command: &str) -> Result<String, Self::Error> {
+            if command == "snapshot restore" {
+                self.restored = true;
+                return Ok("snapshot restored (workspace=65536 data=1048576)".into());
+            }
+            if command.starts_with("snapshot patch ") {
+                self.patches.push(command.into());
+                return Ok("snapshot chunk patched data offset=0 length=32".into());
+            }
+            Err("unexpected command")
+        }
+    }
+
+    #[test]
+    fn applies_regions_in_32_byte_patches_before_restore() {
+        let image = SnapshotImage {
+            workspace: vec![0x11; 33],
+            data: vec![0x22; 65],
+            source_lines: 0,
+        };
+        let mut guest = ApplyGuest {
+            patches: Vec::new(),
+            restored: false,
+        };
+        apply_guest_snapshot(&mut guest, &image).unwrap();
+        assert_eq!(guest.patches.len(), 5);
+        assert!(guest.patches[0].starts_with("snapshot patch workspace 0 "));
+        assert!(guest.patches[2].starts_with("snapshot patch data 0 "));
+        assert!(guest.restored);
     }
 }

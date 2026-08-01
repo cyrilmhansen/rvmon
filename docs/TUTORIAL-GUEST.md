@@ -395,6 +395,19 @@ blocs, contrôle le manifeste et écrit un fichier `RVSNAP01` déterministe.
 Cette version exporte les régions mémoire et le nombre de lignes source ; les
 registres, symboles et texte source ne sont pas encore sérialisés.
 
+Pour importer une image vérifiée dans le slot guest :
+
+```sh
+$ cargo run -p luna-app -- \
+    --guest-uart-port 12353 --snapshot-in session.rvsnap
+guest snapshot imported from session.rvsnap (workspace=65536 data=1048576 source-lines=0)
+```
+
+L’import décode et contrôle le fichier avant d’envoyer le moindre patch. Les
+patches restent limités à 32 octets par commande UART, puis une seule commande
+`snapshot restore` rend l’ensemble actif ; une erreur laisse donc le slot
+partiellement préparé mais ne modifie pas la cible active avant la restauration.
+
 ### Watchpoints logiciels
 
 Le guest fournit des watchpoints logiciels sur les accès RV64 `ld` et `sd`.

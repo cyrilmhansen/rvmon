@@ -13,8 +13,11 @@ use luna_snapshot_format::GuestCommandTransport;
 const MAX_SHELL_HISTORY: usize = 256;
 
 fn main() {
-    if let Some((port, output)) = guest_snapshot_options() {
-        export_guest_snapshot(port, &output);
+    if let Some(operation) = guest_snapshot_options() {
+        match operation {
+            GuestSnapshotOperation::Export { port, output } => export_guest_snapshot(port, &output),
+            GuestSnapshotOperation::Import { port, input } => import_guest_snapshot(port, &input),
+        }
         return;
     }
     let script = script_path();
@@ -27,10 +30,16 @@ fn main() {
     }
 }
 
-fn guest_snapshot_options() -> Option<(u16, String)> {
+enum GuestSnapshotOperation {
+    Export { port: u16, output: String },
+    Import { port: u16, input: String },
+}
+
+fn guest_snapshot_options() -> Option<GuestSnapshotOperation> {
     let mut arguments = std::env::args().skip(1);
     let mut port = None;
     let mut output = None;
+    let mut input = None;
     while let Some(argument) = arguments.next() {
         match argument.as_str() {
             "--guest-uart-port" => {
@@ -50,13 +59,23 @@ fn guest_snapshot_options() -> Option<(u16, String)> {
                         .unwrap_or_else(|| panic!("--snapshot-out expects a file path")),
                 );
             }
+            "--snapshot-in" => {
+                input = Some(
+                    arguments
+                        .next()
+                        .unwrap_or_else(|| panic!("--snapshot-in expects a file path")),
+                );
+            }
             _ => {}
         }
     }
-    match (port, output) {
-        (Some(port), Some(output)) => Some((port, output)),
-        (None, None) => None,
-        _ => panic!("--guest-uart-port and --snapshot-out must be used together"),
+    match (port, output, input) {
+        (Some(port), Some(output), None) => Some(GuestSnapshotOperation::Export { port, output }),
+        (Some(port), None, Some(input)) => Some(GuestSnapshotOperation::Import { port, input }),
+        (None, None, None) => None,
+        _ => panic!(
+            "--guest-uart-port must be combined with exactly one of --snapshot-out or --snapshot-in"
+        ),
     }
 }
 
@@ -79,6 +98,24 @@ fn export_guest_snapshot(port: u16, output: &str) {
         .unwrap_or_else(|error| panic!("cannot write snapshot {output}: {error}"));
     println!(
         "guest snapshot exported to {output} (workspace={} data={} source-lines={})",
+        image.workspace.len(),
+        image.data.len(),
+        image.source_lines
+    );
+}
+
+fn import_guest_snapshot(port: u16, input: &str) {
+    let encoded = std::fs::read(input)
+        .unwrap_or_else(|error| panic!("cannot read snapshot {input}: {error}"));
+    let image = luna_snapshot_format::SnapshotImage::decode(&encoded)
+        .unwrap_or_else(|error| panic!("cannot decode snapshot {input}: {error}"));
+    let mut transport =
+        luna_snapshot_format::TcpGuestCommandTransport::connect(("127.0.0.1", port))
+            .unwrap_or_else(|error| panic!("cannot connect to guest UART: {error}"));
+    luna_snapshot_format::apply_guest_snapshot(&mut transport, &image)
+        .unwrap_or_else(|error| panic!("cannot apply guest snapshot: {error:?}"));
+    println!(
+        "guest snapshot imported from {input} (workspace={} data={} source-lines={})",
         image.workspace.len(),
         image.data.len(),
         image.source_lines
