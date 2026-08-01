@@ -6,6 +6,30 @@ journée-agent. Ce sont des tokens de contexte + sortie + raisonnement ; ils ne
 mesurent pas la taille du diff et ne remplacent pas la condition de sortie.
 Une tâche est terminée seulement si sa condition de sortie est satisfaite.
 
+## État de suivi au 2026-08-01
+
+Le backlog conserve des tâches agrégées historiques dont les sous-tâches sont
+déjà livrées. Cette table est la source de lecture de l’avancement jusqu’à la
+réconciliation détaillée des titres : une tâche agrégée ne doit pas être
+réimplémentée si les preuves indiquées existent.
+
+| Groupe | État constaté | Preuve principale | Action de planification |
+|---|---|---|---|
+| BOOT-005/006, GEN-002 | livré | `tools/check-r2.sh`, `tools/check-oracles.sh`, artefacts `norms/r2` | conserver comme garde-fous ; BOOT-004 et GEN-001 restent à clôturer formellement |
+| GUEST-001/002, ISA-003/004 | livré | `scripts/test-guest-monitor.sh`, `scripts/test-guest-ld-sd.sh` | ne pas rouvrir ; préparer les extensions guest dédiées |
+| ASM-001A..G, DIS-001A..C | livré par sous-tranches | tests assembleur/désassembleur et `docs/TESTS.md` | clôturer les agrégats ASM-001/002/003/DIS-001 après vérification de couverture |
+| FP-001A, FP-002A, FP-003A, FP-004A/B, FP-005A, GEN-003 | livré | tests `luna-machine`, probes QEMU et tests de formats | traiter FP-002 comme partiellement livré et FP-003 comme reste D/Q/Zfh |
+| CMD-001A/B/C, MON-001A/B, REG-001A..D | livré par sous-tranches | tests `luna-monitor` et commandes host/backend | clôturer les agrégats après matrice de couverture |
+| UI-000A..H | livré | tests app/monitor, TTY et documentation | conserver UI-001 pour l’éditeur/panneaux réellement interactifs |
+| DBG-001, FORMAT-001, QUAL-001/002, REL-001 | non livré ou partiel | absence de preuve de sortie complète | restent sur le chemin critique |
+
+Les tâches BOOT-001 à BOOT-004, GEN-001, ISA-001/002, ASM-BOOT-001,
+MEM-001, MACHINE-001 et DEMO-001 sont des entrées de plan initial. Le dépôt
+contient déjà une implémentation plus avancée que leur description historique,
+mais leur statut ne sera déclaré « livré » qu’après rattachement explicite aux
+tests et aux artefacts de la matrice de release. Cette distinction évite de
+confondre code présent et exigence formellement auditée.
+
 ## Étape 0 / M0
 
 ### BOOT-001 — Figer les snapshots normatifs
