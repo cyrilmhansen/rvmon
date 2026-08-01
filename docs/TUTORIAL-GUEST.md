@@ -112,12 +112,42 @@ au prompt.
 
 ## 3. Commandes disponibles dans le guest
 
-La commande `help` affiche la grammaire actuellement implémentée :
+Commencer chaque séance par `help`. Cette commande reste disponible après une
+erreur et décrit les commandes réellement présentes dans l’image :
 
 ```text
 rvmonitor> help
-help/? regs/registers set <xreg> <hex64> setf <freg> <hex64> memory <addr> <length> edit <addr> <hex-bytes> data <addr> <directive> <bits> undo assemble <addr> <instruction> assemble-program <addr> ... end symbols disasm <addr|label> <count> step/s run <count> continue/c break <addr|label> delete <n> info break quit/q
+RVMonitor guest commands
+  help/?                         this help
+  basic                          launch resident MiniBASIC-RV
+  regs|registers                 show integer/floating registers
+  set <xreg> <hex64>             edit an integer register
+  setf <freg> <hex64>            edit raw floating bits
+  memory <addr> <length>         show target memory as hex/ASCII
+  edit <addr> <hex-bytes>|undo   transactional memory edit/rollback
+  data <addr> <directive> <bits> write exact data representation
+  assemble <addr> <instruction> assemble one instruction
+  assemble-program <addr> ... end  assemble a bounded source buffer
+  assemble-source                 reassemble the edited source buffer
+  source [line]|replace ...       inspect or edit source buffer
+  symbols                         list source symbols
+  disasm <addr|label> <count>    disassemble target words
+  step|s, run <count>             execute with a bounded budget
+  continue|c                      resume from a breakpoint
+  break <addr|label>              software breakpoint
+  watch|rwatch|awatch <addr> <width>  memory watchpoint
+  info break|watch                list debugger objects
+  delete <n>|delete watch <n>     remove debugger object
+  snapshot save|restore|info|manifest  volatile state snapshot
+  project-save|project-load      snapshot aliases
+  quit|q                          leave the monitor command loop
+Errors are non-fatal: read the code/message, correct the command, and retry.
 ```
+
+Après toute ligne `error` ou `ERROR`, lire le code, revenir à un arrêt connu
+avec `regs` ou `info break`, corriger la commande, puis la rejouer. Un message
+`target is not stopped at a breakpoint` signifie que `set`, `step`, `continue`
+ou un snapshot contextuel attend le prochain trap.
 
 ### Lire les registres
 
@@ -570,6 +600,61 @@ le terminal hôte.
 parseur, ses variables et ses calculs sont exécutés dans la machine cible ; le
 moniteur ne fournit que les services console et l’arrêt coopératif documentés
 plus haut. Le parcours ci-dessous introduit une seule idée à la fois.
+
+### 4.0 Ce que fait réellement `basic`
+
+Dans l’image actuelle, MiniBASIC n’est pas encore un fichier chargé par
+`assemble-program`. Il est compilé en `no_std` avec le guest monitor, lié dans
+le même ELF et lancé par `launch_minibasic` : le moniteur remet à zéro le
+contexte U-mode, place `x2` sur la pile BASIC et charge le PC avec le symbole
+`minibasic_entry`. Le code est donc résident dans l’image, comme un service
+embarqué, même si son état d’exécution reste en U-mode et que ses calculs sont
+réels dans la cible.
+
+On peut le constater sans supposer une adresse fixe :
+
+```sh
+$ riscv64-linux-gnu-nm -n \
+    target/riscv64gc-unknown-none-elf/debug/luna-guest-monitor \
+    | awk '$3 == "minibasic_entry" || $3 == "minibasic_divide"'
+```
+
+La commande `basic` ne copie donc ni source ni binaire dans le workspace. Les
+lignes BASIC saisies ensuite résident dans la table interne de MiniBASIC, pas
+dans le chargeur assembleur du moniteur. Cette distinction sépare « programme
+utilisateur U-mode » et « payload utilisateur chargé dynamiquement ».
+
+### 4.0.1 Trajectoire vers un MiniBASIC réellement chargé
+
+Le passage à un programme utilisateur assemblé est faisable, mais ce n’est pas
+un simple changement de commande. Le cœur actuel dépend de services Rust
+(`f64`, tableaux fixes, lecture UART, diagnostics) et l’assembleur guest ne
+gère encore ni appels symboliques complets, ni relocations, ni un programme de
+plus de 16 lignes source. La conversion automatique du désassemblage Rust en
+source pédagogique ne produirait donc pas encore un programme maintenable.
+
+La trajectoire retenue est :
+
+1. figer l’ABI U-mode de MiniBASIC : `entry`, pile, console `ecall`, zone de
+   variables, magasin BASIC, code de sortie et convention de faute ;
+2. extraire le runtime minimal en modules indépendants et produire une carte
+   des symboles/sections vérifiable avec `nm` et `objdump` ;
+3. étendre l’assembleur guest aux labels, appels `jal`/`jalr`, `.text`, `.data`,
+   `.bss`, constantes flottantes et au chargement atomique d’un payload ;
+4. écrire progressivement le REPL, lexer, évaluateur D et contrôle de flot en
+   assembleur accepté par ce dialecte, en utilisant le binaire Rust comme
+   oracle différentiel temporaire ;
+5. ajouter `load-program` ou `assemble-load` : assemblage dans le workspace,
+   validation des bornes, symboles, pile et point d’entrée, puis lancement
+   U-mode par adresse chargée ;
+6. remplacer `basic` résident par un exemple chargé depuis le moniteur et
+   conserver le chemin résident uniquement comme mode de secours/tests.
+
+Le désassemblage du Rust compilé sera utilisé pour comprendre les séquences
+RV64D, les appels de services et les conventions de pile, jamais comme
+substitut silencieux à une source assembleur. Cette migration est un jalon
+distinct : la présente démo prouve le moteur cible, mais ne doit pas être
+présentée comme preuve du chargement dynamique.
 
 ### 4.1 Entrer en mode direct
 

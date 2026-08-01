@@ -396,7 +396,32 @@ fn monitor_loop(context: *mut TargetContext) -> ! {
 
 fn print_help() {
     uart_write(
-        "help/? basic regs/registers set <xreg> <hex64> setf <freg> <hex64> memory <addr> <length> edit <addr> <hex-bytes> data <addr> <directive> <bits> undo assemble <addr> <instruction> assemble-program <addr> ... end assemble-source source [line]|replace <n> <text> snapshot save|restore|info|manifest|metadata|dump|patch|patchbin|patchrle project-save|project-load symbols disasm <addr|label> <count> step/s run <count> continue/c break <addr|label> watch/rwatch/awatch <addr> <width> delete <n>|watch <n> info break/watch quit/q\r\n",
+        "RVMonitor guest commands\r\n\
+          help/?                         this help\r\n\
+          basic                          launch resident MiniBASIC-RV\r\n\
+          regs|registers                 show integer/floating registers\r\n\
+          set <xreg> <hex64>             edit an integer register\r\n\
+          setf <freg> <hex64>            edit raw floating bits\r\n\
+          memory <addr> <length>         show target memory as hex/ASCII\r\n\
+          edit <addr> <hex-bytes>|undo   transactional memory edit/rollback\r\n\
+          data <addr> <directive> <bits> write exact data representation\r\n\
+          assemble <addr> <instruction> assemble one instruction\r\n\
+          assemble-program <addr> ... end  assemble a bounded source buffer\r\n\
+          assemble-source                 reassemble the edited source buffer\r\n\
+          source [line]|replace ...       inspect or edit source buffer\r\n\
+          symbols                         list source symbols\r\n\
+          disasm <addr|label> <count>    disassemble target words\r\n\
+          step|s, run <count>             execute with a bounded budget\r\n\
+          continue|c                      resume from a breakpoint\r\n\
+          break <addr|label>              software breakpoint\r\n\
+          watch|rwatch|awatch <addr> <width>  memory watchpoint\r\n\
+          info break|watch                list debugger objects\r\n\
+          delete <n>|delete watch <n>     remove debugger object\r\n\
+          snapshot save|restore|info|manifest  volatile state snapshot\r\n\
+          snapshot metadata|dump|patch|patchbin|patchrle  snapshot transport\r\n\
+          project-save|project-load      snapshot aliases\r\n\
+          quit|q                          leave the monitor command loop\r\n\
+        Errors are non-fatal: read the code/message, correct the command, and retry.\r\n",
     );
 }
 
