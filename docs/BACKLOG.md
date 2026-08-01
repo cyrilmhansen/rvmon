@@ -865,6 +865,23 @@ Une tâche est terminée seulement si sa condition de sortie est satisfaite.
 - **Parallélisable :** oui avec DBG-001.
 - **Contexte minimal :** SPEC §10/19.
 
+### MON-001A — Modèle de curseur/sélection et rendu mémoire partagé — TERMINÉ
+
+- **Jalon / exigences :** M6; MEM-001..012, REQ-PROD-003/005.
+- **But :** stabiliser un modèle backend-neutre de curseur/sélection et partager le rendu hex/ASCII entre le simulateur et `BackendConsole`.
+- **Non-but :** raccorder les raccourcis clavier, construire les widgets terminaux, ajouter encore recherche/fill/copy ou persister une sélection UI.
+- **Entrées/sources :** SPEC §14/15; A1 ch. 6–9; DECISIONS D-007/D-008.
+- **Fichiers/modules :** `crates/monitor/src/memory_view.rs`, `crates/monitor/src/lib.rs`.
+- **Étapes réalisées :** invariants de plage inclusive/exclusive; curseur avec navigation sans wrap; jump qui efface la sélection; sélection normalisée; rendu hex/ASCII byte-exact commun aux deux consoles.
+- **Dépendances/bloqués :** CMD-001B/CMD-001C; l’intégration des événements clavier, marques persistées dans ce modèle et opérations recherche/fill/copy reste dans MON-001.
+- **Tests :** overflow de curseur, sélection inversée, jump/clear, rendu ASCII des octets non imprimables, conservation d’adresse et undo existants.
+- **Critères de sortie :** un seul renderer produit les deux vues textuelles; aucune navigation ne wrappe une adresse; le rollback mémoire conserve le rendu et l’adresse; `cargo test -p luna-monitor` passe.
+- **Cas limites et échecs :** adresse `0` avec déplacement négatif, `u64::MAX` avec déplacement positif, sélection vide, ligne mémoire finale partielle.
+- **Taille :** 3 points / 1,5 journée-agent, incertitude moyenne.
+- **Compétences/outils :** modèle d’état, arithmétique d’adresses, rendu terminal, tests Rust.
+- **Parallélisable :** oui avec REG-001; non avec une modification concurrente du format hex/ASCII.
+- **Paquet de contexte minimal :** SPEC §14/15, `crates/monitor/src/memory_view.rs`, `crates/monitor/src/lib.rs`.
+
 ### MON-001 — Vues mémoire, marks et QuickJump
 
 - **Jalon / exigences :** M6; MEM-001..012, REQ-PROD-003/005.

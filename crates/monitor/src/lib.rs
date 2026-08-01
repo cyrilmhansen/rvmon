@@ -16,6 +16,7 @@ use luna_machine::{FFLAG_DZ, FFLAG_NV, FFLAG_NX, FFLAG_OF, FFLAG_UF, Machine};
 use luna_target_api::{ExecutionOutcome, MemoryAccess, MemoryAccessKind, StopEvent, TargetBackend};
 
 mod command;
+mod memory_view;
 
 const DEFAULT_MEMORY_VIEW_BYTES: usize = 64;
 const MAX_MEMORY_VIEW_BYTES: usize = 4096;
@@ -703,30 +704,7 @@ impl Monitor {
         TargetBackend::read_memory(&mut self.machine, address, &mut bytes)?;
         self.view_address = address;
 
-        let mut output = String::new();
-        for (row, chunk) in bytes.chunks(16).enumerate() {
-            let row_address = address
-                .checked_add((row * 16) as u64)
-                .ok_or_else(|| Diagnostic::error("MON-MEM-002", "address overflow"))?;
-            write!(output, "0x{row_address:016x}: ").unwrap();
-            for byte in chunk {
-                write!(output, "{byte:02x} ").unwrap();
-            }
-            for _ in chunk.len()..16 {
-                output.push_str("   ");
-            }
-            output.push_str("|");
-            for byte in chunk {
-                output.push(if (0x20..=0x7e).contains(byte) {
-                    *byte as char
-                } else {
-                    '.'
-                });
-            }
-            output.push('|');
-            output.push('\n');
-        }
-        Ok(output.trim_end().into())
+        memory_view::render_hex_ascii(address, &bytes, "MON-MEM-002")
     }
 
     fn edit_memory(&mut self, argument: &str) -> Result<String> {
@@ -1534,7 +1512,7 @@ where
             .read_memory(address, &mut bytes)
             .map_err(target_error)?;
         self.view_address = address;
-        format_memory_view(address, &bytes)
+        memory_view::render_hex_ascii(address, &bytes, "MON-MEM-101")
     }
 
     fn set_view(&mut self, argument: &str) -> Result<String> {
@@ -2072,33 +2050,6 @@ fn format_backend_console_outcome(outcome: ExecutionOutcome) -> String {
             instruction_count,
         } => format!("budget exhausted at pc=0x{pc:016x}; total={instruction_count}"),
     }
-}
-
-fn format_memory_view(address: u64, bytes: &[u8]) -> Result<String> {
-    let mut output = String::new();
-    for (row, chunk) in bytes.chunks(16).enumerate() {
-        let row_address = address
-            .checked_add((row * 16) as u64)
-            .ok_or_else(|| Diagnostic::error("MON-MEM-101", "address overflow"))?;
-        write!(output, "0x{row_address:016x}: ").unwrap();
-        for byte in chunk {
-            write!(output, "{byte:02x} ").unwrap();
-        }
-        for _ in chunk.len()..16 {
-            output.push_str("   ");
-        }
-        output.push('|');
-        for byte in chunk {
-            output.push(if (0x20..=0x7e).contains(byte) {
-                *byte as char
-            } else {
-                '.'
-            });
-        }
-        output.push('|');
-        output.push('\n');
-    }
-    Ok(output.trim_end().into())
 }
 
 fn backend_help() -> String {
