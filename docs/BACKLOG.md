@@ -1950,6 +1950,33 @@ confondre code présent et exigence formellement auditée.
 - **Parallélisable :** oui avec QUAL-001.
 - **Contexte minimal :** SPEC §20.
 
+#### QUAL-002A — Benchmark smoke assemble/step/snapshot — TERMINÉ
+
+- **Jalon / exigences :** M9; NFR-001..006.
+- **But :** mesurer un cycle représentatif en build release avec un protocole
+  stable et sans seuil hôte prématuré.
+- **Non-but :** annoncer une performance garantie, comparer deux machines sans
+  rapport de contexte ou optimiser avant mesure.
+- **Entrées/sources :** SPEC §20; contrat public `Monitor` et snapshot v4.
+- **Fichiers/modules :** `crates/monitor/examples/bench_smoke.rs`,
+  `tools/bench-smoke.sh`.
+- **Étapes réalisées :** exécuter 1 000 cycles `assemble addi → step → snapshot`
+  sur 64 KiB; afficher durée totale, moyenne par cycle et taille snapshot;
+  exiger les mêmes opérations valides à chaque itération.
+- **Dépendances et tâches bloquées :** QUAL-002; matrice x86_64/ARM64,
+  p95 interactif, mémoire et seuils release restent à établir.
+- **Tests :** `bash tools/bench-smoke.sh`, build release propre.
+- **Critères de sortie :** le benchmark termine sans erreur et expose des
+  métriques identifiées; aucune mesure n’altère un artefact du dépôt.
+- **Cas limites et échecs :** assemblage, step ou snapshot invalide provoque un
+  échec explicite; la durée zéro reste affichée sans division par zéro.
+- **Taille :** 2 points / 1 journée-agent, incertitude faible.
+- **Compétences/outils :** Rust `Instant`, Cargo release, analyse de mesures.
+- **Parallélisable :** oui avec QUAL-001; non avec une modification du contrat
+  snapshot ou du cycle de bootstrap.
+- **Paquet de contexte minimal :** example `bench_smoke`,
+  `tools/bench-smoke.sh`, SPEC §20.
+
 ### REL-001 — Release candidate et dossier de preuve
 
 - **Jalon / exigences :** M9; toutes exigences couvertes.
