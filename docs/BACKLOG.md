@@ -1103,6 +1103,23 @@ Une tâche est terminée seulement si sa condition de sortie est satisfaite.
 - **Parallélisable :** oui avec la navigation de panneaux; non avec une modification concurrente de `shortcut_command`.
 - **Paquet de contexte minimal :** SPEC §§15–17, `crates/app/src/main.rs`, `crates/monitor/src/lib.rs`.
 
+### UI-000E — Sélection explicite des panneaux dashboard — TERMINÉ
+
+- **Jalon / exigences :** M6/M7; REQ-PROD-005, NFR-010.
+- **But :** permettre de rendre un seul panneau `location`, `regs` ou `memory`, ou l’ensemble avec `all`.
+- **Non-but :** redimensionnement dynamique, disposition persistante et navigation source/diagnostic.
+- **Entrées/sources :** SPEC §§14–17; UI-000C/UI-000D; commandes `dashboard`, `regs`, `memory`, `where`.
+- **Fichiers/modules :** `crates/monitor/src/lib.rs`, `docs/TESTS.md`.
+- **Étapes réalisées :** parser l’argument optionnel; partager les renderers existants; fournir `MON-UI-001`/`MON-UI-101` pour les noms invalides; conserver `dashboard` sans argument comme `all`.
+- **Dépendances et tâches bloquées :** UI-000C/UI-000D; le vrai layout redimensionnable reste dans UI-001.
+- **Tests :** sélection host `regs`, sélection backend `memory`, sections `all`, erreur de panneau inconnu.
+- **Critères de sortie :** chaque sélection produit exclusivement le panneau demandé; aucune sélection ne modifie PC ou registres; les alias `dash` et `where` restent compatibles.
+- **Cas limites et échecs :** argument vide, casse non reconnue, mémoire non mappée et backend indisponible.
+- **Taille :** 2 points / 1 journée-agent, incertitude faible.
+- **Compétences/outils :** parsing de commandes, composition de vues, tests Rust.
+- **Parallélisable :** oui avec source/diagnostic; non avec une modification concurrente des signatures dashboard.
+- **Paquet de contexte minimal :** SPEC §§14–17, `crates/monitor/src/lib.rs`, `docs/TESTS.md`.
+
 ### UI-001 — Frontend terminal et cycle ASM-One modernisé
 
 - **Jalon / exigences :** M6–M9; REQ-PROD-001/005, E2E 2/3/4.

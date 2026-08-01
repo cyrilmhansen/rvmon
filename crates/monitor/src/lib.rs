@@ -133,7 +133,7 @@ impl Monitor {
         let argument = command.raw_arguments.as_str();
         match name.as_str() {
             "help" | "?" => Ok(help()),
-            "dashboard" | "dash" => self.dashboard(),
+            "dashboard" | "dash" => self.dashboard(argument),
             "regs" | "registers" => self.registers(),
             "set" => self.set_integer_register(argument),
             "setf" => self.set_float_register(argument),
@@ -1218,13 +1218,22 @@ impl Monitor {
         Ok(output.trim_end().into())
     }
 
-    fn dashboard(&mut self) -> Result<String> {
-        Ok(format!(
-            "=== location ===\n{}\n=== registers ===\n{}\n=== memory ===\n{}",
-            self.show_location()?,
-            self.registers()?,
-            self.memory_view("")?
-        ))
+    fn dashboard(&mut self, argument: &str) -> Result<String> {
+        match argument.trim() {
+            "" | "all" => Ok(format!(
+                "=== location ===\n{}\n=== registers ===\n{}\n=== memory ===\n{}",
+                self.show_location()?,
+                self.registers()?,
+                self.memory_view("")?
+            )),
+            "location" | "where" => self.show_location(),
+            "regs" | "registers" => self.registers(),
+            "memory" | "mem" => self.memory_view(""),
+            _ => Err(Diagnostic::error(
+                "MON-UI-001",
+                "dashboard expects all, location, regs, or memory",
+            )),
+        }
     }
 
     fn set_integer_register(&mut self, argument: &str) -> Result<String> {
@@ -1327,7 +1336,7 @@ where
         let argument = command.raw_arguments.as_str();
         match name.as_str() {
             "help" | "?" => Ok(backend_help()),
-            "dashboard" | "dash" => Ok(self.dashboard()),
+            "dashboard" | "dash" => self.dashboard(argument),
             "assemble" | "a" => self.assemble(argument),
             "assemble-program" | "load" => self.assemble_program(argument),
             "step" | "s" => self.step(),
@@ -1584,14 +1593,22 @@ where
         output.trim_end().into()
     }
 
-    fn dashboard(&mut self) -> String {
-        format!(
-            "=== location ===\n{}\n=== registers ===\n{}\n=== memory ===\n{}",
-            self.show_location(),
-            self.registers(),
-            self.memory("")
-                .unwrap_or_else(|error| format!("memory error: {error:?}"))
-        )
+    fn dashboard(&mut self, argument: &str) -> Result<String> {
+        match argument.trim() {
+            "" | "all" => Ok(format!(
+                "=== location ===\n{}\n=== registers ===\n{}\n=== memory ===\n{}",
+                self.show_location(),
+                self.registers(),
+                self.memory("")?
+            )),
+            "location" | "where" => Ok(self.show_location()),
+            "regs" | "registers" => Ok(self.registers()),
+            "memory" | "mem" => self.memory(""),
+            _ => Err(Diagnostic::error(
+                "MON-UI-101",
+                "dashboard expects all, location, regs, or memory",
+            )),
+        }
     }
 
     fn disassemble(&mut self, argument: &str) -> Result<String> {
@@ -2443,7 +2460,7 @@ fn format_backend_console_outcome(outcome: ExecutionOutcome) -> String {
 fn backend_help() -> String {
     [
         "help                 show backend-neutral commands",
-        "dashboard            show location, registers, and memory panels",
+        "dashboard [panel]     show all or one location/regs/memory panel",
         "assemble <source>    assemble and write at target pc",
         "assemble-program <source> load a multi-line image and symbols",
         "step                 execute one target instruction",
@@ -2534,7 +2551,7 @@ fn format_watchpoint_stop(
 fn help() -> String {
     [
         "help                 show commands",
-        "dashboard            show location, registers, and memory panels",
+        "dashboard [panel]     show all or one location/regs/memory panel",
         "assemble <source>    assemble and load one source line at pc",
         "assemble-program <source> load a multi-line program and symbols",
         "step                 execute one instruction",
@@ -3096,6 +3113,16 @@ mod tests {
         assert!(dashboard.contains("=== location ==="));
         assert!(dashboard.contains("=== registers ==="));
         assert!(dashboard.contains("=== memory ==="));
+        assert!(
+            monitor
+                .execute("dashboard regs")
+                .unwrap()
+                .contains("integer registers")
+        );
+        assert_eq!(
+            monitor.execute("dashboard nope").unwrap_err().code,
+            "MON-UI-001"
+        );
     }
 
     #[test]
@@ -3588,6 +3615,12 @@ mod tests {
                 .execute("dashboard")
                 .unwrap()
                 .contains("=== memory ===")
+        );
+        assert!(
+            console
+                .execute("dashboard memory")
+                .unwrap()
+                .contains("0x0000000000000000:")
         );
         assert_eq!(
             console.execute("delete 1").unwrap(),
