@@ -5,7 +5,9 @@ use std::io::{self, Read, Write};
 use std::net::{TcpStream, ToSocketAddrs};
 
 pub const MAGIC: &[u8; 8] = b"RVSNAP01";
+pub const PROJECT_MAGIC: &[u8; 8] = b"RVPROJ01";
 pub const HEADER_LEN: usize = 32;
+pub const PROJECT_HEADER_LEN: usize = 28;
 pub const MAX_WORKSPACE: usize = 0x1_0000;
 pub const MAX_DATA: usize = 0x10_0000;
 pub const MAX_TRANSPORT_CHUNK: usize = 4096;
@@ -63,6 +65,12 @@ pub struct SnapshotMetadata {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
+pub struct SnapshotProject {
+    pub image: SnapshotImage,
+    pub metadata: SnapshotMetadata,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub enum MetadataError {
     Truncated,
     InvalidMagic,
@@ -71,6 +79,17 @@ pub enum MetadataError {
     InvalidSymbolCount(u32),
     InvalidSymbolNameLength(u16),
     TrailingBytes,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum ProjectError {
+    Truncated,
+    InvalidMagic,
+    UnsupportedVersion(u32),
+    LengthOverflow,
+    TrailingBytes,
+    Snapshot(SnapshotError),
+    Metadata(MetadataError),
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -98,6 +117,7 @@ pub enum FetchError {
     Transport(String),
     Protocol(String),
     Format(SnapshotError),
+    Metadata(MetadataError),
 }
 
 #[derive(Debug, PartialEq, Eq)]
@@ -258,6 +278,104 @@ where
         ));
     }
     Ok(image)
+}
+
+pub fn fetch_guest_metadata<T>(transport: &mut T) -> Result<SnapshotMetadata, FetchError>
+where
+    T: GuestCommandTransport,
+{
+    let manifest_line = transport
+        .command("snapshot metadata")
+        .map_err(|error| FetchError::Transport(format!("{error:?}")))?;
+    let (length, chunk_max) = parse_metadata_manifest(&manifest_line)?;
+    let mut encoded = Vec::with_capacity(length);
+    let mut offset = 0usize;
+    while offset < length {
+        let chunk_len = (length - offset).min(chunk_max);
+        let response = transport
+            .command(&format!("snapshot metadata dump {offset} {chunk_len}"))
+            .map_err(|error| FetchError::Transport(format!("{error:?}")))?;
+        let bytes = parse_metadata_chunk(&response, offset, chunk_len)?;
+        encoded.extend_from_slice(&bytes);
+        offset += chunk_len;
+    }
+    SnapshotMetadata::decode(&encoded).map_err(FetchError::Metadata)
+}
+
+fn parse_metadata_manifest(line: &str) -> Result<(usize, usize), FetchError> {
+    let line = line
+        .lines()
+        .map(str::trim)
+        .find(|line| line.starts_with("snapshot-metadata "))
+        .ok_or_else(|| FetchError::Protocol("expected snapshot-metadata response".into()))?;
+    let mut size = None;
+    let mut chunk_max = None;
+    for field in line.split_whitespace().skip(1) {
+        let (key, value) = field
+            .split_once('=')
+            .ok_or_else(|| FetchError::Protocol(format!("invalid metadata field {field}")))?;
+        match key {
+            "format" if value == "RVMETA01" => {}
+            "format" => return Err(FetchError::Protocol("unsupported metadata format".into())),
+            "size" => {
+                size =
+                    Some(value.parse::<usize>().map_err(|_| {
+                        FetchError::Protocol(format!("invalid metadata size {value}"))
+                    })?)
+            }
+            "chunk-max" => {
+                chunk_max = Some(value.parse::<usize>().map_err(|_| {
+                    FetchError::Protocol(format!("invalid metadata chunk-max {value}"))
+                })?)
+            }
+            _ => {}
+        }
+    }
+    let size = size.ok_or_else(|| FetchError::Protocol("metadata lacks size".into()))?;
+    let chunk_max = chunk_max
+        .filter(|value| (1..=MAX_MEMORY_CHUNK).contains(value))
+        .ok_or_else(|| FetchError::Protocol("metadata has invalid chunk-max".into()))?;
+    if size == 0 || size > MAX_METADATA_SERIALIZED {
+        return Err(FetchError::Protocol(
+            "metadata size is outside its limit".into(),
+        ));
+    }
+    Ok((size, chunk_max))
+}
+
+const MAX_MEMORY_CHUNK: usize = 128;
+const MAX_METADATA_SERIALIZED: usize = 4096;
+
+fn parse_metadata_chunk(
+    line: &str,
+    expected_offset: usize,
+    expected_length: usize,
+) -> Result<Vec<u8>, FetchError> {
+    let line = line
+        .lines()
+        .map(str::trim)
+        .find(|line| line.starts_with("snapshot-metadata-chunk "))
+        .ok_or_else(|| FetchError::Protocol("expected snapshot metadata chunk".into()))?;
+    let mut fields = line.split_whitespace();
+    fields.next();
+    let offset = field_value(&mut fields, "offset")?;
+    let length = field_value(&mut fields, "length")?;
+    let hex = field_text(&mut fields, "hex")?;
+    if offset != expected_offset || length != expected_length || hex.len() != length * 2 {
+        return Err(FetchError::Protocol("unexpected metadata chunk".into()));
+    }
+    let mut bytes = Vec::with_capacity(length);
+    for pair in hex.as_bytes().chunks_exact(2) {
+        let high = hex_nibble(pair[0]);
+        let low = hex_nibble(pair[1]);
+        let (Some(high), Some(low)) = (high, low) else {
+            return Err(FetchError::Protocol(
+                "metadata chunk contains non-hex data".into(),
+            ));
+        };
+        bytes.push((high << 4) | low);
+    }
+    Ok(bytes)
 }
 
 pub fn apply_guest_snapshot<T>(transport: &mut T, image: &SnapshotImage) -> Result<(), ApplyError>
@@ -744,6 +862,60 @@ impl SnapshotImage {
     }
 }
 
+impl SnapshotProject {
+    pub fn encode(&self) -> Result<Vec<u8>, ProjectError> {
+        let image = self.image.encode().map_err(ProjectError::Snapshot)?;
+        let metadata = self.metadata.encode().map_err(ProjectError::Metadata)?;
+        let mut encoded = Vec::with_capacity(
+            PROJECT_HEADER_LEN
+                .checked_add(image.len())
+                .and_then(|length| length.checked_add(metadata.len()))
+                .ok_or(ProjectError::LengthOverflow)?,
+        );
+        encoded.extend_from_slice(PROJECT_MAGIC);
+        encoded.extend_from_slice(&1u32.to_le_bytes());
+        encoded.extend_from_slice(&(image.len() as u64).to_le_bytes());
+        encoded.extend_from_slice(&(metadata.len() as u64).to_le_bytes());
+        encoded.extend_from_slice(&image);
+        encoded.extend_from_slice(&metadata);
+        Ok(encoded)
+    }
+
+    pub fn decode(encoded: &[u8]) -> Result<Self, ProjectError> {
+        if encoded.len() < PROJECT_HEADER_LEN {
+            return Err(ProjectError::Truncated);
+        }
+        if &encoded[..8] != PROJECT_MAGIC {
+            return Err(ProjectError::InvalidMagic);
+        }
+        let version = u32::from_le_bytes(encoded[8..12].try_into().unwrap());
+        if version != 1 {
+            return Err(ProjectError::UnsupportedVersion(version));
+        }
+        let image_len = u64::from_le_bytes(encoded[12..20].try_into().unwrap()) as usize;
+        let metadata_len = u64::from_le_bytes(encoded[20..28].try_into().unwrap()) as usize;
+        let image_start = PROJECT_HEADER_LEN;
+        let metadata_start = image_start
+            .checked_add(image_len)
+            .ok_or(ProjectError::LengthOverflow)?;
+        let end = metadata_start
+            .checked_add(metadata_len)
+            .ok_or(ProjectError::LengthOverflow)?;
+        if encoded.len() < end {
+            return Err(ProjectError::Truncated);
+        }
+        if encoded.len() != end {
+            return Err(ProjectError::TrailingBytes);
+        }
+        Ok(Self {
+            image: SnapshotImage::decode(&encoded[image_start..metadata_start])
+                .map_err(ProjectError::Snapshot)?,
+            metadata: SnapshotMetadata::decode(&encoded[metadata_start..end])
+                .map_err(ProjectError::Metadata)?,
+        })
+    }
+}
+
 fn validate_lengths(workspace: usize, data: usize) -> Result<(), SnapshotError> {
     if workspace > MAX_WORKSPACE {
         return Err(SnapshotError::InvalidRegionLength {
@@ -797,6 +969,28 @@ mod tests {
         let encoded = image.encode().unwrap();
         assert_eq!(encoded, image.encode().unwrap());
         assert_eq!(SnapshotImage::decode(&encoded).unwrap(), image);
+    }
+
+    #[test]
+    fn project_round_trip_preserves_image_and_metadata() {
+        let project = SnapshotProject {
+            image: SnapshotImage {
+                workspace: vec![1, 2, 3],
+                data: vec![4, 5],
+                source_lines: 1,
+            },
+            metadata: SnapshotMetadata {
+                context: SnapshotContext::empty(),
+                source: b"addi x1,x0,1".to_vec(),
+                symbols: vec![SnapshotSymbol {
+                    address: 0x8100_0000,
+                    name: b"_start".to_vec(),
+                }],
+            },
+        };
+        let encoded = project.encode().unwrap();
+        assert_eq!(&encoded[..8], PROJECT_MAGIC);
+        assert_eq!(SnapshotProject::decode(&encoded).unwrap(), project);
     }
 
     #[test]

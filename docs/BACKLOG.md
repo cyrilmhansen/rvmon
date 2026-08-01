@@ -599,6 +599,34 @@ confondre code présent et exigence formellement auditée.
 - **Paquet de contexte minimal :** `crates/guest-monitor/src/main.rs`,
   `crates/snapshot-format/src/lib.rs`, `scripts/test-guest-snapshot.sh`.
 
+### GUEST-018 — Collecte host et conteneur RVPROJ01 — TERMINÉ
+
+- **Jalon / exigences :** M8; IO-006..009, OBS-001..006, REQ-PROD-006.
+- **But :** collecter le metadata guest et l’associer à l’image mémoire dans
+  un projet hôte déterministe.
+- **Non-but :** importer le metadata dans le guest, modifier `RVSNAP01` ou
+  persister l’historique et les points d’arrêt dans cette tranche.
+- **Entrées/sources :** SPEC §§12/21/22; contrats `RVSNAP01` et `RVMETA01`.
+- **Fichiers/modules :** `crates/snapshot-format/src/lib.rs`,
+  `crates/app/src/main.rs`, script d’export TCP et documentation.
+- **Étapes réalisées :** collecte/validation des manifestes metadata et chunks;
+  conteneur `RVPROJ01` version 1 avec longueurs strictes, image `RVSNAP01`
+  et metadata `RVMETA01`; option CLI `--project-out`.
+- **Dépendances :** GUEST-017; application guest et migration de projets
+  existants restent différées.
+- **Tests :** round-trip `RVPROJ01`, export QEMU image + projet, magics,
+  tailles, workspace et contrôle R2.
+- **Critères de sortie :** un projet exporté se décode bit-exactement; un
+  metadata tronqué ou une image incohérente est refusé avant écriture utile.
+- **Cas limites et échecs :** metadata vide/tronqué, magic/version inconnue,
+  longueur avec overflow, octets résiduels et symbole/source bornés.
+- **Taille :** 5 points / 1,5 journée-agent, incertitude moyenne.
+- **Compétences/outils :** Rust std, formats binaires, TCP, QEMU.
+- **Parallélisable :** oui avec l’import guest; non avec une évolution du layout
+  `RVPROJ01`.
+- **Paquet de contexte minimal :** `crates/snapshot-format/src/lib.rs`,
+  `crates/app/src/main.rs`, `scripts/test-guest-snapshot-export.sh`.
+
 ### GUEST-013 — Contrat metadata RVSNAP01 — TERMINÉ
 
 - **Jalon / exigences :** M8; IO-001..009, OBS-001..006, REQ-PROD-006.

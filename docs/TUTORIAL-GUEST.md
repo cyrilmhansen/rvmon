@@ -403,13 +403,22 @@ $ cargo run -p luna-app -- \
 guest snapshot exported to session.rvsnap (workspace=65536 data=1048576 source-lines=0)
 ```
 
+Pour exporter l’image et le metadata dans un projet `RVPROJ01` :
+
+```sh
+$ cargo run -p luna-app -- \
+    --guest-uart-port 12353 --project-out session.rvproj
+guest project exported to session.rvproj (metadata source=... symbols=...)
+```
+
 L’application attend l’invite UART, exécute `snapshot save`, collecte les
 blocs, contrôle le manifeste et écrit un fichier `RVSNAP01` déterministe.
 Cette version exporte les régions mémoire et le nombre de lignes source ; les
 registres, symboles et texte source ne sont pas encore sérialisés.
 Le guest expose désormais le sous-format `RVMETA01` par
 `snapshot metadata` puis `snapshot metadata dump <offset> <length>` ; son
-intégration dans le fichier hôte reste la prochaine étape de cette famille.
+intégration dans `RVPROJ01` est maintenant disponible à l’export. L’import du
+metadata reste différé jusqu’à l’ajout d’une commande d’application côté guest.
 
 Pour importer une image vérifiée dans le slot guest :
 

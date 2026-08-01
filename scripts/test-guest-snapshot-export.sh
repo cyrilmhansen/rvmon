@@ -5,14 +5,21 @@ repo_root="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$repo_root"
 
 port=12353
+project_port=12354
 snapshot_file="$(mktemp /tmp/rvmonitor-guest-snapshot.XXXXXX)"
+project_file="$(mktemp /tmp/rvmonitor-guest-project.XXXXXX)"
 qemu_log="$(mktemp /tmp/rvmonitor-guest-snapshot-qemu.XXXXXX)"
+project_qemu_log="$(mktemp /tmp/rvmonitor-guest-project-qemu.XXXXXX)"
 cleanup() {
     if [[ -n "${qemu_pid:-}" ]]; then
         kill "$qemu_pid" 2>/dev/null || true
         wait "$qemu_pid" 2>/dev/null || true
     fi
-    rm -f "$snapshot_file" "$qemu_log"
+    if [[ -n "${project_qemu_pid:-}" ]]; then
+        kill "$project_qemu_pid" 2>/dev/null || true
+        wait "$project_qemu_pid" 2>/dev/null || true
+    fi
+    rm -f "$snapshot_file" "$project_file" "$qemu_log" "$project_qemu_log"
 }
 trap cleanup EXIT
 
@@ -49,4 +56,27 @@ if [[ "$actual_size" -ne "$expected_size" ]]; then
     exit 1
 fi
 [[ "$output" == *"guest snapshot exported"* ]]
+qemu-system-riscv64 \
+    -M virt \
+    -m 64M \
+    -bios none \
+    -kernel target/riscv64gc-unknown-none-elf/debug/luna-guest-monitor \
+    -display none \
+    -serial "tcp:127.0.0.1:${project_port},server=on,wait=on" \
+    >"$project_qemu_log" 2>&1 &
+project_qemu_pid=$!
+project_output="$(timeout 90s cargo run -p luna-app --quiet -- \
+    --guest-uart-port "$project_port" \
+    --project-out "$project_file" 2>&1)"
+printf '%s\n' "$project_output"
+if [[ ! -s "$project_file" ]]; then
+    printf 'project export produced no file\n' >&2
+    exit 1
+fi
+project_magic="$(od -An -tc -N8 "$project_file" | tr -d '[:space:]')"
+if [[ "$project_magic" != "RVPROJ01" ]]; then
+    printf 'unexpected project magic: %s\n' "$project_magic" >&2
+    exit 1
+fi
+[[ "$project_output" == *"guest project exported"* ]]
 printf 'guest snapshot TCP export test passed\n'
