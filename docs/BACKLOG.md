@@ -1977,6 +1977,34 @@ confondre code présent et exigence formellement auditée.
 - **Paquet de contexte minimal :** example `bench_smoke`,
   `tools/bench-smoke.sh`, SPEC §20.
 
+#### QUAL-002B — Échantillons p50/p95 et identification hôte — TERMINÉ
+
+- **Jalon / exigences :** M9; NFR-001..006.
+- **But :** fournir des mesures comparables entre environnements sans confondre
+  une valeur locale avec un seuil normatif.
+- **Non-but :** imposer un p95 release avant la matrice multi-plateforme,
+  corriger les variations de charge hôte ou publier une performance garantie.
+- **Entrées/sources :** SPEC §20; benchmark smoke QUAL-002A.
+- **Fichiers/modules :** `crates/monitor/examples/bench_smoke.rs`,
+  `tools/bench-smoke.sh`, docs de tests.
+- **Étapes réalisées :** 10 échantillons de 100 cycles; tri déterministe des
+  mesures; affichage p50/p95, nombre total d’itérations, taille snapshot, OS et
+  architecture Rust.
+- **Dépendances et tâches bloquées :** QUAL-002A; collecte ARM64/x86_64,
+  mémoire RSS, latence interactive et seuils release restent à faire.
+- **Tests :** benchmark release local, sortie contenant `os`, `arch`, `p50_ns`
+  et `p95_ns`; workspace complète.
+- **Critères de sortie :** chaque mesure est contextualisée par son hôte et le
+  benchmark ne dépend d’aucune horloge ou donnée persistante du dépôt.
+- **Cas limites et échecs :** échantillon vide, snapshot invalide ou division
+  par zéro sont impossibles ou provoquent un échec explicite.
+- **Taille :** 2 points / 1 journée-agent, incertitude faible.
+- **Compétences/outils :** benchmarking, statistiques p50/p95, Rust.
+- **Parallélisable :** oui avec QUAL-001; non avec une modification concurrente
+  du protocole de sortie benchmark.
+- **Paquet de contexte minimal :** example `bench_smoke`, SPEC §20,
+  `tools/bench-smoke.sh`.
+
 ### REL-001 — Release candidate et dossier de preuve
 
 - **Jalon / exigences :** M9; toutes exigences couvertes.

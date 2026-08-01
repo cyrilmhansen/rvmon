@@ -353,10 +353,11 @@ Les tests ne prouvent pas encore :
 - la reproductibilité cross-platform ;
 - les performances, quotas, fuzzing et corpus de non-régression à grande échelle.
 
-Le benchmark smoke `tools/bench-smoke.sh` mesure 1 000 cycles
-assemble/step/snapshot en build release sur une machine donnée. Il fournit une
-ligne de comparaison, mais aucun seuil p95 ou d’empreinte n’est encore une
-condition de release avant la matrice multi-plateforme QUAL-002.
+Le benchmark smoke `tools/bench-smoke.sh` mesure 10 échantillons de 100 cycles
+assemble/step/snapshot en build release sur une machine donnée et affiche p50,
+p95, OS et architecture. Il fournit une ligne de comparaison, mais aucun seuil
+p95 ou d’empreinte n’est encore une condition de release avant la matrice
+multi-plateforme QUAL-002.
 
 ## Prochains tests prioritaires
 
