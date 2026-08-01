@@ -55,6 +55,7 @@ struct HistoryEntry {
     pc_after: u64,
     instruction: String,
     memory_access: Option<MemoryAccess>,
+    register_changes: String,
 }
 
 struct CallFrame {
@@ -354,7 +355,13 @@ impl Monitor {
         let address = self.machine.pc;
         let word = self.read_word(address)?;
         let line = disassemble_word(address, word, &self.symbols);
+        let registers_before =
+            register_view::RegisterSnapshot::from_context(&TargetBackend::context(&self.machine));
         let outcome = TargetBackend::step(&mut self.machine)?;
+        let register_changes = register_view::format_changes(
+            registers_before,
+            register_view::RegisterSnapshot::from_context(&TargetBackend::context(&self.machine)),
+        );
         let pc_after = match outcome {
             ExecutionOutcome::Retired {
                 pc_before,
@@ -367,6 +374,7 @@ impl Monitor {
                     line.instruction,
                     &line.text,
                     memory_access,
+                    register_changes.clone(),
                 );
                 pc_after
             }
@@ -374,8 +382,8 @@ impl Monitor {
             ExecutionOutcome::BudgetExhausted { pc, .. } => pc,
         };
         Ok(format!(
-            "0x{address:016x}: {word:08x}  {:<28} -> pc=0x{pc_after:016x}",
-            line.text
+            "0x{address:016x}: {word:08x}  {:<28} -> pc=0x{pc_after:016x}; changes: {}",
+            line.text, register_changes
         ))
     }
 
@@ -405,7 +413,16 @@ impl Monitor {
             let pc_before = self.machine.pc;
             let word = self.read_word(pc_before)?;
             let line = disassemble_word(pc_before, word, &self.symbols);
+            let registers_before = register_view::RegisterSnapshot::from_context(
+                &TargetBackend::context(&self.machine),
+            );
             let outcome = TargetBackend::step(&mut self.machine)?;
+            let register_changes = register_view::format_changes(
+                registers_before,
+                register_view::RegisterSnapshot::from_context(&TargetBackend::context(
+                    &self.machine,
+                )),
+            );
             match outcome {
                 ExecutionOutcome::Retired {
                     pc_after,
@@ -419,6 +436,7 @@ impl Monitor {
                         line.instruction,
                         &line.text,
                         memory_access,
+                        register_changes,
                     );
                     if let Some(access) = memory_access {
                         if let Some(watchpoint) = self.watchpoint_hit(access) {
@@ -463,6 +481,7 @@ impl Monitor {
         instruction: Instruction,
         text: &str,
         memory_access: Option<MemoryAccess>,
+        register_changes: String,
     ) {
         if self.history.len() == MAX_HISTORY_ENTRIES {
             self.history.remove(0);
@@ -473,6 +492,7 @@ impl Monitor {
             pc_after,
             instruction: text.to_string(),
             memory_access,
+            register_changes,
         });
         match instruction {
             Instruction::Jal(luna_isa::Jal { rd: 1, imm }) => {
@@ -519,6 +539,7 @@ impl Monitor {
                 )
                 .unwrap();
             }
+            write!(output, " changes: {}", entry.register_changes).unwrap();
             output.push('\n');
         }
         Ok(output.trim_end().into())
@@ -1335,14 +1356,26 @@ where
         let pc_before = self.backend.context().pc;
         let word = self.read_word(pc_before)?;
         let text = disassemble_word(pc_before, word, &self.symbols).text;
+        let registers_before =
+            register_view::RegisterSnapshot::from_context(&self.backend.context());
         let outcome = self.backend.step().map_err(target_error)?;
+        let register_changes = register_view::format_changes(
+            registers_before,
+            register_view::RegisterSnapshot::from_context(&self.backend.context()),
+        );
         if let ExecutionOutcome::Retired {
             pc_after,
             memory_access,
             ..
         } = outcome
         {
-            self.record_retired(pc_before, pc_after, word, memory_access);
+            self.record_retired(
+                pc_before,
+                pc_after,
+                word,
+                memory_access,
+                register_changes.clone(),
+            );
             if let Some(access) = memory_access {
                 if let Some(watchpoint) = self.watchpoint_hit(access) {
                     return Ok(format_watchpoint_stop(
@@ -1354,7 +1387,10 @@ where
                 }
             }
         }
-        Ok(format_backend_console_step(pc_before, word, &text, outcome))
+        Ok(format!(
+            "{}; changes: {register_changes}",
+            format_backend_console_step(pc_before, word, &text, outcome)
+        ))
     }
 
     fn run(&mut self, argument: &str) -> Result<String> {
@@ -1382,7 +1418,13 @@ where
                 }
             }
             let word = self.read_word(pc)?;
+            let registers_before =
+                register_view::RegisterSnapshot::from_context(&self.backend.context());
             let outcome = self.backend.step().map_err(target_error)?;
+            let register_changes = register_view::format_changes(
+                registers_before,
+                register_view::RegisterSnapshot::from_context(&self.backend.context()),
+            );
             executed = executed.saturating_add(1);
             match outcome {
                 ExecutionOutcome::Retired {
@@ -1390,7 +1432,7 @@ where
                     memory_access,
                     ..
                 } => {
-                    self.record_retired(pc, pc_after, word, memory_access);
+                    self.record_retired(pc, pc_after, word, memory_access, register_changes);
                     bypass = false;
                     if let Some(access) = memory_access {
                         if let Some(watchpoint) = self.watchpoint_hit(access) {
@@ -1993,6 +2035,7 @@ where
         pc_after: u64,
         word: u32,
         memory_access: Option<MemoryAccess>,
+        register_changes: String,
     ) {
         if self.history.len() == MAX_HISTORY_ENTRIES {
             self.history.remove(0);
@@ -2005,6 +2048,7 @@ where
             pc_after,
             instruction: disassemble_word(pc_before, word, &self.symbols).text,
             memory_access,
+            register_changes,
         });
     }
 
@@ -2039,6 +2083,7 @@ where
                 )
                 .unwrap();
             }
+            write!(output, " changes: {}", entry.register_changes).unwrap();
             output.push('\n');
         }
         Ok(output.trim_end().into())
@@ -2933,6 +2978,7 @@ mod tests {
         monitor.execute("assemble addi x1,x0,1").unwrap();
         let step = monitor.execute("step").unwrap();
         assert!(step.contains("addi x1,x0,1"));
+        assert!(step.contains("changes: x01=0x0000000000000001"));
         assert_eq!(monitor.machine.x[1], 1);
         assert!(
             monitor
@@ -2973,7 +3019,14 @@ mod tests {
         monitor.machine.f[1] = 1.5f32.to_bits() as u64 | 0xffff_ffff_0000_0000;
         monitor.machine.f[2] = 2.25f32.to_bits() as u64 | 0xffff_ffff_0000_0000;
         monitor.execute("assemble fadd.s f3,f1,f2").unwrap();
-        monitor.execute("step").unwrap();
+        let step = monitor.execute("step").unwrap();
+        assert!(step.contains("changes: f03=0xffffffff40700000"));
+        assert!(
+            monitor
+                .execute("history")
+                .unwrap()
+                .contains("changes: f03=0xffffffff40700000")
+        );
         let registers = monitor.execute("regs").unwrap();
         assert!(registers.contains("0x40700000"));
         assert!(registers.contains("s:0x40700000=3.75"));

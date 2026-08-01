@@ -933,6 +933,23 @@ Une tâche est terminée seulement si sa condition de sortie est satisfaite.
 - **Parallélisable :** oui avec la finalisation MON-001; non avec une modification concurrente de `TargetContext`.
 - **Paquet de contexte minimal :** SPEC §§8/15/16, `crates/monitor/src/register_view.rs`, `crates/target-api/src/lib.rs`.
 
+### REG-001B — Capturer les deltas exacts des registres après exécution — TERMINÉ
+
+- **Jalon / exigences :** M7; REQ-DBG-004, REQ-DBG-008, REQ-OBS-001.
+- **But :** exposer après chaque `step` et dans l’historique les changements exacts de `x`, `f` et `fcsr`, sans conversion flottante hôte.
+- **Non-but :** construire l’interface terminale interactive, modifier les registres distants ou fournir encore un historique arrière réversible.
+- **Entrées/sources :** SPEC §§9, 15, 16, 21; R1 chapitre F pour `fcsr`, `frm` et `fflags`; contrat `TargetContext`.
+- **Fichiers/modules :** `crates/monitor/src/register_view.rs`, `crates/monitor/src/lib.rs`, `docs/TESTS.md`.
+- **Étapes réalisées :** définir un snapshot de registres; comparer avant/après host et backend; formater les motifs 64 bits et les champs `fcsr`; conserver le delta dans chaque entrée d’historique.
+- **Dépendances et tâches bloquées :** REG-001A; l’interface terminale peut maintenant consommer le format, tandis que l’édition distante reste bloquée par un contrat d’écriture backend non disponible.
+- **Tests :** `addi` affiche le changement de `x1`; `fadd.s` affiche le motif NaN-boxé de `f3`; `fcsr` affiche `frm`/`fflags`; historique et backend conservent le même delta; aucun changement donne `changes: none`.
+- **Critères de sortie :** format déterministe indépendant de l’hôte, registre modifié affiché une seule fois, `x0` jamais signalé comme modifié par une instruction légale, tests monitor verts.
+- **Cas limites et échecs :** instruction sans effet → `none`; seule modification de `fcsr` → champs exacts; flags sticky visibles; trap avant retirement ne crée pas de delta d’instruction.
+- **Taille :** 3 points / 1,5 journée-agent, incertitude faible.
+- **Compétences/outils :** Rust, contrat backend, IEEE 754/RISC-V FCSR, tests snapshot.
+- **Parallélisable :** oui avec la préparation UI; non avec une modification concurrente de `HistoryEntry` ou du format de sortie.
+- **Paquet de contexte minimal :** SPEC §§9/15/16/21, `crates/target-api/src/lib.rs`, `crates/monitor/src/register_view.rs`, `docs/TESTS.md`.
+
 ### REG-001 — Contrat et vues exactes des registres
 
 - **Jalon / exigences :** M6/M7; REQ-PROD-003/005, DBG-001..014, FP-001..018.

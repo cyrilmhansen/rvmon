@@ -1,5 +1,51 @@
 use luna_diag::{Diagnostic, Result};
 
+use luna_target_api::TargetContext;
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) struct RegisterSnapshot {
+    pub(crate) x: [u64; 32],
+    pub(crate) f: [u64; 32],
+    pub(crate) fcsr: u32,
+}
+
+impl RegisterSnapshot {
+    pub(crate) fn from_context(context: &TargetContext) -> Self {
+        Self {
+            x: context.x,
+            f: context.f,
+            fcsr: context.fcsr,
+        }
+    }
+}
+
+pub(crate) fn format_changes(before: RegisterSnapshot, after: RegisterSnapshot) -> String {
+    let mut changes = Vec::new();
+    for index in 0..32 {
+        if before.x[index] != after.x[index] {
+            changes.push(format!("x{index:02}={}", format_raw(after.x[index])));
+        }
+    }
+    for index in 0..32 {
+        if before.f[index] != after.f[index] {
+            changes.push(format!("f{index:02}={}", format_raw(after.f[index])));
+        }
+    }
+    if before.fcsr != after.fcsr {
+        changes.push(format!(
+            "fcsr=0x{:08x} (frm={} fflags={})",
+            after.fcsr,
+            (after.fcsr >> 5) & 0x7,
+            format_flags((after.fcsr & 0x1f) as u8)
+        ));
+    }
+    if changes.is_empty() {
+        "none".into()
+    } else {
+        changes.join("; ")
+    }
+}
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum RegisterEdit {
     Integer { index: usize, value: u64 },
@@ -91,6 +137,26 @@ pub(crate) fn format_raw(value: u64) -> String {
     format!("0x{value:016x}")
 }
 
+fn format_flags(flags: u8) -> String {
+    let mut names = Vec::new();
+    for (mask, name) in [
+        (0x10, "NV"),
+        (0x08, "DZ"),
+        (0x04, "OF"),
+        (0x02, "UF"),
+        (0x01, "NX"),
+    ] {
+        if flags & mask != 0 {
+            names.push(name);
+        }
+    }
+    if names.is_empty() {
+        "-".into()
+    } else {
+        names.join("|")
+    }
+}
+
 fn parse_u64(value: &str) -> std::result::Result<u64, &'static str> {
     let value = value.replace('_', "");
     if value.is_empty() {
@@ -142,5 +208,20 @@ mod tests {
     #[test]
     fn formats_register_bits_without_host_float_conversion() {
         assert_eq!(format_raw(0x8000_0000_0000_0001), "0x8000000000000001");
+    }
+
+    #[test]
+    fn formats_only_exact_register_changes_and_fcsr_fields() {
+        let mut before = RegisterSnapshot::from_context(&TargetContext::empty());
+        let mut after = before;
+        after.x[10] = 0x8000_0000_0000_0000;
+        after.f[3] = 0x3ff0_0000_0000_0000;
+        after.fcsr = (2 << 5) | 0x11;
+        assert_eq!(
+            format_changes(before, after),
+            "x10=0x8000000000000000; f03=0x3ff0000000000000; fcsr=0x00000051 (frm=2 fflags=NV|NX)"
+        );
+        before = after;
+        assert_eq!(format_changes(before, after), "none");
     }
 }
