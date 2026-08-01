@@ -1086,6 +1086,23 @@ Une tâche est terminée seulement si sa condition de sortie est satisfaite.
 - **Parallélisable :** oui avec le futur keymap; non avec une modification concurrente des renderers `regs`/`memory`.
 - **Paquet de contexte minimal :** SPEC §§14–16, `crates/monitor/src/lib.rs`, `docs/TESTS.md`.
 
+### UI-000D — Raccourcis clavier vers les commandes existantes — TERMINÉ
+
+- **Jalon / exigences :** M6/M7; REQ-PROD-005, NFR-010, E2E 2/3/4.
+- **But :** relier les touches fonctionnelles et panneaux aux commandes déjà contractuelles, dans les deux shells TTY.
+- **Non-but :** prétendre fournir un step-over/step-out call-aware avant le modèle debugger correspondant; navigation fléchée de source multi-pane.
+- **Entrées/sources :** SPEC §§15–17; raccourcis `F5`, `F10`, `F11`, `Ctrl+G`, `Ctrl+F`; UI-000C.
+- **Fichiers/modules :** `crates/app/src/main.rs`, `docs/TESTS.md`.
+- **Étapes réalisées :** `F5→run`, `F10/F11→step`, `Ctrl+1→regs`, `Ctrl+2→memory`, `Ctrl+3→dashboard`, `Ctrl+G→view ` et `Ctrl+F→find `; conserver l’exécution par commande existante.
+- **Dépendances et tâches bloquées :** UI-000B/UI-000C; le vrai step-over/step-out reste bloqué par la sémantique call-stack du debugger.
+- **Tests :** table de mapping des touches, suites app/workspace et absence de nouveaux appels backend directs.
+- **Critères de sortie :** chaque raccourci implémenté produit une commande connue; les raccourcis différés ne sont pas annoncés comme disponibles; les scripts restent inchangés.
+- **Cas limites et échecs :** terminal non-TTY, touche inconnue, modificateur inattendu, ligne en cours préremplie pour `view`/`find`.
+- **Taille :** 2 points / 1 journée-agent, incertitude faible.
+- **Compétences/outils :** Crossterm, key mapping, contrats commande.
+- **Parallélisable :** oui avec la navigation de panneaux; non avec une modification concurrente de `shortcut_command`.
+- **Paquet de contexte minimal :** SPEC §§15–17, `crates/app/src/main.rs`, `crates/monitor/src/lib.rs`.
+
 ### UI-001 — Frontend terminal et cycle ASM-One modernisé
 
 - **Jalon / exigences :** M6–M9; REQ-PROD-001/005, E2E 2/3/4.

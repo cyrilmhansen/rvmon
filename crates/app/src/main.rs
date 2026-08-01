@@ -242,6 +242,10 @@ fn read_tty_line(prompt: &str, history: &[String]) -> io::Result<Option<String>>
                 kind: _,
                 state: _,
             }) => match (code, modifiers) {
+                _ if shortcut_command(code, modifiers).is_some() => {
+                    println!();
+                    return Ok(shortcut_command(code, modifiers).map(str::to_string));
+                }
                 (KeyCode::Enter, _) => {
                     println!();
                     return Ok(Some(line));
@@ -253,6 +257,18 @@ fn read_tty_line(prompt: &str, history: &[String]) -> io::Result<Option<String>>
                 (KeyCode::Char('c'), KeyModifiers::CONTROL) => {
                     line.clear();
                     cursor = 0;
+                    history_index = None;
+                    render_tty_line(&mut stdout, prompt, &line, cursor)?;
+                }
+                (KeyCode::Char('g'), KeyModifiers::CONTROL) => {
+                    line.insert_str(cursor, "view ");
+                    cursor += "view ".len();
+                    history_index = None;
+                    render_tty_line(&mut stdout, prompt, &line, cursor)?;
+                }
+                (KeyCode::Char('f'), KeyModifiers::CONTROL) => {
+                    line.insert_str(cursor, "find ");
+                    cursor += "find ".len();
                     history_index = None;
                     render_tty_line(&mut stdout, prompt, &line, cursor)?;
                 }
@@ -329,6 +345,17 @@ fn read_tty_line(prompt: &str, history: &[String]) -> io::Result<Option<String>>
             Event::Resize(_, _) => render_tty_line(&mut stdout, prompt, &line, cursor)?,
             _ => {}
         }
+    }
+}
+
+fn shortcut_command(code: KeyCode, modifiers: KeyModifiers) -> Option<&'static str> {
+    match (code, modifiers) {
+        (KeyCode::F(5), _) => Some("run"),
+        (KeyCode::F(10), _) | (KeyCode::F(11), _) => Some("step"),
+        (KeyCode::Char('1'), KeyModifiers::CONTROL) => Some("regs"),
+        (KeyCode::Char('2'), KeyModifiers::CONTROL) => Some("memory"),
+        (KeyCode::Char('3'), KeyModifiers::CONTROL) => Some("dashboard"),
+        _ => None,
     }
 }
 
@@ -413,6 +440,38 @@ mod tests {
         assert_eq!(
             expand_history_line("!1", &mut history).unwrap_err(),
             "APP-SHELL-004: history entry !1 does not exist"
+        );
+    }
+
+    #[test]
+    fn maps_tty_shortcuts_to_existing_commands() {
+        assert_eq!(
+            shortcut_command(KeyCode::F(5), KeyModifiers::NONE),
+            Some("run")
+        );
+        assert_eq!(
+            shortcut_command(KeyCode::F(10), KeyModifiers::NONE),
+            Some("step")
+        );
+        assert_eq!(
+            shortcut_command(KeyCode::F(11), KeyModifiers::NONE),
+            Some("step")
+        );
+        assert_eq!(
+            shortcut_command(KeyCode::Char('1'), KeyModifiers::CONTROL),
+            Some("regs")
+        );
+        assert_eq!(
+            shortcut_command(KeyCode::Char('2'), KeyModifiers::CONTROL),
+            Some("memory")
+        );
+        assert_eq!(
+            shortcut_command(KeyCode::Char('3'), KeyModifiers::CONTROL),
+            Some("dashboard")
+        );
+        assert_eq!(
+            shortcut_command(KeyCode::Char('x'), KeyModifiers::NONE),
+            None
         );
     }
 }
