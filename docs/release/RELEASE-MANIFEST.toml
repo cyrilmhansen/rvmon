@@ -3,7 +3,7 @@
 # dossier checker ignores that one self-referential field.
 schema_version = 1
 project = "rvmonitor"
-git_commit = "a33b33393caeb2a56e76743cf69dfb983d400272"
+git_commit = "f63f83eefc707b80c546d6e9ff936d118db05750"
 profile = "RV64ILP32D-MON-1"
 input_file_count = 125
 input_tree_sha256 = "3b4f5155da673a8024b7f8c1720398f0698e2a201e44e5ed1af4b3435cdca9cd"
