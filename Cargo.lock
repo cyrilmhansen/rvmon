@@ -232,6 +232,10 @@ dependencies = [
 ]
 
 [[package]]
+name = "luna-snapshot-format"
+version = "0.1.0"
+
+[[package]]
 name = "luna-target-api"
 version = "0.1.0"
 

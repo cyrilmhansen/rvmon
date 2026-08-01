@@ -427,6 +427,23 @@ confondre code présent et exigence formellement auditée.
 - **Parallélisable :** oui avec le format persistant host; non avec une évolution concurrente de `GuestSnapshot`.
 - **Paquet de contexte minimal :** `crates/guest-monitor/src/main.rs`, `scripts/test-guest-snapshot.sh`, `docs/TUTORIAL-GUEST.md`, SPEC §§12/18/21.
 
+### GUEST-010 — Format hôte RVSNAP01 et collecteur générique — TERMINÉ
+
+- **Jalon / exigences :** M8; IO-001..009, OBS-001..006, REQ-PROD-006.
+- **But :** fournir une représentation binaire déterministe des régions guest et un collecteur indépendant du transport.
+- **Non-but :** connexion UART concrète, persistance des registres/source/symboles, reprise réseau ou remplacement direct de l’état QEMU.
+- **Entrées/sources :** SPEC §§12/18/21/22; manifeste `RVSNAP01` guest; contrat de blocs de 32 octets.
+- **Fichiers/modules :** `crates/snapshot-format/src/lib.rs`, `crates/snapshot-format/Cargo.toml`, `Cargo.toml`, `Cargo.lock`.
+- **Étapes réalisées :** en-tête little-endian de 32 octets; tailles bornées workspace/data; CRC-32 par région; encode/decode strict sans octets résiduels; trait `GuestCommandTransport`; collecteur qui demande le manifeste, récupère tous les blocs et vérifie les CRC.
+- **Dépendances et tâches bloquées :** GUEST-008/009; l’adaptateur UART/TCP et l’extension du fichier aux registres, source et symboles restent différés.
+- **Tests :** round-trip déterministe, corruption data, troncature, octets résiduels, régions surdimensionnées, collecte multi-blocs et corruption détectée après collecte.
+- **Critères de sortie :** un flux de réponses guest valide produit une image identique; tout manifeste ou bloc incohérent est refusé avant export.
+- **Cas limites et échecs :** longueur 0 autorisée pour le crate générique mais non produite par le guest, frontière 32 octets, dernier bloc court, CRC invalide, ordre/région/offset inattendus.
+- **Taille :** 5 points / 2,5 journées-agent, incertitude moyenne.
+- **Compétences/outils :** Rust stable, formats binaires, CRC-32, protocole texte, tests unitaires.
+- **Parallélisable :** oui avec l’adaptateur UART concret; non avec une modification du format RVSNAP01.
+- **Paquet de contexte minimal :** `crates/snapshot-format/src/lib.rs`, `crates/guest-monitor/src/main.rs`, docs §§12/18/21.
+
 ## M3 — assembleur et désassembleur
 
 ### ISA-003 — Étendre la tranche RV64 aux loads/stores 64 bits — TERMINÉ
