@@ -1,0 +1,129 @@
+
+RVMonitor 4B M-mode
+target: RV64 ILP32D U-mode, hart=1, C=off
+capabilities: I M F D Zicsr Zifencei
+target workspace: 0x0000000081000000..0x0000000081010000
+target data: 0x0000000082000000..0x0000000082100000
+target: entering U-mode
+trap: breakpoint pc=0x0000000080007b50
+rvmonitor> basic
+
+MiniBASIC-RV
+READY> PRINT 2+3*4
+14.000000
+READY> PRINT 22/7
+3.142857
+READY> 10 PRINT "OLD"
+READY> 10 PRINT "NEW"
+READY> 10
+READY> LIST
+READY> 40 PRINT I,X
+READY> 10 PRINT "RV64 MINIBASIC"
+READY> 60 END
+READY> 30 X=I/3
+READY> 20 FOR I=1 TO 10
+READY> 50 NEXT I
+READY> LIST
+10 PRINT "RV64 MINIBASIC"
+20 FOR I=1 TO 10
+30 X=I/3
+40 PRINT I,X
+50 NEXT I
+60 END
+READY> DUMP
+slot=0 address=0x000000008014fc28 line=10 length=22 bytes=5052494e54202252563634204d494e49424153494322
+slot=1 address=0x000000008014fc8c line=20 length=13 bytes=464f5220493d3120544f203130
+slot=2 address=0x000000008014fcf0 line=30 length=5 bytes=583d492f33
+slot=3 address=0x000000008014fd54 line=40 length=9 bytes=5052494e5420492c58
+slot=4 address=0x000000008014fdb8 line=50 length=6 bytes=4e4558542049
+slot=5 address=0x000000008014fe1c line=60 length=3 bytes=454e44
+READY> TRACE ON
+READY> RUN
+RV64 MINIBASIC
+[10]
+RV64 MINIBASIC
+[20]
+[30]
+[40]
+1.000000 0.333333
+[50]
+[30]
+[40]
+2.000000 0.666667
+[50]
+[30]
+[40]
+3.000000 1.000000
+[50]
+[30]
+[40]
+4.000000 1.333333
+[50]
+[30]
+[40]
+5.000000 1.666667
+[50]
+[30]
+[40]
+6.000000 2.000000
+[50]
+[30]
+[40]
+7.000000 2.333333
+[50]
+[30]
+[40]
+8.000000 2.666667
+[50]
+[30]
+[40]
+9.000000 3.000000
+[50]
+[30]
+[40]
+10.000000 3.333333
+[50]
+[60]
+READY> 10 PRINT "BEFORE"
+READY> 20 GOTO 999
+READY> 30 END
+READY> RUN
+RV64 MINIBASIC
+[10]
+BEFORE
+[20]
+ERROR [BASIC-FLOW-001] line=20 col=1
+READY> BYE
+target exit status=0
+rvmonitor> basic
+
+MiniBASIC-RV
+READY> 10 INPUT N
+READY> 20 IF N<0 THEN 50
+READY> 30 PRINT N*N
+READY> 40 GOTO 10
+READY> 50 END
+READY> RUN
+RV64 MINIBASIC
+? 3
+9.000000
+? 4
+16.000000
+? -1
+READY> BYE
+target exit status=0
+rvmonitor> q
+bye
+rvmonitor> basic
+
+MiniBASIC-RV
+READY> 10 GOTO 10
+READY> RUN
+RV64 MINIBASIC
+ERROR [BASIC-RUN-001] col=1
+READY> 
+READY> BYE
+target exit status=0
+rvmonitor> q
+bye
+rvmonitor> qemu-system-riscv64: terminating on signal 15 from pid 3322377 (timeout)

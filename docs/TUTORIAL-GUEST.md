@@ -99,11 +99,14 @@ le programme sans afficher de trap de débogage pour les services valides.
 | 2 | `read_char` | aucune | `a0` octet reçu, bloquant |
 | 3 | `exit` | `a0` code | arrêt au prompt avec le code affiché |
 | 4 | `write_buffer` | `a0` adresse RV64, `a1` longueur ≤4096 | aucun |
+| 5 | `poll_char` | aucune | `a0=0` si vide, sinon octet reçu |
 
 Les adresses du service 4 doivent rester dans la RAM cible ; l’hôte n’est
 jamais lu ou écrit directement. Le caractère ASCII Ctrl-C (`0x03`) est
 retourné par `read_char` et constitue le mécanisme d’interruption coopératif
-du futur MiniBASIC. Un service inconnu produit `GUEST-IO-002` et rend la main
+de MiniBASIC. `poll_char` est non bloquant et permet au programme cible de
+vérifier périodiquement cette interruption. Un service inconnu produit
+`GUEST-IO-002` et rend la main
 au prompt.
 
 ## 3. Commandes disponibles dans le guest

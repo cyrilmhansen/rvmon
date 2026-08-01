@@ -10,6 +10,8 @@ use luna_target_api::StopReason;
 use luna_target_api::TargetCapabilities;
 use luna_target_api::TargetContext;
 
+mod minibasic;
+
 const UART_BASE: usize = 0x1000_0000;
 const UART_FCR: usize = 2;
 const UART_LSR: usize = 5;
@@ -41,6 +43,7 @@ const ECALL_WRITE_CHAR: u64 = 1;
 const ECALL_READ_CHAR: u64 = 2;
 const ECALL_EXIT: u64 = 3;
 const ECALL_WRITE_BUFFER: u64 = 4;
+const ECALL_POLL_CHAR: u64 = 5;
 
 global_asm!(include_str!("entry.S"));
 
@@ -69,6 +72,7 @@ static mut UART_RX_BUFFER: [u8; UART_RX_BUFFER_CAPACITY] = [0; UART_RX_BUFFER_CA
 static mut UART_RX_LENGTH: usize = 0;
 static mut UART_RX_INDEX: usize = 0;
 static TARGET_STACK: [u8; 8192] = [0; 8192];
+static BASIC_STACK: [u8; 8192] = [0; 8192];
 
 #[derive(Clone, Copy)]
 struct GuestSymbol {
@@ -272,6 +276,10 @@ fn handle_environment_call(context: &mut TargetContext) -> ! {
             context.x[10] = u64::from(uart_get());
             resume_after_environment_call(context);
         }
+        ECALL_POLL_CHAR => {
+            context.x[10] = u64::from(uart_try_get().unwrap_or(0));
+            resume_after_environment_call(context);
+        }
         ECALL_WRITE_BUFFER => {
             let address = context.x[10];
             let length = context.x[11];
@@ -340,6 +348,7 @@ fn monitor_loop(context: *mut TargetContext) -> ! {
             b"assemble-source" => assemble_saved_source(context),
             b"snapshot save" | b"project-save" => save_guest_snapshot(context),
             b"snapshot restore" | b"project-load" => restore_guest_snapshot(context),
+            b"basic" => launch_minibasic(context),
             b"snapshot info" => snapshot_info(),
             b"snapshot manifest" => snapshot_manifest(),
             b"snapshot metadata" => snapshot_metadata_info(),
@@ -387,8 +396,23 @@ fn monitor_loop(context: *mut TargetContext) -> ! {
 
 fn print_help() {
     uart_write(
-        "help/? regs/registers set <xreg> <hex64> setf <freg> <hex64> memory <addr> <length> edit <addr> <hex-bytes> data <addr> <directive> <bits> undo assemble <addr> <instruction> assemble-program <addr> ... end assemble-source source [line]|replace <n> <text> snapshot save|restore|info|manifest|metadata|dump|patch|patchbin|patchrle project-save|project-load symbols disasm <addr|label> <count> step/s run <count> continue/c break <addr|label> watch/rwatch/awatch <addr> <width> delete <n>|watch <n> info break/watch quit/q\r\n",
+        "help/? basic regs/registers set <xreg> <hex64> setf <freg> <hex64> memory <addr> <length> edit <addr> <hex-bytes> data <addr> <directive> <bits> undo assemble <addr> <instruction> assemble-program <addr> ... end assemble-source source [line]|replace <n> <text> snapshot save|restore|info|manifest|metadata|dump|patch|patchbin|patchrle project-save|project-load symbols disasm <addr|label> <count> step/s run <count> continue/c break <addr|label> watch/rwatch/awatch <addr> <width> delete <n>|watch <n> info break/watch quit/q\r\n",
     );
+}
+
+fn launch_minibasic(context: *mut TargetContext) -> ! {
+    let context = unsafe { &mut *context };
+    context.x = [0; 32];
+    context.f = [0xffff_ffff_0000_0000; 32];
+    context.fcsr = 0;
+    let entry = minibasic::minibasic_entry as *const () as u64;
+    let stack = BASIC_STACK.as_ptr() as u64 + BASIC_STACK.len() as u64;
+    context.x[2] = stack;
+    context.pc = entry;
+    context.mepc = entry;
+    context.mcause = StopReason::Breakpoint as u64;
+    context.mtval = 0;
+    unsafe { resume_user(context as *mut TargetContext) }
 }
 
 fn guest_error(code: &[u8], message: &[u8]) {
@@ -3462,5 +3486,30 @@ fn uart_get() -> u8 {
         let byte = UART_RX_BUFFER[UART_RX_INDEX];
         UART_RX_INDEX += 1;
         byte
+    }
+}
+
+fn uart_try_get() -> Option<u8> {
+    unsafe {
+        if UART_RX_INDEX == UART_RX_LENGTH {
+            UART_RX_INDEX = 0;
+            UART_RX_LENGTH = 0;
+            if core::ptr::read_volatile((UART_BASE + UART_LSR) as *const u8) & UART_LSR_DATA_READY
+                == 0
+            {
+                return None;
+            }
+            while UART_RX_LENGTH < UART_RX_BUFFER_CAPACITY
+                && core::ptr::read_volatile((UART_BASE + UART_LSR) as *const u8)
+                    & UART_LSR_DATA_READY
+                    != 0
+            {
+                UART_RX_BUFFER[UART_RX_LENGTH] = core::ptr::read_volatile(UART_BASE as *const u8);
+                UART_RX_LENGTH += 1;
+            }
+        }
+        let byte = UART_RX_BUFFER[UART_RX_INDEX];
+        UART_RX_INDEX += 1;
+        Some(byte)
     }
 }
