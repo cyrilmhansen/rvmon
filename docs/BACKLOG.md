@@ -2005,6 +2005,33 @@ confondre code présent et exigence formellement auditée.
 - **Paquet de contexte minimal :** example `bench_smoke`, SPEC §20,
   `tools/bench-smoke.sh`.
 
+#### QUAL-002C — Smoke accessibilité sortie pipe — TERMINÉ
+
+- **Jalon / exigences :** M9; NFR-008..010, REQ-PROD-005.
+- **But :** garantir qu’un script monitor produit une sortie lisible sans
+  dépendre de couleur ANSI ou d’un terminal interactif.
+- **Non-but :** tester toutes les tailles d’écran, contrastes matériels,
+  lecteurs d’écran ou une palette graphique.
+- **Entrées/sources :** SPEC §§17/20; `examples/internal-first-step.rv`;
+  tests de raccourcis `luna-app`.
+- **Fichiers/modules :** `tools/accessibility-smoke.sh`, docs de tests.
+- **Étapes réalisées :** exécuter le chemin pipe host; refuser toute séquence
+  ANSI; vérifier la présence du résultat `x1`; conserver les raccourcis
+  F5/F10/F11/Ctrl+1/2/3 dans les tests unitaires.
+- **Dépendances et tâches bloquées :** QUAL-002; matrice de tailles, contraste
+  et TTY réel restent à compléter si l’interface terminale est étendue.
+- **Tests :** `bash tools/accessibility-smoke.sh`, `cargo test -p luna-app`.
+- **Critères de sortie :** sortie pipe déterministe, sans escape graphique,
+  avec résultat observable du premier scénario fonctionnel.
+- **Cas limites et échecs :** script absent, commande en erreur ou séquence
+  ANSI inattendue provoquent un échec explicite.
+- **Taille :** 1 point / 0,5 journée-agent, incertitude faible.
+- **Compétences/outils :** shell, TTY/pipes, accessibilité terminale.
+- **Parallélisable :** oui avec QUAL-001; non avec une modification de sortie
+  publique de `luna-app`.
+- **Paquet de contexte minimal :** `tools/accessibility-smoke.sh`,
+  `examples/internal-first-step.rv`, SPEC §§17/20.
+
 ### REL-001 — Release candidate et dossier de preuve
 
 - **Jalon / exigences :** M9; toutes exigences couvertes.

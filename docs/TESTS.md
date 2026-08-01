@@ -335,9 +335,9 @@ breakpoint permanent et le breakpoint temporaire du pas-à-pas est refusée.
 | Composant | Partiel | Assembleur, désassembleur et moniteur testés par API. |
 | Intégration interne | Présent | Round-trips et chaîne monitor/machine. |
 | Différentiel externe | Partiel | GNU/LLVM sont branchés sur sept encodages R1 ; Sail, Spike et SoftFloat restent à intégrer. |
-| Génératif/fuzzing | Smoke déterministe | `tools/fuzz-smoke.sh` exécute 20 000 entrées commandes/expressions et 100 000 mots arbitraires du désassembleur ; libFuzzer nightly et réduction restent différés. |
+| Génératif/fuzzing | Smoke + corpus + reducer | `tools/fuzz-smoke.sh`, seeds versionnés, réducteur texte et cibles libFuzzer autonomes ; exécution nightly libFuzzer reste différée. |
 | E2E terminal | Partiel | Smoke test UART/QEMU et session TCP GDB RSP automatisés ; protocole interactif complet encore absent. |
-| Multi-plateforme | Absent | Pas encore de matrice Linux/macOS/Windows et x86_64/arm64. |
+| Multi-plateforme | Instrumentation locale | Benchmark identifie OS/architecture et smoke accessibilité pipe ; matrice Linux/macOS/Windows et x86_64/arm64 reste à exécuter. |
 
 ## Limites actuelles
 
@@ -358,6 +358,10 @@ assemble/step/snapshot en build release sur une machine donnée et affiche p50,
 p95, OS et architecture. Il fournit une ligne de comparaison, mais aucun seuil
 p95 ou d’empreinte n’est encore une condition de release avant la matrice
 multi-plateforme QUAL-002.
+
+Le smoke `tools/accessibility-smoke.sh` vérifie une sortie pipe sans séquence
+ANSI et la présence du résultat de registre du scénario de bootstrap. Il ne
+remplace pas un test TTY réel ni une évaluation de contraste.
 
 ## Prochains tests prioritaires
 
