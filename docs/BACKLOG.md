@@ -478,6 +478,23 @@ confondre code présent et exigence formellement auditée.
 - **Parallélisable :** oui avec delta/reprise; non avec une modification concurrente des bornes guest.
 - **Paquet de contexte minimal :** `crates/snapshot-format/src/lib.rs`, `crates/app/src/main.rs`, SPEC §§12/18/21.
 
+### GUEST-013 — Contrat metadata RVSNAP01 — TERMINÉ
+
+- **Jalon / exigences :** M8; IO-001..009, OBS-001..006, REQ-PROD-006.
+- **But :** figer une section metadata versionnée pour persister le contexte RV64, le source et les symboles sans dépendre du transport.
+- **Non-but :** modifier encore le fichier principal, lire les métadonnées par UART ou sérialiser les breakpoints/watchpoints dans cette première sous-tranche.
+- **Entrées/sources :** SPEC §§8/12/21/22; `TargetContext`; contrat guest 4B.
+- **Fichiers/modules :** `crates/snapshot-format/src/lib.rs`, `docs/TESTS.md`, `docs/TUTORIAL-GUEST.md`.
+- **Étapes réalisées :** magic/version `RVMETA01`; 32 registres `x`, 32 registres `f`, PC, `fcsr`, `mstatus`, `mepc`, `mcause`, `mtval`; source borné à 1536 octets; huit symboles de 64 octets maximum; encode/decode little-endian strict.
+- **Dépendances et tâches bloquées :** GUEST-010/012; intégration au conteneur RVSNAP01, commandes metadata guest, breakpoints/watchpoints et migration restent à faire.
+- **Tests :** round-trip bit-exact du contexte/source/symboles; magic invalide; source surdimensionné; suite workspace.
+- **Critères de sortie :** même structure et mêmes bits après decode; limites refusées avant allocation non bornée; version inconnue diagnostiquée.
+- **Cas limites et échecs :** source vide, symbole au nom maximal, contexte NaN-boxé, payload tronqué, version future, octets résiduels.
+- **Taille :** 3 points / 1,5 journée-agent, incertitude faible.
+- **Compétences/outils :** formats binaires, ABI RV64, Rust.
+- **Parallélisable :** oui avec l’adaptateur de commandes guest; non avec une modification concurrente de la représentation metadata.
+- **Paquet de contexte minimal :** `crates/snapshot-format/src/lib.rs`, `crates/target-api/src/lib.rs`, SPEC §§8/12/21.
+
 ## M3 — assembleur et désassembleur
 
 ### ISA-003 — Étendre la tranche RV64 aux loads/stores 64 bits — TERMINÉ

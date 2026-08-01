@@ -9,12 +9,67 @@ pub const HEADER_LEN: usize = 32;
 pub const MAX_WORKSPACE: usize = 0x1_0000;
 pub const MAX_DATA: usize = 0x10_0000;
 pub const MAX_TRANSPORT_CHUNK: usize = 4096;
+pub const METADATA_MAGIC: &[u8; 8] = b"RVMETA01";
+pub const MAX_METADATA_SOURCE: usize = 16 * 96;
+pub const MAX_METADATA_SYMBOLS: usize = 8;
+pub const MAX_METADATA_SYMBOL_NAME: usize = 64;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct SnapshotImage {
     pub workspace: Vec<u8>,
     pub data: Vec<u8>,
     pub source_lines: u32,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct SnapshotContext {
+    pub x: [u64; 32],
+    pub f: [u64; 32],
+    pub pc: u64,
+    pub fcsr: u32,
+    pub mstatus: u64,
+    pub mepc: u64,
+    pub mcause: u64,
+    pub mtval: u64,
+}
+
+impl SnapshotContext {
+    pub const fn empty() -> Self {
+        Self {
+            x: [0; 32],
+            f: [0xffff_ffff_0000_0000; 32],
+            pc: 0,
+            fcsr: 0,
+            mstatus: 0,
+            mepc: 0,
+            mcause: 0,
+            mtval: 0,
+        }
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct SnapshotSymbol {
+    pub address: u64,
+    pub name: Vec<u8>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct SnapshotMetadata {
+    pub context: SnapshotContext,
+    pub source: Vec<u8>,
+    pub symbols: Vec<SnapshotSymbol>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum MetadataError {
+    Truncated,
+    InvalidMagic,
+    UnsupportedVersion(u32),
+    InvalidSourceLength(u32),
+    InvalidSymbolCount(u32),
+    InvalidSymbolNameLength(u16),
+    TrailingBytes,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -421,6 +476,161 @@ impl fmt::Display for SnapshotError {
 
 impl std::error::Error for SnapshotError {}
 
+impl fmt::Display for MetadataError {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Truncated => formatter.write_str("snapshot metadata is truncated"),
+            Self::InvalidMagic => formatter.write_str("snapshot metadata magic is invalid"),
+            Self::UnsupportedVersion(version) => {
+                write!(formatter, "unsupported snapshot metadata version {version}")
+            }
+            Self::InvalidSourceLength(length) => {
+                write!(
+                    formatter,
+                    "metadata source length {length} exceeds its limit"
+                )
+            }
+            Self::InvalidSymbolCount(count) => {
+                write!(formatter, "metadata symbol count {count} exceeds its limit")
+            }
+            Self::InvalidSymbolNameLength(length) => {
+                write!(
+                    formatter,
+                    "metadata symbol name length {length} exceeds its limit"
+                )
+            }
+            Self::TrailingBytes => formatter.write_str("snapshot metadata has trailing bytes"),
+        }
+    }
+}
+
+impl std::error::Error for MetadataError {}
+
+impl SnapshotMetadata {
+    pub fn encode(&self) -> Result<Vec<u8>, MetadataError> {
+        if self.source.len() > MAX_METADATA_SOURCE {
+            return Err(MetadataError::InvalidSourceLength(self.source.len() as u32));
+        }
+        if self.symbols.len() > MAX_METADATA_SYMBOLS {
+            return Err(MetadataError::InvalidSymbolCount(self.symbols.len() as u32));
+        }
+        let mut encoded = Vec::new();
+        encoded.extend_from_slice(METADATA_MAGIC);
+        encoded.extend_from_slice(&1u32.to_le_bytes());
+        for value in self.context.x.iter().chain(self.context.f.iter()) {
+            encoded.extend_from_slice(&value.to_le_bytes());
+        }
+        encoded.extend_from_slice(&self.context.pc.to_le_bytes());
+        encoded.extend_from_slice(&self.context.fcsr.to_le_bytes());
+        encoded.extend_from_slice(&self.context.mstatus.to_le_bytes());
+        encoded.extend_from_slice(&self.context.mepc.to_le_bytes());
+        encoded.extend_from_slice(&self.context.mcause.to_le_bytes());
+        encoded.extend_from_slice(&self.context.mtval.to_le_bytes());
+        encoded.extend_from_slice(&(self.source.len() as u32).to_le_bytes());
+        encoded.extend_from_slice(&(self.symbols.len() as u32).to_le_bytes());
+        encoded.extend_from_slice(&self.source);
+        for symbol in &self.symbols {
+            if symbol.name.len() > MAX_METADATA_SYMBOL_NAME {
+                return Err(MetadataError::InvalidSymbolNameLength(
+                    symbol.name.len() as u16
+                ));
+            }
+            encoded.extend_from_slice(&symbol.address.to_le_bytes());
+            encoded.extend_from_slice(&(symbol.name.len() as u16).to_le_bytes());
+            encoded.extend_from_slice(&symbol.name);
+        }
+        Ok(encoded)
+    }
+
+    pub fn decode(encoded: &[u8]) -> Result<Self, MetadataError> {
+        let mut reader = MetadataReader {
+            bytes: encoded,
+            offset: 0,
+        };
+        if reader.take(8)? != METADATA_MAGIC {
+            return Err(MetadataError::InvalidMagic);
+        }
+        let version = reader.u32()?;
+        if version != 1 {
+            return Err(MetadataError::UnsupportedVersion(version));
+        }
+        let mut context = SnapshotContext::empty();
+        for value in &mut context.x {
+            *value = reader.u64()?;
+        }
+        for value in &mut context.f {
+            *value = reader.u64()?;
+        }
+        context.pc = reader.u64()?;
+        context.fcsr = reader.u32()?;
+        context.mstatus = reader.u64()?;
+        context.mepc = reader.u64()?;
+        context.mcause = reader.u64()?;
+        context.mtval = reader.u64()?;
+        let source_len = reader.u32()?;
+        if source_len as usize > MAX_METADATA_SOURCE {
+            return Err(MetadataError::InvalidSourceLength(source_len));
+        }
+        let symbol_count = reader.u32()?;
+        if symbol_count as usize > MAX_METADATA_SYMBOLS {
+            return Err(MetadataError::InvalidSymbolCount(symbol_count));
+        }
+        let source = reader.take(source_len as usize)?.to_vec();
+        let mut symbols = Vec::with_capacity(symbol_count as usize);
+        for _ in 0..symbol_count {
+            let address = reader.u64()?;
+            let name_len = reader.u16()?;
+            if name_len as usize > MAX_METADATA_SYMBOL_NAME {
+                return Err(MetadataError::InvalidSymbolNameLength(name_len));
+            }
+            symbols.push(SnapshotSymbol {
+                address,
+                name: reader.take(name_len as usize)?.to_vec(),
+            });
+        }
+        if reader.offset != encoded.len() {
+            return Err(MetadataError::TrailingBytes);
+        }
+        Ok(Self {
+            context,
+            source,
+            symbols,
+        })
+    }
+}
+
+struct MetadataReader<'a> {
+    bytes: &'a [u8],
+    offset: usize,
+}
+
+impl<'a> MetadataReader<'a> {
+    fn take(&mut self, length: usize) -> Result<&'a [u8], MetadataError> {
+        let end = self
+            .offset
+            .checked_add(length)
+            .ok_or(MetadataError::Truncated)?;
+        let value = self
+            .bytes
+            .get(self.offset..end)
+            .ok_or(MetadataError::Truncated)?;
+        self.offset = end;
+        Ok(value)
+    }
+
+    fn u16(&mut self) -> Result<u16, MetadataError> {
+        Ok(u16::from_le_bytes(self.take(2)?.try_into().unwrap()))
+    }
+
+    fn u32(&mut self) -> Result<u32, MetadataError> {
+        Ok(u32::from_le_bytes(self.take(4)?.try_into().unwrap()))
+    }
+
+    fn u64(&mut self) -> Result<u64, MetadataError> {
+        Ok(u64::from_le_bytes(self.take(8)?.try_into().unwrap()))
+    }
+}
+
 impl SnapshotImage {
     pub fn manifest(&self) -> Result<SnapshotManifest, SnapshotError> {
         validate_lengths(self.workspace.len(), self.data.len())?;
@@ -713,5 +923,48 @@ mod tests {
         assert!(guest.patches[0].starts_with("snapshot patchbin workspace 0 "));
         assert!(guest.patches[2].starts_with("snapshot patchbin data 0 "));
         assert!(guest.restored);
+    }
+
+    #[test]
+    fn metadata_round_trip_preserves_context_source_and_symbols() {
+        let mut context = SnapshotContext::empty();
+        context.x[1] = 0x8000_0000;
+        context.f[3] = 0x3ff0_0000_0000_0000;
+        context.pc = 0x8100_0240;
+        context.fcsr = 0x9f;
+        let metadata = SnapshotMetadata {
+            context,
+            source: b"addi x1,x0,1\n".to_vec(),
+            symbols: vec![SnapshotSymbol {
+                address: 0x8100_0240,
+                name: b"entry".to_vec(),
+            }],
+        };
+        let encoded = metadata.encode().unwrap();
+        assert_eq!(SnapshotMetadata::decode(&encoded).unwrap(), metadata);
+    }
+
+    #[test]
+    fn metadata_rejects_corruption_and_limits() {
+        let metadata = SnapshotMetadata {
+            context: SnapshotContext::empty(),
+            source: vec![],
+            symbols: vec![],
+        };
+        let mut encoded = metadata.encode().unwrap();
+        encoded[0] ^= 1;
+        assert_eq!(
+            SnapshotMetadata::decode(&encoded),
+            Err(MetadataError::InvalidMagic)
+        );
+        let oversized = SnapshotMetadata {
+            context: SnapshotContext::empty(),
+            source: vec![0; MAX_METADATA_SOURCE + 1],
+            symbols: vec![],
+        };
+        assert!(matches!(
+            oversized.encode(),
+            Err(MetadataError::InvalidSourceLength(_))
+        ));
     }
 }
