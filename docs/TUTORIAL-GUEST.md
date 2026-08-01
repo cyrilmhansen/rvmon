@@ -344,9 +344,28 @@ rvmonitor> regs
 ... x1=0x0000000000000007 ...
 ```
 
-Le slot est perdu lors d’un reset ou de l’arrêt de QEMU. Les 64 MiB complets,
-les exports binaires UART et plusieurs slots seront traités dans une tranche
-ultérieure.
+Le slot est perdu lors d’un reset ou de l’arrêt de QEMU. Il peut toutefois
+être inspecté ou corrigé par petits blocs sur l’UART, ce qui permet à un hôte
+d’archiver ou de reconstruire progressivement les deux régions capturées :
+
+```text
+rvmonitor> snapshot info
+snapshot: valid workspace=65536 data=1048576 source-lines=1 chunk-max=32
+rvmonitor> snapshot dump data 112 4
+snapshot-chunk data offset=112 length=4 hex=44332211
+rvmonitor> snapshot patch data 112 aabbccdd
+snapshot chunk patched data offset=112 length=4
+rvmonitor> snapshot restore
+snapshot restored (workspace=65536 data=1048576)
+```
+
+`snapshot dump` accepte `workspace` ou `data`, un offset décimal et une
+longueur de 1 à 32 octets. `snapshot patch` accepte les mêmes régions et une
+suite hexadécimale de 1 à 32 octets. Le patch ne touche pas la mémoire cible
+active : il modifie uniquement le slot ; `snapshot restore` est nécessaire
+pour l’appliquer. Cette tranche fournit le transport UART déterministe, pas
+encore un fichier persistant, plusieurs slots ou la capture des 64 MiB
+complets.
 
 ### Watchpoints logiciels
 

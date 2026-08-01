@@ -22,8 +22,8 @@ data_address_full="$(printf '0x%016x' "$((16#$data_start_hex + 0x70))")"
 set +e
 output="$({
     printf 'assemble-program %s\naddi x1,x0,7\nend\n' "$assembly_address"
-    printf 'set x1 0x7\ndata %s .word 0x11223344\nsnapshot save\nproject-save\nset x1 0x99\nedit %s deadbeef\nsource replace 1 "addi x1,x0,9"\n' "$data_address" "$data_address"
-    printf 'snapshot restore\nregs\nmemory %s 4\nsource 1\nproject-load\nregs\n' "$data_address"
+    printf 'set x1 0x7\ndata %s .word 0x11223344\nsnapshot save\nsnapshot info\nsnapshot dump data 112 4\nsnapshot patch data 112 aabbccdd\nsnapshot dump data 112 4\nset x1 0x99\nedit %s deadbeef\nsource replace 1 "addi x1,x0,9"\n' "$data_address" "$data_address"
+    printf 'snapshot restore\nregs\nmemory %s 4\nsource 1\nproject-save\nset x1 0x88\nproject-load\nregs\n' "$data_address"
     printf 'memory %s 4\nsource 1\nquit\n' "$data_address"
 } | timeout 5s qemu-system-riscv64 \
     -M virt \
@@ -42,10 +42,14 @@ fi
 
 for expected in \
     'snapshot saved (workspace=65536 data=1048576)' \
+    'snapshot: valid workspace=65536 data=1048576 source-lines=1 chunk-max=32' \
+    'snapshot-chunk data offset=112 length=4 hex=44332211' \
+    'snapshot chunk patched data offset=112 length=4' \
+    'snapshot-chunk data offset=112 length=4 hex=aabbccdd' \
     'snapshot restored (workspace=65536 data=1048576)' \
     'set x1=0x0000000000000099' \
     'x1=0x0000000000000007' \
-    "$data_address_full: 44 33 22 11" \
+    "$data_address_full: aa bb cc dd" \
     '1 | addi x1,x0,7'; do
     if ! [[ "$output" == *"$expected"* ]]; then
         printf '%s\n' "$output"

@@ -263,6 +263,9 @@ fn monitor_loop(context: *mut TargetContext) -> ! {
             b"assemble-source" => assemble_saved_source(context),
             b"snapshot save" | b"project-save" => save_guest_snapshot(context),
             b"snapshot restore" | b"project-load" => restore_guest_snapshot(context),
+            b"snapshot info" => snapshot_info(),
+            command if command.starts_with(b"snapshot dump ") => snapshot_dump(&command[14..]),
+            command if command.starts_with(b"snapshot patch ") => snapshot_patch(&command[15..]),
             b"symbols" => print_symbols(),
             command if command.starts_with(b"disasm ") => print_disassembly(&command[7..]),
             b"step" | b"s" => step_target(context),
@@ -293,7 +296,7 @@ fn monitor_loop(context: *mut TargetContext) -> ! {
 
 fn print_help() {
     uart_write(
-        "help/? regs/registers set <xreg> <hex64> setf <freg> <hex64> memory <addr> <length> edit <addr> <hex-bytes> data <addr> <directive> <bits> undo assemble <addr> <instruction> assemble-program <addr> ... end assemble-source source [line]|replace <n> <text> snapshot save|restore project-save|project-load symbols disasm <addr|label> <count> step/s run <count> continue/c break <addr|label> watch/rwatch/awatch <addr> <width> delete <n>|watch <n> info break/watch quit/q\r\n",
+        "help/? regs/registers set <xreg> <hex64> setf <freg> <hex64> memory <addr> <length> edit <addr> <hex-bytes> data <addr> <directive> <bits> undo assemble <addr> <instruction> assemble-program <addr> ... end assemble-source source [line]|replace <n> <text> snapshot save|restore|info|dump|patch project-save|project-load symbols disasm <addr|label> <count> step/s run <count> continue/c break <addr|label> watch/rwatch/awatch <addr> <width> delete <n>|watch <n> info break/watch quit/q\r\n",
     );
 }
 
@@ -1394,6 +1397,167 @@ fn restore_guest_snapshot(context: *mut TargetContext) {
     }
     flush_icache();
     uart_write("snapshot restored (workspace=65536 data=1048576)\r\n");
+}
+
+fn snapshot_info() {
+    let snapshot = core::ptr::addr_of!(GUEST_SNAPSHOT);
+    let valid = unsafe { core::ptr::read_volatile(core::ptr::addr_of!((*snapshot).valid)) };
+    if !valid {
+        uart_write("snapshot: empty\r\n");
+        return;
+    }
+    let source_count =
+        unsafe { core::ptr::read_volatile(core::ptr::addr_of!((*snapshot).source_count)) };
+    uart_write("snapshot: valid workspace=65536 data=1048576 source-lines=");
+    uart_decimal(source_count as u64);
+    uart_write(" chunk-max=32\r\n");
+}
+
+fn snapshot_region_name(input: &[u8]) -> Option<bool> {
+    match input {
+        b"workspace" => Some(true),
+        b"data" => Some(false),
+        _ => None,
+    }
+}
+
+fn snapshot_dump(argument: &[u8]) {
+    let Some((region_bytes, rest)) = split_token_space(argument) else {
+        guest_error(
+            b"GUEST-SNAPSHOT-003",
+            b"dump expects <workspace|data> <offset> <length>",
+        );
+        return;
+    };
+    let Some(workspace) = snapshot_region_name(region_bytes) else {
+        guest_error(
+            b"GUEST-SNAPSHOT-004",
+            b"snapshot region must be workspace or data",
+        );
+        return;
+    };
+    let Some((offset_bytes, length_bytes)) = split_token_space(rest) else {
+        guest_error(
+            b"GUEST-SNAPSHOT-003",
+            b"dump expects <workspace|data> <offset> <length>",
+        );
+        return;
+    };
+    let Some(offset) = parse_decimal(offset_bytes) else {
+        guest_error(b"GUEST-SNAPSHOT-005", b"snapshot offset must be decimal");
+        return;
+    };
+    let Some(length) = parse_decimal(length_bytes) else {
+        guest_error(b"GUEST-SNAPSHOT-006", b"snapshot length must be decimal");
+        return;
+    };
+    if !snapshot_valid_chunk(workspace, offset, length) || length == 0 || length > 32 {
+        guest_error(
+            b"GUEST-SNAPSHOT-007",
+            b"snapshot chunk must be 1..32 bytes inside its region",
+        );
+        return;
+    }
+    let snapshot = core::ptr::addr_of!(GUEST_SNAPSHOT);
+    let valid = unsafe { core::ptr::read_volatile(core::ptr::addr_of!((*snapshot).valid)) };
+    if !valid {
+        guest_error(b"GUEST-SNAPSHOT-002", b"no snapshot or project is saved");
+        return;
+    }
+    let bytes = unsafe {
+        if workspace {
+            &(&(*snapshot).workspace)[offset as usize..(offset + length) as usize]
+        } else {
+            &(&(*snapshot).data)[offset as usize..(offset + length) as usize]
+        }
+    };
+    uart_write("snapshot-chunk ");
+    uart_bytes(region_bytes);
+    uart_write(" offset=");
+    uart_decimal(offset);
+    uart_write(" length=");
+    uart_decimal(length);
+    uart_write(" hex=");
+    for byte in bytes {
+        uart_hex_byte(*byte);
+    }
+    uart_write("\r\n");
+}
+
+fn snapshot_patch(argument: &[u8]) {
+    let Some((region_bytes, rest)) = split_token_space(argument) else {
+        guest_error(
+            b"GUEST-SNAPSHOT-008",
+            b"patch expects <workspace|data> <offset> <hex-bytes>",
+        );
+        return;
+    };
+    let Some(workspace) = snapshot_region_name(region_bytes) else {
+        guest_error(
+            b"GUEST-SNAPSHOT-004",
+            b"snapshot region must be workspace or data",
+        );
+        return;
+    };
+    let Some((offset_bytes, hex_bytes)) = split_token_space(rest) else {
+        guest_error(
+            b"GUEST-SNAPSHOT-008",
+            b"patch expects <workspace|data> <offset> <hex-bytes>",
+        );
+        return;
+    };
+    let Some(offset) = parse_decimal(offset_bytes) else {
+        guest_error(b"GUEST-SNAPSHOT-005", b"snapshot offset must be decimal");
+        return;
+    };
+    let mut bytes = [0u8; MAX_EDIT_BYTES];
+    let Some(length) = parse_hex_bytes(hex_bytes, &mut bytes) else {
+        guest_error(
+            b"GUEST-SNAPSHOT-009",
+            b"snapshot patch expects 1..32 hexadecimal bytes",
+        );
+        return;
+    };
+    if !snapshot_valid_chunk(workspace, offset, length as u64) {
+        guest_error(
+            b"GUEST-SNAPSHOT-007",
+            b"snapshot chunk is outside its region",
+        );
+        return;
+    }
+    let snapshot = core::ptr::addr_of_mut!(GUEST_SNAPSHOT);
+    let valid = unsafe { core::ptr::read_volatile(core::ptr::addr_of!((*snapshot).valid)) };
+    if !valid {
+        guest_error(b"GUEST-SNAPSHOT-002", b"no snapshot or project is saved");
+        return;
+    }
+    unsafe {
+        if workspace {
+            (&mut (*snapshot).workspace)[offset as usize..offset as usize + length]
+                .copy_from_slice(&bytes[..length]);
+        } else {
+            (&mut (*snapshot).data)[offset as usize..offset as usize + length]
+                .copy_from_slice(&bytes[..length]);
+        }
+    }
+    uart_write("snapshot chunk patched ");
+    uart_bytes(region_bytes);
+    uart_write(" offset=");
+    uart_decimal(offset);
+    uart_write(" length=");
+    uart_decimal(length as u64);
+    uart_write("\r\n");
+}
+
+fn snapshot_valid_chunk(workspace: bool, offset: u64, length: u64) -> bool {
+    let capacity = if workspace {
+        TARGET_WORKSPACE_BYTES as u64
+    } else {
+        TARGET_DATA_BYTES as u64
+    };
+    offset
+        .checked_add(length)
+        .is_some_and(|end| end <= capacity)
 }
 
 fn assemble_source_buffer(

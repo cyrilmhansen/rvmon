@@ -380,11 +380,11 @@ confondre code présent et exigence formellement auditée.
 
 - **Jalon / exigences :** M8; IO-001..009, OBS-001..006, REQ-PROD-006.
 - **But :** sauvegarder et restaurer pendant la session QEMU l’état U-mode, les régions cible utilisées, le source et les arrêts du moniteur.
-- **Non-but :** fichier hôte, export UART binaire, plusieurs slots, restauration après reset QEMU ou capture des 64 MiB complets.
+- **Non-but :** fichier hôte, format de flux persistant, plusieurs slots, restauration après reset QEMU ou capture des 64 MiB complets.
 - **Entrées/sources :** SPEC §§8/12/18/21/22; carte guest 4B; contrat snapshot versionné adapté au stockage bare-metal.
 - **Fichiers/modules :** `crates/guest-monitor/src/main.rs`, `scripts/test-guest-snapshot.sh`, `docs/TUTORIAL-GUEST.md`, `docs/TESTS.md`.
 - **Étapes réalisées :** slot RAM volatil; capture workspace 64 KiB, données 1 MiB, `TargetContext`, source, symboles, breakpoints et watchpoints; restauration des régions et réapplication des breakpoints; commandes `snapshot save|restore` et alias `project-save|project-load`.
-- **Dépendances et tâches bloquées :** GUEST-005/006; export/import persistant et snapshots multi-slots restent différés.
+- **Dépendances et tâches bloquées :** GUEST-005/006; format de projet persistant, reprise après reset et snapshots multi-slots restent différés.
 - **Tests :** sauvegarde avec `x1=7` et un mot de données, mutations registre/mémoire/source, restauration et vérification des trois valeurs; alias projet vérifié.
 - **Critères de sortie :** la restauration retrouve l’état capturé dans les régions bornées; une absence de snapshot est diagnostiquée; le reset QEMU invalide implicitement le slot.
 - **Cas limites et échecs :** snapshot absent, breakpoint hors régions capturées, source vide, restauration avec watchpoints et budget actif.
@@ -392,6 +392,23 @@ confondre code présent et exigence formellement auditée.
 - **Compétences/outils :** Rust `no_std`, linker/RAM, copie mémoire sûre, état de trap, QEMU.
 - **Parallélisable :** oui avec le format projet host; non avec une modification concurrente de la carte mémoire guest ou du trap handler.
 - **Paquet de contexte minimal :** `crates/guest-monitor/src/main.rs`, `scripts/test-guest-snapshot.sh`, `docs/TUTORIAL-GUEST.md`, SPEC §§8/12/18/21.
+
+### GUEST-008 — Transport UART de snapshot par blocs — TERMINÉ
+
+- **Jalon / exigences :** M8; IO-001..009, OBS-001..006, REQ-PROD-006.
+- **But :** rendre un slot guest inspectable et modifiable à distance sans supposer un système de fichiers dans la machine bare-metal.
+- **Non-but :** persistance hôte, compression, checksum de flux complet, plusieurs slots ou modification directe de la cible active.
+- **Entrées/sources :** SPEC §§12/18/21/22; contrat guest 4B; protocole UART du tutoriel guest.
+- **Fichiers/modules :** `crates/guest-monitor/src/main.rs`, `scripts/test-guest-snapshot.sh`, `docs/TUTORIAL-GUEST.md`, `docs/TESTS.md`.
+- **Étapes réalisées :** `snapshot info`; `snapshot dump <region> <offset> <length>`; `snapshot patch <region> <offset> <hex>`; régions workspace/data bornées; chunks limités à 32 octets; patch appliqué uniquement au slot jusqu’à `snapshot restore`.
+- **Dépendances et tâches bloquées :** GUEST-007; le format persistant RVSNAP/RVPROJ et le transfert complet avec intégrité restent différés.
+- **Tests :** QEMU sauvegarde un mot little-endian, le lit, le patche dans le slot, vérifie l’octetage exporté, restaure, puis vérifie registre, mémoire, source et alias projet.
+- **Critères de sortie :** commande valide produisant une réponse déterministe; refus des régions, offsets, longueurs et hexadécimaux invalides; aucune mutation de la RAM active avant restauration.
+- **Cas limites et échecs :** snapshot absent, offset hors région, chunk vide, chunk de plus de 32 octets, hexadécimal impair ou trop long, frontière exacte de région.
+- **Taille :** 3 points / 1,5 journée-agent, incertitude faible.
+- **Compétences/outils :** Rust `no_std`, UART, QEMU, tests shell.
+- **Parallélisable :** oui avec le format projet host; non avec une modification concurrente de `GuestSnapshot`.
+- **Paquet de contexte minimal :** `crates/guest-monitor/src/main.rs`, `scripts/test-guest-snapshot.sh`, `docs/TUTORIAL-GUEST.md`, SPEC §§12/18/21.
 
 ## M3 — assembleur et désassembleur
 
