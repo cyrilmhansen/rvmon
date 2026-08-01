@@ -19,6 +19,7 @@ const TARGET_RAM_START: u64 = 0x8000_0000;
 const TARGET_RAM_END: u64 = 0x8400_0000;
 const EBREAK_WORD: u32 = 0x0010_0073;
 const MAX_PERMANENT_BREAKPOINTS: usize = 4;
+const MAX_WATCHPOINTS: usize = 4;
 const MAX_MEMORY_DUMP: u64 = 128;
 const MAX_EDIT_BYTES: usize = 32;
 const MAX_SOURCE_LINES: usize = 16;
@@ -31,6 +32,8 @@ static mut CONTEXT: TargetContext = TargetContext::empty();
 static mut TEMPORARY_BREAKPOINT: Breakpoint = Breakpoint::disabled();
 static mut PERMANENT_BREAKPOINTS: [Breakpoint; MAX_PERMANENT_BREAKPOINTS] =
     [Breakpoint::disabled(); MAX_PERMANENT_BREAKPOINTS];
+static mut WATCHPOINTS: [GuestWatchpoint; MAX_WATCHPOINTS] =
+    [GuestWatchpoint::disabled(); MAX_WATCHPOINTS];
 static mut STEPPED_PERMANENT_BREAKPOINT: u8 = u8::MAX;
 static mut RUN_REMAINING: u64 = 0;
 static mut SYMBOLS: [GuestSymbol; MAX_SYMBOLS] = [GuestSymbol::empty(); MAX_SYMBOLS];
@@ -63,6 +66,32 @@ struct MemoryUndo {
     original: [u8; MAX_EDIT_BYTES],
     edited: [u8; MAX_EDIT_BYTES],
     valid: bool,
+}
+
+#[derive(Clone, Copy)]
+enum GuestWatchKind {
+    Read,
+    Write,
+    Any,
+}
+
+#[derive(Clone, Copy)]
+struct GuestWatchpoint {
+    address: u64,
+    width: u64,
+    kind: GuestWatchKind,
+    enabled: bool,
+}
+
+impl GuestWatchpoint {
+    const fn disabled() -> Self {
+        Self {
+            address: 0,
+            width: 0,
+            kind: GuestWatchKind::Any,
+            enabled: false,
+        }
+    }
 }
 
 impl MemoryUndo {
@@ -192,6 +221,17 @@ fn monitor_loop(context: *mut TargetContext) -> ! {
             command if command.starts_with(b"run ") => run_target(context, &command[4..]),
             b"continue" | b"c" => continue_target(context),
             command if command.starts_with(b"break ") => break_target(&command[6..]),
+            command if command.starts_with(b"watch ") => {
+                add_watchpoint(&command[6..], GuestWatchKind::Write)
+            }
+            command if command.starts_with(b"rwatch ") => {
+                add_watchpoint(&command[7..], GuestWatchKind::Read)
+            }
+            command if command.starts_with(b"awatch ") => {
+                add_watchpoint(&command[7..], GuestWatchKind::Any)
+            }
+            b"info watch" | b"info w" => print_watchpoints(),
+            command if command.starts_with(b"delete watch ") => delete_watchpoint(&command[13..]),
             command if command.starts_with(b"delete ") => delete_breakpoint(&command[7..]),
             b"info break" | b"info b" => print_breakpoints(),
             b"quit" | b"exit" | b"q" => {
@@ -205,7 +245,7 @@ fn monitor_loop(context: *mut TargetContext) -> ! {
 
 fn print_help() {
     uart_write(
-        "help/? regs/registers set <xreg> <hex64> setf <freg> <hex64> memory <addr> <length> edit <addr> <hex-bytes> data <addr> <directive> <bits> undo assemble <addr> <instruction> assemble-program <addr> ... end symbols disasm <addr|label> <count> step/s run <count> continue/c break <addr|label> delete <n> info break quit/q\r\n",
+        "help/? regs/registers set <xreg> <hex64> setf <freg> <hex64> memory <addr> <length> edit <addr> <hex-bytes> data <addr> <directive> <bits> undo assemble <addr> <instruction> assemble-program <addr> ... end symbols disasm <addr|label> <count> step/s run <count> continue/c break <addr|label> watch/rwatch/awatch <addr> <width> delete <n>|watch <n> info break/watch quit/q\r\n",
     );
 }
 
@@ -1411,6 +1451,23 @@ fn resume_single_step(context: *mut TargetContext) -> ! {
         context.mepc = instruction_pc;
         unsafe { resume_user(context as *mut TargetContext) }
     }
+    if let Some((slot, address, width)) =
+        watchpoint_for_instruction(context, instruction_pc, instruction_word)
+    {
+        unsafe {
+            core::ptr::write_volatile(core::ptr::addr_of_mut!(RUN_REMAINING), 0);
+        }
+        uart_write("watchpoint #");
+        uart_decimal((slot + 1) as u64);
+        uart_write(" hit at pc=0x");
+        uart_hex(instruction_pc);
+        uart_write(" address=0x");
+        uart_hex(address);
+        uart_write(" width=");
+        uart_decimal(width);
+        uart_write("\r\n");
+        monitor_loop(context);
+    }
     let stop_pc = match next_execution_pc(context, instruction_pc, instruction_word) {
         Some(address) => address,
         None => {
@@ -1425,6 +1482,52 @@ fn resume_single_step(context: *mut TargetContext) -> ! {
     context.pc = instruction_pc;
     context.mepc = instruction_pc;
     unsafe { resume_user(context as *mut TargetContext) }
+}
+
+fn watchpoint_for_instruction(
+    context: &TargetContext,
+    _pc: u64,
+    word: u32,
+) -> Option<(usize, u64, u64)> {
+    let opcode = word & 0x7f;
+    let funct3 = (word >> 12) & 0x7;
+    let (kind, immediate) = match (opcode, funct3) {
+        (0x03, 0b011) => {
+            let immediate = (word as i32 >> 20) as i64 as u64;
+            (GuestWatchKind::Read, immediate)
+        }
+        (0x23, 0b011) => {
+            let immediate = (((word >> 25) & 0x7f) << 5) | ((word >> 7) & 0x1f);
+            let immediate = ((immediate as i32) << 20 >> 20) as i64 as u64;
+            (GuestWatchKind::Write, immediate)
+        }
+        _ => return None,
+    };
+    let base = context.x[((word >> 15) & 0x1f) as usize];
+    let address = base.wrapping_add(immediate);
+    let width = 8;
+    let access_end = address.checked_add(width)?;
+    for index in 0..MAX_WATCHPOINTS {
+        let watchpoint =
+            unsafe { core::ptr::read_volatile(core::ptr::addr_of!(WATCHPOINTS[index])) };
+        if !watchpoint.enabled {
+            continue;
+        }
+        let watch_end = watchpoint.address.checked_add(watchpoint.width)?;
+        let kind_matches = matches!(watchpoint.kind, GuestWatchKind::Any)
+            || matches!(
+                (watchpoint.kind, kind),
+                (GuestWatchKind::Read, GuestWatchKind::Read)
+            )
+            || matches!(
+                (watchpoint.kind, kind),
+                (GuestWatchKind::Write, GuestWatchKind::Write)
+            );
+        if kind_matches && address < watch_end && watchpoint.address < access_end {
+            return Some((index, address, width));
+        }
+    }
+    None
 }
 
 fn continue_target(context: *mut TargetContext) -> ! {
@@ -1459,6 +1562,126 @@ fn continue_target(context: *mut TargetContext) -> ! {
     context.pc = resume_pc;
     context.mepc = resume_pc;
     unsafe { resume_user(context as *mut TargetContext) }
+}
+
+fn add_watchpoint(argument: &[u8], kind: GuestWatchKind) {
+    let Some((address_bytes, width_bytes)) = split_token_space(argument) else {
+        guest_error(
+            b"GUEST-WATCH-001",
+            b"watch expects <hex-address> <decimal-width>",
+        );
+        return;
+    };
+    let Some(address) = parse_hex(address_bytes) else {
+        guest_error(b"GUEST-WATCH-002", b"watch address must be hexadecimal");
+        return;
+    };
+    let Some(width) = parse_decimal(width_bytes.trim_ascii()) else {
+        guest_error(b"GUEST-WATCH-003", b"watch width must be decimal");
+        return;
+    };
+    let Some(end) = address.checked_add(width) else {
+        guest_error(b"GUEST-WATCH-004", b"watch range overflows");
+        return;
+    };
+    if width == 0 || width > 8 || address < TARGET_RAM_START || end > TARGET_RAM_END {
+        guest_error(
+            b"GUEST-WATCH-005",
+            b"watch range must be 1..8 bytes inside target RAM",
+        );
+        return;
+    }
+    let mut slot = None;
+    for index in 0..MAX_WATCHPOINTS {
+        let watchpoint =
+            unsafe { core::ptr::read_volatile(core::ptr::addr_of!(WATCHPOINTS[index])) };
+        if !watchpoint.enabled {
+            slot = Some(index);
+            break;
+        }
+    }
+    let Some(slot) = slot else {
+        guest_error(b"GUEST-WATCH-006", b"watchpoint table is full");
+        return;
+    };
+    unsafe {
+        core::ptr::write_volatile(
+            core::ptr::addr_of_mut!(WATCHPOINTS[slot]),
+            GuestWatchpoint {
+                address,
+                width,
+                kind,
+                enabled: true,
+            },
+        );
+    }
+    uart_write("watchpoint #");
+    uart_decimal((slot + 1) as u64);
+    uart_write(" set at 0x");
+    uart_hex(address);
+    uart_write(" width=");
+    uart_decimal(width);
+    uart_write(" mode=");
+    uart_write(match kind {
+        GuestWatchKind::Read => "read",
+        GuestWatchKind::Write => "write",
+        GuestWatchKind::Any => "access",
+    });
+    uart_write("\r\n");
+}
+
+fn delete_watchpoint(argument: &[u8]) {
+    let Some(number) = parse_decimal(argument.trim_ascii()) else {
+        guest_error(b"GUEST-WATCH-007", b"watch number must be decimal");
+        return;
+    };
+    if number == 0 || number > MAX_WATCHPOINTS as u64 {
+        guest_error(b"GUEST-WATCH-008", b"watch number is out of range");
+        return;
+    }
+    let slot = (number - 1) as usize;
+    let watchpoint = unsafe { core::ptr::read_volatile(core::ptr::addr_of!(WATCHPOINTS[slot])) };
+    if !watchpoint.enabled {
+        guest_error(b"GUEST-WATCH-009", b"watchpoint is not enabled");
+        return;
+    }
+    unsafe {
+        core::ptr::write_volatile(
+            core::ptr::addr_of_mut!(WATCHPOINTS[slot]),
+            GuestWatchpoint::disabled(),
+        );
+    }
+    uart_write("watchpoint #");
+    uart_decimal(number);
+    uart_write(" deleted\r\n");
+}
+
+fn print_watchpoints() {
+    uart_write("watchpoints:\r\n");
+    let mut found = false;
+    for index in 0..MAX_WATCHPOINTS {
+        let watchpoint =
+            unsafe { core::ptr::read_volatile(core::ptr::addr_of!(WATCHPOINTS[index])) };
+        if watchpoint.enabled {
+            found = true;
+            uart_write("  #");
+            uart_decimal((index + 1) as u64);
+            uart_write(" addr=0x");
+            uart_hex(watchpoint.address);
+            uart_write(" width=");
+            uart_decimal(watchpoint.width);
+            uart_write(" mode=");
+            uart_write(match watchpoint.kind {
+                GuestWatchKind::Read => "read",
+                GuestWatchKind::Write => "write",
+                GuestWatchKind::Any => "access",
+            });
+            uart_write("\r\n");
+        }
+    }
+    if !found {
+        uart_write("  none\r\n");
+    }
 }
 
 fn break_target(argument: &[u8]) {

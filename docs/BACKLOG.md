@@ -342,6 +342,23 @@ confondre code présent et exigence formellement auditée.
 - **Parallélisable :** oui avec le design des watchpoints; non avec une modification concurrente de `rust_trap` ou des breakpoints temporaires.
 - **Paquet de contexte minimal :** `crates/guest-monitor/src/main.rs`, `scripts/test-guest-run.sh`, `docs/TUTORIAL-GUEST.md`, SPEC §§8/16/18.
 
+### GUEST-005 — Watchpoints logiciels guest sur ld/sd — TERMINÉ
+
+- **Jalon / exigences :** M7; REQ-PROD-003, DBG-001..014, ISO-001..004.
+- **But :** arrêter avant un accès `ld` ou `sd` qui recouvre une plage surveillée dans le programme U-mode.
+- **Non-but :** watchpoints matériels QEMU, accès MMIO, instructions atomiques, conditions d’expression et surveillance des autres largeurs.
+- **Entrées/sources :** SPEC §§6/8/14/16/18/24; encodages R1/R2 des loads/stores RV64I.
+- **Fichiers/modules :** `crates/guest-monitor/src/main.rs`, `scripts/test-guest-watchpoint.sh`, `docs/TUTORIAL-GUEST.md`, `docs/TESTS.md`.
+- **Étapes réalisées :** table de quatre watchpoints; commandes `watch`, `rwatch`, `awatch`, `info watch`, `delete watch`; calcul de l’adresse effective RV64; détection de recouvrement avant exécution; arrêt et remise à zéro du budget `run`.
+- **Dépendances et tâches bloquées :** GUEST-004; accès autres que `ld`/`sd`, watchpoints matériels et conditions restent différés.
+- **Tests :** programme `addi` puis `sd`, watchpoint écriture sur données, arrêt avant le store, mémoire inchangée, affichage et suppression.
+- **Critères de sortie :** un store surveillé ne modifie pas la mémoire avant le prompt; les modes read/write/access sont distincts; largeur 1..8 et RAM cible validées.
+- **Cas limites et échecs :** table pleine, plage hors RAM, overflow, largeur nulle/supérieure à 8, numéro invalide et absence de watchpoint.
+- **Taille :** 4 points / 2 journées-agent, incertitude moyenne.
+- **Compétences/outils :** décodage RV64I, calcul d’adresse effective, Rust `no_std`, QEMU UART.
+- **Parallélisable :** oui avec la conception des watchpoints host; non avec une modification concurrente du trap handler guest.
+- **Paquet de contexte minimal :** `crates/guest-monitor/src/main.rs`, `scripts/test-guest-watchpoint.sh`, `docs/TUTORIAL-GUEST.md`, SPEC §§8/14/16/18.
+
 ## M3 — assembleur et désassembleur
 
 ### ISA-003 — Étendre la tranche RV64 aux loads/stores 64 bits — TERMINÉ

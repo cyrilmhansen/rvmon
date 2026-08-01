@@ -305,6 +305,29 @@ rvmonitor> regs
 Les budgets `0` et supérieurs à `100000` sont refusés avec
 `GUEST-RUN-003`.
 
+### Watchpoints logiciels
+
+Le guest fournit des watchpoints logiciels sur les accès RV64 `ld` et `sd`.
+Ils sont évalués avant l’exécution de l’instruction et acceptent une plage de
+1 à 8 octets dans la RAM cible. `watch` surveille les écritures, `rwatch` les
+lectures et `awatch` les deux directions.
+
+```text
+rvmonitor> set x4 0x0000000082000060
+rvmonitor> watch 0x82000060 8
+watchpoint #1 set at 0x0000000082000060 width=8 mode=write
+rvmonitor> run 2
+watchpoint #1 hit at pc=0x0000000081000184 address=0x0000000082000060 width=8
+rvmonitor> memory 0x82000060 8
+0x0000000082000060: 00 00 00 00 00 00 00 00                 |........|
+rvmonitor> delete watch 1
+watchpoint #1 deleted
+```
+
+Les watchpoints ne couvrent pas encore les accès MMIO, atomiques, les autres
+largeurs ou des conditions d’expression. Ils sont implémentés par inspection
+du décodage guest et ne constituent pas une fonctionnalité matérielle QEMU.
+
 ### Poser un breakpoint logiciel
 
 Les breakpoints sont implantés en remplaçant temporairement le mot
