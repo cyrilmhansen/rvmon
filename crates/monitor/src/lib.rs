@@ -4725,4 +4725,19 @@ mod tests {
         console.execute("undo").unwrap();
         assert_eq!(console.backend.memory.load32(1).unwrap(), 0x0504_0302);
     }
+
+    #[test]
+    fn fuzz_smoke_commands_and_expressions_are_bounded_and_panic_free() {
+        let mut state = 0x4d59_5df4_u64;
+        for _ in 0..20_000 {
+            state = state
+                .wrapping_mul(6_364_136_223_846_793_005)
+                .wrapping_add(1);
+            let value = state as i128;
+            let expression = format!("({value} ^ 0xff) + ({})", state >> 32);
+            let _ = command::parse_expression(&expression);
+            let command = format!("view 0x{:016x}", state);
+            let _ = command::parse(&command);
+        }
+    }
 }

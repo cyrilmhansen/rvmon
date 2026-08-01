@@ -1824,6 +1824,33 @@ confondre code présent et exigence formellement auditée.
 - **Parallélisable :** oui avec QUAL-002.
 - **Contexte minimal :** TEST_PLAN fuzzing.
 
+#### QUAL-001A — Smoke-fuzz déterministe sans dépendance externe — TERMINÉ
+
+- **Jalon / exigences :** M9; REQ-PROD-002/004, ISA/ASM/DIS/CMD.
+- **But :** fournir un premier filet de sécurité reproductible contre les
+  paniques du parseur de commandes/expressions et du désassembleur.
+- **Non-but :** oracle sémantique, couverture exhaustive, libFuzzer nightly ou
+  réduction automatique de crashs.
+- **Entrées/sources :** SPEC §23; contrats `command::parse_expression`,
+  `command::parse` et `disassemble_word`.
+- **Fichiers/modules :** tests `luna-monitor`/`luna-disassembler`,
+  `tools/fuzz-smoke.sh`, `tests/fuzz/README.md`.
+- **Étapes réalisées :** générateur LCG fixé; 20 000 commandes/expressions et
+  100 000 mots d’instruction; script CI/local borné et rejouable.
+- **Dépendances et tâches bloquées :** QUAL-001; corpus métier, libFuzzer,
+  reducer et budgets nightly restent à faire.
+- **Tests :** `bash tools/fuzz-smoke.sh`, `cargo test --workspace`.
+- **Critères de sortie :** mêmes graines et mêmes volumes à chaque exécution;
+  aucune panique et aucune boucle non bornée.
+- **Cas limites et échecs :** expressions trop grandes, opérateurs invalides,
+  opcodes illégaux et mots arbitraires sont acceptés ou rejetés sans panic.
+- **Taille :** 2 points / 1 journée-agent, incertitude faible.
+- **Compétences/outils :** Rust tests, générateur déterministe, shell CI.
+- **Parallélisable :** oui avec FORMAT-001; non avec une modification des
+  API parser/disassembler.
+- **Paquet de contexte minimal :** `tools/fuzz-smoke.sh`, `tests/fuzz/README.md`,
+  tests `fuzz_smoke_*`, SPEC §23.
+
 ### QUAL-002 — Benchmarks, multi-plateforme et accessibilité
 
 - **Jalon / exigences :** M9; NFR-001..010.

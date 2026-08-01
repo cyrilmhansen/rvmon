@@ -335,7 +335,7 @@ breakpoint permanent et le breakpoint temporaire du pas-à-pas est refusée.
 | Composant | Partiel | Assembleur, désassembleur et moniteur testés par API. |
 | Intégration interne | Présent | Round-trips et chaîne monitor/machine. |
 | Différentiel externe | Partiel | GNU/LLVM sont branchés sur sept encodages R1 ; Sail, Spike et SoftFloat restent à intégrer. |
-| Génératif/fuzzing | Absent | Aucun budget de fuzzing installé. |
+| Génératif/fuzzing | Smoke déterministe | `tools/fuzz-smoke.sh` exécute 20 000 entrées commandes/expressions et 100 000 mots arbitraires du désassembleur ; libFuzzer nightly et réduction restent différés. |
 | E2E terminal | Partiel | Smoke test UART/QEMU et session TCP GDB RSP automatisés ; protocole interactif complet encore absent. |
 | Multi-plateforme | Absent | Pas encore de matrice Linux/macOS/Windows et x86_64/arm64. |
 

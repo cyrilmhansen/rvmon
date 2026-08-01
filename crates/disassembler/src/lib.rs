@@ -939,4 +939,15 @@ mod tests {
         .unwrap_err();
         assert_eq!(error.code, "DISASM-REGION-002");
     }
+
+    #[test]
+    fn fuzz_smoke_arbitrary_words_are_panic_free() {
+        let mut state = 0x9e37_79b9_u32;
+        let symbols = BTreeMap::new();
+        for _ in 0..100_000 {
+            state = state.wrapping_mul(1_664_525).wrapping_add(1_013_904_223);
+            let line = disassemble_word(u64::from(state), state, &symbols);
+            assert_eq!(line.word, state);
+        }
+    }
 }
