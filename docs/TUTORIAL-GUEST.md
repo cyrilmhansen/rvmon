@@ -205,6 +205,18 @@ rvmonitor> regs
 ... x1=0x0000000000000003 ...
 ```
 
+Une erreur de source multi-ligne expose un code stable et la ligne fautive.
+La validation est atomique : le programme déjà présent dans la fenêtre reste
+inchangé si une ligne est rejetée.
+
+```text
+rvmonitor> assemble-program 0x81000100
+source> addi x1,x0,7
+source> not-an-instruction x1
+source> end
+error [GUEST-ASM-008] source line 2: supports integer/control, ld/sd, fadd.s/fadd.d or fmv syntax
+```
+
 Le parseur invité accepte `addi`, `lui`, `auipc`, `beq`, `bne`, `jal`, `jalr`, `ld`, `sd`,
 `fadd.s` et `fadd.d`. Les branches et `jal` prennent une cible relative numérique ou un
 label, éventuellement suivi de `+offset` ou `-offset`; `jalr` utilise la forme

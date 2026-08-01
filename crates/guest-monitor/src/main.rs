@@ -186,6 +186,24 @@ fn print_help() {
     );
 }
 
+fn guest_error(code: &[u8], message: &[u8]) {
+    uart_write("error [");
+    uart_bytes(code);
+    uart_write("]: ");
+    uart_bytes(message);
+    uart_write("\r\n");
+}
+
+fn guest_source_error(line: usize, code: &[u8], message: &[u8]) {
+    uart_write("error [");
+    uart_bytes(code);
+    uart_write("] source line ");
+    uart_decimal(line as u64);
+    uart_write(": ");
+    uart_bytes(message);
+    uart_write("\r\n");
+}
+
 fn print_registers(context: *mut TargetContext) {
     let context = unsafe { &*context };
     uart_write("pc=0x");
@@ -864,11 +882,14 @@ fn assemble_program_command(context: *mut TargetContext, argument: &[u8]) {
     }
 
     if overflow {
-        uart_write("error: source program exceeds 16 instruction lines\r\n");
+        guest_error(
+            b"GUEST-ASM-001",
+            b"source program exceeds 16 instruction lines",
+        );
         return;
     }
     if count == 0 {
-        uart_write("error: source program is empty\r\n");
+        guest_error(b"GUEST-ASM-002", b"source program is empty");
         return;
     }
     let mut staged_symbols = [GuestSymbol::empty(); MAX_SYMBOLS];
@@ -878,20 +899,32 @@ fn assemble_program_command(context: *mut TargetContext, argument: &[u8]) {
         if let Some(label) = line.strip_suffix(b":") {
             let line_address = address + (instruction_count as u64) * 4;
             let Some(symbol) = make_symbol(label, line_address) else {
-                uart_write("error: invalid, duplicate or too many source labels\r\n");
+                guest_source_error(
+                    index + 1,
+                    b"GUEST-ASM-003",
+                    b"invalid, duplicate or too many source labels",
+                );
                 return;
             };
             if staged_symbols
                 .iter()
                 .any(|slot| slot.enabled && &slot.name[..slot.length] == label)
             {
-                uart_write("error: invalid, duplicate or too many source labels\r\n");
+                guest_source_error(
+                    index + 1,
+                    b"GUEST-ASM-003",
+                    b"invalid, duplicate or too many source labels",
+                );
                 return;
             }
             if let Some(slot) = staged_symbols.iter_mut().find(|slot| !slot.enabled) {
                 *slot = symbol;
             } else {
-                uart_write("error: invalid, duplicate or too many source labels\r\n");
+                guest_source_error(
+                    index + 1,
+                    b"GUEST-ASM-003",
+                    b"invalid, duplicate or too many source labels",
+                );
                 return;
             }
         } else {
@@ -899,16 +932,19 @@ fn assemble_program_command(context: *mut TargetContext, argument: &[u8]) {
         }
     }
     if instruction_count == 0 {
-        uart_write("error: source program contains no instructions\r\n");
+        guest_error(b"GUEST-ASM-004", b"source program contains no instructions");
         return;
     }
 
     let Some(end_address) = address.checked_add((instruction_count as u64) * 4) else {
-        uart_write("error: source program address overflows\r\n");
+        guest_error(b"GUEST-ASM-005", b"source program address overflows");
         return;
     };
     if end_address > TARGET_RAM_END {
-        uart_write("error: source program does not fit in target RAM\r\n");
+        guest_error(
+            b"GUEST-ASM-006",
+            b"source program does not fit in target RAM",
+        );
         return;
     }
 
@@ -922,18 +958,28 @@ fn assemble_program_command(context: *mut TargetContext, argument: &[u8]) {
         }
         let line_address = address + (word_count as u64) * 4;
         if !valid_target_program_word_address(line_address) {
-            uart_write("error: source program exceeds target workspace\r\n");
+            guest_source_error(
+                index + 1,
+                b"GUEST-ASM-007",
+                b"source program exceeds target workspace",
+            );
             return;
         }
         let Some(word) = parse_source_instruction(line, line_address, &staged_symbols) else {
-            uart_write(
-                "error: source line supports integer/control, ld/sd, fadd.s/fadd.d or fmv syntax\r\n",
+            guest_source_error(
+                index + 1,
+                b"GUEST-ASM-008",
+                b"supports integer/control, ld/sd, fadd.s/fadd.d or fmv syntax",
             );
             return;
         };
         if permanent_breakpoint_at(line_address).is_some() || temporary_breakpoint_at(line_address)
         {
-            uart_write("error: source overlaps an active breakpoint\r\n");
+            guest_source_error(
+                index + 1,
+                b"GUEST-ASM-009",
+                b"source overlaps an active breakpoint",
+            );
             return;
         }
         words[word_count] = word;
@@ -944,7 +990,7 @@ fn assemble_program_command(context: *mut TargetContext, argument: &[u8]) {
     clear_memory_undo();
     for index in 0..word_count {
         if !target_store32(word_addresses[index], words[index]) {
-            uart_write("error: cannot write assembled source program\r\n");
+            guest_error(b"GUEST-ASM-010", b"cannot write assembled source program");
             return;
         }
     }

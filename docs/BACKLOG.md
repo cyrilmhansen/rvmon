@@ -308,6 +308,23 @@ confondre code présent et exigence formellement auditée.
 - **Parallélisable :** oui avec l’archivage Zfh/Q; non avec une modification concurrente de la grammaire UART guest.
 - **Paquet de contexte minimal :** `crates/guest-monitor/src/main.rs`, `scripts/test-guest-monitor.sh`, `docs/TUTORIAL-GUEST.md`, SPEC §§7/8/15/16.
 
+### GUEST-003 — Diagnostiquer les erreurs de source multi-ligne — TERMINÉ
+
+- **Jalon / exigences :** M3/M7; REQ-PROD-004, DIAG-001..006, ISO-001.
+- **But :** rendre les erreurs de `assemble-program` identifiables par code stable et numéro de ligne dans le moniteur exécuté en M-mode.
+- **Non-but :** édition persistante du source, expressions générales, suggestions automatiques et modification partielle de la cible.
+- **Entrées/sources :** SPEC §§11/17–19/24; contrat guest 4B; `crates/guest-monitor/src/main.rs`.
+- **Fichiers/modules :** `crates/guest-monitor/src/main.rs`, `scripts/test-guest-monitor.sh`, `docs/TUTORIAL-GUEST.md`, `docs/TESTS.md`.
+- **Étapes réalisées :** format `error [GUEST-ASM-NNN]`; erreurs de labels, syntaxe, workspace et écriture codées; erreur d’instruction associée à la ligne source; validation en deux phases conservée avant toute écriture.
+- **Dépendances et tâches bloquées :** GUEST-001/002; navigation et correction source restent à porter ultérieurement.
+- **Tests :** programme valide chargé, programme invalide à la ligne 2, présence de `GUEST-ASM-008`, ancien mot toujours désassemblable après rejet.
+- **Critères de sortie :** une erreur multi-ligne expose code + ligne; aucune écriture de mot avant validation complète; `bash scripts/test-guest-monitor.sh` passe.
+- **Cas limites et échecs :** programme vide, trop long, label invalide, dépassement workspace, collision breakpoint et écriture impossible ont des codes distincts.
+- **Taille :** 3 points / 1,5 journée-agent, incertitude faible.
+- **Compétences/outils :** Rust `no_std`, UART, assemblage en deux passes, QEMU.
+- **Parallélisable :** oui avec la spécification de l’éditeur source; non avec une modification concurrente du protocole d’erreur UART.
+- **Paquet de contexte minimal :** `crates/guest-monitor/src/main.rs`, `scripts/test-guest-monitor.sh`, `docs/TUTORIAL-GUEST.md`, SPEC §§11/17–19.
+
 ## M3 — assembleur et désassembleur
 
 ### ISA-003 — Étendre la tranche RV64 aux loads/stores 64 bits — TERMINÉ
