@@ -1805,6 +1805,122 @@ confondre code présent et exigence formellement auditée.
 - **Parallélisable :** oui mais interface publique gelée; fusion avec M6/M7.
 - **Contexte minimal :** SPEC §§14–17, A1.
 
+## Priorités révisées après M9
+
+Les tâches suivantes deviennent prioritaires avant la clôture publique de la
+release. Elles n’ajoutent aucune extension ISA.
+
+### BASIC-LOAD-001 — Figer l’ABI et la carte mémoire du MiniBASIC chargé
+
+- **Priorité :** P0, première tâche.
+- **But :** séparer le runtime MiniBASIC de l’image résidente et documenter
+  l’entrée U-mode, la pile, les services ecall, les zones code/données,
+  l’état initial et les codes de sortie.
+- **Non-but :** réécrire immédiatement tout l’interpréteur en assembleur.
+- **Entrées :** `docs/GUEST_PAYLOAD_ABI.md`, `docs/BASIC_LANGUAGE.md`,
+  `crates/guest-monitor/src/minibasic.rs`, contrat ecall existant.
+- **Dépendances :** aucune nouvelle dépendance ISA ; bloque BASIC-LOAD-002..006.
+- **Tests :** fixture d’ABI, vérification des bornes workspace/pile et échec
+  explicite d’un point d’entrée invalide.
+- **Acceptation :** contrat versionné, carte mémoire publiée, symboles
+  d’entrée et de faute résolus sans adresse codée en dur.
+- **Taille :** 2 points / 1 journée-agent, incertitude moyenne.
+
+### BASIC-LOAD-002 — Extraire et inspecter le squelette assembleur du runtime
+
+- **Priorité :** P0.
+- **But :** produire un squelette RV64 accepté par l’assembleur guest avec
+  sections, labels, données et appels de services vérifiables.
+- **Non-but :** prétendre que le désassemblage Rust constitue la source finale.
+- **Entrées :** ABI BASIC-LOAD-001, `nm`/`objdump`, assembleur guest actuel.
+- **Dépendances :** BASIC-LOAD-001 ; bloque BASIC-LOAD-003.
+- **Tests :** assemble→load→`run-at`, symbole d’entrée, ecall console et exit.
+- **Acceptation :** un payload assembleur minimal est chargé et exécuté sous
+  QEMU, avec listing et carte de symboles reproductibles.
+- **Taille :** 4 points / 2 journées-agent, incertitude élevée.
+
+### BASIC-LOAD-003 — Ajouter les primitives assembleur du runtime BASIC
+
+- **Priorité :** P0.
+- **But :** porter lexer, parseur et évaluation dans des modules assembleur
+  testables, en commençant par le mode direct et les expressions binary64.
+- **Non-but :** chaînes générales, tableaux, fichiers ou compilation native.
+- **Entrées :** BASIC_LANGUAGE, oracle MiniBASIC résident temporaire, ISA D.
+- **Dépendances :** BASIC-LOAD-002 ; bloque BASIC-LOAD-004/005.
+- **Tests :** expressions, `PRINT`, `fadd.d`/`fdiv.d`, bits et fflags comparés
+  au runtime résident et à une référence IEEE indépendante.
+- **Acceptation :** aucun résultat n’est calculé par l’hôte ; le payload produit
+  la sortie depuis ses propres données et instructions D.
+- **Taille :** 8 points / 4 journées-agent, incertitude très élevée.
+
+### BASIC-LOAD-004 — Porter le magasin de lignes et le contrôle de flot
+
+- **Priorité :** P0.
+- **But :** porter lignes numérotées, LIST/RUN, variables, FOR/NEXT, IF/GOTO,
+  INPUT, TRACE et diagnostics dans le payload.
+- **Non-but :** augmenter encore la capacité source ; cette tâche utilise une
+  capacité courte explicitement bornée.
+- **Dépendances :** BASIC-LOAD-003 ; bloque BASIC-LOAD-005.
+- **Tests :** FLOATLOOP, erreur GOTO absent, boucle interrompue et INPUT réel.
+- **Acceptation :** les programmes de démonstration produisent leurs résultats
+  à l’exécution dans U-mode et atteignent les instructions D observées.
+- **Taille :** 10 points / 5 journées-agent, incertitude très élevée.
+
+### BASIC-LOAD-005 — Remplacer le mode résident par le payload chargé
+
+- **Priorité :** P0, intégration.
+- **But :** ajouter `assemble-load`/équivalent, validation atomique et fallback
+  résident explicitement sélectionnable.
+- **Dépendances :** BASIC-LOAD-004, `run-at`, snapshots guest.
+- **Tests :** séance tutoriel, Hammurabi, breakpoint/watch sur `fdiv.d`,
+  snapshot/reprise et faute de chargement sans mutation.
+- **Acceptation :** le tutoriel indique clairement le mode chargé et aucune
+  sortie de démonstration n’est préenregistrée.
+- **Taille :** 5 points / 2,5 journées-agent, incertitude élevée.
+
+### BASIC-SOURCE-001 — Étendre le buffer source guest à 64 lignes
+
+- **Priorité :** P1, après validation de P0.
+- **But :** passer de 16 à 64 lignes de 96 caractères sans modifier l’ISA.
+- **Non-but :** capacité dynamique ou absence de limites.
+- **Entrées :** question 9 de `OPEN_QUESTIONS.md`, pile M-mode 64 Kio,
+  snapshots/projets guest.
+- **Dépendances :** P0 recommandé ; bloque BASIC-SOURCE-002/003.
+- **Tests :** insertion/remplacement/suppression/tri de 64 lignes, saturation,
+  mémoire pleine, snapshot et mesure de pile sous QEMU.
+- **Acceptation :** 64 lignes passent sans trap imbriqué ; la 65e est refusée
+  avec diagnostic stable et sans mutation.
+- **Taille :** 3 points / 1,5 journée-agent, incertitude moyenne.
+
+### UI-GUI-001 — Stabiliser le modèle d’interface graphique
+
+- **Priorité :** P2, après P0/P1.
+- **But :** définir un modèle de panneaux, événements, commandes et snapshots
+  indépendant du toolkit graphique.
+- **Non-but :** choisir ou livrer immédiatement une UI spécifique à une OS.
+- **Entrées :** contrats `Monitor`, `BackendConsole`, vues mémoire/registres,
+  keymap terminal.
+- **Dépendances :** interfaces publiques host stabilisées ; bloque UI-GUI-002.
+- **Tests :** scénario scripté sans toolkit, conservation d’adresse et absence
+  de mutation hors commande.
+- **Acceptation :** un backend graphique pourra consommer le modèle sans accès
+  direct à la RAM cible.
+- **Taille :** 4 points / 2 journées-agent, incertitude moyenne.
+
+### DBG-HISTORY-001 — Historique arrière borné et déterministe
+
+- **Priorité :** P2, parallélisable avec UI-GUI-001 après contrat d’événement.
+- **But :** enregistrer les mutations nécessaires à reverse-step/reverse-run
+  dans un quota explicite, avec restauration de registres, mémoire et CSR.
+- **Non-but :** historique illimité, persistance automatique ou remplacement
+  de l’undo transactionnel.
+- **Dépendances :** modèle d’événements, snapshots et décision de quota.
+- **Tests :** pas avant/arrière, limite atteinte, instruction FP, store, trap,
+  déterminisme de replay et état inchangé après refus.
+- **Acceptation :** reverse-step restaure exactement l’état précédent ou
+  signale `history quota exhausted` sans corruption.
+- **Taille :** 6 points / 3 journées-agent, incertitude élevée.
+
 ## M9 — qualité et release
 
 ### QUAL-001 — Fuzzing, corpus et réduction automatique

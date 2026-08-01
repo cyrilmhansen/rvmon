@@ -153,6 +153,26 @@ R1 reste l’autorité sémantique ; le contrôle R2 détecte une divergence mai
 
 Chaque jalon conserve un build vert et une démonstration scriptée. M1–M4 sont prioritaires sur le polish UI.
 
+### Priorisation révisée
+
+À la demande du projet, les travaux post-M9 sont réordonnés ainsi :
+
+1. **P0 — MiniBASIC chargé comme payload assembleur** : extraire un runtime
+   assembleur maintenable, définir son ABI U-mode, l’assembler dans le
+   workspace et le lancer avec `run-at`. Le MiniBASIC résident reste un mode
+   de secours jusqu’à validation du payload chargé.
+2. **P1 — capacité source BASIC** : remplacer le tampon de 16 lignes par une
+   capacité supérieure, avec limites centralisées, diagnostic de saturation,
+   tests de consommation de pile M-mode et compatibilité snapshot/projet. Le
+   défaut de planification est 64 lignes ; aucune extension ISA n’est ajoutée.
+3. **P2 — interface graphique et historique arrière** : stabiliser d’abord les
+   contrats de modèle et d’événements, puis ajouter un frontend graphique sans
+   exposer directement la RAM cible. L’historique arrière doit rester borné,
+   déterministe et indépendant de l’undo transactionnel existant.
+
+Cette priorité repousse la clôture de release publique complète après P0–P2,
+mais ne modifie pas le profil ISA/ABI ni les preuves déjà acquises.
+
 ## 8. Migration du profil minimal
 
 Le profil de bootstrap est `rv64i_zicsr_zifencei` uniquement, utilisé pour valider pipeline et traps. M2 ajoute M et les loads/stores nécessaires. M4 active F en conservant les mêmes interfaces d’état ; M5 active D et les formats data sans activer Q/Zfh en exécution. C est ajouté par capability et ne modifie pas le curseur mémoire. A reçoit un profil séparé `A-MH1`, jamais un booléen global. Toute extension future doit fournir parse/assemble/decode/execute/debug/test/export séparément et un corpus externe.

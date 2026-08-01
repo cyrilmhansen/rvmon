@@ -7,6 +7,7 @@ Toutes les décisions ISA/ABI nécessaires à V1 ont un défaut choisi. Une ques
 3. **Différable : inclure un frontend Q exécuté.** Recommandation : data/decode only. Bloque uniquement l’exécution Q.
 4. **Différable : format ELF32 d’export.** Recommandation : export interne d’abord, ELF contrôlé ensuite. Bloque l’interopérabilité avec certains linkers.
 5. **Différable : politique exacte de sauvegarde des traces.** Recommandation : journal local opt-in avec anonymisation. Bloque seulement le partage automatique.
-6. **Différable : profondeur d’historique arrière.** Recommandation : 100 000 mutations ou désactivation. Bloque les longues sessions au-delà du quota.
-7. **Différable : UI graphique ou terminal.** Recommandation : abstraction clavier et vues, premier frontend selon plateforme. Bloque la sélection de toolkit, pas les contrats.
+6. **Différable mais requise avant P2 : profondeur d’historique arrière.** Recommandation : 100 000 mutations ou désactivation explicite, avec indication du quota atteint. Bloque les longues sessions au-delà du quota et la sélection du format de trace inverse.
+7. **Différable mais requise avant P2 : toolkit graphique.** Recommandation : conserver le modèle de panneaux et d’événements indépendant du toolkit, puis choisir une bibliothèque native de plateforme après un prototype. Bloque l’implémentation UI, pas les contrats du moniteur.
 8. **Différable : compatibilité GNU/LLVM ciblée.** Recommandation : versions détectées au runtime et corpus minimal documenté. Bloque seulement les garanties de compatibilité externe, pas le dialecte natif.
+9. **Différable mais requise avant BASIC-SOURCE-001 : capacité exacte du source guest.** Recommandation : 64 lignes de 96 caractères, avec buffers statiques et budget mémoire mesuré ; toute valeur supérieure nécessite une nouvelle mesure de pile. Bloque uniquement l’implémentation de l’augmentation, pas le MiniBASIC chargé avec un source court.
