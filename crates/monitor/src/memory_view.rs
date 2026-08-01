@@ -141,6 +141,9 @@ fn render_text_byte(byte: u8, encoding: TextEncoding) -> char {
             if byte == 0x7f {
                 return '⌂';
             }
+            if byte < 0x80 {
+                return '.';
+            }
             const EXTENDED: &str = "ÇüéâäàåçêëèïîìÄÅÉæÆôöòûùÿÖÜ¢£¥₧ƒáíóúñÑªº¿⌐¬½¼¡«»░▒▓│┤╡╢╖╕╣║╗╝╜╛┐└┴┬├─┼╞╟╚╔╩╦╠═╬╧╨╤╥╙╘╒╓╫╪┘┌█▄▌▐▀αßΓπΣσµτΦΘΩδ∞φε∩≡±≥≤⌠⌡÷≈°∙·√ⁿ²■ ";
             EXTENDED
                 .chars()
@@ -207,5 +210,18 @@ mod tests {
         .unwrap();
         assert!(rendered.contains("|Aé│ |"));
         assert!(rendered.contains("41 82 b3 ff"));
+    }
+
+    #[test]
+    fn cp437_control_bytes_do_not_underflow() {
+        let rendered = render_hex_ascii(
+            0,
+            &[0x00, 0x1f, 0x7f, 0x80],
+            "TEST-MEM",
+            TextEncoding::Cp437,
+        )
+        .unwrap();
+        assert!(rendered.contains("00 1f 7f 80"));
+        assert!(rendered.contains("..⌂Ç"));
     }
 }

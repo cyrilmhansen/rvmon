@@ -4740,4 +4740,17 @@ mod tests {
             let _ = command::parse(&command);
         }
     }
+
+    #[test]
+    fn fuzz_seed_corpus_exercises_real_monitor_commands() {
+        let commands = include_str!("../../../tests/fuzz/seeds/monitor-commands.txt");
+        let expressions = include_str!("../../../tests/fuzz/seeds/expressions.txt");
+        for command in commands.lines().filter(|line| !line.trim().is_empty()) {
+            let mut monitor = Monitor::new(4096);
+            let _ = monitor.execute(command);
+        }
+        for expression in expressions.lines().filter(|line| !line.trim().is_empty()) {
+            let _ = command::parse_expression(expression);
+        }
+    }
 }

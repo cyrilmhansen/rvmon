@@ -1,0 +1,14 @@
+0
+0x7fffffff
+0xffffffffffffffff
+pc
+x1 + 4
+ra + (sp * 2)
+-(1 + 2) * 4 + 0x10
+0x80000000 & 0xffffffff
+1 << 63
+~(x1 | x2)
+(1 +
+unknown_symbol
+1 / 0
+18446744073709551616

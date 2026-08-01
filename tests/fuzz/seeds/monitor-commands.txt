@@ -1,0 +1,30 @@
+help
+assemble addi x1,x0,1
+assemble-program _start: addi x1,x0,1
+view 0x0000000000000000
+memory 0 32 ascii
+memory 0 32 cp437
+find 0 64 93001000
+fill 0x20 4 aa
+copy 0x20 0x24 4
+undo
+break 0 if x1+1
+info break
+delete 1
+watch 0x20 4
+info watch
+regs
+regs blinkenlights
+dashboard
+disasm 0 4
+disasm-mixed-c 0 c:2,c:4
+history 16
+stack
+manifest missing.rv
+restore missing.rvt
+source
+source replace 1 addi x2,x0,2
+set x1 0xffffffffffffffff
+setf f0 0xffffffffffffffff
+setcsr fflags 31
+assemble invalid instruction

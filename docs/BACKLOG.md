@@ -1851,6 +1851,32 @@ confondre code présent et exigence formellement auditée.
 - **Paquet de contexte minimal :** `tools/fuzz-smoke.sh`, `tests/fuzz/README.md`,
   tests `fuzz_smoke_*`, SPEC §23.
 
+#### QUAL-001B — Corpus de seeds du moniteur — TERMINÉ
+
+- **Jalon / exigences :** M9; REQ-PROD-002/004, CMD, ASM, DIS, DBG.
+- **But :** versionner des entrées normales, limites et erronées qui exercent
+  réellement la surface de commande du moniteur.
+- **Non-but :** considérer un diagnostic attendu comme un échec, fournir un
+  oracle sémantique ou prétendre remplacer libFuzzer.
+- **Entrées/sources :** SPEC §§10/13/14/16/19/23; commandes publiques host.
+- **Fichiers/modules :** `tests/fuzz/seeds/`, test `luna-monitor`, README fuzz.
+- **Étapes réalisées :** ajouter seeds commandes et expressions; exécuter chaque
+  commande dans une cible neuve; accepter succès ou diagnostic mais interdire
+  panic et blocage; conserver les cas invalides pour la non-régression.
+- **Dépendances et tâches bloquées :** QUAL-001A; réduction automatique et
+  libFuzzer nightly restent à faire.
+- **Tests :** `bash tools/fuzz-smoke.sh`, `fuzz_seed_corpus_exercises_real_monitor_commands`.
+- **Critères de sortie :** chaque seed est rejouable depuis clean checkout et
+  aucun seed ne mute une cible après une erreur non prévue par le contrat.
+- **Cas limites et échecs :** chemin absent, mémoire non mappée, expression
+  inconnue, division par zéro et instruction invalide restent diagnostiqués.
+- **Taille :** 2 points / 1 journée-agent, incertitude faible.
+- **Compétences/outils :** tests Rust, corpus texte, diagnostics CLI.
+- **Parallélisable :** oui avec FORMAT-001; non avec une modification de la
+  grammaire publique sans mise à jour du corpus.
+- **Paquet de contexte minimal :** `tests/fuzz/seeds/*`, test seed corpus,
+  `tools/fuzz-smoke.sh`, SPEC §23.
+
 ### QUAL-002 — Benchmarks, multi-plateforme et accessibilité
 
 - **Jalon / exigences :** M9; NFR-001..010.
