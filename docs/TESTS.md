@@ -41,14 +41,15 @@ La campagne guest/QEMU unifiée se lance avec :
 
     bash tools/e2e-release-smoke.sh --strict
 
-Le dernier passage de référence a obtenu 9/9 PASS, sans skip ni échec ; le
+Le dernier passage de référence a obtenu 14/14 PASS, sans skip ni échec ; le
 détail est archivé dans `docs/release/E2E-REPORT.md`.
 
 La commande complète reste :
 
     bash tools/e2e-release-smoke.sh --strict
 
-Elle exécute les neuf scripts E2E UART, snapshots, watchpoints, guest et GDB
+Elle exécute les quatorze scripts E2E UART, payloads, MiniBASIC, snapshots,
+watchpoints, guest et GDB
 RSP présents dans `scripts/`. Elle est volontairement séparée de l’audit court
 ; `RELEASE_E2E=1 bash tools/release-audit.sh --strict-oracles` la rend
 bloquante dans un environnement de release.
