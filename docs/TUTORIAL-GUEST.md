@@ -72,7 +72,10 @@ seuil minimal d'un octet. Le pilote reste volontairement simple et lit les
 octets par polling, mais les caractères reçus peuvent désormais être
 tamponnés par le périphérique pendant que le moniteur traite une commande.
 Le moniteur les regroupe ensuite dans un tampon logiciel de 64 octets, utilisé
-par la console et par les payloads binaires.
+par la console et par les payloads binaires. Les snapshots peuvent employer
+`snapshot patchrle <region> <offset> <taille-brute> <taille-compressee>` ; le
+format est une suite de paires `(longueur, octet)`, avec longueurs sur un octet.
+Le chemin `patchbin` reste disponible pour les blocs non compressibles.
 Pour les scripts ou un autre hôte, attendre l'invite `rvmonitor> ` avant
 d'envoyer la première commande : envoyer des octets dès le lancement de QEMU
 peut sinon les soumettre avant l'initialisation du périphérique.

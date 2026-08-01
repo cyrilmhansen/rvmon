@@ -539,6 +539,38 @@ confondre code présent et exigence formellement auditée.
 - **Paquet de contexte minimal :** `crates/guest-monitor/src/main.rs`,
   `scripts/test-guest-snapshot-binary.sh`, `docs/TUTORIAL-GUEST.md`.
 
+### GUEST-016 — Compression RLE optionnelle des patches guest — TERMINÉ
+
+- **Jalon / exigences :** M8/M9; IO-004, IO-008, REQ-PROD-004/006.
+- **But :** réduire le volume des blocs répétitifs pendant l'import de
+  snapshots, sans imposer de compression aux données non compressibles.
+- **Non-but :** chiffrement, reprise de session, compression générale du
+  conteneur RVSNAP ou suppression du chemin `patchbin`.
+- **Entrées/sources :** SPEC §§12/18/21; contrat UART guest; format RVSNAP01.
+- **Fichiers/modules :** `crates/snapshot-format/src/lib.rs`,
+  `crates/guest-monitor/src/main.rs`, script de smoke TCP et documentation.
+- **Étapes réalisées :** encodeur déterministe par paires `(run, octet)` avec
+  runs de 1..255; choix host RLE seulement si plus court; commande guest
+  `snapshot patchrle`; décodage borné dans un tampon séparé; chunks de 4096
+  octets avec repli automatique sur `patchbin`.
+- **Dépendances :** GUEST-015; instrumentation de débit, delta inter-snapshot
+  et reprise restent différés.
+- **Tests :** round-trip RLE, fallback incompressible, patch RLE guest de 300
+  octets, vérification du dump, raw `patchbin`, suite workspace et R2.
+- **Critères de sortie :** aucun dépassement de tampon, longueur décodée exacte,
+  ordre des octets conservé, import compatible avec un guest sans RLE seulement
+  après négociation explicite (non activée dans cette version).
+- **Cas limites et échecs :** run de 255, longueur impaire, expansion trop
+  grande, longueur brute incohérente, chunk non compressible et zone hors
+  bornes.
+- **Taille :** 5 points / 1,5 journée-agent, incertitude moyenne.
+- **Compétences/outils :** Rust `std`/`no_std`, protocole binaire, QEMU, tests
+  Python et shell.
+- **Parallélisable :** oui avec metadata; non avec une modification concurrente
+  du framing `command_binary`.
+- **Paquet de contexte minimal :** `crates/snapshot-format/src/lib.rs`,
+  `crates/guest-monitor/src/main.rs`, `scripts/test-guest-snapshot-binary.sh`.
+
 ### GUEST-013 — Contrat metadata RVSNAP01 — TERMINÉ
 
 - **Jalon / exigences :** M8; IO-001..009, OBS-001..006, REQ-PROD-006.

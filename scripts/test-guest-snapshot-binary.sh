@@ -30,6 +30,7 @@ python3 - "$port" <<'PY'
 import socket
 import sys
 import time
+import re
 
 port = int(sys.argv[1])
 prompt = b"rvmonitor> "
@@ -59,13 +60,16 @@ def receive_until(marker):
 receive_until(prompt)
 sock.sendall(b"snapshot save\n")
 receive_until(prompt)
-sock.sendall(b"snapshot patchbin data 112 4\n")
+sock.sendall(b"snapshot patchrle data 112 300 4\n")
 receive_until(b"snapshot binary ready\r\n")
-sock.sendall(b"\x01\x02\x03\x04")
-receive_until(prompt)
-sock.sendall(b"snapshot dump data 112 4\n")
+sock.sendall(b"\xff\x00\x2d\x00")
+patch_response = receive_until(prompt)
+if b"snapshot binary chunk patched data offset=112 length=300 encoding=rle" not in patch_response:
+    raise SystemExit(patch_response.decode("utf-8", "replace"))
+sock.sendall(b"snapshot dump data 112 128\n")
 response = receive_until(prompt)
-if b"snapshot-chunk data offset=112 length=4 hex=01020304" not in response:
+match = re.search(rb"snapshot-chunk data offset=112 length=128 hex=([0-9a-f]+)", response)
+if not match or len(match.group(1)) != 256 or set(match.group(1)) != {ord("0")}:
     raise SystemExit(response.decode("utf-8", "replace"))
 sock.sendall(b"quit\n")
 sock.close()

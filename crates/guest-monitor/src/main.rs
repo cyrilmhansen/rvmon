@@ -55,6 +55,8 @@ static mut MEMORY_UNDO: MemoryUndo = MemoryUndo::empty();
 static mut GUEST_SNAPSHOT: GuestSnapshot = GuestSnapshot::empty();
 static mut SNAPSHOT_BINARY_PATCH: [u8; MAX_SNAPSHOT_DUMP as usize] =
     [0; MAX_SNAPSHOT_DUMP as usize];
+static mut SNAPSHOT_BINARY_COMPRESSED: [u8; MAX_SNAPSHOT_DUMP as usize] =
+    [0; MAX_SNAPSHOT_DUMP as usize];
 static mut UART_RX_BUFFER: [u8; UART_RX_BUFFER_CAPACITY] = [0; UART_RX_BUFFER_CAPACITY];
 static mut UART_RX_LENGTH: usize = 0;
 static mut UART_RX_INDEX: usize = 0;
@@ -280,6 +282,9 @@ fn monitor_loop(context: *mut TargetContext) -> ! {
             command if command.starts_with(b"snapshot patchbin ") => {
                 snapshot_patch_binary(&command[18..])
             }
+            command if command.starts_with(b"snapshot patchrle ") => {
+                snapshot_patch_rle(&command[18..])
+            }
             command if command.starts_with(b"snapshot patch ") => snapshot_patch(&command[15..]),
             b"symbols" => print_symbols(),
             command if command.starts_with(b"disasm ") => print_disassembly(&command[7..]),
@@ -311,7 +316,7 @@ fn monitor_loop(context: *mut TargetContext) -> ! {
 
 fn print_help() {
     uart_write(
-        "help/? regs/registers set <xreg> <hex64> setf <freg> <hex64> memory <addr> <length> edit <addr> <hex-bytes> data <addr> <directive> <bits> undo assemble <addr> <instruction> assemble-program <addr> ... end assemble-source source [line]|replace <n> <text> snapshot save|restore|info|manifest|dump|patch|patchbin project-save|project-load symbols disasm <addr|label> <count> step/s run <count> continue/c break <addr|label> watch/rwatch/awatch <addr> <width> delete <n>|watch <n> info break/watch quit/q\r\n",
+        "help/? regs/registers set <xreg> <hex64> setf <freg> <hex64> memory <addr> <length> edit <addr> <hex-bytes> data <addr> <directive> <bits> undo assemble <addr> <instruction> assemble-program <addr> ... end assemble-source source [line]|replace <n> <text> snapshot save|restore|info|manifest|dump|patch|patchbin|patchrle project-save|project-load symbols disasm <addr|label> <count> step/s run <count> continue/c break <addr|label> watch/rwatch/awatch <addr> <width> delete <n>|watch <n> info break/watch quit/q\r\n",
     );
 }
 
@@ -1679,6 +1684,120 @@ fn snapshot_patch_binary(argument: &[u8]) {
     uart_write(" length=");
     uart_decimal(length);
     uart_write("\r\n");
+}
+
+fn snapshot_patch_rle(argument: &[u8]) {
+    let Some((region_bytes, rest)) = split_token_space(argument) else {
+        guest_error(
+            b"GUEST-SNAPSHOT-011",
+            b"patchrle expects <workspace|data> <offset> <raw-length> <encoded-length>",
+        );
+        return;
+    };
+    let Some(workspace) = snapshot_region_name(region_bytes) else {
+        guest_error(
+            b"GUEST-SNAPSHOT-004",
+            b"snapshot region must be workspace or data",
+        );
+        return;
+    };
+    let Some((offset_bytes, rest)) = split_token_space(rest) else {
+        guest_error(
+            b"GUEST-SNAPSHOT-011",
+            b"patchrle expects <workspace|data> <offset> <raw-length> <encoded-length>",
+        );
+        return;
+    };
+    let Some((raw_length_bytes, encoded_length_bytes)) = split_token_space(rest) else {
+        guest_error(
+            b"GUEST-SNAPSHOT-011",
+            b"patchrle expects <workspace|data> <offset> <raw-length> <encoded-length>",
+        );
+        return;
+    };
+    let Some(offset) = parse_decimal(offset_bytes) else {
+        guest_error(b"GUEST-SNAPSHOT-005", b"snapshot offset must be decimal");
+        return;
+    };
+    let Some(raw_length) = parse_decimal(raw_length_bytes) else {
+        guest_error(
+            b"GUEST-SNAPSHOT-012",
+            b"snapshot raw length must be decimal",
+        );
+        return;
+    };
+    let Some(encoded_length) = parse_decimal(encoded_length_bytes) else {
+        guest_error(
+            b"GUEST-SNAPSHOT-012",
+            b"snapshot encoded length must be decimal",
+        );
+        return;
+    };
+    if raw_length == 0
+        || raw_length > MAX_SNAPSHOT_DUMP
+        || encoded_length == 0
+        || encoded_length > MAX_SNAPSHOT_DUMP
+        || !snapshot_valid_chunk(workspace, offset, raw_length)
+        || encoded_length >= raw_length
+        || encoded_length % 2 != 0
+    {
+        guest_error(
+            b"GUEST-SNAPSHOT-013",
+            b"invalid RLE chunk lengths or region bounds",
+        );
+        return;
+    }
+    let snapshot = core::ptr::addr_of_mut!(GUEST_SNAPSHOT);
+    let valid = unsafe { core::ptr::read_volatile(core::ptr::addr_of!((*snapshot).valid)) };
+    if !valid {
+        guest_error(b"GUEST-SNAPSHOT-002", b"no snapshot or project is saved");
+        return;
+    }
+    uart_write("snapshot binary ready\r\n");
+    for index in 0..encoded_length as usize {
+        unsafe {
+            core::ptr::write_volatile(
+                core::ptr::addr_of_mut!(SNAPSHOT_BINARY_COMPRESSED[index]),
+                uart_get(),
+            );
+        }
+    }
+    let mut encoded_index = 0usize;
+    let mut decoded_length = 0usize;
+    while encoded_index < encoded_length as usize {
+        let run_length = unsafe { SNAPSHOT_BINARY_COMPRESSED[encoded_index] as usize };
+        let byte = unsafe { SNAPSHOT_BINARY_COMPRESSED[encoded_index + 1] };
+        if decoded_length + run_length > raw_length as usize {
+            guest_error(b"GUEST-SNAPSHOT-013", b"RLE expands beyond raw length");
+            return;
+        }
+        let end = decoded_length + run_length;
+        unsafe {
+            SNAPSHOT_BINARY_PATCH[decoded_length..end].fill(byte);
+        }
+        decoded_length = end;
+        encoded_index += 2;
+    }
+    if decoded_length != raw_length as usize {
+        guest_error(b"GUEST-SNAPSHOT-013", b"RLE raw length mismatch");
+        return;
+    }
+    unsafe {
+        if workspace {
+            (&mut (*snapshot).workspace)[offset as usize..offset as usize + raw_length as usize]
+                .copy_from_slice(&SNAPSHOT_BINARY_PATCH[..raw_length as usize]);
+        } else {
+            (&mut (*snapshot).data)[offset as usize..offset as usize + raw_length as usize]
+                .copy_from_slice(&SNAPSHOT_BINARY_PATCH[..raw_length as usize]);
+        }
+    }
+    uart_write("snapshot binary chunk patched ");
+    uart_bytes(region_bytes);
+    uart_write(" offset=");
+    uart_decimal(offset);
+    uart_write(" length=");
+    uart_decimal(raw_length);
+    uart_write(" encoding=rle\r\n");
 }
 
 fn snapshot_valid_chunk(workspace: bool, offset: u64, length: u64) -> bool {

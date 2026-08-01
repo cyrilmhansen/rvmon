@@ -9,6 +9,7 @@ pub const HEADER_LEN: usize = 32;
 pub const MAX_WORKSPACE: usize = 0x1_0000;
 pub const MAX_DATA: usize = 0x10_0000;
 pub const MAX_TRANSPORT_CHUNK: usize = 4096;
+pub const RLE_PAIR_MAX: usize = 255;
 pub const METADATA_MAGIC: &[u8; 8] = b"RVMETA01";
 pub const MAX_METADATA_SOURCE: usize = 16 * 96;
 pub const MAX_METADATA_SYMBOLS: usize = 8;
@@ -114,6 +115,26 @@ pub trait GuestCommandTransport {
 
 pub trait GuestBinaryCommandTransport: GuestCommandTransport {
     fn command_binary(&mut self, command: &str, payload: &[u8]) -> Result<String, Self::Error>;
+}
+
+/// Encodes a byte stream as `(run_length, byte)` pairs. A run length is
+/// limited to 255, so the result is deterministic and usable by the
+/// allocation-free guest decoder.
+pub fn rle_encode(input: &[u8]) -> Vec<u8> {
+    let mut encoded = Vec::with_capacity(input.len());
+    let mut index = 0;
+    while index < input.len() {
+        let byte = input[index];
+        let mut length = 1;
+        while index + length < input.len() && input[index + length] == byte && length < RLE_PAIR_MAX
+        {
+            length += 1;
+        }
+        encoded.push(length as u8);
+        encoded.push(byte);
+        index += length;
+    }
+    encoded
 }
 
 const GUEST_PROMPT: &[u8] = b"rvmonitor> ";
@@ -262,13 +283,26 @@ fn apply_region<T: GuestBinaryCommandTransport>(
     region: &str,
     bytes: &[u8],
 ) -> Result<(), ApplyError> {
-    for (offset, chunk) in bytes.chunks(32).enumerate() {
-        let offset = offset * 32;
-        let response = transport
-            .command_binary(
-                &format!("snapshot patchbin {region} {offset} {}", chunk.len()),
+    for (offset, chunk) in bytes.chunks(MAX_TRANSPORT_CHUNK).enumerate() {
+        let offset = offset * MAX_TRANSPORT_CHUNK;
+        let encoded = rle_encode(chunk);
+        let (command, payload) = if encoded.len() < chunk.len() {
+            (
+                format!(
+                    "snapshot patchrle {region} {offset} {} {}",
+                    chunk.len(),
+                    encoded.len()
+                ),
+                encoded.as_slice(),
+            )
+        } else {
+            (
+                format!("snapshot patchbin {region} {offset} {}", chunk.len()),
                 chunk,
             )
+        };
+        let response = transport
+            .command_binary(&command, payload)
             .map_err(|error| ApplyError::Transport(format!("{error:?}")))?;
         if response.contains("error [") || !response.contains("snapshot binary chunk patched") {
             return Err(ApplyError::Protocol(format!(
@@ -908,7 +942,7 @@ mod tests {
     }
 
     #[test]
-    fn applies_regions_in_32_byte_patches_before_restore() {
+    fn applies_regions_in_compressed_chunks_before_restore() {
         let image = SnapshotImage {
             workspace: vec![0x11; 33],
             data: vec![0x22; 65],
@@ -919,10 +953,20 @@ mod tests {
             restored: false,
         };
         apply_guest_snapshot(&mut guest, &image).unwrap();
-        assert_eq!(guest.patches.len(), 5);
-        assert!(guest.patches[0].starts_with("snapshot patchbin workspace 0 "));
-        assert!(guest.patches[2].starts_with("snapshot patchbin data 0 "));
+        assert_eq!(guest.patches.len(), 2);
+        assert!(guest.patches[0].starts_with("snapshot patchrle workspace 0 "));
+        assert!(guest.patches[1].starts_with("snapshot patchrle data 0 "));
         assert!(guest.restored);
+    }
+
+    #[test]
+    fn rle_round_trip_and_incompressible_fallback_are_deterministic() {
+        let input = vec![0xaa; 300];
+        let encoded = rle_encode(&input);
+        assert_eq!(encoded, vec![255, 0xaa, 45, 0xaa]);
+
+        let alternating: Vec<u8> = (0..64).map(|value| value as u8).collect();
+        assert_eq!(rle_encode(&alternating).len(), alternating.len() * 2);
     }
 
     #[test]
