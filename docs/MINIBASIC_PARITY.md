@@ -45,9 +45,9 @@ utilisé comme oracle des résultats target-side.
 | `REM` | commentaire BASIC | VERT | `rem.sh` |
 | `WHILE ... WEND` | huit niveaux, comparaisons et recherche de terminator | VERT | `while.sh`, `while-error.sh` |
 | `REPEAT ... UNTIL` | huit niveaux, test terminal et comparaisons | VERT | `repeat.sh`, `repeat-error.sh` |
-| `POP` | retire le cadre le plus récent de `FOR/GOSUB/WHILE/REPEAT` | VERT | `pop.sh`, forme `POP:GOTO` |
-| `EXIT` | sortie structurée de `FOR/WHILE/REPEAT` avec scan typé | VERT | `test-guest-runtime-asm-repl-exit.sh` |
-| `DO ... LOOP` | boucle infinie structurée | PLANIFIÉ | à traiter avec `EXIT` et la pile unifiée |
+| `POP` | retire le cadre le plus récent de `FOR/GOSUB/WHILE/REPEAT/DO` | VERT | `pop.sh`, forme `POP:GOTO` |
+| `EXIT` | sortie structurée de `FOR/WHILE/REPEAT/DO` avec scan typé | VERT | `test-guest-runtime-asm-repl-exit.sh` |
+| `DO ... LOOP` | boucle inconditionnelle structurée | VERT | `test-guest-runtime-asm-repl-do-loop.sh` |
 | `IF ... ELSE ... ENDIF` | non disponible | PLANIFIÉ | extension structurée TBXL, distincte du `IF ... THEN` V1 |
 | `ON ... GOTO/GOSUB` | non disponible | PLANIFIÉ | sélection entière et liste de cibles |
 | `PROC/EXEC`, fonctions utilisateur | non disponible | REJETÉ V1 | hors démonstrateur MiniBASIC actuel |
@@ -83,12 +83,10 @@ opérations DOS propriétaires.
 
 ## Prochaine séquence recommandée
 
-1. Ajouter `DO/LOOP` avec un cadre dédié dans la pile unifiée et diagnostics
-   d’imbrication.
-2. Décider explicitement si `IF/ELSE/ENDIF` et `ON GOTO/GOSUB` appartiennent au
+1. Décider explicitement si `IF/ELSE/ENDIF` et `ON GOTO/GOSUB` appartiennent au
    profil MiniBASIC-RV étendu ; ne pas les introduire comme compatibilité
    implicite.
-3. Ajouter ensuite les fonctions numériques génériques (`RND`, `TRUNC`,
+2. Ajouter ensuite les fonctions numériques génériques (`RND`, `TRUNC`,
    `FRAC`, `MOD`) si elles sont nécessaires à des programmes pédagogiques,
    avec motifs et résultats calculés dans la cible.
 
@@ -98,7 +96,7 @@ La conversion assembleur couvre actuellement le chemin utile de bout en bout :
 source assembleur accepté par le moniteur, chargement U-mode, lexing et
 évaluation BASIC dans la cible, registres flottants observables, mémoire cible,
 breakpoints, interruption et reprise. La matrice assembleur compte maintenant
-60 tests QEMU ; après durcissement du harnais de tableau de chaînes 2D, le cas
+61 tests QEMU ; après durcissement du harnais de tableau de chaînes 2D, le cas
 qui échouait sporadiquement passe cinq fois consécutives. La parité TBXL n’est
-pas déclarée complète tant que `DO/LOOP` et les décisions sur les
-extensions restantes ne sont pas résolus.
+pas déclarée complète tant que les décisions sur les extensions restantes ne
+sont pas résolues.

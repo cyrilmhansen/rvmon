@@ -989,7 +989,9 @@ lbu x10,16(x24)
 addi x7,x0,71
 beq x10,x7,goto_dispatch
 addi x7,x0,87
-beq x10,x7,while_dispatch
+bne x10,x7,dispatch_not_while
+jal x0,while_dispatch
+dispatch_not_while:
 addi x7,x0,85
 bne x10,x7,dispatch_not_until
 jal x0,until_statement
@@ -1243,6 +1245,8 @@ read_string_error:
 jal x0,error_line_near
 let_or_assignment:
 lbu x5,17(x24)
+addi x7,x0,79
+beq x5,x7,loop_statement
 addi x7,x0,69
 bne x5,x7,assignment_statement
 lbu x5,18(x24)
@@ -1450,6 +1454,8 @@ addi x7,x0,3
 beq x10,x7,pop_while
 addi x7,x0,4
 beq x10,x7,pop_repeat
+addi x7,x0,5
+beq x10,x7,pop_do
 jal x0,error_line_near
 pop_for:
 ld x27,1240(x8)
@@ -1479,7 +1485,9 @@ beq x27,x0,error_line_near
 addi x27,x27,-1
 sd x27,0(x29)
 jal x0,if_false
-; x10 = kind (1 FOR, 2 GOSUB, 3 WHILE, 4 REPEAT).
+pop_do:
+jal x0,if_false
+; x10 = kind (1 FOR, 2 GOSUB, 3 WHILE, 4 REPEAT, 5 DO).
 ; The unified frame stores the originating line for future EXIT support.
 control_push:
 addi x29,x8,2047
@@ -1676,28 +1684,28 @@ jal x0,error_line
 goto_ten:
 lbu x10,22(x24)
 addi x7,x0,48
-bne x10,x7,error_line
+bne x10,x7,error_line_near
 addi x10,x0,0
 sd x10,536(x8)
 jal x0,run_line
 goto_twenty:
 lbu x10,22(x24)
 addi x7,x0,48
-bne x10,x7,error_line
+bne x10,x7,error_line_near
 addi x10,x0,1
 sd x10,536(x8)
 jal x0,run_line
 goto_thirty:
 lbu x10,22(x24)
 addi x7,x0,48
-bne x10,x7,error_line
+bne x10,x7,error_line_near
 addi x10,x0,2
 sd x10,536(x8)
 jal x0,run_line
 goto_forty:
 lbu x10,22(x24)
 addi x7,x0,48
-bne x10,x7,error_line
+bne x10,x7,error_line_near
 addi x10,x0,3
 sd x10,536(x8)
 jal x0,run_line
@@ -1731,6 +1739,8 @@ addi x7,x0,3
 beq x10,x7,exit_pop_while
 addi x7,x0,4
 beq x10,x7,exit_pop_repeat
+addi x7,x0,5
+beq x10,x7,exit_pop_do
 jal x0,error_line_near
 exit_pop_for:
 ld x27,1240(x8)
@@ -1753,6 +1763,8 @@ ld x27,0(x29)
 beq x27,x0,error_line_near
 addi x27,x27,-1
 sd x27,0(x29)
+jal x0,exit_pop_and_scan
+exit_pop_do:
 exit_pop_and_scan:
 ; x10 = loop kind, x26 = current line. Pop before searching the
 ; corresponding terminator so the skipped loop cannot remain active.
@@ -1773,6 +1785,8 @@ addi x7,x0,1
 beq x10,x7,exit_scan_for
 addi x7,x0,3
 beq x10,x7,exit_scan_while
+addi x7,x0,5
+beq x10,x7,exit_scan_do
 jal x0,exit_scan_repeat
 exit_scan_for:
 lbu x5,16(x31)
@@ -1861,6 +1875,41 @@ addi x7,x0,69
 bne x5,x7,exit_scan_next
 addi x27,x27,1
 jal x0,exit_scan_next
+exit_scan_do:
+lbu x5,16(x31)
+addi x7,x0,68
+bne x5,x7,exit_scan_do_loop
+lbu x5,17(x31)
+addi x7,x0,79
+bne x5,x7,exit_scan_next
+lbu x5,18(x31)
+addi x7,x0,0
+beq x5,x7,exit_scan_do_open
+addi x7,x0,76
+bne x5,x7,exit_scan_next
+lbu x5,19(x31)
+addi x7,x0,79
+bne x5,x7,exit_scan_next
+lbu x5,20(x31)
+addi x7,x0,80
+bne x5,x7,exit_scan_next
+jal x0,exit_scan_match
+exit_scan_do_open:
+addi x27,x27,1
+jal x0,exit_scan_next
+exit_scan_do_loop:
+addi x7,x0,76
+bne x5,x7,exit_scan_next
+lbu x5,17(x31)
+addi x7,x0,79
+bne x5,x7,exit_scan_next
+lbu x5,18(x31)
+addi x7,x0,79
+bne x5,x7,exit_scan_next
+lbu x5,19(x31)
+addi x7,x0,80
+bne x5,x7,exit_scan_next
+jal x0,exit_scan_match
 exit_scan_match:
 addi x27,x27,-1
 beq x27,x0,exit_scan_found
@@ -1872,9 +1921,50 @@ addi x26,x28,1
 sd x26,536(x8)
 jal x0,run_line
 do_statement:
-; DO/LOOP is deliberately not accepted by this tranche yet. Keep the
-; dispatch explicit so a future implementation cannot be mistaken for DIM.
+; V1 accepts the unconditional DO/LOOP pair. Conditional variants are
+; intentionally kept for a later syntax tranche.
+lbu x5,18(x24)
+beq x5,x0,do_statement_valid
 jal x0,error_line_near
+do_statement_valid:
+addi x29,x8,2047
+addi x29,x29,153
+ld x27,0(x29)
+beq x27,x0,do_push
+addi x27,x27,-1
+slli x7,x27,4
+addi x30,x8,2047
+addi x30,x30,161
+add x30,x30,x7
+ld x6,0(x30)
+addi x7,x0,5
+bne x6,x7,do_push
+ld x6,8(x30)
+beq x6,x26,do_continue
+do_push:
+addi x10,x0,5
+jal x1,control_push
+do_continue:
+addi x21,x24,18
+jal x0,if_false
+loop_statement:
+lbu x5,18(x24)
+addi x7,x0,79
+bne x5,x7,error_line_near
+lbu x5,19(x24)
+addi x7,x0,80
+bne x5,x7,error_line_near
+lbu x5,20(x24)
+beq x5,x0,loop_statement_valid
+jal x0,error_line_near
+loop_statement_valid:
+jal x1,control_peek
+addi x7,x0,5
+bne x10,x7,error_line_near
+addi x26,x11,0
+jal x1,control_pop_expected
+sd x26,536(x8)
+jal x0,run_line
 return_statement:
 lbu x5,17(x24)
 addi x7,x0,69

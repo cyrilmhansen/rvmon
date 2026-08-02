@@ -28,6 +28,8 @@ statement     = "REM" , text
               | "WEND"
               | "REPEAT"
               | "UNTIL" , expression
+              | "DO"
+              | "LOOP"
               | "DATA" , expression , { "," , expression }
               | "READ" , variable
               | "RESTORE"
@@ -105,21 +107,28 @@ imbrication dépassant huit niveaux produisent une erreur de flot. Comme pour
 les formes imbriquées dans une même ligne séparée par `:` ne sont pas admises.
 
 `POP` retire le cadre de contrôle le plus récent d’une pile cible unifiée. Il
-est valide pour `GOSUB`, `FOR`, `WHILE` et `REPEAT` et permet notamment la forme
+est valide pour `GOSUB`, `FOR`, `WHILE`, `REPEAT` et `DO` et permet notamment la forme
 `POP:GOTO numéro` pour sortir explicitement d’une structure. Un `POP` sans
 cadre actif produit une erreur de flot. Le payload conserve également les
 métadonnées spécialisées de chaque mécanisme afin que `NEXT`, `RETURN`,
-`WEND` et `UNTIL` continuent à valider leur type de cadre.
+`WEND`, `UNTIL` et `LOOP` continuent à valider leur type de cadre.
 
 `EXIT` quitte la boucle la plus récente lorsque son cadre est de type `FOR`,
-`WHILE` ou `REPEAT`. Le guest retire le cadre typé, puis effectue une recherche
-bornée du `NEXT`, `WEND` ou `UNTIL` correspondant en comptant les ouvertures et
+`WHILE`, `REPEAT` ou `DO`. Le guest retire le cadre typé, puis effectue une
+recherche bornée du `NEXT`, `WEND`, `UNTIL` ou `LOOP` correspondant en comptant
+les ouvertures et
 fermetures du même type. L’exécution reprend à la ligne suivant le terminateur.
 Un `EXIT` sans boucle, dans un `GOSUB` actif au sommet de la pile, ou sans
 terminateur correspondant produit une erreur de flot. Comme les autres
 recherches structurées de cette tranche, le scan inspecte le premier statement
 de chaque ligne ; les structures imbriquées dans une même ligne séparée par `:`
 ne sont pas admises.
+
+`DO` et `LOOP` forment une boucle inconditionnelle. `DO` pousse un cadre de
+type 5 uniquement lors de la première entrée ; le retour de `LOOP` vers la
+ligne `DO` reconnaît ce cadre et ne le duplique pas. `LOOP` sans `DO` actif et
+les variantes conditionnelles (`DO WHILE`, `DO UNTIL`, `LOOP WHILE` ou `LOOP
+UNTIL`) sont rejetés dans cette tranche.
 
 `DATA` et `READ` utilisent un curseur séquentiel conservé dans la mémoire
 cible. La tranche actuelle accepte des valeurs numériques binary64 et des

@@ -123,3 +123,9 @@
   branch range. Replacing it with inverse-branch plus `jal` restored assembly;
   the dedicated EXIT test now reaches `EXIT-OK`. `DO/LOOP` remains explicitly
   deferred, and the parity document now reports 60 assembly QEMU tests.
+- I extended the unified target stack with kind 5 for unconditional `DO/LOOP`.
+  `DO` recognizes re-entry at the same source line without pushing a duplicate
+  frame, `LOOP` validates and returns to that line, and `EXIT`/`POP` can remove
+  the frame. Conditional DO/LOOP spellings remain rejected deliberately. The
+  new QEMU test loops through an `IF` back-edge, exits the loop, and reaches
+  `DO-OK`; the parity matrix now reports 61 assembly QEMU tests.
