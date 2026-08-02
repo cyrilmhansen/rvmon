@@ -40,10 +40,10 @@ statement     = "REM" , text
               | "NEXT" , variable
               | "END" ;
 print-item    = string | expression | string-function ;
-string-function = ( "LEFT$" | "RIGHT$" ) , "(" , string-variable , "," , expression , ")"
-                | "MID$" , "(" , string-variable , "," , expression , "," , expression , ")" ;
-string-assignment-function = ( "LEFT$" | "RIGHT$" ) , "(" , string-variable , "," , expression , ")"
-                           | "MID$" , "(" , string-variable , "," , expression , "," , expression , ")" ;
+string-function = ( "LEFT$" | "RIGHT$" ) , "(" , string-reference , "," , expression , ")"
+                | "MID$" , "(" , string-reference , "," , expression , "," , expression , ")" ;
+string-assignment-function = ( "LEFT$" | "RIGHT$" ) , "(" , string-reference , "," , expression , ")"
+                           | "MID$" , "(" , string-reference , "," , expression , "," , expression , ")" ;
 expression    = comparison ;
 comparison    = sum , [ ( "=" | "<>" | "<" | "<=" | ">" | ">=" ) , sum ] ;
 sum           = product , { ( "+" | "-" ) , product } ;
@@ -145,7 +145,9 @@ une affectation, sur un tableau chaîne ou avec une chaîne littérale.
 
 La tranche assembleur accepte également
 `LET destination$=LEFT$(source$,n)`, `RIGHT$` et `MID$` (avec `LET` facultatif).
-La source et la destination sont des variables chaînes scalaires. Pour
+La source peut être une variable chaîne scalaire ou un élément de tableau
+chaîne 1D/2D déjà résolu par le guest ; la destination reste une variable
+chaîne scalaire. Pour
 `LEFT$`/`RIGHT$`, `n` est évalué dans le guest, doit être entier et compris entre
 0 et 120 ; une valeur supérieure à la source est ramenée à sa longueur. Pour
 `MID$`, la position est 1-based, strictement positive, et la longueur suit les
