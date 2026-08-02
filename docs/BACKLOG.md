@@ -2607,6 +2607,31 @@ release. Elles n’ajoutent aucune extension ISA.
 - **Paquet de contexte :** BASIC-LOAD-005D/E, fixtures `run-variable-add` et
   `run-variable-sub`, `BASIC_LANGUAGE.md` et `GUEST_PAYLOAD_ABI.md`.
 
+#### BASIC-LOAD-005G — RUN expression variable avec fdiv.d — TERMINÉE
+
+- **Priorité :** P0, quatrième opérateur binaire target-side.
+- **But :** évaluer `PRINT X/2`, charger `X=5.0`, convertir `2`, exécuter
+  `fdiv.d` et exposer le résultat `2.5`.
+- **Non-but :** détection générale de division par zéro, parser complet,
+  formatage décimal, comparaisons et contrôle de flot.
+- **Entrées :** `BASIC_LANGUAGE.md`, R1 F/D, R2 généré et
+  `GUEST_PAYLOAD_ABI.md`.
+- **Fichiers/modules :** fixture et test QEMU dédiés ; documentation dans
+  `BASIC_BUILD.md` et `BASIC_TEST_PLAN.md`.
+- **Dépendances :** BASIC-LOAD-005F, `fdiv.d`, `fcvt.d.l`, `fld`/`fsd`.
+- **Tests :** breakpoint QEMU, `f3=0x4004000000000000`, dump exact de `2.5`
+  et statut 0.
+- **Critères de sortie :** le quotient est calculé par le payload RV et non
+  par le script hôte.
+- **Cas limites :** zéro, ±0, infinis, NaN, flags et division par zéro seront
+  traités par l’évaluateur général.
+- **Taille :** 2 points / 1 journée-agent, incertitude faible.
+- **Compétences/outils :** assembleur RV64, extension D et QEMU.
+- **Parallélisable :** oui avec le lexer d’expressions ; non avec un changement
+  du contrat de registres flottants.
+- **Paquet de contexte :** BASIC-LOAD-005E/F, fixtures des trois opérateurs
+  précédents, `BASIC_LANGUAGE.md` et `GUEST_PAYLOAD_ABI.md`.
+
 ### BASIC-LOAD-004 — Porter le magasin de lignes et le contrôle de flot
 
 - **Priorité :** P0.

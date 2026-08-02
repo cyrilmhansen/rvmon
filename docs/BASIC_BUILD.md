@@ -415,3 +415,10 @@ ajoute `PRINT X*3` et vérifie `15.0` après `fmul.d` :
 ```text
 bash scripts/test-guest-runtime-command-run-variable-mul.sh
 ```
+
+La fixture [`minibasic-runtime-command-run-variable-div.rv`](../examples/minibasic-runtime-command-run-variable-div.rv)
+complète la série avec `PRINT X/2` et vérifie `2.5` après `fdiv.d` :
+
+```text
+bash scripts/test-guest-runtime-command-run-variable-div.sh
+```

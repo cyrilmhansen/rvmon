@@ -101,6 +101,9 @@
 - `scripts/test-guest-runtime-command-run-variable-mul.sh` vérifie `PRINT X*3`,
   le chargement de `X`, `fcvt.d.l`, l’exécution `fmul.d` et le motif exact
   `15.0` dans `f3` et en mémoire.
+- `scripts/test-guest-runtime-command-run-variable-div.sh` vérifie `PRINT X/2`,
+  le chargement de `X`, `fcvt.d.l`, l’exécution `fdiv.d` et le motif exact
+  `2.5` dans `f3` et en mémoire.
 - Le breakpoint `minibasic_divide` et `disasm` permettent d’observer la
   correspondance adresse → `fdiv.d`; les registres f et `fcsr` sont affichés
   avant/après le pas.
