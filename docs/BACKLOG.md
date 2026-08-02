@@ -385,6 +385,25 @@ confondre code présent et exigence formellement auditée.
 - **Limites restantes :** une liste de chaînes variables et les formes avancées
   de PRINT restent hors de cette tranche.
 - **Taille :** 4 points / 2 journées-agent, incertitude moyenne.
+
+#### BASIC-LOAD-005AU — INPUT target-side A..Z — TERMINÉE
+
+- **Priorité :** P0, entrées interactives de Hammurabi.
+- **But :** stocker le résultat d’une conversion numérique saisie sur UART dans
+  n’importe quelle variable scalaire A..Z.
+- **Non-but :** saisie de chaînes, validation multi-valeurs ou édition de ligne
+  avancée.
+- **Entrées/sources :** BASIC-LOAD-005AR, ABI `read-char`, parseur binary64.
+- **Étapes réalisées :** préserver le pointeur de ligne pendant le parseur,
+  calculer l’index de variable depuis le caractère cible et écrire le motif
+  binary64 dans la table commune.
+- **Tests :** `scripts/test-guest-runtime-asm-repl-input.sh`, avec `INPUT X`,
+  puis expression `X*X`; les chemins A..Z partagent la même routine.
+- **Critères de sortie :** `3.5` devient `12.250000` après calcul D cible et le
+  test conserve les motifs FP exacts.
+- **Limites restantes :** les diagnostics de saisie et les chaînes restent
+  hors de cette tranche.
+- **Taille :** 3 points / 1,5 journée-agent, incertitude faible.
 - **Compétences/outils :** Rust `no_std`, UART, assemblage en deux passes, QEMU.
 - **Parallélisable :** oui avec la spécification de l’éditeur source; non avec une modification concurrente du protocole d’erreur UART.
 - **Paquet de contexte minimal :** `crates/guest-monitor/src/main.rs`, `scripts/test-guest-monitor.sh`, `docs/TUTORIAL-GUEST.md`, SPEC §§11/17–19.

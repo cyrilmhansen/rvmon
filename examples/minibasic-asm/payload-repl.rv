@@ -275,7 +275,10 @@ beq x6,x0,error_line
 addi x6,x0,48
 sub x10,x5,x6
 fcvt.d.l f1,x10,0
-fsd f1,0(x20)
+addi x6,x0,23
+slli x6,x6,3
+add x7,x20,x6
+fsd f1,0(x7)
 jal x0,command_loop
 assign_y:
 lbu x5,1(x18)
@@ -289,7 +292,10 @@ beq x6,x0,error_line
 addi x6,x0,48
 sub x10,x5,x6
 fcvt.d.l f1,x10,0
-fsd f1,8(x20)
+addi x6,x0,24
+slli x6,x6,3
+add x7,x20,x6
+fsd f1,0(x7)
 jal x0,command_loop
 dim_direct:
 addi x21,x18,0
@@ -939,20 +945,23 @@ input_done:
 add x6,x18,x9
 sb x0,0(x6)
 addi x30,x24,0
+sd x24,1112(x8)
 addi x21,x18,0
 addi x22,x0,0
 jal x1,parse_atom
+ld x30,1112(x8)
 lbu x5,22(x30)
-addi x7,x0,88
-beq x5,x7,input_store_x
-addi x7,x0,89
-beq x5,x7,input_store_y
-jal x0,error_line
-input_store_x:
-fsd f1,0(x20)
-jal x0,if_false
-input_store_y:
-fsd f1,8(x20)
+addi x7,x0,65
+sltu x6,x5,x7
+bne x6,x0,error_line
+addi x7,x0,91
+sltu x6,x5,x7
+beq x6,x0,error_line
+addi x7,x0,65
+sub x6,x5,x7
+slli x6,x6,3
+add x7,x20,x6
+fsd f1,0(x7)
 jal x0,if_false
 for_statement:
 addi x30,x24,0
@@ -961,10 +970,11 @@ addi x7,x0,89
 beq x5,x7,for_variable_y
 addi x7,x0,88
 bne x5,x7,error_line
-sd x0,576(x8)
+addi x6,x0,184
+sd x6,576(x8)
 jal x0,for_parse_start
 for_variable_y:
-addi x6,x0,8
+addi x6,x0,192
 sd x6,576(x8)
 for_parse_start:
 addi x21,x24,22
@@ -1579,11 +1589,17 @@ store_left_atom:
 fld f1,1032(x8)
 jalr x0,0(x1)
 atom_x:
-fld f4,0(x20)
+addi x6,x0,23
+slli x6,x6,3
+add x7,x20,x6
+fld f4,0(x7)
 addi x21,x21,1
 jal x0,store_atom
 atom_y:
-fld f4,8(x20)
+addi x6,x0,24
+slli x6,x6,3
+add x7,x20,x6
+fld f4,0(x7)
 addi x21,x21,1
 jal x0,store_atom
 atom_a:

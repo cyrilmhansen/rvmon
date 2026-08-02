@@ -174,8 +174,8 @@
 - `scripts/test-guest-runtime-asm-repl-if-false.sh` vérifie `2<1`, l’absence
   de sortie du slot inexistant et l’arrêt target-side sans branche forcée.
 - `scripts/test-guest-runtime-asm-repl-input.sh` vérifie l’invite, la lecture
-  UART de `3.5`, la conversion target-side vers `X`, puis `PRINT X*X` avec
-  `12.250000` et les motifs FP exacts.
+  UART de `3.5`, la conversion target-side vers `X` dans la table A..Z, puis
+  `PRINT X*X` avec `12.250000` et les motifs FP exacts.
 - `scripts/test-guest-runtime-asm-repl-trace.sh` vérifie `[10]` et `[20]` avant
   deux lignes exécutées ; `scripts/test-guest-runtime-asm-repl-break.sh`
   vérifie Ctrl-C sur `10 GOTO 10`, `BREAK` et le retour au moniteur.
