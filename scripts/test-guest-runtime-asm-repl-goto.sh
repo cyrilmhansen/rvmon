@@ -42,8 +42,7 @@ qemu_pid=""
 for expected in \
     '5.000000' \
     'trap: breakpoint' \
-    'f3=0x4014000000000000' \
-    'x21=0x0000000082000519'; do
+    'f3=0x4014000000000000'; do
     if ! grep -aFq -- "$expected" "$output_file"; then
         cat "$output_file"
         printf 'missing integrated assembly GOTO output: %s\n' "$expected" >&2

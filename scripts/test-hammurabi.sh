@@ -25,7 +25,7 @@ output="$({
         sleep 0.15
     done
     sleep 0.3
-    printf 'BYE\nq\n'
+    printf 'q\n'
 } | timeout 15s qemu-system-riscv64 -M virt -m 64M -bios none \
     -kernel "$image" -nographic 2>&1)"
 status=$?
@@ -41,7 +41,8 @@ for expected in \
     'HAMMURABI-RV' \
     'FINAL STARVED 0.000000' \
     'GRAIN 1950.000000' \
-    'target exit status=0'; do
+    'END' \
+    'trap: breakpoint'; do
     if [[ "$output" != *"$expected"* ]]; then
         printf '%s\n' "$output"
         printf 'missing expected output: %s\n' "$expected" >&2

@@ -141,8 +141,8 @@
 - `scripts/test-guest-runtime-asm-repl-question.sh` vérifie l’alias `?2+3`,
   sa normalisation target-side et le même résultat binary64 exact `5.0`.
 - `scripts/test-guest-runtime-asm-repl-assignment.sh` vérifie `X=7`, la
-  mutation target-side de la table, puis `PRINT X+3` avec `10.0` dans `f3` et
-  la valeur `7.0` conservée en mémoire.
+  mutation target-side de la table A..Z à son adresse documentée, puis
+  `PRINT X+3` avec `10.0` dans `f3` et la valeur `7.0` conservée en mémoire.
 - `scripts/test-guest-runtime-asm-repl-multidigit.sh` vérifie le scanner
   target-side multi-chiffres et les espaces avec `PRINT 12.5 + 3.5`, les
   motifs exacts des deux opérandes et le résultat `16.0` dans `f3` et en RAM.
@@ -165,6 +165,9 @@
   transfert target-side vers le slot 20, `5.000000` et le breakpoint final.
 - `scripts/test-guest-runtime-asm-repl-end.sh` vérifie le dispatch target-side
   de `10 END`, la sortie `END` et l’arrêt contrôlé au breakpoint.
+- `scripts/test-hammurabi.sh` rejoue le même programme via la commande `basic`
+  par défaut, avec cinq années d’entrées et un arrêt `END` observable au
+  breakpoint assembleur.
 - `scripts/test-guest-runtime-fcmp-d.sh` vérifie l’assemblage généré et
   l’exécution QEMU de `feq.d`, `flt.d` et `fle.d`, avec `rd=xN` et les résultats
   booléens exacts en registres et en RAM.
