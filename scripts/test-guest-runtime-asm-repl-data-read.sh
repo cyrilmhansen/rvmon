@@ -29,7 +29,7 @@ awk '/^symbols$/{print; found=1; next} found && /^run-at /{print; exit} !found{p
     examples/minibasic-asm/payload-repl.rv |
     while IFS= read -r line; do printf '%s\n' "$line" >&3; sleep 0.002; done
 sleep 0.2
-printf '10 READ A\n20 READ B\n30 PRINT A,B\n40 DATA 7, 8\n50 END\nRUN\n' >&3
+printf '10 READ A\n20 READ B\n30 READ S$\n40 PRINT A,B,S$\n50 DATA 7, 8, "HI"\n60 END\nRUN\n' >&3
 sleep 0.7
 printf 'q\n' >&3
 exec 3>&-
@@ -38,7 +38,7 @@ kill "$qemu_pid" 2>/dev/null || true
 wait "$qemu_pid" 2>/dev/null || true
 qemu_pid=""
 
-for expected in '7.000000' '8.000000' 'trap: breakpoint'; do
+for expected in '7.000000' '8.000000' 'HI' 'trap: breakpoint'; do
     if ! grep -aFq -- "$expected" "$output_file"; then
         cat "$output_file"
         printf 'missing DATA/READ output: %s\n' "$expected" >&2

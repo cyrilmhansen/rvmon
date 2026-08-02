@@ -167,6 +167,8 @@ fsd f3,0(x6)
 jal x0,command_loop
 let_error:
 jal x0,error_line_near
+early_error:
+jal x0,error_line_near
 check_p_command:
 lbu x5,1(x18)
 addi x7,x0,82
@@ -313,12 +315,12 @@ jal x0,store_line_extended
 assign_x:
 lbu x5,1(x18)
 addi x7,x0,61
-bne x5,x7,error_line_near
+bne x5,x7,early_error
 lbu x5,2(x18)
 sltiu x6,x5,48
-bne x6,x0,error_line_near
+bne x6,x0,early_error
 sltiu x6,x5,58
-beq x6,x0,error_line_near
+beq x6,x0,early_error
 addi x6,x0,48
 sub x10,x5,x6
 fcvt.d.l f1,x10,0
@@ -330,12 +332,12 @@ jal x0,command_loop
 assign_y:
 lbu x5,1(x18)
 addi x7,x0,61
-bne x5,x7,error_line_near
+bne x5,x7,early_error
 lbu x5,2(x18)
 sltiu x6,x5,48
-bne x6,x0,error_line_near
+bne x6,x0,early_error
 sltiu x6,x5,58
-beq x6,x0,error_line_near
+beq x6,x0,early_error
 addi x6,x0,48
 sub x10,x5,x6
 fcvt.d.l f1,x10,0
@@ -355,7 +357,7 @@ addi x21,x18,0
  bne x5,x7,assign_array_numeric_direct
  lbu x5,2(x18)
  addi x7,x0,40
- bne x5,x7,error_line_near
+ bne x5,x7,early_error
  jal x0,string_array_assign_direct
 assign_array_numeric_direct:
 jal x1,assign_array
@@ -508,7 +510,7 @@ sd x7,1112(x8)
 addi x6,x21,0
 lbu x5,0(x6)
 addi x7,x0,61
-bne x5,x7,error_line_near
+bne x5,x7,assignment_error
 addi x21,x21,1
 addi x22,x0,0
 jal x1,eval_expression
@@ -907,11 +909,14 @@ jal x0,if_false
 read_statement:
 lbu x5,19(x24)
 addi x7,x0,68
-bne x5,x7,error_line_near
+bne x5,x7,early_error
 lbu x5,20(x24)
 addi x7,x0,32
-bne x5,x7,error_line_near
+bne x5,x7,early_error
 addi x21,x24,21
+lbu x5,1(x21)
+addi x7,x0,36
+beq x5,x7,read_string_statement
 jal x1,resolve_variable
 sd x7,1112(x8)
 ld x26,1704(x8)
@@ -982,6 +987,93 @@ addi x26,x26,1
 sd x26,1704(x8)
 sd x0,1712(x8)
 jal x0,read_find_line
+read_string_statement:
+jal x1,resolve_string_variable
+sd x7,1112(x8)
+ld x26,1704(x8)
+ld x27,1712(x8)
+read_string_find_line:
+sltiu x7,x26,64
+beq x7,x0,read_string_error
+addi x7,x0,1
+sll x7,x7,x26
+ld x6,512(x8)
+and x7,x6,x7
+beq x7,x0,read_string_next_line
+slli x7,x26,7
+add x24,x19,x7
+lbu x5,16(x24)
+addi x7,x0,68
+bne x5,x7,read_string_next_line
+lbu x5,17(x24)
+addi x7,x0,65
+bne x5,x7,read_string_next_line
+lbu x5,18(x24)
+addi x7,x0,84
+bne x5,x7,read_string_next_line
+lbu x5,19(x24)
+addi x7,x0,65
+bne x5,x7,read_string_next_line
+lbu x5,20(x24)
+addi x7,x0,32
+bne x5,x7,read_string_next_line
+beq x27,x0,read_string_data_start
+add x21,x24,x27
+jal x0,read_string_data_value
+read_string_data_start:
+addi x21,x24,21
+read_string_data_value:
+lbu x5,0(x21)
+addi x7,x0,32
+bne x5,x7,read_string_quote_check
+addi x21,x21,1
+jal x0,read_string_data_value
+read_string_quote_check:
+addi x7,x0,34
+bne x5,x7,read_string_error
+addi x21,x21,1
+ld x30,1112(x8)
+addi x9,x0,0
+read_string_copy:
+lbu x5,0(x21)
+addi x7,x0,34
+beq x5,x7,read_string_done
+sltiu x7,x9,120
+beq x7,x0,read_string_error
+add x6,x30,x9
+sb x5,0(x6)
+addi x9,x9,1
+addi x21,x21,1
+jal x0,read_string_copy
+read_string_done:
+addi x6,x30,-8
+sd x9,0(x6)
+read_string_separator:
+addi x21,x21,1
+lbu x5,0(x21)
+addi x7,x0,32
+bne x5,x7,read_string_separator_check
+jal x0,read_string_separator
+read_string_separator_check:
+addi x7,x0,44
+beq x5,x7,read_string_more
+addi x26,x26,1
+sd x26,1704(x8)
+sd x0,1712(x8)
+jal x0,read_string_store
+read_string_more:
+addi x21,x21,1
+sub x27,x21,x24
+sd x27,1712(x8)
+read_string_store:
+jal x0,if_false
+read_string_next_line:
+addi x26,x26,1
+sd x26,1704(x8)
+sd x0,1712(x8)
+jal x0,read_string_find_line
+read_string_error:
+jal x0,error_line_near
 let_or_assignment:
 lbu x5,17(x24)
 addi x7,x0,69
@@ -1129,13 +1221,15 @@ jal x1,resolve_variable
 sd x7,1112(x8)
 lbu x5,0(x21)
 addi x7,x0,61
-bne x5,x7,error_line_near
+bne x5,x7,assignment_error
 addi x21,x21,1
 addi x22,x0,0
 jal x1,eval_expression
 ld x6,1112(x8)
 fsd f3,0(x6)
 jal x0,if_false
+assignment_error:
+jal x0,error_line_near
 print_dispatch:
 lbu x5,17(x24)
 addi x7,x0,82
