@@ -93,3 +93,10 @@
   harness. Replacing `((condition)) && break` with an explicit `if` block under
   `set -e` made five consecutive QEMU runs pass. No runtime source changed in
   this hardening step.
+- I added `docs/ASMONE_PARITY.md` to make the comparison auditable without
+  committing the v1.48 source itself. The comparison confirms that the host
+  monitor already covers the essential assemble/disassemble/run/step/memory/
+  breakpoint/watchpoint workflow with modern names. It also exposed a genuine
+  BASIC design gap: TBXL's `POP`/`EXIT` semantics require a unified target
+  control stack; clearing one of the current independent stacks would be
+  incorrect, so I am not implementing that shortcut.
