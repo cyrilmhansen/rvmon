@@ -2319,6 +2319,29 @@ release. Elles n’ajoutent aucune extension ISA.
 - **Parallélisable :** oui avec le parser de ligne ; non avec une modification
   de l’ABI `read-char`/`write-buffer`.
 
+#### BASIC-LOAD-004G — Première boucle verticale UART → record — TERMINÉE
+
+- **Priorité :** P0, intégration du chemin utilisateur.
+- **But :** recevoir une ligne UART, la stocker, parser son numéro et son corps,
+  puis remplir un record BASIC cible avant de rendre la main au moniteur.
+- **Non-but :** boucle REPL persistante, plusieurs lignes par lancement,
+  `LIST`, `NEW`, `RUN`, historique et édition interactive complète.
+- **Entrées :** `GUEST_PAYLOAD_ABI.md`, `BASIC_LANGUAGE.md`, D-018, contrats
+  ecall 2/3 et layout record.
+- **Fichiers/modules :** `examples/minibasic-runtime-repl-line.rv`,
+  `scripts/test-guest-runtime-repl-line.sh`, documentation BASIC.
+- **Dépendances :** BASIC-LOAD-004B/E/F, `read-char`, `write-buffer` et retour
+  contrôlé par `ecall exit`/breakpoint.
+- **Tests :** séance réelle avec `20 PRINT B`, parsing, record en RAM,
+  compteur 1, commandes `regs`/`memory` après arrêt et smoke QEMU.
+- **Critères de sortie :** aucune commande de diagnostic n’est consommée comme
+  donnée utilisateur ; le record target-side contient ligne 20 et `PRINT B`.
+- **Cas limites :** ligne vide, CRLF, syntaxe invalide, buffer plein, Ctrl-C et
+  reprise après erreur restent dans la boucle REPL complète.
+- **Taille :** 3 points / 1,5 journée-agent, incertitude moyenne.
+- **Parallélisable :** oui avec `LIST` ; non avec une modification du protocole
+  de séance UART.
+
 ### BASIC-LOAD-004 — Porter le magasin de lignes et le contrôle de flot
 
 - **Priorité :** P0.

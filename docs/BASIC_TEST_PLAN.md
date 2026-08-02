@@ -65,6 +65,9 @@
 - `scripts/test-guest-runtime-line-uart.sh` vérifie une ligne réelle fournie
   par l’UART (`20 PRINT B`), la lecture `read-char`, le stockage target-side
   jusqu’au LF et la restitution par `write-buffer`.
+- `scripts/test-guest-runtime-repl-line.sh` vérifie le chemin vertical UART →
+  buffer → parsing du numéro/corps → record cible, puis l’inspection de la RAM
+  après retour au moniteur.
 - Le breakpoint `minibasic_divide` et `disasm` permettent d’observer la
   correspondance adresse → `fdiv.d`; les registres f et `fcsr` sont affichés
   avant/après le pas.

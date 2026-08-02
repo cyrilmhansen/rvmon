@@ -279,3 +279,15 @@ bash scripts/test-guest-runtime-line-uart.sh
 
 Cette primitive ne parse pas encore le numéro et ne l’insère pas dans la table ;
 elle ferme d’abord le contrat transport → buffer target-side.
+
+La fixture [`minibasic-runtime-repl-line.rv`](../examples/minibasic-runtime-repl-line.rv)
+fusionne les étapes : elle reçoit `20 PRINT B` par UART, parse le numéro et le
+corps dans la cible, remplit le premier record et rend ensuite la mémoire
+inspectable par le moniteur :
+
+```text
+bash scripts/test-guest-runtime-repl-line.sh
+```
+
+La boucle REPL ne traite encore qu’une ligne par lancement ; la répétition,
+`LIST` interactif et les commandes `NEW`/`RUN` restent à construire.

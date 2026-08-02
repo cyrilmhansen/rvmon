@@ -1,0 +1,67 @@
+info payload
+assemble-program 0x81000100
+; Tranche verticale : UART -> buffer cible -> parser -> record cible.
+entry:
+auipc x8,0x1000
+addi x8,x8,-256
+addi x6,x8,256
+addi x18,x8,512
+addi x9,x0,0
+read_line:
+addi x17,x0,2
+ecall
+addi x5,x0,10
+beq x10,x5,parse_line
+add x7,x18,x9
+sb x10,0(x7)
+addi x9,x9,1
+jal x0,read_line
+; Parse le buffer reçu, puis remplit le premier record.
+parse_line:
+addi x19,x0,0
+addi x10,x0,0
+line_digits:
+add x7,x18,x19
+lbu x14,0(x7)
+addi x15,x0,32
+beq x14,x15,line_separator
+addi x15,x0,48
+sub x14,x14,x15
+sltiu x15,x14,10
+beq x15,x0,fail
+slli x7,x10,3
+slli x11,x10,1
+add x10,x7,x11
+add x10,x10,x14
+addi x19,x19,1
+jal x0,line_digits
+line_separator:
+addi x19,x19,1
+sd x10,0(x6)
+addi x11,x0,0
+addi x7,x6,16
+copy_body:
+add x12,x18,x19
+lbu x14,0(x12)
+beq x14,x0,record_done
+sb x14,0(x7)
+addi x19,x19,1
+addi x7,x7,1
+addi x11,x11,1
+jal x0,copy_body
+record_done:
+sd x11,8(x6)
+addi x5,x0,1
+sd x5,512(x8)
+ebreak
+fail:
+addi x10,x0,1
+addi x17,x0,3
+ecall
+end
+symbols
+run-at 0x81000100
+regs
+memory 0x82000100 32
+memory 0x82000200 8
+q
