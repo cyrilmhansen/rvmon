@@ -158,6 +158,9 @@
 - `scripts/test-guest-runtime-asm-repl-format-negative-fraction.sh` vérifie
   `-2.25`, la sortie `-2.250000`, la restauration du motif signé de `f3` au
   breakpoint et l’octetage exact en RAM.
+- `scripts/test-guest-runtime-asm-repl-two-lines.sh` vérifie l’insertion hors
+  ordre de `20` puis `10`, le tri observable de `LIST`, les deux slots mémoire
+  et l’exécution target-side de la ligne `10`.
 - Le breakpoint `minibasic_divide` et `disasm` permettent d’observer la
   correspondance adresse → `fdiv.d`; les registres f et `fcsr` sont affichés
   avant/après le pas.

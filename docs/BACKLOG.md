@@ -3137,6 +3137,30 @@ release. Elles n’ajoutent aucune extension ISA.
 - **Parallélisable :** oui avec les cas IEEE ; non avec une refonte du buffer.
 - **Paquet de contexte :** BASIC-LOAD-005Z, test négatif et ABI console.
 
+#### BASIC-LOAD-005AB — Deux slots de lignes et LIST trié — TERMINÉE
+
+- **Priorité :** P0, fondation du programme multi-lignes target-side.
+- **But :** stocker les lignes `10` et `20` dans des enregistrements séparés,
+  conserver leurs longueurs/occupations en RAM et les restituer dans l’ordre.
+- **Non-but :** exécution séquentielle, `GOTO`, remplacement général, lignes
+  arbitraires et suppression par numéro.
+- **Entrées :** `BASIC_LANGUAGE.md`, layout du payload, ABI mémoire et règle
+  d’insertion hors ordre.
+- **Fichiers/modules :** `payload-repl.rv`, test QEMU two-lines et docs.
+- **Dépendances :** BASIC-LOAD-005AA, capacité source et service `ecall 4`.
+- **Tests :** saisie `20` puis `10`, `LIST` trié, dump du second slot et `RUN`
+  réel de la ligne 10.
+- **Critères de sortie :** les deux corps sont écrits et lus depuis la RAM
+  cible ; l’ordre n’est pas imposé par le script hôte.
+- **Cas limites :** remplacement, suppression, numéro absent, slot plein et
+  exécution de la seconde ligne restent à intégrer.
+- **Taille :** 4 points / 2 journées-agent, incertitude moyenne.
+- **Compétences/outils :** layout mémoire RV64, assembleur, UART et QEMU.
+- **Parallélisable :** oui avec le design des index de lignes ; non avec une
+  modification du format de record.
+- **Paquet de contexte :** BASIC-LOAD-005AA, payload REPL, test two-lines et
+  `BASIC_LANGUAGE.md`.
+
 ### BASIC-LOAD-004 — Porter le magasin de lignes et le contrôle de flot
 
 - **Priorité :** P0.

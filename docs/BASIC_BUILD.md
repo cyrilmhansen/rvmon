@@ -477,6 +477,16 @@ Le cas `PRINT -2.25+0` vérifie aussi le signe et une fraction non nulle :
 bash scripts/test-guest-runtime-asm-repl-format-negative-fraction.sh
 ```
 
+Le payload conserve également deux lignes numérotées dans des slots distincts
+et les liste triées :
+
+```text
+bash scripts/test-guest-runtime-asm-repl-two-lines.sh
+```
+
+Cette étape prouve le stockage et l’inspection ; `RUN` n’enchaîne pas encore
+les deux lignes.
+
 Le mode direct `PRINT 2+3` est également pris en charge par le payload
 assembleur et passe par le même évaluateur :
 

@@ -129,6 +129,18 @@ Le cas négatif fractionnaire `PRINT -2.25+0` est couvert par
 `scripts/test-guest-runtime-asm-repl-format-negative-fraction.sh` et vérifie
 à la fois `-2.250000` sur la console, le motif signé de `f3` et le dump mémoire.
 
+Le magasin target-side accepte maintenant les lignes `10` et `20` dans deux
+enregistrements séparés. Les bits d’occupation et les longueurs restent en
+RAM, et `LIST` teste les deux slots dans l’ordre numérique même si l’entrée est
+saisie `20` puis `10` :
+
+```text
+bash scripts/test-guest-runtime-asm-repl-two-lines.sh
+```
+
+`RUN` sélectionne encore le premier slot (`10`) ; l’enchaînement séquentiel et
+les sauts entre lignes appartiennent à la prochaine tranche de contrôle de flot.
+
 Le scanner reconnaît maintenant les signes `+`/`-` et une parenthèse autour
 d’un atome, par exemple `PRINT (-2.5) + (+3.5)`. La négation est exécutée par
 le payload au moyen de `fmv.x.d`, inversion du bit 63 et `fmv.d.x`, car le
