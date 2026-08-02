@@ -1502,7 +1502,7 @@ sd x27,0(x29)
 jal x0,if_false
 pop_do:
 jal x0,if_false
-; x10 = kind (1 FOR, 2 GOSUB, 3 WHILE, 4 REPEAT, 5 DO).
+; x10 = kind (1 FOR, 2 GOSUB, 3 WHILE, 4 REPEAT, 5 DO, 6 block IF).
 ; The unified frame stores the originating line for future EXIT support.
 control_push:
 addi x29,x8,2047
@@ -1861,6 +1861,15 @@ end_statement:
  lbu x5,17(x24)
  addi x7,x0,61
  beq x5,x7,assignment_statement
+addi x7,x0,76
+beq x5,x7,else_statement
+addi x7,x0,78
+bne x5,x7,end_or_endif
+lbu x5,18(x24)
+lbu x5,19(x24)
+addi x7,x0,73
+beq x5,x7,endif_statement
+end_or_endif:
 addi x7,x0,88
 beq x5,x7,exit_statement
 addi x10,x8,64
@@ -2846,22 +2855,148 @@ addi x21,x21,1
 jal x0,if_then_spaces
 if_then_word:
 addi x6,x0,84
-bne x5,x6,error_line
+bne x5,x6,if_block_error
 lbu x5,1(x21)
 addi x6,x0,72
-bne x5,x6,error_line
+bne x5,x6,if_block_error
 lbu x5,2(x21)
 addi x6,x0,69
-bne x5,x6,error_line
+bne x5,x6,if_block_error
 lbu x5,3(x21)
 addi x6,x0,78
-bne x5,x6,error_line
+bne x5,x6,if_block_error
 lbu x5,4(x21)
+beq x5,x0,if_then_no_trailing_space
 addi x6,x0,32
-bne x5,x6,error_line
-addi x21,x21,5
+bne x5,x6,if_block_error
+addi x21,x21,1
+if_then_no_trailing_space:
+addi x21,x21,4
+lbu x5,0(x21)
+beq x5,x0,if_block_decide
 beq x10,x0,if_false
 jal x0,if_target_generic
+if_block_decide:
+ld x26,1872(x8)
+beq x10,x0,if_block_false
+addi x10,x0,6
+jal x1,control_push
+jal x0,if_false
+if_block_false:
+addi x10,x0,0
+jal x0,if_block_scan
+else_statement:
+lbu x5,17(x24)
+addi x7,x0,76
+bne x5,x7,if_block_error
+lbu x5,18(x24)
+addi x7,x0,83
+bne x5,x7,if_block_error
+lbu x5,19(x24)
+addi x7,x0,69
+bne x5,x7,if_block_error
+lbu x5,20(x24)
+addi x7,x0,0
+bne x5,x7,if_block_error
+addi x10,x0,1
+jal x0,if_block_scan
+endif_statement:
+lbu x5,17(x24)
+addi x7,x0,78
+bne x5,x7,if_block_error
+lbu x5,18(x24)
+addi x7,x0,68
+bne x5,x7,if_block_error
+lbu x5,19(x24)
+addi x7,x0,73
+bne x5,x7,if_block_error
+lbu x5,20(x24)
+addi x7,x0,70
+bne x5,x7,if_block_error
+lbu x5,21(x24)
+bne x5,x0,if_block_error
+addi x10,x0,6
+jal x1,control_pop_expected
+jal x0,if_false
+if_block_scan:
+; x10 = 0 when a false IF searches ELSE/ENDIF, 1 when ELSE skips
+; its true branch. The scan is line-oriented and bounded to 256 records.
+; A block opener/terminator must be the first statement of its line.
+addi x27,x0,1
+addi x28,x26,1
+if_block_scan_line:
+sltiu x7,x28,256
+beq x7,x0,if_block_error
+slli x7,x28,7
+add x31,x19,x7
+slli x7,x28,3
+ld x6,480(x8)
+add x6,x6,x7
+ld x6,0(x6)
+beq x6,x0,if_block_scan_next
+lbu x5,16(x31)
+addi x7,x0,73
+beq x5,x7,if_block_scan_if
+addi x7,x0,69
+beq x5,x7,if_block_scan_e
+jal x0,if_block_scan_next
+if_block_scan_if:
+lbu x5,17(x31)
+addi x7,x0,70
+bne x5,x7,if_block_scan_next
+addi x27,x27,1
+jal x0,if_block_scan_next
+if_block_scan_e:
+lbu x5,17(x31)
+addi x7,x0,76
+beq x5,x7,if_block_scan_else
+addi x7,x0,78
+bne x5,x7,if_block_scan_next
+lbu x5,18(x31)
+addi x7,x0,68
+bne x5,x7,if_block_scan_next
+lbu x5,19(x31)
+addi x7,x0,73
+bne x5,x7,if_block_scan_next
+lbu x5,20(x31)
+addi x7,x0,70
+bne x5,x7,if_block_scan_next
+lbu x5,21(x31)
+bne x5,x0,if_block_scan_next
+jal x0,if_block_scan_endif
+if_block_scan_else:
+lbu x5,18(x31)
+addi x7,x0,83
+bne x5,x7,if_block_scan_next
+lbu x5,19(x31)
+addi x7,x0,69
+bne x5,x7,if_block_scan_next
+lbu x5,20(x31)
+addi x7,x0,0
+bne x5,x7,if_block_scan_next
+addi x7,x27,-1
+bne x7,x0,if_block_scan_next
+beq x10,x0,if_block_scan_else_false
+jal x0,if_block_scan_next
+if_block_scan_else_false:
+addi x10,x0,6
+jal x1,control_push
+addi x26,x28,1
+sd x26,536(x8)
+jal x0,run_line
+if_block_scan_endif:
+beq x10,x0,if_block_scan_endif_false
+addi x10,x0,6
+jal x1,control_pop_expected
+if_block_scan_endif_false:
+addi x26,x28,1
+sd x26,536(x8)
+jal x0,run_line
+if_block_scan_next:
+addi x28,x28,1
+jal x0,if_block_scan_line
+if_block_error:
+jal x0,error_line_near
 if_target_generic:
 addi x26,x0,0
 addi x27,x0,0
@@ -2882,16 +3017,16 @@ addi x21,x21,1
 addi x27,x27,1
 jal x0,if_target_number_loop
 if_target_number_done:
-beq x27,x0,error_line_near
+beq x27,x0,if_block_error
 addi x6,x0,10
 remu x5,x26,x6
-bne x5,x0,error_line_near
+bne x5,x0,if_block_error
 sltiu x6,x26,10
-bne x6,x0,error_line_near
+bne x6,x0,if_block_error
 lui x6,1
 addi x6,x6,-1535
 sltu x6,x26,x6
-beq x6,x0,error_line_near
+beq x6,x0,if_block_error
 addi x26,x26,-10
 addi x6,x0,10
 divu x26,x26,x6
@@ -2899,7 +3034,7 @@ slli x7,x26,3
 ld x6,480(x8)
 add x6,x6,x7
 ld x7,0(x6)
-beq x7,x0,error_line_near
+beq x7,x0,if_block_error
 sd x26,536(x8)
 jal x0,run_line
 
@@ -2913,13 +3048,13 @@ jal x0,error_line
 if_true_ten:
 lbu x5,1(x21)
 addi x6,x0,48
-bne x5,x6,error_line_near
+bne x5,x6,if_block_error
 sd x0,536(x8)
 jal x0,run_line
 if_true_twenty:
 lbu x5,1(x21)
 addi x6,x0,48
-bne x5,x6,error_line
+bne x5,x6,if_block_error
 addi x10,x0,1
 sd x10,536(x8)
 jal x0,run_line
@@ -3621,9 +3756,9 @@ addi x24,x0,2
 addi x22,x0,0
 jal x0,lna_index
 array_index_done:
-beq x27,x0,error_line
+beq x27,x0,array_index_error
 addi x6,x0,41
-bne x5,x6,error_line
+bne x5,x6,array_index_error
 addi x6,x8,584
 slli x7,x26,3
 add x6,x6,x7
@@ -3666,7 +3801,7 @@ sb x5,0(x21)
 array_name_upper:
 addi x6,x5,-65
 sltiu x7,x6,26
-beq x7,x0,error_line
+beq x7,x0,array_index_error
 addi x26,x6,0
 lbu x5,1(x21)
 addi x7,x0,40
@@ -3674,6 +3809,8 @@ beq x5,x7,array_name_is_array
 jal x0,error_line_near
 array_name_is_array:
 jalr x0,0(x1)
+array_index_error:
+jal x0,error_line
 ; Résolution de LONGNAME(I), élément binary64 retourné dans x7.
 resolve_long_num_array:
 sd x22,1168(x8)
@@ -3861,10 +3998,10 @@ resolve_long_string_index_mode:
 addi x6,x0,44
 beq x5,x6,resolve_long_string_2d_jump
 addi x6,x0,41
-bne x5,x6,string_long_error
+bne x5,x6,string_index_error
 ld x6,16(x26)
 sltu x7,x22,x6
-beq x7,x0,string_long_error
+beq x7,x0,string_index_error
 addi x21,x21,1
 lui x7,0x82020
 slli x7,x7,32
@@ -3882,6 +4019,8 @@ ld x26,1136(x8)
 ld x27,1144(x8)
 ld x1,1152(x8)
 jalr x0,0(x1)
+string_index_error:
+jal x0,string_long_error
 resolve_long_string_2d_jump:
 jal x0,resolve_long_array_2d
 resolve_long_string_2d_second:
@@ -3939,16 +4078,16 @@ addi x30,x1,0
 sd x1,1744(x8)
 lbu x5,0(x21)
 addi x6,x0,68
-bne x5,x6,error_line
+bne x5,x6,dim_error
 lbu x5,1(x21)
 addi x6,x0,73
-bne x5,x6,error_line
+bne x5,x6,dim_error
 lbu x5,2(x21)
 addi x6,x0,77
-bne x5,x6,error_line
+bne x5,x6,dim_error
 lbu x5,3(x21)
 addi x6,x0,32
-bne x5,x6,error_line
+bne x5,x6,dim_error
 addi x21,x21,4
 addi x22,x21,0
 dim_type_scan:

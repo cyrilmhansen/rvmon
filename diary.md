@@ -137,3 +137,9 @@
   stack depth when indexing the specialized return stack. Moving the scratch
   word and preserving the specialized depth fixed both. The parity matrix now
   reports 63 assembly QEMU tests.
+- I implemented target-side structured `IF expression THEN` blocks with
+  `ELSE` and `ENDIF`. The first QEMU run exposed a register-lifetime bug: the
+  target expression evaluator reuses `x26`, which is also the current source
+  line index. Restoring that index from the dispatch scratch before block
+  control fixes both true and false branches. The normal and orphan-terminator
+  QEMU tests now pass; the parity matrix reports 65 assembly QEMU tests.

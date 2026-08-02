@@ -19,6 +19,7 @@ statement     = "REM" , text
               | "INPUT" , variable
               | [ "LET" , space ] , variable , "=" , expression
               | "IF" , expression , "THEN" , number
+              | "IF" , expression , "THEN" , end-of-line , block-body , "ENDIF"
               | "GOTO" , number
               | "GOSUB" , number
               | "ON" , expression , ( "GOTO" | "GOSUB" ) , number , { "," , number }
@@ -47,6 +48,8 @@ variable      = identifier ;
 identifier    = letter , { letter | digit | "_" } ;
 letter        = "A" .. "Z" | "a" .. "z" ;
 digit         = "0" .. "9" ;
+end-of-line   = ? no non-space byte before the numbered line ends ? ;
+block-body    = { numbered-line } , [ "ELSE" , { numbered-line } ] ;
 ```
 
 Les lignes sont des octets ASCII, numérotées de 10 à 2560 par pas de 10,
@@ -97,6 +100,19 @@ sans boucle active et une imbrication dépassant huit niveaux sont des erreurs
 de flot. La résolution structurelle porte sur le premier statement de chaque
 ligne ; les formes imbriquées dans une même ligne séparée par `:` restent
 exclues de cette tranche.
+
+`IF expression THEN` sans numéro ouvre un bloc structuré ; `ELSE` et `ENDIF`
+doivent être les premières instructions de leurs lignes numérotées. Une
+condition différente de `0.0` exécute la branche `THEN`, puis saute jusqu’à
+`ENDIF` ; une condition fausse recherche `ELSE` ou `ENDIF` et reprend dans la
+branche appropriée. Le cadre de bloc utilise le type 6 de la pile de contrôle
+unifiée. La tranche V1 valide les blocs non imbriqués ; les recherches sont
+bornées à 256
+enregistrements et portent sur la première instruction de chaque ligne ; les
+formes `IF ... THEN` à numéro, les blocs imbriqués et les blocs séparés par `:`
+ne doivent donc pas être utilisés dans cette tranche. Un `ELSE` ou `ENDIF`
+orphelin, un terminateur absent ou une profondeur excessive produit une erreur
+de flot et rend la main à l’invite.
 
 `REPEAT` et `UNTIL expression` utilisent une seconde pile cible fixe de huit
 niveaux. `REPEAT` exécute toujours son corps au moins une fois ; `UNTIL` quitte
