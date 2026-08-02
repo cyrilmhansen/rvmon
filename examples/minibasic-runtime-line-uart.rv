@@ -1,0 +1,32 @@
+info payload
+assemble-program 0x81000100
+; Lecture d’une ligne utilisateur par l’ABI RVMPAY01, entièrement en cible.
+entry:
+auipc x8,0x1000
+addi x8,x8,-256
+addi x9,x0,0
+read_line:
+addi x17,x0,2
+ecall
+addi x5,x0,10
+beq x10,x5,line_done
+add x6,x8,x9
+sb x10,0(x6)
+addi x9,x9,1
+jal x0,read_line
+line_done:
+addi x10,x8,1024
+add x11,x9,x0
+addi x17,x0,4
+ecall
+addi x10,x0,0
+addi x17,x0,3
+ecall
+fail:
+addi x10,x0,1
+addi x17,x0,3
+ecall
+end
+symbols
+run-at 0x81000100
+q

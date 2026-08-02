@@ -62,6 +62,9 @@
 - `scripts/test-guest-runtime-list.sh` vérifie le parcours target-side de deux
   records, la conversion décimale des numéros, la copie des corps et la sortie
   `10 PRINT A` / `20 PRINT B` produite par `write-buffer`.
+- `scripts/test-guest-runtime-line-uart.sh` vérifie une ligne réelle fournie
+  par l’UART (`20 PRINT B`), la lecture `read-char`, le stockage target-side
+  jusqu’au LF et la restitution par `write-buffer`.
 - Le breakpoint `minibasic_divide` et `disasm` permettent d’observer la
   correspondance adresse → `fdiv.d`; les registres f et `fcsr` sont affichés
   avant/après le pas.

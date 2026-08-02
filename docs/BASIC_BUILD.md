@@ -267,3 +267,15 @@ bash scripts/test-guest-runtime-list.sh
 
 La commande interactive `LIST`, les bornes de capacité et les lignes reçues par
 UART seront raccordées au même parcours.
+
+La fixture [`minibasic-runtime-line-uart.rv`](../examples/minibasic-runtime-line-uart.rv)
+valide le premier raccord UART : le payload appelle `read-char` jusqu’au LF,
+stocke `20 PRINT B` dans sa RAM, puis restitue exactement les octets par
+`write-buffer` :
+
+```text
+bash scripts/test-guest-runtime-line-uart.sh
+```
+
+Cette primitive ne parse pas encore le numéro et ne l’insère pas dans la table ;
+elle ferme d’abord le contrat transport → buffer target-side.

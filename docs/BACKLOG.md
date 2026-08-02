@@ -2297,6 +2297,28 @@ release. Elles n’ajoutent aucune extension ISA.
 - **Parallélisable :** oui avec le REPL UART ; non avec une modification de
   l’ABI `write-buffer`.
 
+#### BASIC-LOAD-004F — Lecture UART d’une ligne dans le payload — TERMINÉE
+
+- **Priorité :** P0, frontière transport du REPL target-side.
+- **But :** appeler `read-char` jusqu’au LF, stocker les octets dans la RAM
+  cible et restituer la ligne par `write-buffer`.
+- **Non-but :** parser le numéro, insertion, `LIST`, gestion des lignes vides,
+  historique et buffering UART avancé.
+- **Entrées :** `GUEST_PAYLOAD_ABI.md`, contrat `RVMPAY01`, R1 I et accès
+  `lbu/sb`, services ecall 2/4.
+- **Fichiers/modules :** `examples/minibasic-runtime-line-uart.rv`,
+  `scripts/test-guest-runtime-line-uart.sh`, documentation BASIC.
+- **Dépendances :** BASIC-LOAD-004B/E, UART guest et ABI console.
+- **Tests :** entrée réelle `20 PRINT B`, arrêt sur LF, longueur et sortie
+  exacte target-side, statut de fin 0 sous QEMU.
+- **Critères de sortie :** les octets reçus par UART sont ceux renvoyés par le
+  payload ; aucune ligne n’est injectée dans la sortie par le script hôte.
+- **Cas limites :** CRLF, ligne vide, buffer plein, EOF, interruption Ctrl-C et
+  caractères non ASCII restent au raccord REPL complet.
+- **Taille :** 2 points / 1 journée-agent, incertitude faible.
+- **Parallélisable :** oui avec le parser de ligne ; non avec une modification
+  de l’ABI `read-char`/`write-buffer`.
+
 ### BASIC-LOAD-004 — Porter le magasin de lignes et le contrôle de flot
 
 - **Priorité :** P0.
