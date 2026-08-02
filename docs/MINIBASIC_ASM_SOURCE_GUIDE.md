@@ -232,6 +232,12 @@ dans `data+1160`; `PRINT S$` passe ensuite par `ecall 4`. La preuve QEMU est
 `scripts/test-guest-runtime-asm-repl-string-var.sh`. Les échappements,
 concaténations et plusieurs variables chaîne restent à généraliser.
 
+Le magasin de lignes target-side comporte maintenant quatre slots numérotés
+10, 20, 30 et 40. Les slots 30/40 sont stockés dans des enregistrements dédiés,
+apparaissent dans `LIST` et sont parcourus par `RUN`; le test reproductible est
+`scripts/test-guest-runtime-asm-repl-four-lines.sh`. Cette étape conserve
+encore un format de transition à pas fixe, avant le magasin indexé général.
+
 `END` est également dispatché target-side, émet `END\n` puis arrête la séance
 sur un breakpoint contrôlable. Sa non-régression est :
 

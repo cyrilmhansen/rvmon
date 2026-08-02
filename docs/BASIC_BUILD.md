@@ -737,3 +737,23 @@ bash scripts/test-guest-runtime-asm-repl-string-var.sh
 Le pool et la longueur sont en RAM cible; la conversion ou le contenu ne sont
 pas fournis par l'hôte. Les échappements, concaténations et tableaux de chaînes
 restent hors de cette tranche.
+
+Le payload assembleur accepte également quatre lignes numérotées (`10`, `20`,
+`30`, `40`) :
+
+```text
+30 PRINT 3+4
+10 PRINT 1
+40 END
+20 PRINT 2
+LIST
+RUN
+```
+
+```text
+bash scripts/test-guest-runtime-asm-repl-four-lines.sh
+```
+
+Le test vérifie le tri, le parcours et le calcul `7.000000` dans la cible.
+Le transfert direct vers le nouveau slot est couvert par
+`bash scripts/test-guest-runtime-asm-repl-goto-30.sh`.

@@ -3433,6 +3433,32 @@ release. Elles n’ajoutent aucune extension ISA.
 - **Paquet de contexte :** BASIC-LOAD-005AM, `payload-repl.rv`, ABI console et
   test string literal.
 
+#### BASIC-LOAD-005AO — Quatre lignes target-side — TERMINÉE
+
+- **Priorité :** P0, élargissement du cycle édition-LIST-RUN assembleur.
+- **But :** stocker et exécuter les lignes 10, 20, 30 et 40, y compris
+  insertion hors ordre, LIST trié, enchaînement RUN et GOTO 30/40.
+- **Non-but :** nombre arbitraire de lignes, numéros non multiples de dix,
+  fusion/compactage généralisé et expressions THEN vers 30/40.
+- **Entrées :** layout transitionnel des records, flags target-side et contrôle
+  de flot existant.
+- **Fichiers/modules :** `payload-repl.rv`, test QEMU quatre lignes et docs.
+- **Dépendances :** BASIC-LOAD-005AN, slots 10/20, `RUN`, `GOTO` et formatter.
+- **Tests :** `scripts/test-guest-runtime-asm-repl-four-lines.sh`, LIST hors
+  ordre, sorties `1.000000`, `2.000000`, `7.000000` et `END`; le saut est
+  couvert par `scripts/test-guest-runtime-asm-repl-goto-30.sh`.
+- **Critères de sortie :** corps, flags et exécution sont target-side; le test
+  ne préenregistre aucune sortie.
+- **Cas limites :** slots pleins, numéros arbitraires, suppression et lignes
+  >40 restent à généraliser.
+- **Taille :** 6 points / 3 journées-agent, incertitude élevée.
+- **Compétences/outils :** assembleur RV64, branches relatives, layout RAM et
+  QEMU.
+- **Parallélisable :** oui avec variables longues; non avec une refonte du
+  magasin de records.
+- **Paquet de contexte :** BASIC-LOAD-005AN, test four-lines et contrat de
+  mémoire target-side.
+
 ### BASIC-LOAD-004 — Porter le magasin de lignes et le contrôle de flot
 
 - **Priorité :** P0.
