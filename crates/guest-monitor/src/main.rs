@@ -36,11 +36,11 @@ const MAX_WATCHPOINTS: usize = 4;
 const MAX_MEMORY_DUMP: u64 = 128;
 const MAX_EDIT_BYTES: usize = 32;
 const MAX_SNAPSHOT_DUMP: u64 = 4096;
-const MAX_METADATA_BYTES: usize = 4096;
+const MAX_METADATA_BYTES: usize = 64 * 1024;
 const MAX_METADATA_SOURCE_BYTES: usize = MAX_SOURCE_LINES * COMMAND_CAPACITY;
-const MAX_SOURCE_LINES: usize = 16;
-const MAX_SYMBOLS: usize = 8;
-const SYMBOL_NAME_CAPACITY: usize = 16;
+const MAX_SOURCE_LINES: usize = 512;
+const MAX_SYMBOLS: usize = 64;
+const SYMBOL_NAME_CAPACITY: usize = 32;
 // Target service ABI: a7 selects the service; a0/a1 carry arguments/results.
 const ECALL_WRITE_CHAR: u64 = 1;
 const ECALL_READ_CHAR: u64 = 2;
