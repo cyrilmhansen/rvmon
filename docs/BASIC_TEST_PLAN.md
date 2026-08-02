@@ -113,6 +113,9 @@
 - `scripts/test-guest-runtime-command-run-variable-zerozero.sh` vérifie
   `0.0/0.0` : NaN quiet canonique `0x7ff8000000000000` et `fcsr=0x10`, donc
   `fflags.NV` au bit 4 selon RISC-V.
+- `scripts/test-guest-runtime-command-run-variable-negative-div.sh` vérifie la
+  conservation du signe avec `X=-5.0`, `PRINT X/2` et le motif exact `-2.5`
+  (`0xc004000000000000`) dans `f3` et en mémoire.
 - Le breakpoint `minibasic_divide` et `disasm` permettent d’observer la
   correspondance adresse → `fdiv.d`; les registres f et `fcsr` sont affichés
   avant/après le pas.

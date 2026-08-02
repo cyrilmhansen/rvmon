@@ -457,3 +457,11 @@ le NaN quiet canonique `0x7ff8000000000000` et expose `fcsr=0x10`, soit
 ```text
 bash scripts/test-guest-runtime-command-run-variable-zerozero.sh
 ```
+
+La fixture [`minibasic-runtime-command-run-variable-negative-div.rv`](../examples/minibasic-runtime-command-run-variable-negative-div.rv)
+vérifie aussi le signe d’un opérande chargé depuis la table : avec `X=-5.0`,
+`PRINT X/2` produit `-2.5` (`0xc004000000000000`) :
+
+```text
+bash scripts/test-guest-runtime-command-run-variable-negative-div.sh
+```

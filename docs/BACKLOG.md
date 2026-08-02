@@ -2708,6 +2708,32 @@ release. Elles n’ajoutent aucune extension ISA.
 - **Paquet de contexte :** BASIC-LOAD-005H/I, fixtures `divzero`,
   `BASIC_LANGUAGE.md` et R1 chapitre F.
 
+#### BASIC-LOAD-005K — Signe d’une variable binary64 dans RUN — TERMINÉE
+
+- **Priorité :** P0, couverture du signe dans le chemin flottant target-side.
+- **But :** charger `X=-5.0`, exécuter `PRINT X/2` avec `fdiv.d` et vérifier
+  le résultat `-2.5` jusque dans le registre et la mémoire cible.
+- **Non-but :** parsing de littéraux négatifs, négation unaire, zéro signé,
+  NaN signés et formatage décimal.
+- **Entrées :** R1 F/D, `BASIC_LANGUAGE.md`, layout de table numérique et
+  affichage raw bits du débogueur.
+- **Fichiers/modules :** fixture et test QEMU dédiés ; documentation dans
+  `BASIC_BUILD.md` et `BASIC_TEST_PLAN.md`.
+- **Dépendances :** BASIC-LOAD-005G/J, `fld`, `fdiv.d`, mémoire binary64 et
+  inspection des registres flottants.
+- **Tests :** breakpoint QEMU, `f3=0xc004000000000000`, dump little-endian
+  exact de `-2.5` et statut d’exécution vérifié.
+- **Critères de sortie :** le signe provient de la valeur chargée par le
+  payload et le quotient est calculé par `fdiv.d` target-side.
+- **Cas limites :** `-0.0`, division par `-0.0`, infinis et NaN restent à
+  couvrir dans la matrice IEEE générale.
+- **Taille :** 2 points / 1 journée-agent, incertitude faible.
+- **Compétences/outils :** IEEE 754 binary64, RISC-V D et QEMU.
+- **Parallélisable :** oui avec les tests de littéraux signés ; non avec une
+  modification du layout des variables.
+- **Paquet de contexte :** BASIC-LOAD-005G/J, fixtures `variable-div` et
+  `zerozero`, `BASIC_LANGUAGE.md` et R1 chapitre F.
+
 ### BASIC-LOAD-004 — Porter le magasin de lignes et le contrôle de flot
 
 - **Priorité :** P0.
