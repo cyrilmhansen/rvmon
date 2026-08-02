@@ -70,11 +70,13 @@ Une réponse `INPUT` vide ou syntaxiquement invalide produit
 `BASIC-INPUT-001`.
 
 `DATA` et `READ` utilisent un curseur séquentiel conservé dans la mémoire
-cible. La tranche actuelle accepte des valeurs numériques binary64 séparées
-par des virgules ; les espaces autour des virgules sont ignorés. `DATA` ne
-produit aucune sortie et `READ` consomme la prochaine valeur dans l’ordre des
-lignes du programme. Une lecture au-delà des données disponibles est une
-erreur de flot.
+cible. La tranche actuelle accepte des valeurs numériques binary64 et des
+chaînes littérales séparées par des virgules ; les espaces autour des virgules
+sont ignorés. `DATA` ne produit aucune sortie et `READ` consomme la prochaine
+valeur du type demandé dans l’ordre des lignes du programme. Une chaîne est
+copiée dans la variable cible avec une capacité maximale de 120 octets. Une
+lecture au-delà des données disponibles ou un type incompatible est une erreur
+de flot.
 
 ## Commandes directes
 
@@ -95,8 +97,8 @@ service 4 `write_buffer` est documenté dans `docs/TUTORIAL-GUEST.md`.
 
 Le jalon actuellement exécuté fournit les variables chaînes courtes, les
 tableaux numériques, les tableaux de chaînes unidimensionnels et `DATA/READ`
-numérique. Il ne fournit pas encore les fichiers, les fonctions utilisateur,
-les exposants, les chaînes dans `DATA`, les tableaux multidimensionnels ou les instructions séparées par
+numérique et chaîne. Il ne fournit pas encore les fichiers, les fonctions
+utilisateur, les exposants, les tableaux multidimensionnels ou les instructions séparées par
 `:`. Cette absence est une limite d’implémentation intermédiaire, pas un rejet
 du produit : les chaînes et les tableaux complets restent des fonctionnalités
 obligatoires de la trajectoire MiniBASIC-RV.
