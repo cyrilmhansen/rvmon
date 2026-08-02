@@ -2454,6 +2454,29 @@ release. Elles n’ajoutent aucune extension ISA.
 - **Parallélisable :** oui avec le dispatch `RUN` ; non avec une modification
   de l’ABI console.
 
+#### BASIC-LOAD-005A — RUN minimal de PRINT entier — TERMINÉE
+
+- **Priorité :** P0, premier consommateur du magasin.
+- **But :** recevoir `RUN`, vérifier un record `10 PRINT 2+3`, calculer la somme
+  dans les registres entiers cible et produire `5` par `write-buffer`.
+- **Non-but :** expressions binary64, variables, contrôle de flot, plusieurs
+  lignes exécutées et diagnostics complets.
+- **Entrées :** `BASIC_LANGUAGE.md`, `GUEST_PAYLOAD_ABI.md`, layout record,
+  dispatch UART et services console.
+- **Fichiers/modules :** `examples/minibasic-runtime-command-run-print.rv`,
+  `scripts/test-guest-runtime-command-run-print.sh`, documentation BASIC.
+- **Dépendances :** BASIC-LOAD-004E/L, `read-char`, `write-buffer` et record
+  source cible.
+- **Tests :** commande `RUN`, reconnaissance `PRINT`, lecture des chiffres,
+  addition target-side, sortie `5\n` et statut 0 sous QEMU.
+- **Critères de sortie :** le résultat n’est ni dans l’entrée ni dans le script
+  hôte ; il est calculé par les instructions du payload.
+- **Cas limites :** expression flottante, variable, corps vide, instruction
+  inconnue, plusieurs records et erreur d’exécution restent à couvrir.
+- **Taille :** 3 points / 1,5 journée-agent, incertitude faible.
+- **Parallélisable :** oui avec le parser D ; non avec une modification du
+  layout record ou de l’ABI console.
+
 ### BASIC-LOAD-004 — Porter le magasin de lignes et le contrôle de flot
 
 - **Priorité :** P0.

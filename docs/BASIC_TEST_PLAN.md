@@ -82,6 +82,9 @@
   dans le tour suivant.
 - `scripts/test-guest-runtime-prompt.sh` vérifie deux émissions target-side de
   `READY> `, la continuité après `BOGUS` et l’exécution de `NEW` au tour suivant.
+- `scripts/test-guest-runtime-command-run-print.sh` vérifie la réception de
+  `RUN`, la lecture du record `10 PRINT 2+3`, le calcul target-side et la sortie
+  `5` par `write-buffer`.
 - Le breakpoint `minibasic_divide` et `disasm` permettent d’observer la
   correspondance adresse → `fdiv.d`; les registres f et `fcsr` sont affichés
   avant/après le pas.

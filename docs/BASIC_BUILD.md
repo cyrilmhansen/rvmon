@@ -349,3 +349,15 @@ bash scripts/test-guest-runtime-prompt.sh
 
 L’invite n’est pas fournie par le moniteur hôte ; elle est écrite par le payload
 par `write-buffer`.
+
+La fixture [`minibasic-runtime-command-run-print.rv`](../examples/minibasic-runtime-command-run-print.rv)
+ajoute le premier `RUN` target-side. Elle reçoit `RUN`, vérifie le record
+`10 PRINT 2+3`, calcule `2+3` dans les registres entiers et produit `5` suivi
+d’un LF depuis la cible :
+
+```text
+bash scripts/test-guest-runtime-command-run-print.sh
+```
+
+Cette étape est volontairement entière et bornée ; les expressions binary64,
+les variables et le contrôle de flot seront raccordés ensuite.
