@@ -29,7 +29,7 @@ awk '/^symbols$/{print; found=1; next} found && /^run-at /{print; exit} !found{p
     examples/minibasic-asm/payload-repl.rv |
     while IFS= read -r line; do printf '%s\n' "$line" >&3; sleep 0.002; done
 sleep 0.2
-printf 'DIM LONGARRAY$(2)\nLONGARRAY$(1)="DIRECT"\n10 PRINT LONGARRAY$(1)\n20 LET LONGARRAY$(1)="PROGRAM"\n30 PRINT LONGARRAY$(1)\n40 END\nRUN\n' >&3
+printf 'DIM LONGARRAY$(2)\nLONGARRAY$(1)="ARRAY-DIRECT-TARGET"\n10 PRINT LONGARRAY$(1)\n20 LET LONGARRAY$(1)="ARRAY-PROGRAM-TARGET"\n30 PRINT "VALUE",LONGARRAY$(1)\n40 END\nRUN\n' >&3
 sleep 1.0
 printf 'q\n' >&3
 exec 3>&-
@@ -38,7 +38,7 @@ kill "$qemu_pid" 2>/dev/null || true
 wait "$qemu_pid" 2>/dev/null || true
 qemu_pid=""
 
-for expected in 'DIRECT' 'PROGRAM' 'trap: breakpoint'; do
+for expected in 'ARRAY-DIRECT-TARGET' 'ARRAY-PROGRAM-TARGET' 'VALUE' 'trap: breakpoint'; do
     if ! grep -aFq -- "$expected" "$output_file"; then
         cat "$output_file"
         printf 'missing long string-array output: %s\n' "$expected" >&2
