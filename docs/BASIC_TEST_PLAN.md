@@ -110,6 +110,9 @@
 - `scripts/test-guest-runtime-command-run-variable-divzero-diagnostic.sh`
   vérifie l’émission target-side de `ERR DIV0` par `write-buffer` et le retour
   propre avec statut 0 après `fdiv.d` par zéro.
+- `scripts/test-guest-runtime-command-run-variable-zerozero.sh` vérifie
+  `0.0/0.0` : NaN quiet canonique `0x7ff8000000000000` et `fcsr=0x10`, donc
+  `fflags.NV` au bit 4 selon RISC-V.
 - Le breakpoint `minibasic_divide` et `disasm` permettent d’observer la
   correspondance adresse → `fdiv.d`; les registres f et `fcsr` sont affichés
   avant/après le pas.

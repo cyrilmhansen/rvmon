@@ -2682,6 +2682,32 @@ release. Elles n’ajoutent aucune extension ISA.
 - **Paquet de contexte :** BASIC-LOAD-005H, fixture `divzero`,
   `GUEST_PAYLOAD_ABI.md` et règles de diagnostics BASIC.
 
+#### BASIC-LOAD-005J — Cas IEEE `0/0`, NaN et fflags.NV — TERMINÉE
+
+- **Priorité :** P0, couverture du second résultat exceptionnel de division.
+- **But :** exécuter `PRINT X/0` avec `X=0.0`, vérifier le NaN quiet canonique
+  et le positionnement de `fflags.NV` dans `fcsr`.
+- **Non-but :** diagnostic BASIC, lecture CSR dans l’assembleur, conservation
+  des payloads NaN utilisateur et parser général.
+- **Entrées :** R1 F/D, politique flottante de `BASIC_LANGUAGE.md`, R2 généré
+  et affichage exact des registres guest.
+- **Fichiers/modules :** fixture et test QEMU dédiés ; documentation dans
+  `BASIC_BUILD.md` et `BASIC_TEST_PLAN.md`.
+- **Dépendances :** BASIC-LOAD-005H, `fdiv.d`, registre `fcsr` et convention
+  RISC-V des bits `NV/DZ/OF/UF/NX`.
+- **Tests :** breakpoint QEMU, `f3=0x7ff8000000000000`, `fcsr=0x10`, dump
+  exact du NaN et statut d’exécution vérifié.
+- **Critères de sortie :** le NaN et le flag viennent de l’exécution cible ;
+  aucune valeur n’est injectée par le script.
+- **Cas limites :** NaN signalant, signes des zéros, infinis et propagation
+  des payloads restent à couvrir.
+- **Taille :** 2 points / 1 journée-agent, incertitude faible.
+- **Compétences/outils :** IEEE 754, RISC-V F/D, QEMU et inspection `fcsr`.
+- **Parallélisable :** oui avec les tests de littéraux spéciaux ; non avec une
+  modification de la convention de flags.
+- **Paquet de contexte :** BASIC-LOAD-005H/I, fixtures `divzero`,
+  `BASIC_LANGUAGE.md` et R1 chapitre F.
+
 ### BASIC-LOAD-004 — Porter le magasin de lignes et le contrôle de flot
 
 - **Priorité :** P0.

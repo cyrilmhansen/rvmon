@@ -447,3 +447,13 @@ bash scripts/test-guest-runtime-command-run-variable-divzero-diagnostic.sh
 La preuve utilise ici le diviseur nul déjà validé par le chemin de la fixture ;
 la lecture directe de `fcsr` depuis l’assembleur du payload reste à ajouter au
 support CSR de l’assembleur.
+
+Le cas [`minibasic-runtime-command-run-variable-zerozero.rv`](../examples/minibasic-runtime-command-run-variable-zerozero.rv)
+complète les limites de division avec `X=0` dans `PRINT X/0`. La cible produit
+le NaN quiet canonique `0x7ff8000000000000` et expose `fcsr=0x10`, soit
+`fflags.NV` selon l’ordre RISC-V (`NV` bit 4, `DZ` bit 3, `OF` bit 2,
+`UF` bit 1, `NX` bit 0) :
+
+```text
+bash scripts/test-guest-runtime-command-run-variable-zerozero.sh
+```
