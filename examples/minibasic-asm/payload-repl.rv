@@ -57,8 +57,8 @@ data 0x820000b0 .byte 0x34
 data 0x820000b1 .byte 0x30
 data 0x820000b2 .byte 0x20
 data 0x820000c0 .byte 0x0a
-data 0x82000300 .dword 0x4014000000000000
-data 0x82000308 .dword 0x4008000000000000
+data 0x820003b8 .dword 0x4014000000000000
+data 0x820003c0 .dword 0x4008000000000000
 data 0x82000200 .dword 0x0000000000000000
 data 0x82000218 .dword 0x0000000000000000
 assemble-program 0x81000100
@@ -813,7 +813,7 @@ sd x10,536(x8)
 jal x0,run_line
 run_check_forty:
 andi x11,x10,8
-beq x11,x0,error_line
+beq x11,x0,run_line_error
 addi x10,x0,3
 sd x10,536(x8)
 jal x0,run_line
@@ -832,10 +832,13 @@ addi x7,x0,1
 sll x7,x7,x26
 ld x10,512(x8)
 and x11,x10,x7
-beq x11,x0,error_line
+beq x11,x0,run_line_error
 slli x7,x26,7
 add x24,x19,x7
 jal x0,dispatch_statement
+
+run_line_error:
+jal x0,error_line
 
 run_line_legacy:
 addi x17,x0,5
@@ -843,7 +846,7 @@ ecall
 addi x7,x0,3
 beq x10,x7,break_statement
 ld x10,512(x8)
-beq x10,x0,error_line
+beq x10,x0,run_line_error
 ld x10,536(x8)
 beq x10,x0,run_line_ten
 addi x7,x0,1
@@ -859,14 +862,14 @@ jal x0,dispatch_statement
 run_line_thirty:
 ld x11,512(x8)
 andi x11,x11,4
-beq x11,x0,error_line
+beq x11,x0,run_line_error
 addi x24,x19,1024
 addi x24,x24,1024
 jal x0,dispatch_statement
 run_line_forty:
 ld x11,512(x8)
 andi x11,x11,8
-beq x11,x0,error_line
+beq x11,x0,run_line_error
 addi x24,x19,1024
 addi x24,x24,1024
 addi x24,x24,1024
@@ -874,9 +877,11 @@ jal x0,dispatch_statement
 run_line_ten:
 ld x11,512(x8)
 andi x11,x11,1
-beq x11,x0,error_line
+beq x11,x0,run_line_error
 addi x24,x19,0
 dispatch_statement:
+sd x24,1864(x8)
+sd x26,1872(x8)
 ld x10,544(x8)
 beq x10,x0,trace_done
 ld x10,536(x8)
@@ -1902,6 +1907,31 @@ jal x0,run_line
 if_false:
 jal x0,if_false_generic
 if_false_generic:
+ld x31,1864(x8)
+addi x7,x8,1900
+beq x31,x7,colon_scratch_bound
+ld x10,1872(x8)
+slli x6,x10,3
+addi x7,x8,1800
+add x7,x7,x6
+ld x6,0(x7)
+addi x7,x31,16
+add x7,x7,x6
+sltu x6,x21,x7
+beq x6,x0,no_colon
+lbu x5,0(x21)
+addi x6,x0,58
+beq x5,x6,colon_statement
+jal x0,no_colon
+colon_scratch_bound:
+ld x7,1880(x8)
+sltu x6,x21,x7
+beq x6,x0,no_colon
+lbu x5,0(x21)
+addi x6,x0,58
+beq x5,x6,colon_statement
+jal x0,no_colon
+no_colon:
 ld x10,536(x8)
 addi x26,x10,1
 if_find_next_generic:
@@ -1917,6 +1947,27 @@ jal x0,if_find_next_generic
 set_next_generic:
 sd x26,536(x8)
 jal x0,run_line
+; Continue a line after ':' through a fixed target-side scratch record.
+; The source record remains untouched; the next statement is copied from
+; the byte after the separator before re-entering the normal dispatcher.
+colon_statement:
+ld x31,1864(x8)
+addi x24,x8,1900
+ld x10,0(x31)
+sd x10,0(x24)
+addi x6,x24,16
+addi x21,x21,1
+colon_copy:
+lbu x5,0(x21)
+sb x5,0(x6)
+beq x5,x0,colon_copy_done
+addi x21,x21,1
+addi x6,x6,1
+jal x0,colon_copy
+colon_copy_done:
+sd x6,1880(x8)
+colon_dispatch:
+jal x0,dispatch_statement
 
 if_false_legacy:
 ld x10,536(x8)

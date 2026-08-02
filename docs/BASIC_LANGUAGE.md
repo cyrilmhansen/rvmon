@@ -12,7 +12,8 @@ résidente reste un artefact de démarrage et non l’oracle de ces tests.
 
 ```ebnf
 program       = { numbered-line } ;
-numbered-line = number , [ space , statement ] ;
+numbered-line = number , [ space , statement-list ] ;
+statement-list = statement , { space , ":" , space , statement } ;
 statement     = "REM" , text
               | "PRINT" , print-item , { "," , print-item }
               | "INPUT" , variable
@@ -107,10 +108,17 @@ service 4 `write_buffer` est documenté dans `docs/TUTORIAL-GUEST.md`.
 Le jalon actuellement exécuté fournit les variables chaînes courtes et longues,
 les tableaux numériques et de chaînes 1D/2D et `DATA/READ`
 numérique et chaîne. Il ne fournit pas encore les fichiers, les fonctions
-utilisateur, les exposants ou les instructions séparées par `:`. Cette absence
-est une limite d’implémentation intermédiaire, pas un rejet
+utilisateur ou les exposants. Cette absence est une limite d’implémentation
+intermédiaire, pas un rejet
 du produit : les chaînes et les tableaux complets restent des fonctionnalités
 obligatoires de la trajectoire MiniBASIC-RV.
+
+Les instructions d’une ligne peuvent être chaînées par `:`. Le séparateur est
+traité dans la cible : le payload copie le reste de la ligne dans un record
+scratch, puis réutilise le même dispatcher. Le record source et la table des
+lignes restent inchangés ; une ligne sans séparateur conserve exactement le
+chemin d’exécution précédent. Le record scratch est borné par la longueur de
+la ligne et ne peut pas lire au-delà de son terminateur NUL.
 
 La cible de conception conserve donc : chaînes littérales et variables,
 affectation et affichage de chaînes, tableaux numériques et tableaux de
