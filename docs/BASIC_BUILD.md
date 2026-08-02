@@ -238,3 +238,15 @@ bash scripts/test-guest-runtime-line-input.sh
 
 Le compteur, les longueurs et les deux corps sont observables en RAM. La
 lecture UART, `LIST`, suppression et remplacement restent à raccorder.
+
+La fixture [`minibasic-runtime-line-edit.rv`](../examples/minibasic-runtime-line-edit.rv)
+valide ensuite l’édition du magasin : elle remplace `PRINT B` par `PRINT C`,
+supprime la ligne 10 par compactage, puis conserve une table d’une ligne 20 et
+son compteur target-side :
+
+```text
+bash scripts/test-guest-runtime-line-edit.sh
+```
+
+La commande `LIST` et la capacité générale restent volontairement séparées de
+ce test mémoire.

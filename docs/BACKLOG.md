@@ -2254,6 +2254,27 @@ release. Elles n’ajoutent aucune extension ISA.
 - **Parallélisable :** oui avec le pilote UART ; non avec une modification du
   protocole de retour `jalr` ou du layout record.
 
+#### BASIC-LOAD-004D — Remplacement et suppression target-side — TERMINÉE
+
+- **Priorité :** P0, édition minimale du magasin.
+- **But :** remplacer le corps de la ligne 20, supprimer la ligne 10 par
+  compactage du slot suivant et maintenir un compteur cohérent.
+- **Non-but :** commande `LIST`, insertion de capacité générale, UART,
+  exécution BASIC et annulation transactionnelle.
+- **Entrées :** `BASIC_LANGUAGE.md`, D-018, layout record 32 octets et ABI
+  payload guest.
+- **Fichiers/modules :** `examples/minibasic-runtime-line-edit.rv`,
+  `scripts/test-guest-runtime-line-edit.sh`, documentation BASIC.
+- **Dépendances :** BASIC-LOAD-004A/B/C et accès `ld/sd/lbu/sb`.
+- **Tests :** table initiale `10 PRINT A`/`20 PRINT B`, remplacement par
+  `PRINT C`, compactage, compteur égal à 1, dump exact et arrêt QEMU.
+- **Critères de sortie :** la cible contient uniquement `20 PRINT C` dans le
+  premier slot, avec longueur 7 et compteur 1 dans la zone de métadonnées.
+- **Cas limites :** suppression de la dernière ligne, remplacement de longueur
+  différente, table vide, ligne absente et corps maximal restent à couvrir.
+- **Taille :** 3 points / 1,5 journée-agent, incertitude faible.
+- **Parallélisable :** oui avec `LIST`; non avec une modification du layout.
+
 ### BASIC-LOAD-004 — Porter le magasin de lignes et le contrôle de flot
 
 - **Priorité :** P0.

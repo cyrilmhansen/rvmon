@@ -1,0 +1,77 @@
+info payload
+assemble-program 0x81000100
+; Table initiale : 10 PRINT A, puis 20 PRINT B.
+entry:
+auipc x8,0x1000
+addi x8,x8,-256
+addi x6,x8,256
+addi x5,x0,10
+sd x5,0(x6)
+addi x5,x0,7
+sd x5,8(x6)
+addi x5,x0,80
+sb x5,16(x6)
+addi x5,x0,82
+sb x5,17(x6)
+addi x5,x0,73
+sb x5,18(x6)
+addi x5,x0,78
+sb x5,19(x6)
+addi x5,x0,84
+sb x5,20(x6)
+addi x5,x0,32
+sb x5,21(x6)
+addi x5,x0,65
+sb x5,22(x6)
+addi x5,x0,20
+sd x5,32(x6)
+addi x5,x0,7
+sd x5,40(x6)
+addi x5,x0,80
+sb x5,48(x6)
+addi x5,x0,82
+sb x5,49(x6)
+addi x5,x0,73
+sb x5,50(x6)
+addi x5,x0,78
+sb x5,51(x6)
+addi x5,x0,84
+sb x5,52(x6)
+addi x5,x0,32
+sb x5,53(x6)
+addi x5,x0,66
+sb x5,54(x6)
+; Remplacement du corps de la ligne 20 par PRINT C.
+addi x5,x0,67
+sb x5,54(x6)
+; Suppression de la ligne 10 : compactage du slot 20 vers le slot 0.
+ld x5,32(x6)
+sd x5,0(x6)
+ld x5,40(x6)
+sd x5,8(x6)
+addi x7,x6,48
+addi x8,x6,16
+addi x9,x0,0
+copy_body:
+beq x9,x5,delete_done
+lbu x10,0(x7)
+sb x10,0(x8)
+addi x7,x7,1
+addi x8,x8,1
+addi x9,x9,1
+jal x0,copy_body
+delete_done:
+addi x5,x0,1
+sd x5,256(x6)
+ebreak
+fail:
+addi x10,x0,1
+addi x17,x0,3
+ecall
+end
+symbols
+run-at 0x81000100
+regs
+memory 0x82000100 32
+memory 0x82000200 8
+q
