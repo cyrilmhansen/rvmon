@@ -82,3 +82,109 @@ Le payload calcule `22/7`, sépare partie entière et fractionnaire avec
 `fcvt.l.d`/`fcvt.d.l`, remplit l’ASCII et l’envoie par `write-buffer`, ce qui
 produit `3.142857` sans interpréteur ni conversion hôte. Les signes négatifs,
 les valeurs particulières et le raccord au lexer BASIC restent à couvrir.
+
+La fixture [`minibasic-runtime-isa.rv`](../examples/minibasic-runtime-isa.rv)
+illustre la tranche assembleur suivante : lecture de bytes, opérations
+bit-à-bit, accès mémoire et branchements exécutés dans le payload. Son
+organisation est inspirée des modules séparés observés dans le désassemblage
+de Turbo-BASIC XL, documenté dans [`BASIC_TBXL_NOTES.md`](BASIC_TBXL_NOTES.md),
+mais le code et l’ABI restent propres à RVMonitor.
+
+La fixture [`minibasic-runtime-lexer.rv`](../examples/minibasic-runtime-lexer.rv)
+va un cran plus loin : elle lit réellement `PRINT` par `read_char`, range les
+octets en RAM cible, reconnaît le mot-clé et écrit `OK` par `write-buffer`.
+Elle est vérifiée par :
+
+```text
+bash scripts/test-guest-runtime-lexer.sh
+```
+
+La fixture [`minibasic-runtime-string.rv`](../examples/minibasic-runtime-string.rv)
+ajoute la première primitive de chaînes du futur payload : elle lit une ligne
+réelle, la stocke dans la RAM cible, écrit un descripteur de chaîne à une
+adresse distincte et restitue le buffer par `write-buffer`.
+
+```text
+bash scripts/test-guest-runtime-string.sh
+```
+
+Elle ne contient ni résultat ni interpréteur hôte. Le layout destiné aux
+variables chaînes et aux tableaux complets est fixé dans D-018 ; cette fixture
+est une preuve de contrat mémoire et d’E/S, pas encore l’implémentation de
+S$, DIM ou de l’accès indexé.
+
+La fixture [`minibasic-runtime-string-lexer.rv`](../examples/minibasic-runtime-string-lexer.rv)
+valide ensuite deux formes syntaxiques dans le payload : une affectation avec
+un identifiant de 16 caractères et `DIM A(10)`. Le payload copie le littéral
+`Hammurabi` vers un objet chaîne cible,
+écrit son descripteur, puis reconnaît la forme de déclaration du tableau :
+
+```text
+bash scripts/test-guest-runtime-string-lexer.sh
+```
+
+Le test vérifie aussi le descripteur en RAM et le statut de sortie QEMU.
+
+La fixture [`minibasic-runtime-array.rv`](../examples/minibasic-runtime-array.rv)
+isole la construction d’un `ArrayDesc` pour `DIM A(10)` : pointeur de base,
+11 éléments `binary64`, rang 1 et borne inclusive 10. Elle est vérifiée par :
+
+```text
+bash scripts/test-guest-runtime-array.sh
+```
+
+La même fixture vérifie également `A(10)` : elle calcule `base + 10 * 8`,
+écrit puis relit le motif binary64 de `42.0`, et refuse l’index 11 avant tout
+accès.
+
+Le premier chemin d’expression target-side est disponible dans
+[`minibasic-runtime-expression.rv`](../examples/minibasic-runtime-expression.rv).
+Il reconnaît `2+3*4`, charge les opérandes dans les registres flottants, exécute
+`fmul.d` puis `fadd.d`, et s’arrête sur `ebreak` pour rendre les bits et `fcsr`
+inspectables :
+
+```text
+bash scripts/test-guest-runtime-expression.sh
+```
+
+Cette fixture prouve la précédence et l’exécution D, mais ne constitue pas
+encore le parser général de MiniBASIC.
+
+Le chemin de division target-side est vérifié séparément par
+[`minibasic-runtime-expression-div.rv`](../examples/minibasic-runtime-expression-div.rv).
+Le payload lit `22/7`, convertit les chiffres en binary64 avec `fcvt.d.l`,
+exécute `fdiv.d` et vérifie le motif exact de `3.142857...` ainsi que
+`fflags.NX` :
+
+```text
+bash scripts/test-guest-runtime-expression-div.sh
+```
+
+La fixture [`minibasic-runtime-expression-digits.rv`](../examples/minibasic-runtime-expression-digits.rv)
+ajoute la lecture target-side d’un littéral entier à plusieurs chiffres. Elle
+parcourt les caractères `12+3*4`, construit `12` dans un accumulateur entier
+avec `valeur = valeur * 10 + chiffre`, puis convertit les trois opérandes en
+`binary64` avant d’exécuter `fmul.d` et `fadd.d`. Le résultat attendu est
+`12 + (3 * 4) = 24.0`, observable dans `f5` et en mémoire :
+
+```text
+bash scripts/test-guest-runtime-expression-digits.sh
+```
+
+Cette étape ne couvre pas encore les fractions décimales, les parenthèses, les
+variables ni le parser général ; elle isole la conversion des chiffres et la
+précédence déjà démontrée par la fixture précédente.
+
+La fixture [`minibasic-runtime-number.rv`](../examples/minibasic-runtime-number.rv)
+valide ensuite le lexer numérique target-side sur `-12.5` : signe, accumulation
+de la partie entière, accumulation de la fraction, division par une puissance
+de dix et application du signe par `fsub.d`. Le motif `binary64` négatif
+`0xc029000000000000` est écrit en mémoire cible :
+
+```text
+bash scripts/test-guest-runtime-number.sh
+```
+
+Le test reste volontairement limité à un nombre décimal borné ; les exposants,
+les débordements d’accumulateur, les parenthèses et les variables appartiennent
+au lexer/parser général.

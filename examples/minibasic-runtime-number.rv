@@ -1,0 +1,91 @@
+info payload
+data 0x82000000 .byte 0x2d
+data 0x82000001 .byte 0x31
+data 0x82000002 .byte 0x32
+data 0x82000003 .byte 0x2e
+data 0x82000004 .byte 0x35
+data 0x82000005 .byte 0x00
+data 0x82000010 .dword 0x0000000000000000
+assemble-program 0x81000100
+; x8 base, x9 index, x10 entier, x11 fraction, x12 diviseur.
+; x13 mémorise le signe négatif et x16 le nombre de chiffres fractionnaires.
+entry:
+auipc x8,0x1000
+addi x8,x8,-256
+addi x9,x0,0
+addi x10,x0,0
+addi x13,x0,0
+lbu x14,0(x8)
+addi x15,x0,45
+beq x14,x15,negative
+addi x15,x0,43
+beq x14,x15,after_sign
+jal x0,integer_loop
+negative:
+addi x13,x0,1
+after_sign:
+addi x9,x9,1
+; Partie entière : valeur = valeur * 10 + chiffre.
+integer_loop:
+add x6,x8,x9
+lbu x14,0(x6)
+addi x15,x0,46
+beq x14,x15,fraction_start
+beq x14,x0,fail
+addi x15,x0,48
+sub x14,x14,x15
+sltiu x15,x14,10
+beq x15,x0,fail
+slli x6,x10,3
+slli x7,x10,1
+add x10,x6,x7
+add x10,x10,x14
+addi x9,x9,1
+jal x0,integer_loop
+; Partie fractionnaire : même accumulation, avec un diviseur puissance de dix.
+fraction_start:
+addi x9,x9,1
+addi x11,x0,0
+addi x12,x0,1
+addi x16,x0,0
+fraction_loop:
+add x6,x8,x9
+lbu x14,0(x6)
+beq x14,x0,fraction_end
+addi x15,x0,48
+sub x14,x14,x15
+sltiu x15,x14,10
+beq x15,x0,fail
+slli x6,x11,3
+slli x7,x11,1
+add x11,x6,x7
+add x11,x11,x14
+slli x6,x12,3
+slli x7,x12,1
+add x12,x6,x7
+addi x16,x16,1
+addi x9,x9,1
+jal x0,fraction_loop
+fraction_end:
+beq x16,x0,fail
+fcvt.d.l f1,x10,0
+fcvt.d.l f2,x11,0
+fcvt.d.l f3,x12,0
+fdiv.d f2,f2,f3
+fadd.d f1,f1,f2
+beq x13,x0,store_result
+fld f0,16(x8)
+fsub.d f1,f0,f1
+store_result:
+fsd f1,24(x8)
+ebreak
+fail:
+addi x10,x0,1
+addi x17,x0,3
+ecall
+end
+symbols
+run-at 0x81000100
+regs
+memory 0x82000018 8
+q

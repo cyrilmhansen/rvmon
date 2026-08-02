@@ -16,6 +16,34 @@
   d’un 17e caractère sont vérifiés sur la cible.
 - `scripts/test-guest-fdiv.sh` vérifie indépendamment l’encodage, l’exécution
   et le motif de `fdiv.d`.
+- `scripts/test-guest-runtime-lexer.sh` vérifie que la lecture, le stockage et
+  la reconnaissance du mot-clé `PRINT` sont exécutés par un payload assembleur
+  cible, avec sortie produite par `write-buffer`.
+- `scripts/test-guest-runtime-string.sh` vérifie une première primitive de
+  chaîne cible : lecture UART de `Hammurabi`, stockage ASCII en RAM cible,
+  descripteur `{data_addr,length,capacity}` observable et restitution par
+  `write-buffer`, avec statut QEMU réel.
+- `scripts/test-guest-runtime-string-lexer.sh` vérifie dans le payload la
+  reconnaissance d’un identifiant chaîne de 16 caractères et de `DIM A(10)`,
+  la copie target-side du littéral, le descripteur 24-octets et la sortie de
+  classification du tableau.
+- `scripts/test-guest-runtime-array.sh` vérifie séparément la construction et
+  la relecture target-side d’un `ArrayDesc` de rang 1 pour onze éléments
+  `binary64`, l’écriture/lecture de `A(10)`, le calcul row-major et le refus
+  target-side de l’index 11, avec dump octet par octet sous QEMU.
+- `scripts/test-guest-runtime-expression.sh` vérifie la lecture target-side de
+  `2+3*4`, la précédence `*` avant `+`, `fmul.d`, `fadd.d`, le motif `14.0`,
+  `fcsr` et le stockage du résultat en RAM.
+- `scripts/test-guest-runtime-expression-div.sh` vérifie `22/7`, la conversion
+  target-side des chiffres, `fdiv.d`, le motif exact du quotient, `fflags.NX`
+  et le stockage binary64.
+- `scripts/test-guest-runtime-expression-digits.sh` vérifie le parcours
+  target-side d’un littéral entier multi-chiffres (`12`), la construction base
+  10 dans des registres entiers, les conversions `fcvt.d.l`, puis le résultat
+  `12+(3*4)=24.0` produit par `fmul.d` et `fadd.d`.
+- `scripts/test-guest-runtime-number.sh` vérifie un littéral décimal signé
+  (`-12.5`) : signe, partie entière, fraction, diviseur puissance de dix,
+  `fdiv.d`, `fadd.d`, `fsub.d` et motif `binary64` exact dans la cible.
 - Le breakpoint `minibasic_divide` et `disasm` permettent d’observer la
   correspondance adresse → `fdiv.d`; les registres f et `fcsr` sont affichés
   avant/après le pas.
@@ -26,6 +54,18 @@ Les cas à maintenir couvrent ligne trop longue, programme plein, division par
 zéro, syntaxe, GOTO/THEN absent, STEP nul, huit frames FOR, neuvième frame,
 boucle infinie et Ctrl-C. Chaque erreur conserve son code et revient à
 `READY>` sans perdre le programme.
+
+## Extensions conservées à couvrir
+
+Les tests de release devront ajouter un corpus cible pour les chaînes et les
+tableaux complets : variables chaînes, affectation, affichage, limites de
+longueur, tableaux numériques et tableaux de chaînes, index hors limites,
+dimensions invalides, consommation de la zone de données et restauration par
+snapshot. Les résultats devront provenir du payload RV, jamais d’un
+interpréteur hôte. Le layout à tester est fixé par D-018 : chaîne vide, copie
+sans écriture partielle, longueur/capacité maximales, `DIM A(10)` et index 0/10,
+tableaux row-major de `binary64` et de `StringDesc`, dépassement de pool,
+produit de dimensions en débordement et restauration par snapshot.
 
 ## Oracle indépendant
 

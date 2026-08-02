@@ -367,7 +367,7 @@ confondre code présent et exigence formellement auditée.
 - **Non-but :** éditeur plein écran, macros, expressions générales, historique des versions et sauvegarde persistante.
 - **Entrées/sources :** SPEC §§11/17–19/21; contrat guest 4B; diagnostics `GUEST-ASM-*`.
 - **Fichiers/modules :** `crates/guest-monitor/src/main.rs`, `scripts/test-guest-source.sh`, `docs/TUTORIAL-GUEST.md`, `docs/TESTS.md`.
-- **Étapes réalisées :** buffer borné de 16 lignes; commandes `source`, `source <n>`, `source replace <n> <text>`, `assemble-source`; conservation de l’adresse; validation atomique et texte quoté.
+- **Étapes réalisées :** buffer borné de 256 lignes de 128 caractères; commandes `source`, `source <n>`, `source replace <n> <text>`, `assemble-source`; conservation de l’adresse; validation atomique et texte quoté; scratch d’assemblage statique hors pile M-mode.
 - **Dépendances et tâches bloquées :** GUEST-003; persistance projet, navigation clavier et undo source restent différés.
 - **Tests :** assembler deux lignes, consulter/corriger la ligne 2, constater l’absence d’effet avant `assemble-source`, réassembler puis vérifier `x1=6` après deux pas.
 - **Critères de sortie :** `source replace` n’écrit jamais la RAM; `assemble-source` applique uniquement le buffer validé; les lignes et erreurs sont lisibles par UART.
@@ -485,7 +485,7 @@ confondre code présent et exigence formellement auditée.
 - **But :** activer le tampon RX/TX du NS16550 virtuel pour toutes les
   communications du moniteur guest, en conservant le protocole de transfert
   binaire et les invites comme points de synchronisation.
-- **Non-but :** DMA, interruptions UART, virtio-console, réglage d'un débit
+- **Non-but :** DMA, virtio-console et réglage dynamique d'un débit
   physique ou compression RLE dans cette sous-tranche.
 - **Entrées/sources :** QEMU `virt` (NS16550 compatible), contrat UART du
   tutoriel guest, SPEC §§9/18/21.
@@ -516,25 +516,29 @@ confondre code présent et exigence formellement auditée.
 - **Jalon / exigences :** M8/M9; IO-001..004, REQ-PROD-004, REQ-ISO-003.
 - **But :** regrouper les octets déjà présents dans le FIFO NS16550 avant leur
   consommation par la console ou par un payload `snapshot patchbin`.
-- **Non-but :** modifier la grammaire, ajouter des interruptions/DMA ou
+- **Non-but :** modifier la grammaire, ajouter DMA ou
   prétendre fournir une compression.
 - **Entrées/sources :** QEMU `virt` NS16550; contrat `snapshot binary ready`;
   SPEC §§9/12/18/21.
 - **Fichiers/modules :** `crates/guest-monitor/src/main.rs`, tests QEMU et
   documentation UART.
-- **Étapes réalisées :** tampon RX de 64 octets; remplissage bloquant sur le
-  premier octet puis drainage des octets disponibles; réutilisation implicite
-  par `uart_read_line` et la réception binaire.
+- **Étapes réalisées :** tampon RX logiciel fixe de 4096 octets; drainage du
+  FIFO matériel; polling opportuniste pendant les sorties M-mode et service
+  IRQ via PLIC pendant l'exécution U-mode; réutilisation par `uart_read_line`
+  et la réception binaire.
 - **Dépendances :** GUEST-014; compression RLE/delta, reprise et débit
   instrumenté restent différés.
 - **Tests :** scénarios console pipe, snapshot binaire TCP, export TCP, suite
   workspace et contrôle R2.
-- **Critères de sortie :** aucun octet perdu, ordre conservé, payload de
-  longueur exacte accepté et mêmes réponses fonctionnelles qu'avant.
-- **Cas limites et échecs :** tampon plein, FIFO vide, payload supérieur à 64
-  octets, EOF/timeout et octets de commandes préchargés.
-- **Taille :** 2 points / 0,5 journée-agent, incertitude faible.
-- **Compétences/outils :** Rust `no_std`, NS16550, QEMU, tests shell.
+- **Critères de sortie :** ordre conservé dans les limites du tampon, compteur
+  d'overflow observable, payload de longueur exacte accepté et mêmes réponses
+  fonctionnelles qu'avant.
+- **Cas limites et échecs :** tampon plein, FIFO vide, payload supérieur à
+  4096 octets, EOF/timeout, octets de commandes préchargés et interruption
+  pendant une cible U-mode.
+- **Taille :** 3 points / 1 journée-agent, incertitude moyenne.
+- **Compétences/outils :** Rust `no_std`, NS16550, PLIC, traps RISC-V, QEMU,
+  tests shell.
 - **Parallélisable :** oui avec l'intégration metadata; non avec une autre
   modification des primitives UART.
 - **Paquet de contexte minimal :** `crates/guest-monitor/src/main.rs`,
@@ -1851,7 +1855,10 @@ release. Elles n’ajoutent aucune extension ISA.
 - **Priorité :** P0.
 - **But :** porter lexer, parseur et évaluation dans des modules assembleur
   testables, en commençant par le mode direct et les expressions binary64.
-- **Non-but :** chaînes générales, tableaux, fichiers ou compilation native.
+- **Non-but de cette tranche :** implémenter immédiatement les chaînes,
+  tableaux, fichiers ou compilation native. Les chaînes et tableaux restent
+  toutefois des fonctionnalités obligatoires de la trajectoire et ne sont pas
+  retirés du périmètre produit.
 - **Entrées :** BASIC_LANGUAGE, oracle MiniBASIC résident temporaire, ISA D.
 - **Dépendances :** BASIC-LOAD-002 ; bloque BASIC-LOAD-004/005.
 - **Tests :** expressions, `PRINT`, `fadd.d`/`fdiv.d`, bits et fflags comparés
@@ -1877,6 +1884,41 @@ release. Elles n’ajoutent aucune extension ISA.
   préenregistrée.
 - **Taille :** 3 points / 1,5 journée-agent, incertitude faible.
 
+#### BASIC-LOAD-003A-ISA — Étendre le sous-ensemble assembleur pour le lexer — TERMINÉ
+
+- **Priorité :** P0, en parallèle du portage des primitives D.
+- **But :** fournir au runtime assembleur les loads/stores octet, demi-mot et
+  mot, les opérations logiques/shift et les immédiats nécessaires à la lecture
+  de texte et aux index internes.
+- **Non-but :** accepter silencieusement tout l’ISA ; chaque mnémotechnique
+  ajoutée doit rester vérifiée par les tables R2 générées.
+- **Entrées :** R1 chapitres RV64I/M, tables R2 générées, ABI `RVMPAY01`.
+- **Fichiers/modules :** `crates/guest-monitor/src/main.rs`,
+  `examples/minibasic-runtime-isa.rv`, `scripts/test-guest-runtime-isa.sh`.
+- **Étapes réalisées :** `lb/lh/lw/ld`, `lbu/lhu/lwu`, `sb/sh/sw/sd`, R-type
+  logique/shift/M et I-type logique/shift ; encodage construit depuis
+  `GENERATED_OPCODES`, sans table manuelle.
+- **Dépendances :** BASIC-LOAD-002A et BASIC-LOAD-003A ; prépare le lexer et
+  le magasin de lignes assembleur.
+- **Tests :** payload QEMU lit trois octets, vérifie les branches, stocke et
+  recharge un mot, puis calcule le statut de sortie par opérations RV64.
+- **Critères de sortie :** `scripts/test-guest-runtime-isa.sh` passe avec
+  `target exit status=85`; le désassemblage et les symboles restent visibles.
+- **Cas limites et échecs :** immédiat hors plage, shift supérieur à 63,
+  registre invalide, mnémotechnique absente de R2 et accès cible hors RAM.
+- **Écart à reproduire :** une fixture isolée avec `sd` à l’offset 1280 a
+  produit `GUEST-ASM-008`, alors que les offsets 512/1024 utilisés ici
+  passent. La cause exacte du parseur/encodeur guest doit être établie avant
+  de déclarer toute la largeur signée 12 bits couverte ; la fixture tableau
+  reste volontairement dans la fenêtre validée.
+- **Taille :** 4 points / 2 journées-agent, incertitude faible.
+- **Compétences/outils :** encodage RV64I/M, assembleur guest, QEMU et tests
+  UART.
+- **Parallélisable :** oui avec BASIC-LOAD-003B ; non avec une modification
+  concurrente de `parse_source_instruction`.
+- **Paquet de contexte minimal :** `main.rs`, `examples/minibasic-runtime-isa.rv`,
+  `scripts/test-guest-runtime-isa.sh`, `BASIC_TBXL_NOTES.md`.
+
 #### BASIC-LOAD-003B — Conversion binary64 vers affichage décimal cible — TERMINÉ
 
 - **Priorité :** P0, prochaine sous-tranche.
@@ -1896,6 +1938,230 @@ release. Elles n’ajoutent aucune extension ISA.
   hors plage et raccord au lexer BASIC sont explicitement différés.
 - **Taille :** 5 points / 2,5 journées-agent, incertitude élevée.
 
+#### BASIC-LOAD-003C — Lexer cible et stockage de ligne — EN COURS
+
+- **Priorité :** P0, première tranche chaînes.
+- **But :** lire une ligne par l’ABI `RVMPAY01`, la stocker en mémoire cible et
+  reconnaître un mot-clé sans interprétation hôte.
+- **Non-but :** fournir encore les variables chaînes, tableaux, expressions ou
+  dispatch complet des instructions BASIC.
+- **Entrées :** `BASIC_LANGUAGE.md`, `BASIC_TBXL_NOTES.md`, ABI ecall, R1/R2
+  pour les loads/stores et branches.
+- **Fichiers/modules :** `examples/minibasic-runtime-lexer.rv`,
+  `scripts/test-guest-runtime-lexer.sh`; futurs modules `lexer.rv` et
+  `string_store.rv` du payload.
+- **Dépendances :** BASIC-LOAD-002A, BASIC-LOAD-003A-ISA et ABI `RVMPAY01`.
+- **Tests :** saisie réelle de `PRINT`, stockage octet par octet, comparaison
+  cible des cinq caractères, sortie `OK` par `write-buffer`, statut d’échec
+  distinct et exécution QEMU.
+- **Critères de sortie :** `scripts/test-guest-runtime-lexer.sh` passe avec
+  `target exit status=0`; aucun résultat n’est préenregistré et aucune analyse
+  BASIC n’est effectuée par l’hôte.
+- **Cas limites :** ligne vide, mot-clé inconnu, longueur dépassant le buffer,
+  entrée interrompue et débordement d’index doivent être traités avant le
+  portage du parser complet.
+- **Taille :** 5 points / 2,5 journées-agent, incertitude élevée.
+- **Parallélisable :** oui avec la définition du layout chaînes ; non avec une
+  autre modification du buffer de payload.
+
+#### BASIC-LOAD-003D — Primitive de buffer et descripteur de chaîne — TERMINÉE
+
+- **Priorité :** P0, preuve de contrat avant le parser complet.
+- **But :** valider en QEMU le stockage d’une chaîne ASCII en mémoire cible et
+  sa transmission par l’ABI `write-buffer`, sans interpréteur hôte.
+- **Non-but :** déclarer disponibles les variables chaînes, `DIM` ou les
+  tableaux ; leur représentation complète est fixée par D-018.
+- **Entrées :** D-018, `GUEST_PAYLOAD_ABI.md`, R1/R2 pour `lbu`, `sb`, `ld` et
+  `sd`.
+- **Fichiers/modules :** `examples/minibasic-runtime-string.rv`,
+  `scripts/test-guest-runtime-string.sh`, `BASIC_LANGUAGE.md` et
+  `BASIC_TEST_PLAN.md`.
+- **Dépendances :** BASIC-LOAD-003C et `BASIC-LOAD-003A-ISA`.
+- **Tests :** entrée réelle `Hammurabi`, stockage octet par octet, arrêt sur
+  LF, descripteur observable et statut de sortie contrôlé par QEMU.
+- **Critères de sortie :** `bash scripts/test-guest-runtime-string.sh` passe,
+  le motif du descripteur est vérifié en mémoire et aucune sortie n’est
+  préenregistrée.
+- **Cas limites :** buffer borné à 128 octets ; le chemin overflow produit
+  `ERR` et un statut distinct. Le pool complet reste à tester dans
+  `BASIC-STR-001`.
+- **Taille :** 3 points / 1,5 journée-agent, incertitude faible.
+- **Parallélisable :** oui avec la documentation du parser ; non avec une
+  modification concurrente de l’ABI de chaînes.
+
+#### BASIC-LOAD-003E — Lexer cible des chaînes et de DIM — TERMINÉE
+
+- **Priorité :** P0, préparation du parser et du magasin d’objets.
+- **But :** reconnaître dans un payload assembleur une affectation de chaîne
+  et la forme d’une déclaration de tableau, puis construire un `StringDesc`
+  cible sans analyse ni copie effectuée par l’hôte.
+- **Non-but :** évaluer les expressions, exécuter `DIM`, indexer un tableau ou
+  fournir encore le dispatch complet des instructions BASIC.
+- **Entrées :** D-018, `BASIC_LANGUAGE.md`, `GUEST_PAYLOAD_ABI.md`, R1/R2 pour
+  les accès octet/mot et les branches.
+- **Fichiers/modules :** `examples/minibasic-runtime-string-lexer.rv`,
+  `scripts/test-guest-runtime-string-lexer.sh`, documentation BASIC.
+- **Dépendances :** BASIC-LOAD-003C, BASIC-LOAD-003D et
+  `BASIC-LOAD-003A-ISA`.
+- **Tests :** ligne réelle avec identifiant chaîne de 16 caractères et
+  `DIM A(10)`, copie du littéral, descripteur `{data_addr,length,capacity}`,
+  reconnaissance target-side de la forme `DIM` et statut d’exécution QEMU.
+- **Critères de sortie :** le script passe avec `target exit status=0`, le
+  mot-clé et la forme d’index sont validés par des instructions exécutées en
+  U-mode et aucune sortie attendue n’est injectée par l’hôte.
+- **Cas limites :** guillemet absent, variable sans suffixe `$`, dimension
+  non numérique, dimension négative ou ligne dépassant le buffer restent des
+  erreurs à couvrir par le parser complet.
+- **Taille :** 4 points / 2 journées-agent, incertitude moyenne.
+- **Parallélisable :** oui avec le design du parseur d’expressions ; non avec
+  une modification concurrente du layout D-018.
+
+#### BASIC-ARRAY-001A — Construire le descripteur de tableau cible — TERMINÉE
+
+- **Priorité :** P0, prérequis de l’indexation.
+- **But :** construire et relire en U-mode un `ArrayDesc` de rang 1 pour
+  `DIM A(10)`, avec 11 éléments `binary64`, sans allocation hôte.
+- **Non-but :** indexer, remplir ou redimensionner le tableau ; les tableaux
+  de chaînes restent dans BASIC-ARRAY-001.
+- **Entrées :** D-018, `BASIC_LANGUAGE.md`, R1/R2 pour `ld`, `sd`, `sb` et les
+  branches.
+- **Fichiers/modules :** `examples/minibasic-runtime-array.rv`,
+  `scripts/test-guest-runtime-array.sh`, `BASIC_BUILD.md` et
+  `BASIC_TEST_PLAN.md`.
+- **Dépendances :** D-018 et `BASIC-LOAD-003A-ISA`.
+- **Tests :** écriture/relecture de l’adresse de base et du nombre d’éléments,
+  vérification de l’élément `binary64`, du rang, de la borne 10 et du dump de
+  64 octets sous QEMU.
+- **Critères de sortie :** le script passe avec `target exit status=0` et le
+  dump correspond exactement au layout normatif.
+- **Cas limites :** rang nul, dimension négative, produit de dimensions et
+  index hors bornes sont réservés à BASIC-ARRAY-001.
+- **Taille :** 3 points / 1,5 journée-agent, incertitude faible.
+- **Parallélisable :** oui avec le parseur d’expressions ; non avec une
+  modification du layout D-018.
+
+#### BASIC-ARRAY-001B — Indexer et protéger un tableau numérique — TERMINÉE
+
+- **Priorité :** P0, première opération observable sur un tableau.
+- **But :** calculer l’adresse row-major de `A(10)` pour des éléments
+  `binary64`, écrire puis relire une valeur cible, et rejeter l’index 11 avant
+  tout accès.
+- **Non-but :** syntaxe complète de `DIM`, tableaux multidimensionnels,
+  tableaux de chaînes ou redimensionnement.
+- **Entrées :** D-018, `BASIC_LANGUAGE.md`, `BASIC-ARRAY-001A` et les
+  instructions RV64I `slli`, `add`, `ld`, `sd`, `sltiu`.
+- **Fichiers/modules :** `examples/minibasic-runtime-array.rv`,
+  `scripts/test-guest-runtime-array.sh`, `BASIC_BUILD.md` et
+  `BASIC_TEST_PLAN.md`.
+- **Dépendances :** BASIC-ARRAY-001A et `BASIC-LOAD-003A-ISA`.
+- **Tests :** motif binary64 `42.0`, offset `10 * 8`, relecture exacte,
+  index égal au nombre d’éléments, absence d’écriture hors bornes et dump
+  cible sous QEMU.
+- **Critères de sortie :** le script passe avec `target exit status=0`; le
+  payload ne lit ni ne calcule la valeur sur l’hôte.
+- **Cas limites :** index 0, dernière dimension, rang supérieur à 1 et
+  overflow de produit restent dans BASIC-ARRAY-001.
+- **Taille :** 3 points / 1,5 journée-agent, incertitude faible.
+- **Parallélisable :** oui avec le parser d’expressions ; non avec une
+  modification du descripteur.
+
+#### BASIC-LOAD-003F — Première expression target-side avec précédence — TERMINÉE
+
+- **Priorité :** P0, preuve d’intégration D avant le parser général.
+- **But :** reconnaître les tokens de `2+3*4` en mémoire cible et exécuter la
+  multiplication avant l’addition dans les registres flottants du payload.
+- **Non-but :** nombres décimaux généraux, parenthèses, variables, divisions,
+  comparaisons ou gestion complète des diagnostics.
+- **Entrées :** `BASIC_LANGUAGE.md`, D-005/D-013, R1 chapitre F/D, R2 et
+  `GUEST_PAYLOAD_ABI.md`.
+- **Fichiers/modules :** `examples/minibasic-runtime-expression.rv`,
+  `scripts/test-guest-runtime-expression.sh`, documentation BASIC.
+- **Dépendances :** BASIC-LOAD-003A, BASIC-LOAD-003B et
+  `BASIC-LOAD-003A-ISA`.
+- **Tests :** octets des tokens, chargement de 2/3/4 en binary64, `fmul.d`
+  donnant 12.0, `fadd.d` donnant 14.0, bits exacts, `fcsr=0` et stockage.
+- **Critères de sortie :** arrêt QEMU sur `ebreak`, registres `f4/f5` et dump
+  mémoire conformes au motif attendu, sans calcul Rust pendant l’exécution.
+- **Cas limites :** ordre inversé, opérateur absent, parenthèses, `/`, division
+  par zéro et flags sont réservés au parser général et à ses tests négatifs.
+- **Taille :** 4 points / 2 journées-agent, incertitude moyenne.
+- **Parallélisable :** oui avec un oracle Rust indépendant ; non avec une
+  modification concurrente de la convention des registres du payload.
+
+#### BASIC-LOAD-003G — Division target-side et fflags — TERMINÉE
+
+- **Priorité :** P0, fermeture du premier chemin arithmétique.
+- **But :** lire `22/7`, convertir les chiffres en binary64 dans la cible,
+  exécuter `fdiv.d` et rendre le motif du quotient ainsi que `fflags.NX`
+  observables au débogueur.
+- **Non-but :** parser général, nombres fractionnaires source, arrondi choisi
+  par l’utilisateur, division par zéro et conversion décimale de sortie.
+- **Entrées :** R1 chapitres F/D, D-005/D-013, R2 et politique `fcsr` de
+  `BASIC_LANGUAGE.md`.
+- **Fichiers/modules :** `examples/minibasic-runtime-expression-div.rv`,
+  `scripts/test-guest-runtime-expression-div.sh`, documentation BASIC.
+- **Dépendances :** BASIC-LOAD-003F et `BASIC-LOAD-003A`.
+- **Tests :** quotient binary64 `0x4009249249249249`, `fcsr=1`, dump little
+  endian et arrêt QEMU sur `ebreak`.
+- **Critères de sortie :** le motif et le flag sont produits par les
+  instructions du payload, sans opération flottante hôte pendant l’exécution.
+- **Cas limites :** `±0`, infini, NaN, division exacte et division par zéro
+  sont réservés à la matrice IEEE du parser complet.
+- **Taille :** 3 points / 1,5 journée-agent, incertitude faible.
+- **Parallélisable :** oui avec les tests différentiels Rust/QEMU ; non avec
+  une modification de l’ABI des registres flottants.
+
+#### BASIC-LOAD-003H — Littéraux entiers multi-chiffres target-side — TERMINÉE
+
+- **Priorité :** P0, préparation du lexer numérique du payload assembleur.
+- **But :** parcourir les chiffres de `12+3*4` dans la cible, construire le
+  premier opérande par accumulation décimale entière, puis convertir les
+  opérandes en `binary64` avant le calcul flottant.
+- **Non-but :** fractions décimales, exposants, parenthèses, variables et
+  parser général.
+- **Entrées :** `BASIC_LANGUAGE.md`, D-005/D-013, R1 chapitres I et D/F, R2,
+  et `GUEST_PAYLOAD_ABI.md`.
+- **Fichiers/modules :** `examples/minibasic-runtime-expression-digits.rv`,
+  `scripts/test-guest-runtime-expression-digits.sh`, documentation BASIC.
+- **Dépendances :** BASIC-LOAD-003F et BASIC-LOAD-003A.
+- **Tests :** octets source `12+3*4`, accumulation `1*10+2`, conversions
+  `fcvt.d.l`, `fmul.d` donnant 12.0, `fadd.d` donnant 24.0, bits exacts et
+  stockage little-endian observé sous QEMU.
+- **Critères de sortie :** le payload s’arrête sur `ebreak`; `f1`, `f2`, `f4`,
+  `f5` et la case mémoire de résultat correspondent aux motifs attendus; aucun
+  calcul ou résultat n’est fourni par l’hôte.
+- **Cas limites :** chiffre non valide, dépassement de l’accumulateur, signe,
+  zéro initial et littéral vide sont réservés au lexer général et à ses tests
+  négatifs.
+- **Taille :** 2 points / 1 journée-agent, incertitude faible.
+- **Parallélisable :** oui avec l’oracle Rust et la conversion décimale; non
+  avec une modification concurrente de l’ABI flottante.
+
+#### BASIC-LOAD-003I — Littéral décimal signé target-side — TERMINÉE
+
+- **Priorité :** P0, fermeture de la première tranche de lexer numérique.
+- **But :** parcourir `-12.5` dans la cible, accumuler séparément partie
+  entière et fraction, convertir en `binary64` et appliquer le signe avec les
+  instructions D.
+- **Non-but :** exposants, parenthèses, variables, débordements généraux et
+  parser complet.
+- **Entrées :** `BASIC_LANGUAGE.md`, D-005/D-013, R1 chapitres I et D/F, R2,
+  `GUEST_PAYLOAD_ABI.md`.
+- **Fichiers/modules :** `examples/minibasic-runtime-number.rv`,
+  `scripts/test-guest-runtime-number.sh`, documentation BASIC.
+- **Dépendances :** BASIC-LOAD-003H, BASIC-LOAD-003A et ABI `RVMPAY01`.
+- **Tests :** signe `-`, accumulation `12`, fraction `5`, diviseur `10`,
+  `fdiv.d`, `fadd.d`, `fsub.d`, motif `0xc029000000000000`, écriture mémoire
+  little-endian et arrêt QEMU sur `ebreak`.
+- **Critères de sortie :** le script passe avec `target exit status=0`; `f1`
+  et la case mémoire sont produits par le payload, sans calcul hôte.
+- **Cas limites :** `+12.5`, fraction vide, signe isolé, caractère non chiffre,
+  fraction longue et dépassement de puissance de dix restent à ajouter au
+  parser général et à ses diagnostics.
+- **Taille :** 3 points / 1,5 journée-agent, incertitude faible.
+- **Parallélisable :** oui avec la conception AST ; non avec une modification
+  concurrente de la convention des registres flottants.
+
 ### BASIC-LOAD-004 — Porter le magasin de lignes et le contrôle de flot
 
 - **Priorité :** P0.
@@ -1909,6 +2175,52 @@ release. Elles n’ajoutent aucune extension ISA.
   à l’exécution dans U-mode et atteignent les instructions D observées.
 - **Taille :** 10 points / 5 journées-agent, incertitude très élevée.
 
+### BASIC-STR-001 — Porter les chaînes dans le payload RV
+
+- **Priorité :** P0 produit, après le noyau lexer/expression ; différé dans la
+  tranche actuelle mais conservé comme exigence.
+- **But :** fournir des chaînes variables et littérales, affectation,
+  affichage, limites explicites et erreurs entièrement exécutés en cible.
+- **Non-but :** compatibilité Atari implicite, chaînes calculées par l’hôte ou
+  allocation non bornée.
+- **Entrées :** `BASIC_LANGUAGE.md`, ABI `RVMPAY01`, notes TBXL, décision de
+  représentation mémoire à figer avant implémentation.
+- **Fichiers/modules probables :** `payload/string_store.rv`,
+  `payload/lexer.rv`, `payload/print.rv`, documentation et tests QEMU.
+- **Dépendances :** BASIC-LOAD-003/004 ; bloque les démonstrations utilisant
+  des variables chaînes et une partie de Hammurabi enrichi.
+- **Tests :** chaîne vide, longueur maximale, copie, affichage, caractère
+  spécial, dépassement du pool, snapshot et absence de sortie préenregistrée.
+- **Critères de sortie :** toutes les données et opérations vivent dans la
+  mémoire cible ; l’hôte ne reçoit que les octets de sortie via ecall.
+- **Cas limites :** pool plein, longueur nulle, index invalide et corruption
+  de descripteur diagnostiqués sans écriture partielle.
+- **Taille :** 8 points / 4 journées-agent, incertitude élevée.
+- **Parallélisable :** partiellement avec BASIC-ARRAY-001 après gel du layout.
+
+### BASIC-ARRAY-001 — Porter les tableaux numériques et de chaînes
+
+- **Priorité :** P0 produit, après BASIC-STR-001 et le contrôle de flot.
+- **But :** conserver les tableaux complets dans le langage cible, avec
+  dimensions, indexation, stockage row-major documenté et diagnostics de
+  bornes.
+- **Non-but :** tableaux calculés par l’hôte, dimensions illimitées ou
+  compatibilité binaire avec les tableaux Atari.
+- **Entrées :** `BASIC_LANGUAGE.md`, notes TBXL sur les tableaux, ABI payload et
+  budget mémoire cible.
+- **Fichiers/modules probables :** `payload/array_store.rv`, parseur
+  d’indexation, `DUMP`, snapshots et corpus QEMU.
+- **Dépendances :** BASIC-STR-001, BASIC-LOAD-004 et décision de layout.
+- **Tests :** tableaux 1D/2D, tableaux numériques et chaînes, index minimal et
+  maximal, hors bornes, dimensions invalides, pool plein et restauration.
+- **Critères de sortie :** accès, mutation et résultats sont observables dans
+  la RAM cible et reproductibles sous QEMU.
+- **Cas limites :** produit de dimensions overflow, index négatif, tableau
+  absent et alias de descripteur.
+- **Taille :** 10 points / 5 journées-agent, incertitude très élevée.
+- **Parallélisable :** oui avec l’outillage de DUMP après gel du layout ; non
+  avec une modification concurrente du lexer.
+
 ### BASIC-LOAD-005 — Remplacer le mode résident par le payload chargé
 
 - **Priorité :** P0, intégration.
@@ -1921,19 +2233,52 @@ release. Elles n’ajoutent aucune extension ISA.
   sortie de démonstration n’est préenregistrée.
 - **Taille :** 5 points / 2,5 journées-agent, incertitude élevée.
 
-### BASIC-SOURCE-001 — Étendre le buffer source guest à 64 lignes
+### BASIC-SOURCE-001 — Étendre le stockage du programme BASIC et ses preuves de capacité
 
 - **Priorité :** P1, après validation de P0.
-- **But :** passer de 16 à 64 lignes de 96 caractères sans modifier l’ISA.
+- **But :** augmenter la capacité du magasin de lignes BASIC au-delà de sa
+  capacité V1 actuelle, sans modifier l’ISA, et mesurer explicitement la RAM
+  statique et la pile consommées.
 - **Non-but :** capacité dynamique ou absence de limites.
-- **Entrées :** question 9 de `OPEN_QUESTIONS.md`, pile M-mode 64 Kio,
+- **Entrées :** décision de capacité du programme BASIC, pile M-mode 64 Kio,
   snapshots/projets guest.
 - **Dépendances :** P0 recommandé ; bloque BASIC-SOURCE-002/003.
-- **Tests :** insertion/remplacement/suppression/tri de 64 lignes, saturation,
+- **Tests :** insertion/remplacement/suppression/tri de la capacité retenue, saturation,
   mémoire pleine, snapshot et mesure de pile sous QEMU.
-- **Acceptation :** 64 lignes passent sans trap imbriqué ; la 65e est refusée
+- **Acceptation :** la capacité retenue passe sans trap imbriqué ; la ligne suivante est refusée
   avec diagnostic stable et sans mutation.
 - **Taille :** 3 points / 1,5 journée-agent, incertitude moyenne.
+
+### BASIC-LOAD-002A — Élargir le buffer source assembleur sans croissance de pile — TERMINÉ
+
+- **Priorité :** P0, prérequis du runtime assembleur.
+- **But :** permettre au parseur guest de recevoir 256 lignes de 128 caractères
+  et 64 labels, afin de charger progressivement des fragments substantiels du
+  runtime MiniBASIC.
+- **Non-but :** annoncer que MiniBASIC est déjà réécrit en assembleur ; cette
+  tâche ne modifie pas le chemin `basic` résident.
+- **Entrées :** `GUEST_PAYLOAD_ABI.md`, `SPEC.md` §§9/11/17/18, contrainte de
+  pile M-mode 64 Kio.
+- **Fichiers/modules :** `crates/guest-monitor/src/main.rs`,
+  `scripts/test-guest-source-capacity.sh`, `docs/TUTORIAL-GUEST.md`.
+- **Étapes réalisées :** buffers source, longueurs, labels, mots et adresses
+  déplacés en scratch statique ; metadata `RVMETA01` porté à 32 Kio ;
+  validation atomique conservée.
+- **Dépendances :** BASIC-LOAD-002 ; prépare BASIC-LOAD-003/004.
+- **Tests :** 256 instructions assemblées sous QEMU ; 257 lignes refusées par
+  `GUEST-ASM-001`; `cargo check` cible ; tests source existants.
+- **Critères de sortie :** la pile ne contient plus les tableaux de travail
+  dimensionnés par `MAX_SOURCE_LINES`; l’image compile et la limite est
+  observable, stable et non mutante.
+- **Cas limites et échecs :** saturation, adresse hors workspace, label en
+  double, metadata au-delà de 32 Kio ; le débordement de ligne reste rejeté.
+- **Taille :** 3 points / 1,5 journée-agent, incertitude faible.
+- **Compétences/outils :** Rust `no_std`, aliasing statique sûr, QEMU UART,
+  `nm`.
+- **Parallélisable :** oui avec BASIC-LOAD-003A/B ; non avec une autre
+  modification des buffers source guest.
+- **Paquet de contexte minimal :** `main.rs`, `GUEST_PAYLOAD_ABI.md`,
+  `test-guest-source-capacity.sh`, `TUTORIAL-GUEST.md`.
 
 ### UI-GUI-001 — Stabiliser le modèle d’interface graphique
 
@@ -2296,3 +2641,121 @@ release. Elles n’ajoutent aucune extension ISA.
   dépendance manquante; le mode strict échoue sur tout SKIP ou FAIL.
 - **Résultat :** 14/14 scripts PASS sur QEMU 11.0.2, sans skip ni échec; rapport
   archivé dans `docs/release/E2E-REPORT.md`.
+
+## Compilateur MiniBASIC natif — extension post-V1
+
+### COMP-001 — Étudier et figer la provenance Turbo-BASIC XL — 0,5 à 1,5 j
+
+- **Jalon / exigences :** C0; COMP-001.
+- **But :** cataloguer les manuels, images 1.5, Compiler 1.1, Runtime, Linker,
+  désassemblage MADS et sources/outils communautaires ; produire une note de
+  correspondance entre leurs rôles et MiniBASIC-RV.
+- **Non-but :** copier du code historique ou promettre la compatibilité Atari.
+- **Entrées/sources :** AtariWiki Turbo-BASIC XL, manuel du compilateur,
+  artefacts communautaires avec licences et `docs/BASIC_LANGUAGE.md`.
+- **Fichiers/modules :** `docs/BASIC_COMPILER_ROADMAP.md`, `docs/BASIC_TBXL_NOTES.md`,
+  `norms/` ou manifeste de provenance.
+- **Dépendances :** aucune ; bloque COMP-002 si les licences ou artefacts ne
+  sont pas identifiables.
+- **Tests :** vérification des hashes, licences, URLs archivées et rapport de
+  provenance sans dépendance d’exécution.
+- **Acceptation :** chaque artefact est classé étude, oracle, source utilisable
+  ou interdit ; aucun fichier de build ne dépend d’un binaire historique.
+- **Cas limites :** source déclaré perdu, désassemblage incomplet, miroir
+  indisponible ; le lot doit alors laisser une preuve et un substitut explicite.
+- **Parallélisable :** oui avec COMP-003, pas avec une décision de licence.
+- **Contexte minimal :** D-019 et `docs/BASIC_COMPILER_ROADMAP.md`.
+
+### COMP-002 — Extraire l’AST/IR commun — 1 à 2 j
+
+- **Jalon / exigences :** C1; COMP-002..003.
+- **But :** faire partager au mode interprété et au futur compilateur le lexer,
+  l’AST, la résolution des lignes, les noms longs, chaînes et tableaux.
+- **Non-but :** générer du RV64 ou optimiser.
+- **Entrées/sources :** `BASIC_LANGUAGE.md`, D-018/D-019, parser MiniBASIC actuel.
+- **Fichiers/modules :** crates/modules BASIC parser, AST/IR, diagnostics et
+  tests de fixtures.
+- **Dépendances :** COMP-001 informatif ; bloque COMP-003/004.
+- **Tests :** AST golden, erreurs avec ligne/colonne, équivalence d’analyse
+  interpréteur/compilateur, expressions et `FLOATLOOP`.
+- **Acceptation :** une source valide produit un AST déterministe identique dans
+  les deux chemins ; une source invalide garde le même code d’erreur.
+- **Cas limites :** ligne vide, commentaire, 16 caractères, parenthèses,
+  chaînes contenant des séparateurs et tableau hors limite.
+- **Parallélisable :** oui avec COMP-001 et l’oracle Rust ; non avec COMP-004.
+- **Contexte minimal :** grammaire BASIC et tests existants du parser.
+
+### COMP-003 — Produire du RV64 pour les expressions binary64 — 1 à 2 j
+
+- **Jalon / exigences :** C2; COMP-004..006.
+- **But :** générer un payload RV64 pour affectations et expressions, incluant
+  `fadd.d`, `fsub.d`, `fmul.d`, `fdiv.d`, conversions et source mapping.
+- **Non-but :** contrôle de flot complet, chaînes, tableaux et optimisations.
+- **Entrées/sources :** R1 F/D, R2 généré, D-019, ABI payload guest.
+- **Fichiers/modules :** backend compiler, générateur assembly/object, listing,
+  `run-at` et symboles.
+- **Dépendances :** COMP-002, ISA générée, runtime D existant ; bloque COMP-004.
+- **Tests :** golden RV64, désassemblage, QEMU `fdiv.d`, motifs binary64 et
+  `fflags`, comparaison indépendante avec interpréteur et référence IEEE.
+- **Acceptation :** `X=I/3` atteint réellement `fdiv.d` dans le payload compilé,
+  avec ligne source et résultat observables.
+- **Cas limites :** division zéro, NaN, ±0, débordement immédiat et expression
+  non compilable doivent produire un diagnostic ou trap défini.
+- **Parallélisable :** oui avec COMP-001 ; non avec changement d’ABI FP.
+- **Contexte minimal :** `BASIC_COMPILER_ROADMAP.md`, tests expression D/QEMU.
+
+### COMP-004 — Compiler contrôle de flot et services cible — 1 à 2 j
+
+- **Jalon / exigences :** C3; COMP-007..010.
+- **But :** compiler `IF/GOTO`, `FOR/NEXT`, `PRINT`, `INPUT`, `END` et produire
+  `COMPILE`/`RUN-COMPILED` avec runtime target-side.
+- **Non-but :** optimisation globale ou compatibilité ELF externe.
+- **Entrées/sources :** ABI ecall guest, BASIC_LANGUAGE, COMP-002/003.
+- **Fichiers/modules :** lowering CFG, linker/runtime, commandes, loader et
+  source map.
+- **Dépendances :** COMP-003, payload loader, services UART/console ; bloque
+  COMP-005.
+- **Tests :** programmes direct, FLOATLOOP, erreur GOTO, INPUT et interruption,
+  exécutés sous QEMU sans sortie codée en dur.
+- **Acceptation :** le payload compilé est chargeable, exécutable et arrêtable
+  comme un programme utilisateur normal.
+- **Cas limites :** boucle infinie, saut absent, pile FOR pleine, entrée invalide
+  et runtime incompatible.
+- **Parallélisable :** partiellement avec COMP-005 sur le format de manifeste.
+- **Contexte minimal :** `GUEST_PAYLOAD_ABI.md`, tests `run-at` et debugger.
+
+### COMP-005 — Étendre au runtime chaînes/tableaux et au debug — 1 à 2 j
+
+- **Jalon / exigences :** C4; COMP-011..014.
+- **But :** compiler les constructions couvertes par D-018 et exposer variables,
+  breakpoints, listing, carte source et DUMP du payload compilé.
+- **Non-but :** Unicode, allocation dynamique hôte, optimisation agressive.
+- **Entrées/sources :** D-018, fixtures chaînes/tableaux, format snapshot.
+- **Fichiers/modules :** runtime target, descripteurs, compiler lowering,
+  source map, debugger et export `.luna`.
+- **Dépendances :** COMP-004, BASIC-STR/ARRAY, FORMAT-001 ; bloque COMP-006.
+- **Tests :** chaînes vides/pleines, `DIM`, index 0/dernière borne, snapshots,
+  breakpoint source et inspection mémoire.
+- **Acceptation :** un programme compilé avec chaînes/tableaux s’exécute et ses
+  objets sont inspectables sans pointeur hôte.
+- **Cas limites :** pool plein, dimension invalide, index hors borne, artefact
+  incompatible et restauration.
+- **Parallélisable :** oui avec documentation ; non avec changement D-018.
+- **Contexte minimal :** D-018, `BASIC_COMPILER_ROADMAP.md`, tests array/string.
+
+### COMP-006 — Mesurer puis ajouter les optimisations sûres — 1 à 2 j
+
+- **Jalon / exigences :** C5; COMP-015..018.
+- **But :** mesurer le gain et ajouter uniquement les optimisations prouvées
+  sûres : constantes, temporaires et sauts triviaux.
+- **Non-but :** réimplémenter le compilateur historique ou sacrifier le debug.
+- **Entrées/sources :** corpus MiniBASIC, COMP-004/005, politique FP.
+- **Fichiers/modules :** passes d’optimisation, benchmarks, manifests et tests.
+- **Dépendances :** COMP-005 ; bloque la publication du profil compiler optimisé.
+- **Tests :** différentiel interprété/compilé, `fflags`, nombre d’instructions,
+  breakpoints, répétabilité multi-plateforme et corpus de non-régression.
+- **Acceptation :** chaque option est déterministe, documentée et désactivable ;
+  aucune différence de résultat ou de flag sur le corpus couvert.
+- **Cas limites :** effets d’E/S, NaN, exceptions, variables observées et trace.
+- **Parallélisable :** oui avec QUAL-001 après gel des IR.
+- **Contexte minimal :** D-019, plan de tests compiler et corpus E2E.
