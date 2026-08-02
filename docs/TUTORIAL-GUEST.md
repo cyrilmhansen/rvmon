@@ -69,11 +69,14 @@ trap: breakpoint pc=0x000000008000....
 rvmonitor>
 ```
 
-Au démarrage, le moniteur active le FIFO RX/TX du NS16550 virtuel avec le
-seuil minimal d'un octet. Le pilote reste volontairement simple et lit les
-octets par polling, mais les caractères reçus peuvent désormais être
-tamponnés par le périphérique pendant que le moniteur traite une commande.
-Le moniteur les regroupe ensuite dans un tampon logiciel de 64 octets, utilisé
+Au démarrage, le moniteur configure le NS16550 virtuel en 8N1, active ses FIFO
+RX/TX et son interruption de réception. Le PLIC QEMU achemine l'IRQ UART 10
+vers le contexte M-mode du hart unique ; le handler vide le FIFO dans un
+tampon logiciel de 4096 octets. Le polling reste un filet de sécurité aux
+frontières des appels de service et dans la boucle de commandes M-mode. Les
+caractères reçus sont ainsi tamponnés pendant que la cible ou le moniteur
+traite une commande, sans partager le contexte de trap avec du code M-mode.
+Le tampon logiciel est utilisé
 par la console et par les payloads binaires. Les snapshots peuvent employer
 `snapshot patchrle <region> <offset> <taille-brute> <taille-compressee>` ; le
 format est une suite de paires `(longueur, octet)`, avec longueurs sur un octet.
@@ -244,6 +247,15 @@ depuis R2, sans table d’opcodes spécifique au guest.
 Pour plusieurs instructions, `assemble-program` ouvre un mode source borné.
 Chaque ligne est validée avant toute écriture ; `end` termine la saisie :
 
+Le dialecte source utilise `;` comme préfixe de commentaire. Le caractère et
+tout ce qui le suit sont ignorés, ce qui permet de commenter une instruction,
+un label ou une ligne entière :
+
+```text
+source> ; commentaire pédagogique ignoré par l’assembleur guest
+source> addi x1,x0,1 ; premier résultat observable
+```
+
 ```text
 rvmonitor> assemble-program 0x80010a30
 source mode: enter integer/control, lui/auipc, ld/sd/fld/fsd, f arithmetic or fmv lines, finish with end
@@ -286,13 +298,20 @@ source> end
 error [GUEST-ASM-008] source line 2: supports integer/control, ld/sd/fld/fsd, f arithmetic or fmv syntax
 ```
 
-Le parseur invité accepte `addi`, `lui`, `auipc`, `beq`, `bne`, `jal`, `jalr`, `ld`, `sd`,
+Le parseur invité accepte `addi`, `lui`, `auipc`, `beq`, `bne`, `jal`, `jalr`,
+`lb/lh/lw/ld`, `lbu/lhu/lwu`, `sb/sh/sw/sd`, les opérations entières
+`add/sub/sll/slt/sltu/xor/srl/sra/or/and` et les immédiats
+`andi/ori/xori/slti/sltiu/slli/srli/srai`, ainsi que `ld`, `sd`,
 `fadd.s` et `fadd.d`. Les branches et `jal` prennent une cible relative numérique ou un
 label, éventuellement suivi de `+offset` ou `-offset`; `jalr` utilise la forme
 `jalr rd,imm(rs1)`. Les instructions flottantes utilisent
 `fadd.[s|d] fd,fs1,fs2` et acceptent éventuellement un mode d’arrondi numérique
 `0..7` en quatrième opérande.
-Le tampon accepte au maximum 16 lignes de 96 caractères et huit labels. Les
+Le document source persistant accepte 4096 lignes de 128 caractères ; la
+commande `assemble-program` accepte 8192 lignes, avec 64 labels. Cette
+capacité permet désormais d’assembler le payload MiniBASIC complet dans le
+guest, sans augmenter la capacité du document édité ni consommer la pile M-mode.
+Les
 labels ASCII (`a-z`, chiffres, `_`, `.` et `$`) occupent l’adresse courante
 sans produire d’instruction. L’adresse de l’exemple doit correspondre à une
 zone RAM libre, qui ne recouvre ni le code, ni la pile, ni les données du
@@ -399,8 +418,10 @@ contrat détaillé et ses limites, voir [GUEST_PAYLOAD_ABI.md](GUEST_PAYLOAD_ABI
 
 ### Consulter et corriger le source
 
-Après un `assemble-program` réussi, le guest conserve jusqu’à 16 lignes du
-dernier programme et son adresse de chargement. `source` affiche le document,
+Après un `assemble-program` réussi, le guest conserve jusqu’à 4096 lignes de
+128 caractères du dernier programme et son adresse de chargement. Un payload
+plus grand peut être assemblé et exécuté, mais son source n’est pas retenu
+dans le buffer éditable. `source` affiche le document,
 `source <n>` une ligne, et `source replace <n> "<texte>"` modifie uniquement le
 buffer. La mémoire cible n’est réécrite qu’après `assemble-source`.
 
@@ -507,6 +528,12 @@ guest project imported from session.rvproj
 
 La copie complète des régions fixes reste lente sous QEMU/16550 ; le contrat
 d’import est donc validé par tests de format et de transport borné.
+
+Note de débit : le pilote configure nominalement 9600 bauds (diviseur UART
+12), mais le chardev TCP de QEMU n’attend pas le temps de transmission de
+chaque bit. Les exports TCP observés sont donc beaucoup plus rapides qu’une
+liaison série physique ; ils restent limités par les commandes, les
+aller-retours et l’encodage hexadécimal des dumps.
 
 Pour importer une image vérifiée dans le slot guest :
 
@@ -648,8 +675,8 @@ parcours normal.
 
 Le chargement automatique actuel est spécialisé au payload MiniBASIC et ne
 constitue pas encore un chargeur général de fichiers utilisateur. Le dialecte
-assembleur guest ne gère encore ni appels symboliques complets, ni relocations,
-ni un programme source dépassant les 256 lignes du tampon. La conversion
+assembleur guest ne gère encore ni appels symboliques complets, ni relocations.
+La conversion
 automatique du désassemblage Rust en
 source pédagogique ne produirait donc pas encore un programme maintenable.
 
@@ -766,8 +793,10 @@ READY>
 ```
 
 Une boucle `GOTO` peut être interrompue par le caractère Ctrl-C envoyé sur la
-console. Le polling est effectué par le programme cible via `ecall` 5 ; le
-moniteur ne tue donc pas la machine QEMU.
+console. L'IRQ UART capture le caractère pendant l'exécution U-mode ; le
+programme cible le consomme ensuite via `ecall` 5 et le moniteur ne tue donc
+pas la machine QEMU. Une cible qui ne demande jamais de service console ne
+peut pas encore être interrompue coopérativement par Ctrl-C.
 
 ### 4.5 Inspecter le calcul flottant dans le débogueur
 
@@ -891,67 +920,76 @@ BASIC historique.
 ### 4.7 Jeu final : HAMMURABI-RV
 
 Voici la version finale du parcours. Elle reste un programme MiniBASIC V1
-réellement saisissable : une seule lettre par variable, pas de `:` ni de
-fonctions cachées, et uniquement les instructions documentées plus haut. Elle
+réellement saisissable : les noms de variables longs sont volontairement
+utilisés pour rendre l’état visible dans le moniteur, sans `:` ni fonctions
+cachées, et uniquement avec les instructions documentées plus haut. Elle
 reprend les éléments structurants de *Hammurabi* — rapport annuel, population,
 terres, grain, décision du joueur, famine et bilan — sans recopier le listing
 de référence. La page de référence décrit cette adaptation de *The Sumerian
 Game* et explique ses choix de variables et de décisions
 ([Hammurabi.BAS](https://basic-code.bearblog.dev/hammurabi/)).
 
-Les variables sont volontairement compactes : `Y` année, `P` population, `A`
-acres, `G` grain, `Q` quantité saisie, `H` récolte, `C` personnes nourries,
-`D` morts de faim et `T` total des morts. `LIST`, `TRACE ON`, `DUMP` et les
-registres permettent de suivre ces états sans quitter le programme cible.
+Les variables sont volontairement descriptives : `REGNALYEAR` année,
+`CITIZENS` population, `HOLDINGS` acres, `CORNSTOCK` grain, `QUANTITY`
+quantité saisie, `HARVESTED` récolte, `CITIZENFED` personnes nourries,
+`MORTALITY` morts de faim et `OVERALLDEATH` total des morts. Leurs longueurs
+varient de 8 à 10 caractères : `LIST`, `TRACE ON`, `DUMP` et les registres
+permettent de suivre ces états sans quitter le programme cible.
+
+Dans cette version assembleur, un identifiant long ne doit pas commencer par
+le préfixe d’une instruction ou d’un raccourci historique dont le dispatcher
+est prioritaire (`G` pour `GOTO`, `E` pour `END`, `F` pour `FOR`, `X`/`Y` pour
+les variables courtes, etc.). `CORNSTOCK` et `REGNALYEAR` sont choisis pour
+rester descriptifs tout en passant par l’affectation générique.
 
 ```basic
 10 PRINT "HAMMURABI-RV"
-20 P=95
-30 A=1000
-40 G=2800
-50 Y=0
-60 T=0
-70 D=0
-80 Y=Y+1
-90 PRINT "YEAR",Y,"PEOPLE",P,"ACRES",A,"GRAIN",G
+20 CITIZENS=95
+30 HOLDINGS=1000
+40 CORNSTOCK=2800
+50 REGNALYEAR=0
+60 OVERALLDEATH=0
+70 MORTALITY=0
+80 REGNALYEAR=REGNALYEAR+1
+90 PRINT "YEAR",REGNALYEAR,"PEOPLE",CITIZENS,"ACRES",HOLDINGS,"GRAIN",CORNSTOCK
 100 PRINT "LAND PRICE 10 GRAIN PER ACRE"
 110 PRINT "ACRES TO BUY (NEGATIVE TO SELL)"
-120 INPUT Q
-130 IF Q<0 THEN 180
-140 IF Q*10>G THEN 110
-150 A=A+Q
-160 G=G-Q*10
+120 INPUT QUANTITY
+130 IF QUANTITY<0 THEN 180
+140 IF QUANTITY*10>CORNSTOCK THEN 110
+150 HOLDINGS=HOLDINGS+QUANTITY
+160 CORNSTOCK=CORNSTOCK-QUANTITY*10
 170 GOTO 220
-180 Q=0-Q
-190 IF Q>A THEN 110
-200 A=A-Q
-210 G=G+Q*10
+180 QUANTITY=0-QUANTITY
+190 IF QUANTITY>HOLDINGS THEN 110
+200 HOLDINGS=HOLDINGS-QUANTITY
+210 CORNSTOCK=CORNSTOCK+QUANTITY*10
 220 PRINT "ACRES TO PLANT"
-230 INPUT Q
-240 IF Q<0 THEN 220
-250 IF Q>A THEN 220
-260 IF Q*2>G THEN 220
-270 G=G-Q*2
-280 H=Q*3
-290 G=G+H
+230 INPUT QUANTITY
+240 IF QUANTITY<0 THEN 220
+250 IF QUANTITY>HOLDINGS THEN 220
+260 IF QUANTITY*2>CORNSTOCK THEN 220
+270 CORNSTOCK=CORNSTOCK-QUANTITY*2
+280 HARVESTED=QUANTITY*3
+290 CORNSTOCK=CORNSTOCK+HARVESTED
 300 PRINT "BUSHELS TO FEED"
-310 D=0
-320 INPUT Q
-330 IF Q<0 THEN 300
-340 IF Q>G THEN 300
-350 G=G-Q
-360 C=Q/2
-370 IF C>=P THEN 400
-380 D=P-C
-390 P=C
-400 T=T+D
-410 PRINT "HARVEST",H,"STARVED",D
-420 IF D*2>P THEN 500
-430 IF Y<5 THEN 80
+310 MORTALITY=0
+320 INPUT QUANTITY
+330 IF QUANTITY<0 THEN 300
+340 IF QUANTITY>CORNSTOCK THEN 300
+350 CORNSTOCK=CORNSTOCK-QUANTITY
+360 CITIZENFED=QUANTITY/2
+370 IF CITIZENFED>=CITIZENS THEN 400
+380 MORTALITY=CITIZENS-CITIZENFED
+390 CITIZENS=CITIZENFED
+400 OVERALLDEATH=OVERALLDEATH+MORTALITY
+410 PRINT "HARVEST",HARVESTED,"STARVED",MORTALITY
+420 IF MORTALITY*2>CITIZENS THEN 500
+430 IF REGNALYEAR<5 THEN 80
 440 GOTO 600
 500 PRINT "REVOLT"
 510 GOTO 600
-600 PRINT "FINAL STARVED",T,"GRAIN",G
+600 PRINT "FINAL STARVED",OVERALLDEATH,"GRAIN",CORNSTOCK
 610 END
 ```
 
@@ -959,8 +997,8 @@ Pour une partie prudente, saisir `0`, `20`, puis `190` à chaque année : ne
 pas acheter, planter 20 acres, distribuer 190 mesures. Pour expérimenter,
 acheter ou vendre des terres, planter davantage, puis observer l’effet d’une
 distribution insuffisante. Une entrée négative ou trop grande ramène à la
-question correspondante ; une année où `C<P` conserve la famine dans `D` et
-alimente le bilan `T`.
+question correspondante ; une année où `CITIZENFED<CITIZENS` conserve la famine
+dans `MORTALITY` et alimente le bilan `OVERALLDEATH`.
 
 Une séance pédagogique recommandée est :
 
@@ -974,9 +1012,9 @@ READY> RUN
 ```
 
 Pendant l’exécution, placer un breakpoint sur `minibasic_divide` pour observer
-`Q/2`. Après le retour à l’invite, `DUMP` montre pour chaque lettre le motif
-binary64 et la valeur fixe ; le moniteur permet ainsi de comparer trois niveaux
-au même moment : la ligne BASIC (`360 C=Q/2`), l’instruction `fdiv.d` et les
+`QUANTITY/2`. Après le retour à l’invite, `DUMP` montre chaque variable longue,
+son motif binary64 et sa valeur fixe ; le moniteur permet ainsi de comparer
+trois niveaux au même moment : la ligne BASIC (`360 CITIZENFED=QUANTITY/2`), l’instruction `fdiv.d` et les
 bits du registre flottant. Après une famine volontaire, utiliser `snapshot
 save`, modifier une décision, puis `snapshot restore` pour rejouer la partie.
 

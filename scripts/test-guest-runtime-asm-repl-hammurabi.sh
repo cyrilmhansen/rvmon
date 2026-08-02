@@ -24,64 +24,79 @@ qemu-system-riscv64 -M virt -m 64M -bios none -kernel "$image" \
     -nographic <"$input_fifo" >"$output_file" 2>&1 &
 qemu_pid=$!
 exec 3>"$input_fifo"
+
+wait_for_text() {
+    local text="$1"
+    for _ in {1..2000}; do
+        if grep -aFq -- "$text" "$output_file"; then return 0; fi
+        sleep 0.01
+    done
+    cat "$output_file" >&2
+    printf 'timeout waiting for guest text: %s\n' "$text" >&2
+    return 1
+}
+
 sleep 0.1
 awk '/^symbols$/{print; found=1; next} found && /^run-at /{print; exit} !found{print}' \
     examples/minibasic-asm/payload-repl.rv |
     while IFS= read -r line; do printf '%s\n' "$line" >&3; sleep 0.002; done
-sleep 0.3
+wait_for_text 'READY> '
 printf '%s\n' \
   '10 PRINT "HAMMURABI-RV"' \
-  '20 P=95' \
-  '30 A=1000' \
-  '40 G=2800' \
-  '50 Y=0' \
-  '60 T=0' \
-  '70 D=0' \
-  '80 Y=Y+1' \
-  '90 PRINT "YEAR",Y,"PEOPLE",P,"ACRES",A,"GRAIN",G' \
+  '20 CITIZENS=95' \
+  '30 HOLDINGS=1000' \
+  '40 CORNSTOCK=2800' \
+  '50 REGNALYEAR=0' \
+  '60 OVERALLDEATH=0' \
+  '70 MORTALITY=0' \
+  '80 REGNALYEAR=REGNALYEAR+1' \
+  '90 PRINT "YEAR",REGNALYEAR,"PEOPLE",CITIZENS,"ACRES",HOLDINGS,"GRAIN",CORNSTOCK' \
   '100 PRINT "LAND PRICE 10 GRAIN PER ACRE"' \
   '110 PRINT "ACRES TO BUY (NEGATIVE TO SELL)"' \
-  '120 INPUT Q' \
-  '130 IF Q<0 THEN 180' \
-  '140 IF Q*10>G THEN 110' \
-  '150 A=A+Q' \
-  '160 G=G-Q*10' \
+  '120 INPUT QUANTITY' \
+  '130 IF QUANTITY<0 THEN 180' \
+  '140 IF QUANTITY*10>CORNSTOCK THEN 110' \
+  '150 HOLDINGS=HOLDINGS+QUANTITY' \
+  '160 CORNSTOCK=CORNSTOCK-QUANTITY*10' \
   '170 GOTO 220' \
-  '180 Q=0-Q' \
-  '190 IF Q>A THEN 110' \
-  '200 A=A-Q' \
-  '210 G=G+Q*10' \
+  '180 QUANTITY=0-QUANTITY' \
+  '190 IF QUANTITY>HOLDINGS THEN 110' \
+  '200 HOLDINGS=HOLDINGS-QUANTITY' \
+  '210 CORNSTOCK=CORNSTOCK+QUANTITY*10' \
   '220 PRINT "ACRES TO PLANT"' \
-  '230 INPUT Q' \
-  '240 IF Q<0 THEN 220' \
-  '250 IF Q>A THEN 220' \
-  '260 IF Q*2>G THEN 220' \
-  '270 G=G-Q*2' \
-  '280 H=Q*3' \
-  '290 G=G+H' \
+  '230 INPUT QUANTITY' \
+  '240 IF QUANTITY<0 THEN 220' \
+  '250 IF QUANTITY>HOLDINGS THEN 220' \
+  '260 IF QUANTITY*2>CORNSTOCK THEN 220' \
+  '270 CORNSTOCK=CORNSTOCK-QUANTITY*2' \
+  '280 HARVESTED=QUANTITY*3' \
+  '290 CORNSTOCK=CORNSTOCK+HARVESTED' \
   '300 PRINT "BUSHELS TO FEED"' \
-  '310 D=0' \
-  '320 INPUT Q' \
-  '330 IF Q<0 THEN 300' \
-  '340 IF Q>G THEN 300' \
-  '350 G=G-Q' \
-  '360 C=Q/2' \
-  '370 IF C>=P THEN 400' \
-  '380 D=P-C' \
-  '390 P=C' \
-  '400 T=T+D' \
-  '410 PRINT "HARVEST",H,"STARVED",D' \
-  '420 IF D*2>P THEN 500' \
-  '430 IF Y<5 THEN 80' \
+  '310 MORTALITY=0' \
+  '320 INPUT QUANTITY' \
+  '330 IF QUANTITY<0 THEN 300' \
+  '340 IF QUANTITY>CORNSTOCK THEN 300' \
+  '350 CORNSTOCK=CORNSTOCK-QUANTITY' \
+  '360 CITIZENFED=QUANTITY/2' \
+  '370 IF CITIZENFED>=CITIZENS THEN 400' \
+  '380 MORTALITY=CITIZENS-CITIZENFED' \
+  '390 CITIZENS=CITIZENFED' \
+  '400 OVERALLDEATH=OVERALLDEATH+MORTALITY' \
+  '410 PRINT "HARVEST",HARVESTED,"STARVED",MORTALITY' \
+  '420 IF MORTALITY*2>CITIZENS THEN 500' \
+  '430 IF REGNALYEAR<5 THEN 80' \
   '440 GOTO 600' \
   '500 PRINT "REVOLT"' \
   '510 GOTO 600' \
-  '600 PRINT "FINAL STARVED",T,"GRAIN",G' \
+  '600 PRINT "FINAL STARVED",OVERALLDEATH,"GRAIN",CORNSTOCK' \
   '610 END' >&3
 sleep 0.4
-printf 'RUN\n0\n20\n190\n0\n20\n190\n0\n20\n190\n0\n20\n190\n0\n20\n190\n' >&3
-sleep 1.5
-printf 'q\n' >&3
+printf 'TRACE ON\nRUN\n' >&3
+for value in 0 20 190 0 20 190 0 20 190 0 20 190 0 20 190; do
+    printf '%s\n' "$value" >&3
+    sleep 0.15
+done
+sleep 1
 exec 3>&-
 sleep 0.3
 kill "$qemu_pid" 2>/dev/null || true
