@@ -5064,9 +5064,14 @@ beq x5,x6,string_assign_left
 addi x6,x0,82
 beq x5,x6,string_assign_right
 addi x6,x0,77
-bne x5,x6,string_long_error
+bne x5,x6,string_assign_concat
 sd x1,2000(x8)
 jal x1,string_mid_assign
+ld x1,2000(x8)
+jalr x0,0(x1)
+string_assign_concat:
+sd x1,2000(x8)
+jal x1,string_concat_assign
 ld x1,2000(x8)
 jalr x0,0(x1)
 string_assign_left:
@@ -5116,9 +5121,14 @@ beq x5,x6,string_array_assign_left
 addi x6,x0,82
 beq x5,x6,string_array_assign_right
 addi x6,x0,77
-bne x5,x6,string_long_error
+bne x5,x6,string_array_assign_concat
 sd x1,2000(x8)
 jal x1,string_mid_assign
+ld x1,2000(x8)
+jalr x0,0(x1)
+string_array_assign_concat:
+sd x1,2000(x8)
+jal x1,string_concat_assign
 ld x1,2000(x8)
 jalr x0,0(x1)
 string_array_assign_left:
@@ -6147,6 +6157,64 @@ resolve_string_literal_done:
 addi x21,x21,1
 addi x11,x9,0
 jalr x0,0(x1)
+string_concat_assign:
+sd x1,2016(x8)
+addi x9,x0,0
+string_concat_term:
+sd x9,2032(x8)
+jal x1,resolve_string_source
+ld x9,2032(x8)
+add x6,x9,x11
+sltiu x7,x6,121
+beq x7,x0,string_concat_error
+addi x10,x9,0
+lui x27,0x82060
+slli x27,x27,32
+srli x27,x27,32
+addi x27,x27,512
+add x27,x27,x9
+addi x10,x0,0
+string_concat_copy:
+sltu x6,x10,x11
+beq x6,x0,string_concat_term_done
+lbu x5,0(x7)
+sb x5,0(x27)
+addi x27,x27,1
+addi x7,x7,1
+addi x10,x10,1
+jal x0,string_concat_copy
+string_concat_term_done:
+add x9,x9,x11
+lbu x5,0(x21)
+addi x6,x0,43
+beq x5,x6,string_concat_next
+beq x5,x0,string_concat_store
+jal x0,string_concat_error
+string_concat_next:
+addi x21,x21,1
+jal x0,string_concat_term
+string_concat_store:
+lui x27,0x82060
+slli x27,x27,32
+srli x27,x27,32
+addi x27,x27,512
+ld x6,1976(x8)
+sd x9,-8(x6)
+addi x10,x0,0
+string_concat_store_loop:
+sltu x7,x10,x9
+beq x7,x0,string_concat_done
+lbu x5,0(x27)
+sb x5,0(x6)
+addi x27,x27,1
+addi x6,x6,1
+addi x10,x10,1
+jal x0,string_concat_store_loop
+string_concat_done:
+ld x1,2016(x8)
+jalr x0,0(x1)
+string_concat_error:
+jal x0,error_line
 string_left_assign:
 sd x1,2016(x8)
 addi x21,x21,6
