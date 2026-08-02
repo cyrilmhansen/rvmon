@@ -423,6 +423,13 @@ ligne stockée. La séance `X*Y` vérifie le chemin `fmul.d` :
 bash scripts/test-guest-runtime-asm-repl-mul.sh
 ```
 
+Les facteurs peuvent maintenant être des chiffres simples. `PRINT 2+3` est
+évalué dans la cible par conversion `fcvt.d.l`, puis `fadd.d` :
+
+```text
+bash scripts/test-guest-runtime-asm-repl-literal.sh
+```
+
 La variante [`minibasic-runtime-command-run-variable-sub.rv`](../examples/minibasic-runtime-command-run-variable-sub.rv)
 applique le même contrat à `PRINT X-3` et vérifie `2.0` après `fsub.d` :
 

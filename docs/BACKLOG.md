@@ -2864,6 +2864,33 @@ release. Elles n’ajoutent aucune extension ISA.
 - **Paquet de contexte :** BASIC-LOAD-005O, `payload-repl.rv`, tests `X+Y` et
   fixtures opérateurs précédentes.
 
+#### BASIC-LOAD-005Q — Lexer borné des facteurs target-side — TERMINÉE
+
+- **Priorité :** P0, première lecture d’opérandes depuis le corps BASIC.
+- **But :** décoder `X`, `Y` et les chiffres `0`–`9` dans
+  `PRINT <atome><op><atome>`, convertir les chiffres en binary64 et alimenter
+  le dispatch des quatre opérateurs D.
+- **Non-but :** espaces, signes, littéraux décimaux, parenthèses, précédence,
+  noms longs, chaînes et diagnostics structurés.
+- **Entrées :** `BASIC_LANGUAGE.md`, R1 F/D, ABI `RVMPAY01` et layout du record
+  target-side.
+- **Fichiers/modules :** `examples/minibasic-asm/payload-repl.rv`,
+  `scripts/test-guest-runtime-asm-repl-literal.sh` et documentation BASIC.
+- **Dépendances :** BASIC-LOAD-005P, `fcvt.d.l`, table binary64 et source
+  assembleur du moniteur.
+- **Tests :** `PRINT 2+3` sous QEMU, `f1=2.0`, `f2=3.0`, `f3=5.0`, breakpoint
+  et dump exact.
+- **Critères de sortie :** les deux atomes sont lus dans la RAM cible et le
+  calcul est exécuté par le payload, sans valeur calculée par l’hôte.
+- **Cas limites :** caractère invalide, chiffre hors plage, opérande absent,
+  espaces et littéraux fractionnaires restent à traiter.
+- **Taille :** 3 points / 1,5 journée-agent, incertitude moyenne.
+- **Compétences/outils :** assembleur RV64, IEEE binary64, QEMU et débogueur.
+- **Parallélisable :** oui avec le stockage des diagnostics ; non avec le
+  déplacement du layout du corps stocké.
+- **Paquet de contexte :** BASIC-LOAD-005O/P, `payload-repl.rv`, tests `X+Y`,
+  `X*Y` et règles d’expression de `BASIC_LANGUAGE.md`.
+
 ### BASIC-LOAD-004 — Porter le magasin de lignes et le contrôle de flot
 
 - **Priorité :** P0.

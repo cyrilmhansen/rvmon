@@ -130,6 +130,9 @@
   `LIST`, `RUN`, deux variables dans `f1/f2`, `fadd.d` et résultat en RAM.
 - `scripts/test-guest-runtime-asm-repl-mul.sh` vérifie le dispatch de l’opérateur
   stocké vers `fmul.d`, avec `X=5.0`, `Y=3.0` et `15.0` dans `f3`/RAM.
+- `scripts/test-guest-runtime-asm-repl-literal.sh` vérifie le décodage de deux
+  chiffres target-side (`2+3`), leurs conversions `fcvt.d.l`, `fadd.d` et le
+  motif exact `5.0` dans `f3`/RAM.
 - Le breakpoint `minibasic_divide` et `disasm` permettent d’observer la
   correspondance adresse → `fdiv.d`; les registres f et `fcsr` sont affichés
   avant/après le pas.

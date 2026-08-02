@@ -88,6 +88,18 @@ bash scripts/test-guest-runtime-asm-repl.sh
 bash scripts/test-guest-runtime-asm-repl-mul.sh
 ```
 
+Le payload décode maintenant chaque opérande de la forme bornée
+`PRINT <atome><op><atome>` : `X` et `Y` sont lus dans la table binary64, tandis
+que `0` à `9` sont convertis par `fcvt.d.l`. Le cas littéral est vérifié par :
+
+```text
+bash scripts/test-guest-runtime-asm-repl-literal.sh
+```
+
+La prochaine généralisation devra remplacer les positions fixes par un lexer
+qui avance un pointeur dans le corps, puis ajouter espaces, parenthèses,
+précédence et littéraux décimaux.
+
 ## Références historiques
 
 Le découpage suit le principe historique de tables de syntaxe, pile
