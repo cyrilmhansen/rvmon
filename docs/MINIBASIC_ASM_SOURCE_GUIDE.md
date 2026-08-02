@@ -117,6 +117,14 @@ bash scripts/test-guest-runtime-asm-repl-precedence.sh
 Les diagnostics de syntaxe, les comparaisons et les fonctions BASIC restent
 des étapes ultérieures.
 
+Le résultat n’est plus seulement laissé dans `f3` : le payload le convertit
+dans la cible en forme fixe à six décimales, construit un buffer ASCII puis le
+transmet par `ecall 4`. Le breakpoint reste placé après cette émission pour
+permettre l’inspection simultanée de la sortie, des registres et de la RAM.
+La conversion est actuellement bornée aux valeurs finies représentables par
+la conversion entière utilisée par cette tranche ; NaN, infinis et grandes
+valeurs nécessitent encore une voie dédiée.
+
 Le scanner reconnaît maintenant les signes `+`/`-` et une parenthèse autour
 d’un atome, par exemple `PRINT (-2.5) + (+3.5)`. La négation est exécutée par
 le payload au moyen de `fmv.x.d`, inversion du bit 63 et `fmv.d.x`, car le

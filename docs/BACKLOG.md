@@ -3090,6 +3090,32 @@ release. Elles n’ajoutent aucune extension ISA.
 - **Paquet de contexte :** BASIC-LOAD-005X, payload REPL, tests opérateurs et
   `BASIC_LANGUAGE.md`.
 
+#### BASIC-LOAD-005Z — Affichage décimal target-side borné — TERMINÉE
+
+- **Priorité :** P0, rendre le payload observable comme un programme BASIC.
+- **But :** convertir le résultat binary64 dans la cible en forme fixe à six
+  décimales, construire un buffer ASCII et l’émettre par `ecall 4` avant le
+  breakpoint d’inspection.
+- **Non-but :** shortest-round-trip, NaN/infini complet, exponentielle,
+  localisation ou formatage des chaînes.
+- **Entrées :** `BASIC_LANGUAGE.md`, `GUEST_PAYLOAD_ABI.md`, R1 D et contrat
+  `ecall 4`.
+- **Fichiers/modules :** `payload-repl.rv`, tests QEMU d’expressions et docs.
+- **Dépendances :** BASIC-LOAD-005Y, `fcvt.l.d`, `fcvt.d.l`, opérations D et
+  service console target-side.
+- **Tests :** sorties `8.000000`, `6.000000`, `1.000000` et `14.000000`, plus
+  motifs `f3`/RAM et breakpoint conservés.
+- **Critères de sortie :** le texte est produit par le buffer et l’ecall du
+  payload ; aucune transcription ou conversion hôte ne participe à l’exécution.
+- **Cas limites :** zéro négatif, NaN, infinis, overflow de conversion et
+  valeur fractionnaire à sixième décimale restent à couvrir.
+- **Taille :** 5 points / 2,5 journées-agent, incertitude moyenne.
+- **Compétences/outils :** assembleur RV64, conversions FP, ABI console et QEMU.
+- **Parallélisable :** oui avec les tests IEEE ; non avec un changement du
+  buffer d’expression ou du protocole d’ecall.
+- **Paquet de contexte :** BASIC-LOAD-005Y, payload REPL, `GUEST_PAYLOAD_ABI.md`
+  et tests expression QEMU.
+
 ### BASIC-LOAD-004 — Porter le magasin de lignes et le contrôle de flot
 
 - **Priorité :** P0.

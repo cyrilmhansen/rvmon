@@ -152,6 +152,9 @@
 - `scripts/test-guest-runtime-asm-repl-precedence.sh` vérifie les deux niveaux
   target-side avec `PRINT 2+3*4`, `fmul.d` avant `fadd.d`, `f1=2.0`, `f2=4.0`
   et `f3=14.0` dans la cible.
+- Les tests intégrés vérifient également l’émission target-side des résultats
+  fixes (`8.000000`, `6.000000`, `1.000000`, `14.000000`) par le service
+  `ecall 4`, indépendamment de l’inspection des motifs binaires.
 - Le breakpoint `minibasic_divide` et `disasm` permettent d’observer la
   correspondance adresse → `fdiv.d`; les registres f et `fcsr` sont affichés
   avant/après le pas.

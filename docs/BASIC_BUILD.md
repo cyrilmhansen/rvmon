@@ -465,6 +465,12 @@ bash scripts/test-guest-runtime-asm-repl-precedence.sh
 Les parenthèses imbriquées, comparaisons et diagnostics structurés restent
 hors de cette tranche.
 
+Le payload assembleur émet maintenant aussi le résultat dans la console cible,
+avec six décimales fixes, avant le breakpoint de débogage. Les cas `8.0`,
+`6.0`, `1.0` et `14.0` sont vérifiés par les tests QEMU correspondants. Cette
+conversion est une première forme pédagogique et ne couvre pas encore les
+valeurs IEEE particulières ni l’affichage shortest-round-trip.
+
 Le mode direct `PRINT 2+3` est également pris en charge par le payload
 assembleur et passe par le même évaluateur :
 
