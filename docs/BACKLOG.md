@@ -2991,6 +2991,34 @@ release. Elles n’ajoutent aucune extension ISA.
 - **Paquet de contexte :** BASIC-LOAD-005Q/S/T, payload REPL, test assignment
   et règles d’affectation de `BASIC_LANGUAGE.md`.
 
+#### BASIC-LOAD-005V — Scanner target-side multi-chiffres — TERMINÉE
+
+- **Priorité :** P0, généralisation minimale de la lecture des atomes.
+- **But :** parcourir les opérandes avec un pointeur cible, accumuler plusieurs
+  chiffres avant/après le point et conserver l’opérateur pendant l’appel du
+  parseur du second atome.
+- **Non-but :** espaces, signes unaires, parenthèses, précédence générale,
+  exposants, chaînes et diagnostics complets.
+- **Entrées :** `BASIC_LANGUAGE.md`, R1 D, layout du record et ABI `RVMPAY01`.
+- **Fichiers/modules :** `examples/minibasic-asm/payload-repl.rv`,
+  `scripts/test-guest-runtime-asm-repl-multidigit.sh` et documentation BASIC.
+- **Dépendances :** BASIC-LOAD-005R/U, capacité source 512 lignes et routines
+  `fcvt.d.l`/`fdiv.d` target-side.
+- **Tests :** QEMU réel avec `PRINT 12.5+3.5`, breakpoint, `f1=12.5`,
+  `f2=3.5`, `f3=16.0` et dump binaire exact.
+- **Critères de sortie :** aucune position d’opérande ni aucun résultat n’est
+  calculé par le harnais hôte ; le scanner et les opérations D s’exécutent dans
+  le payload assembleur.
+- **Cas limites :** texte vide, caractères invalides, espaces, signes,
+  parenthèses et débordement des accumulateurs restent explicitement refusés
+  ou à traiter dans la prochaine tranche.
+- **Taille :** 3 points / 1,5 journée-agent, incertitude moyenne.
+- **Compétences/outils :** assembleur RV64, binary64, QEMU et débogueur.
+- **Parallélisable :** oui avec la conception des diagnostics ; non avec un
+  changement du layout de record.
+- **Paquet de contexte :** BASIC-LOAD-005R/U, payload REPL, tests décimaux,
+  `BASIC_LANGUAGE.md` et `GUEST_PAYLOAD_ABI.md`.
+
 ### BASIC-LOAD-004 — Porter le magasin de lignes et le contrôle de flot
 
 - **Priorité :** P0.

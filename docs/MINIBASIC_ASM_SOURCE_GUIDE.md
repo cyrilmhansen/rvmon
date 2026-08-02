@@ -96,9 +96,17 @@ que `0` à `9` sont convertis par `fcvt.d.l`. Le cas littéral est vérifié par
 bash scripts/test-guest-runtime-asm-repl-literal.sh
 ```
 
-La prochaine généralisation devra remplacer les positions fixes par un lexer
-qui avance un pointeur dans le corps, puis ajouter espaces, parenthèses,
-précédence et littéraux décimaux.
+Le payload remplace maintenant les positions fixes par un scanner target-side
+qui avance un pointeur dans le corps. Il accepte plusieurs chiffres avant et
+après le point, tout en restant limité à deux opérandes et un opérateur binaire.
+Le cas `12.5+3.5` est vérifié par :
+
+```text
+bash scripts/test-guest-runtime-asm-repl-multidigit.sh
+```
+
+Les espaces, parenthèses, la précédence générale, les signes unaires et les
+diagnostics de syntaxe restent des étapes ultérieures.
 
 Le record conserve désormais la longueur réelle du corps, ce qui permet une
 forme décimale bornée `d.d`. La séance `PRINT 2.5+3.5` est vérifiée par :
@@ -107,8 +115,8 @@ forme décimale bornée `d.d`. La séance `PRINT 2.5+3.5` est vérifiée par :
 bash scripts/test-guest-runtime-asm-repl-decimal.sh
 ```
 
-Le calcul et la conversion restent entièrement target-side ; la forme est
-encore volontairement limitée à un chiffre avant et après le point.
+Le calcul et la conversion restent entièrement target-side ; les exposants et
+les formes signées ne sont pas encore acceptés.
 
 Le même record est désormais alimenté par le mode direct `PRINT ...`, sans
 numéro de ligne. La preuve minimale est :

@@ -437,6 +437,16 @@ la forme décimale bornée `PRINT 2.5+3.5` :
 bash scripts/test-guest-runtime-asm-repl-decimal.sh
 ```
 
+Le scanner target-side parcourt désormais des nombres à plusieurs chiffres.
+`PRINT 12.5+3.5` produit exactement `16.0` en binary64 et est vérifié par :
+
+```text
+bash scripts/test-guest-runtime-asm-repl-multidigit.sh
+```
+
+Cette tranche ne couvre toujours pas les espaces, parenthèses, signes unaires
+ni la précédence générale.
+
 Le mode direct `PRINT 2+3` est également pris en charge par le payload
 assembleur et passe par le même évaluateur :
 
