@@ -163,6 +163,8 @@
   et l’exécution séquentielle target-side des lignes `10` puis `20`.
 - `scripts/test-guest-runtime-asm-repl-goto.sh` vérifie `10 GOTO 20`, le
   transfert target-side vers le slot 20, `5.000000` et le breakpoint final.
+- `scripts/test-guest-runtime-asm-repl-end.sh` vérifie le dispatch target-side
+  de `10 END`, la sortie `END` et l’arrêt contrôlé au breakpoint.
 - Le breakpoint `minibasic_divide` et `disasm` permettent d’observer la
   correspondance adresse → `fdiv.d`; les registres f et `fcsr` sont affichés
   avant/après le pas.

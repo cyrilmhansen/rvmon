@@ -151,6 +151,13 @@ bash scripts/test-guest-runtime-asm-repl-goto.sh
 La capacité assembleur du moniteur est passée à 768 lignes pour absorber ce
 payload pédagogique.
 
+`END` est également dispatché target-side, émet `END\n` puis arrête la séance
+sur un breakpoint contrôlable. Sa non-régression est :
+
+```text
+bash scripts/test-guest-runtime-asm-repl-end.sh
+```
+
 Le scanner reconnaît maintenant les signes `+`/`-` et une parenthèse autour
 d’un atome, par exemple `PRINT (-2.5) + (+3.5)`. La négation est exécutée par
 le payload au moyen de `fmv.x.d`, inversion du bit 63 et `fmv.d.x`, car le

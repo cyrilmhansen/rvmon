@@ -496,6 +496,13 @@ bash scripts/test-guest-runtime-asm-repl-goto.sh
 
 Les sauts conditionnels restent à implémenter.
 
+La commande `END` est distincte de `NEW` et s’arrête proprement après avoir
+émis `END` depuis le guest :
+
+```text
+bash scripts/test-guest-runtime-asm-repl-end.sh
+```
+
 Le mode direct `PRINT 2+3` est également pris en charge par le payload
 assembleur et passe par le même évaluateur :
 

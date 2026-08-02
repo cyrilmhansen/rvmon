@@ -3205,6 +3205,26 @@ release. Elles n’ajoutent aucune extension ISA.
   l’état `RUN`.
 - **Paquet de contexte :** BASIC-LOAD-005AC, payload REPL et test GOTO.
 
+#### BASIC-LOAD-005AE — Dispatcher END target-side — TERMINÉE
+
+- **Priorité :** P0, arrêt explicite du programme utilisateur.
+- **But :** reconnaître `END`, produire le message cible et arrêter après un
+  point d’observation contrôlé sans le confondre avec `NEW`.
+- **Non-but :** retour prompt autonome, propagation de statut, `IF` ou reprise
+  après breakpoint.
+- **Entrées :** `BASIC_LANGUAGE.md`, ABI console et contrat debugger.
+- **Fichiers/modules :** `payload-repl.rv`, test QEMU END et docs BASIC.
+- **Dépendances :** BASIC-LOAD-005AD et service `ecall 4`.
+- **Tests :** `10 END`, `RUN`, sortie `END` et breakpoint réel.
+- **Critères de sortie :** l’arrêt est provoqué par l’instruction target-side
+  et non par une sortie préenregistrée du test.
+- **Cas limites :** END dans le second slot, END après GOTO, statut de sortie
+  et retour à l’invite restent à intégrer.
+- **Taille :** 2 points / 1 journée-agent, incertitude faible.
+- **Compétences/outils :** assembleur, ABI guest et QEMU.
+- **Parallélisable :** oui avec les comparaisons ; non avec le protocole d’arrêt.
+- **Paquet de contexte :** BASIC-LOAD-005AD, test END et `GUEST_PAYLOAD_ABI.md`.
+
 ### BASIC-LOAD-004 — Porter le magasin de lignes et le contrôle de flot
 
 - **Priorité :** P0.
