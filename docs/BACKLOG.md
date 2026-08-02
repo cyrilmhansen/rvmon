@@ -3019,6 +3019,29 @@ release. Elles n’ajoutent aucune extension ISA.
 - **Paquet de contexte :** BASIC-LOAD-005R/U, payload REPL, tests décimaux,
   `BASIC_LANGUAGE.md` et `GUEST_PAYLOAD_ABI.md`.
 
+#### BASIC-LOAD-005W — Espaces autour des expressions — TERMINÉE
+
+- **Priorité :** P0, compatibilité syntaxique minimale du mode direct et des
+  lignes stockées.
+- **But :** ignorer les espaces ASCII autour des atomes et de l’opérateur sans
+  déplacer le record ni déléguer l’analyse à l’hôte.
+- **Non-but :** parenthèses, signes unaires, précédence, chaînes ou lexer
+  complet.
+- **Entrées :** `BASIC_LANGUAGE.md`, R1 D et layout target-side.
+- **Fichiers/modules :** `payload-repl.rv`, test multi-chiffres et docs BASIC.
+- **Dépendances :** BASIC-LOAD-005V et capacité source 512 lignes.
+- **Tests :** `PRINT 12.5 + 3.5` sous QEMU, breakpoint, registres `f1/f2/f3`
+  et dump exact `16.0`.
+- **Critères de sortie :** les espaces sont consommés par le scanner cible et
+  les anciennes formes sans espaces restent vertes.
+- **Cas limites :** tabulations, espaces dans les chaînes, espaces multiples,
+  parenthèses et signes restent à spécifier/implémenter.
+- **Taille :** 2 points / 1 journée-agent, incertitude faible.
+- **Compétences/outils :** assembleur RV64, QEMU et tests E2E.
+- **Parallélisable :** oui avec les diagnostics ; non avec un changement du
+  layout de record.
+- **Paquet de contexte :** BASIC-LOAD-005V, payload REPL et test multidigit.
+
 ### BASIC-LOAD-004 — Porter le magasin de lignes et le contrôle de flot
 
 - **Priorité :** P0.

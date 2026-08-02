@@ -98,15 +98,16 @@ bash scripts/test-guest-runtime-asm-repl-literal.sh
 
 Le payload remplace maintenant les positions fixes par un scanner target-side
 qui avance un pointeur dans le corps. Il accepte plusieurs chiffres avant et
-après le point, tout en restant limité à deux opérandes et un opérateur binaire.
+après le point ainsi que des espaces autour des atomes et de l’opérateur, tout
+en restant limité à deux opérandes et un opérateur binaire.
 Le cas `12.5+3.5` est vérifié par :
 
 ```text
 bash scripts/test-guest-runtime-asm-repl-multidigit.sh
 ```
 
-Les espaces, parenthèses, la précédence générale, les signes unaires et les
-diagnostics de syntaxe restent des étapes ultérieures.
+Les parenthèses, la précédence générale, les signes unaires et les diagnostics
+de syntaxe restent des étapes ultérieures.
 
 Le record conserve désormais la longueur réelle du corps, ce qui permet une
 forme décimale bornée `d.d`. La séance `PRINT 2.5+3.5` est vérifiée par :

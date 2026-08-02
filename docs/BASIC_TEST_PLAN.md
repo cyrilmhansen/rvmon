@@ -144,8 +144,8 @@
   mutation target-side de la table, puis `PRINT X+3` avec `10.0` dans `f3` et
   la valeur `7.0` conservée en mémoire.
 - `scripts/test-guest-runtime-asm-repl-multidigit.sh` vérifie le scanner
-  target-side multi-chiffres avec `PRINT 12.5+3.5`, les motifs exacts des deux
-  opérandes et le résultat `16.0` dans `f3` et en RAM.
+  target-side multi-chiffres et les espaces avec `PRINT 12.5 + 3.5`, les
+  motifs exacts des deux opérandes et le résultat `16.0` dans `f3` et en RAM.
 - Le breakpoint `minibasic_divide` et `disasm` permettent d’observer la
   correspondance adresse → `fdiv.d`; les registres f et `fcsr` sont affichés
   avant/après le pas.
