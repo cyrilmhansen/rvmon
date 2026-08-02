@@ -2557,6 +2557,31 @@ release. Elles n’ajoutent aucune extension ISA.
 - **Paquet de contexte :** BASIC-LOAD-005B/C, fixtures `run-fadd-d` et
   `run-variable`, `BASIC_LANGUAGE.md` et `GUEST_PAYLOAD_ABI.md`.
 
+#### BASIC-LOAD-005E — RUN expression variable avec fsub.d — TERMINÉE
+
+- **Priorité :** P0, deuxième opérateur binaire target-side.
+- **But :** évaluer `PRINT X-3`, charger `X=5.0`, convertir `3`, exécuter
+  `fsub.d` et exposer le résultat `2.0`.
+- **Non-but :** parser général, parenthèses, multiplication, division,
+  formatage décimal et contrôle de flot.
+- **Entrées :** `BASIC_LANGUAGE.md`, R1 F/D, R2 généré et
+  `GUEST_PAYLOAD_ABI.md`.
+- **Fichiers/modules :** fixture et test QEMU dédiés ; documentation ajoutée
+  dans `BASIC_BUILD.md` et `BASIC_TEST_PLAN.md`.
+- **Dépendances :** BASIC-LOAD-005D, `fsub.d`, `fcvt.d.l`, `fld`/`fsd`.
+- **Tests :** breakpoint QEMU, `f3=0x4000000000000000`, dump exact de `2.0`
+  et statut 0.
+- **Critères de sortie :** le calcul et le résultat sont produits dans le
+  payload RV, sans résultat injecté par l’hôte.
+- **Cas limites :** signe négatif, zéro signé, NaN, infini et sous-normal
+  seront traités par la matrice flottante générale.
+- **Taille :** 2 points / 1 journée-agent, incertitude faible.
+- **Compétences/outils :** assembleur RV64, extension D et QEMU.
+- **Parallélisable :** oui avec la préparation du parser ; non avec un
+  changement de convention des registres flottants.
+- **Paquet de contexte :** BASIC-LOAD-005C/D, fixtures `run-variable` et
+  `run-variable-add`, et règles flottantes de `BASIC_LANGUAGE.md`.
+
 ### BASIC-LOAD-004 — Porter le magasin de lignes et le contrôle de flot
 
 - **Priorité :** P0.

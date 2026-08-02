@@ -401,3 +401,10 @@ bash scripts/test-guest-runtime-command-run-variable-add.sh
 Le parser général n’est pas encore remplacé par cette fixture ; elle fixe
 cependant le contrat d’évaluation target-side d’un opérande variable et d’un
 opérateur binaire.
+
+La variante [`minibasic-runtime-command-run-variable-sub.rv`](../examples/minibasic-runtime-command-run-variable-sub.rv)
+applique le même contrat à `PRINT X-3` et vérifie `2.0` après `fsub.d` :
+
+```text
+bash scripts/test-guest-runtime-command-run-variable-sub.sh
+```
