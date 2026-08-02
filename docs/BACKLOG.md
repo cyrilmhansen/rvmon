@@ -2658,6 +2658,30 @@ release. Elles n’ajoutent aucune extension ISA.
 - **Paquet de contexte :** BASIC-LOAD-005F/G, fixture `run-variable-div`,
   `BASIC_LANGUAGE.md` et règles R1 F/D sur `DZ`.
 
+#### BASIC-LOAD-005I — Diagnostic target-side de division par zéro — TERMINÉE
+
+- **Priorité :** P0, premier chemin d’erreur visible depuis le payload.
+- **But :** après `fdiv.d` avec diviseur nul, émettre `ERR DIV0` par le service
+  `write-buffer` et terminer proprement avec le statut cible 0.
+- **Non-but :** retour à l’invite REPL générale, code d’erreur structuré,
+  lecture directe de `fcsr` par le langage assembleur et autres diagnostics.
+- **Entrées :** `BASIC_LANGUAGE.md`, `GUEST_PAYLOAD_ABI.md`, R1 F/D et ABI
+  `write-buffer`.
+- **Fichiers/modules :** fixture et test QEMU dédiés ; documentation dans
+  `BASIC_BUILD.md` et `BASIC_TEST_PLAN.md`.
+- **Dépendances :** BASIC-LOAD-005H, `fdiv.d` et service target-side 4.
+- **Tests :** sortie réelle `ERR DIV0`, `target exit status=0`, absence de
+  sortie préenregistrée et statut QEMU valide.
+- **Critères de sortie :** le message est stocké et transmis par le payload,
+  pas imprimé par le script hôte.
+- **Cas limites :** `0/0`, signe du zéro, ligne BASIC et reprise après erreur
+  restent à intégrer dans l’exécuteur général.
+- **Taille :** 2 points / 1 journée-agent, incertitude faible.
+- **Compétences/outils :** assembleur RV64, ABI console et QEMU.
+- **Parallélisable :** oui avec le support CSR ; non avec la boucle REPL finale.
+- **Paquet de contexte :** BASIC-LOAD-005H, fixture `divzero`,
+  `GUEST_PAYLOAD_ABI.md` et règles de diagnostics BASIC.
+
 ### BASIC-LOAD-004 — Porter le magasin de lignes et le contrôle de flot
 
 - **Priorité :** P0.

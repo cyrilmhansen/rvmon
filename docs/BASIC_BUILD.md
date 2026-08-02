@@ -435,3 +435,15 @@ bash scripts/test-guest-runtime-command-run-variable-divzero.sh
 Cette fixture ne constitue pas encore le diagnostic utilisateur BASIC ; elle
 fixe d’abord le comportement flottant sous-jacent sur lequel ce diagnostic
 devra s’appuyer.
+
+La fixture [`minibasic-runtime-command-run-variable-divzero-diagnostic.rv`](../examples/minibasic-runtime-command-run-variable-divzero-diagnostic.rv)
+montre ensuite le chemin d’erreur target-side : après l’opération, le payload
+émet `ERR DIV0` par `write-buffer` et termine avec le statut 0 :
+
+```text
+bash scripts/test-guest-runtime-command-run-variable-divzero-diagnostic.sh
+```
+
+La preuve utilise ici le diviseur nul déjà validé par le chemin de la fixture ;
+la lecture directe de `fcsr` depuis l’assembleur du payload reste à ajouter au
+support CSR de l’assembleur.

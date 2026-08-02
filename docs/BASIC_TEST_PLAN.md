@@ -107,6 +107,9 @@
 - `scripts/test-guest-runtime-command-run-variable-divzero.sh` vérifie
   `PRINT X/0` dans la cible : `+inf`, `fcsr=0x8` (`fflags.DZ`) et le motif
   binary64 exact en mémoire, avant l’ajout du diagnostic BASIC.
+- `scripts/test-guest-runtime-command-run-variable-divzero-diagnostic.sh`
+  vérifie l’émission target-side de `ERR DIV0` par `write-buffer` et le retour
+  propre avec statut 0 après `fdiv.d` par zéro.
 - Le breakpoint `minibasic_divide` et `disasm` permettent d’observer la
   correspondance adresse → `fdiv.d`; les registres f et `fcsr` sont affichés
   avant/après le pas.
