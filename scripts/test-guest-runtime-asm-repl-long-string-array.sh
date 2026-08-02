@@ -29,7 +29,7 @@ awk '/^symbols$/{print; found=1; next} found && /^run-at /{print; exit} !found{p
     examples/minibasic-asm/payload-repl.rv |
     while IFS= read -r line; do printf '%s\n' "$line" >&3; sleep 0.002; done
 sleep 0.2
-printf 'DIM LONGARRAY$(2)\nLET LONGARRAY$(1)="DIRECT"\n10 PRINT LONGARRAY$(1)\n20 LET LONGARRAY$(1)="PROGRAM"\n30 PRINT LONGARRAY$(1)\n40 END\nRUN\n' >&3
+printf 'DIM LONGARRAY$(2)\nLONGARRAY$(1)="DIRECT"\n10 PRINT LONGARRAY$(1)\n20 LET LONGARRAY$(1)="PROGRAM"\n30 PRINT LONGARRAY$(1)\n40 END\nRUN\n' >&3
 sleep 1.0
 printf 'q\n' >&3
 exec 3>&-
