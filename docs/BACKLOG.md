@@ -2942,6 +2942,31 @@ release. Elles n’ajoutent aucune extension ISA.
 - **Paquet de contexte :** BASIC-LOAD-005O/R, payload REPL, tests literal et
   règles de mode direct de `BASIC_LANGUAGE.md`.
 
+#### BASIC-LOAD-005T — Alias direct `?` target-side — TERMINÉE
+
+- **Priorité :** P0, compatibilité d’usage immédiat inspirée de BASIC/Turbo
+  BASIC XL.
+- **But :** reconnaître `?expression`, construire le même record `PRINT` dans
+  la mémoire cible et réutiliser exactement l’évaluateur direct.
+- **Non-but :** chaînes, formatage décimal, espaces généraux, plusieurs
+  instructions et parser complet.
+- **Entrées :** `BASIC_LANGUAGE.md`, source `payload-repl.rv`, conventions
+  historiques de `?` et ABI UART.
+- **Fichiers/modules :** payload assembleur, test QEMU question et docs BASIC.
+- **Dépendances :** BASIC-LOAD-005S, longueur de record et évaluateur borné.
+- **Tests :** `?2+3` target-side, breakpoint, `f1=2.0`, `f2=3.0`, `f3=5.0`
+  et dump exact.
+- **Critères de sortie :** l’alias et la normalisation sont exécutés par le
+  payload, sans transformation de l’hôte.
+- **Cas limites :** `?` vide, chaîne, espaces, erreur et sortie décimale restent
+  à intégrer.
+- **Taille :** 2 points / 1 journée-agent, incertitude faible.
+- **Compétences/outils :** assembleur RV64, UART target-side et QEMU.
+- **Parallélisable :** oui avec le formateur de sortie ; non avec le layout
+  partagé du record.
+- **Paquet de contexte :** BASIC-LOAD-005S/R, payload REPL, tests direct/literal
+  et règles d’alias de `BASIC_LANGUAGE.md`.
+
 ### BASIC-LOAD-004 — Porter le magasin de lignes et le contrôle de flot
 
 - **Priorité :** P0.

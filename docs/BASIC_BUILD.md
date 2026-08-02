@@ -444,6 +444,13 @@ assembleur et passe par le même évaluateur :
 bash scripts/test-guest-runtime-asm-repl-direct.sh
 ```
 
+L’abréviation `?2+3` suit le même chemin grâce à la normalisation target-side
+vers `PRINT` :
+
+```text
+bash scripts/test-guest-runtime-asm-repl-question.sh
+```
+
 La variante [`minibasic-runtime-command-run-variable-sub.rv`](../examples/minibasic-runtime-command-run-variable-sub.rv)
 applique le même contrat à `PRINT X-3` et vérifie `2.0` après `fsub.d` :
 

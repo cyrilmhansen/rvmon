@@ -120,6 +120,13 @@ bash scripts/test-guest-runtime-asm-repl-direct.sh
 Cette réutilisation du record est intentionnelle : elle prépare un seul
 chemin d’évaluation pour le mode direct et le mode programme.
 
+L’alias historique `?` est normalisé par le payload vers le même préfixe
+`PRINT`. Sa preuve target-side est :
+
+```text
+bash scripts/test-guest-runtime-asm-repl-question.sh
+```
+
 ## Références historiques
 
 Le découpage suit le principe historique de tables de syntaxe, pile

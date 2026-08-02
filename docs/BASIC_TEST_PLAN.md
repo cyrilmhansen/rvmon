@@ -138,6 +138,8 @@
   target-side et le résultat exact `6.0` dans `f3`/RAM.
 - `scripts/test-guest-runtime-asm-repl-direct.sh` vérifie `PRINT 2+3` sans
   numéro de ligne et la réutilisation target-side du chemin d’évaluation.
+- `scripts/test-guest-runtime-asm-repl-question.sh` vérifie l’alias `?2+3`,
+  sa normalisation target-side et le même résultat binary64 exact `5.0`.
 - Le breakpoint `minibasic_divide` et `disasm` permettent d’observer la
   correspondance adresse → `fdiv.d`; les registres f et `fcsr` sont affichés
   avant/après le pas.
