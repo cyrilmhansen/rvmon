@@ -360,9 +360,33 @@ addi x7,x0,69
 beq x10,x7,end_statement
 addi x7,x0,73
 beq x10,x7,statement_i
+addi x7,x0,80
+beq x10,x7,print_statement
 addi x21,x24,22
 jal x1,eval_expression
 jal x0,run_save
+print_statement:
+lbu x5,22(x24)
+addi x7,x0,34
+beq x5,x7,print_string
+addi x21,x24,22
+jal x1,eval_expression
+jal x0,run_save
+print_string:
+addi x21,x24,23
+print_string_loop:
+lbu x10,0(x21)
+addi x7,x0,34
+beq x10,x7,print_string_done
+addi x17,x0,1
+ecall
+addi x21,x21,1
+jal x0,print_string_loop
+print_string_done:
+addi x10,x0,10
+addi x17,x0,1
+ecall
+jal x0,if_false
 goto_statement:
 lbu x10,21(x24)
 addi x7,x0,49
