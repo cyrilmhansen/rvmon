@@ -44,6 +44,9 @@ comparison    = sum , [ ( "=" | "<>" | "<" | "<=" | ">" | ">=" ) , sum ] ;
 sum           = product , { ( "+" | "-" ) , product } ;
 product       = factor , { ( "*" | "/" ) , factor } ;
 factor        = number | variable | "(" , expression , ")"
+              | "ABS" , "(" , expression , ")"
+              | "SGN" , "(" , expression , ")"
+              | "INT" , "(" , expression , ")"
               | "TRUNC" , "(" , expression , ")"
               | "FRAC" , "(" , expression , ")"
               | "MOD" , "(" , expression , "," , expression , ")"
@@ -88,12 +91,19 @@ effectuées dans le guest ; le chemin `/` contient réellement une instruction
 valeurs infinies et NaN sont affichées `INF`, `-INF` et `NAN`. Une division par
 zéro produit `BASIC-ARITH-001`.
 
-Les fonctions numériques `TRUNC(expr)`, `FRAC(expr)` et `MOD(a,b)` sont
+Les fonctions numériques `ABS(expr)`, `SGN(expr)`, `INT(expr)`,
+`TRUNC(expr)`, `FRAC(expr)` et `MOD(a,b)` sont
 évaluées dans le guest. `TRUNC` convertit vers l’entier signé en arrondissant
 vers zéro puis reconvertit en binary64 ; `FRAC(x)` vaut `x-TRUNC(x)` ;
 `MOD(a,b)` vaut `a-TRUNC(a/b)*b` et refuse `b=0`. Les scratchs target-side sont
-distincts par fonction, ce qui permet un appel imbriqué comme
-`MOD(TRUNC(17.9),5)`. Les valeurs hors domaine de conversion entière suivent
+distincts par fonction, ce qui permet des appels imbriqués comme
+`MOD(INT(-3.9),5)`. `ABS(x)` efface uniquement le bit de signe du motif
+binary64 et conserve donc les valeurs particulières et leurs charges utiles.
+`SGN(x)` renvoie `-1.0`, `0.0` ou `1.0` selon le signe de `x` ; les
+comparaisons ordonnées de l’ISA donnent `1.0` pour un NaN. `INT(x)` renvoie le
+plancher mathématique : il est distinct de `TRUNC` pour les valeurs négatives
+non entières (`INT(-3.9)=-4.0`). Les valeurs hors domaine de conversion entière
+suivent
 la politique RISC-V de conversion implémentée par le moteur et restent une
 limite V1. Le format décimal fixe peut afficher `FRAC(-3.9)` comme `-0.899999`
 après l’arrondi binary64 et le formateur à six chiffres ; ce résultat est

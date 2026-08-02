@@ -163,3 +163,10 @@
   extensions. The new version separates proven target-side behavior, partial
   semantics, planned work and deliberately rejected Atari scope, and records
   the exact QEMU evidence families and remaining roadmap.
+- I added target-side `ABS`, `SGN` and `INT` to the assembly expression parser.
+  `ABS` masks only the IEEE sign bit, `SGN` uses ordered D comparisons, and
+  `INT` adjusts a signed round-toward-zero conversion for negative fractional
+  values. The guest assembler rejected the convenient `fmv.d` spelling, so the
+  zero result path uses the explicit `fmv.x.d`/`fmv.d.x` pair. QEMU proves
+  positive, negative, zero, nested and syntax-error cases; the assembly test
+  inventory now contains 72 scripts.
