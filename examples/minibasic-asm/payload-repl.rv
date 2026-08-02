@@ -22,6 +22,10 @@ data 0x82000030 .byte 0x45
 data 0x82000031 .byte 0x52
 data 0x82000032 .byte 0x52
 data 0x82000033 .byte 0x0a
+data 0x82000040 .byte 0x45
+data 0x82000041 .byte 0x4e
+data 0x82000042 .byte 0x44
+data 0x82000043 .byte 0x0a
 data 0x82000050 .byte 0x50
 data 0x82000051 .byte 0x52
 data 0x82000052 .byte 0x49
@@ -303,7 +307,7 @@ addi x10,x0,1
 sd x10,536(x8)
 jal x0,run_line
 end_statement:
-addi x10,x8,32
+addi x10,x8,64
 addi x11,x0,4
 addi x17,x0,4
 ecall
