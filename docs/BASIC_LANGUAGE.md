@@ -19,6 +19,8 @@ statement     = "REM" , text
               | [ "LET" , space ] , variable , "=" , expression
               | "IF" , expression , "THEN" , number
               | "GOTO" , number
+              | "GOSUB" , number
+              | "RETURN"
               | "FOR" , variable , "=" , expression , "TO" , expression , [ "STEP" , expression ]
               | "NEXT" , variable
               | "END" ;
@@ -57,9 +59,11 @@ effectuées dans le guest ; le chemin `/` contient réellement une instruction
 valeurs infinies et NaN sont affichées `INF`, `-INF` et `NAN`. Une division par
 zéro produit `BASIC-ARITH-001`.
 
-`FOR` utilise une pile de huit frames. Un STEP nul, une pile pleine, une cible
-GOTO/THEN absente et une boucle interrompue produisent respectivement
-`BASIC-FLOW-003`, `BASIC-FLOW-002`, `BASIC-FLOW-001` et `BASIC-RUN-001`.
+`FOR` et `GOSUB` utilisent chacun une pile cible fixe de huit frames. Un STEP
+nul, une pile pleine, une cible GOTO/THEN/GOSUB absente et une boucle
+interrompue produisent respectivement `BASIC-FLOW-003`, `BASIC-FLOW-002`,
+`BASIC-FLOW-001` et `BASIC-RUN-001`. `RETURN` sans appel actif est une erreur
+de flot et rend la main à l’invite sans modifier le programme.
 Une réponse `INPUT` vide ou syntaxiquement invalide produit
 `BASIC-INPUT-001`.
 
@@ -82,8 +86,8 @@ service 4 `write_buffer` est documenté dans `docs/TUTORIAL-GUEST.md`.
 
 Le jalon actuellement exécuté fournit les variables chaînes courtes, les
 tableaux numériques et les tableaux de chaînes unidimensionnels. Il ne fournit
-pas encore `DATA/READ`, les fichiers, `GOSUB`, les fonctions utilisateur, les
-exposants, les tableaux multidimensionnels ou les instructions séparées par
+pas encore `DATA/READ`, les fichiers, les fonctions utilisateur, les exposants,
+les tableaux multidimensionnels ou les instructions séparées par
 `:`. Cette absence est une limite d’implémentation intermédiaire, pas un rejet
 du produit : les chaînes et les tableaux complets restent des fonctionnalités
 obligatoires de la trajectoire MiniBASIC-RV.
