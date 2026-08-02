@@ -445,8 +445,18 @@ ignore les espaces autour de l’opérateur. `PRINT 12.5 + 3.5` produit exacteme
 bash scripts/test-guest-runtime-asm-repl-multidigit.sh
 ```
 
-Cette tranche ne couvre toujours pas les parenthèses, signes unaires ni la
-précédence générale.
+Cette tranche ne couvre toujours pas la précédence générale.
+
+Les signes unaires et les parenthèses simples autour d’un atome sont désormais
+évalués dans la cible. `PRINT (-2.5) + (+3.5)` produit `1.0` et vérifie les bits
+de `f1`, `f2`, `f3` ainsi que le stockage :
+
+```text
+bash scripts/test-guest-runtime-asm-repl-unary-paren.sh
+```
+
+Les parenthèses imbriquées et la précédence d’une expression de plus de deux
+atomes restent hors de cette tranche.
 
 Le mode direct `PRINT 2+3` est également pris en charge par le payload
 assembleur et passe par le même évaluateur :

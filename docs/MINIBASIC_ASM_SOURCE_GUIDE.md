@@ -106,8 +106,21 @@ Le cas `12.5+3.5` est vérifié par :
 bash scripts/test-guest-runtime-asm-repl-multidigit.sh
 ```
 
-Les parenthèses, la précédence générale, les signes unaires et les diagnostics
-de syntaxe restent des étapes ultérieures.
+La précédence générale et les diagnostics de syntaxe restent des étapes
+ultérieures.
+
+Le scanner reconnaît maintenant les signes `+`/`-` et une parenthèse autour
+d’un atome, par exemple `PRINT (-2.5) + (+3.5)`. La négation est exécutée par
+le payload au moyen de `fmv.x.d`, inversion du bit 63 et `fmv.d.x`, car le
+parseur assembleur actuel ne fournit pas le pseudo-opcode `fneg.d`. La preuve
+QEMU est disponible avec :
+
+```text
+bash scripts/test-guest-runtime-asm-repl-unary-paren.sh
+```
+
+Ces parenthèses restent limitées à un atome ; elles ne forment pas encore un
+AST ni une expression imbriquée générale.
 
 Le record conserve désormais la longueur réelle du corps, ce qui permet une
 forme décimale bornée `d.d`. La séance `PRINT 2.5+3.5` est vérifiée par :

@@ -3042,6 +3042,31 @@ release. Elles n’ajoutent aucune extension ISA.
   layout de record.
 - **Paquet de contexte :** BASIC-LOAD-005V, payload REPL et test multidigit.
 
+#### BASIC-LOAD-005X — Signes unaires et parenthèses simples — TERMINÉE
+
+- **Priorité :** P0, couverture des formes syntaxiques élémentaires de BASIC.
+- **But :** accepter `+`/`-` devant un atome et une paire de parenthèses autour
+  d’un atome, avec négation binary64 réellement exécutée dans le payload.
+- **Non-but :** AST, parenthèses imbriquées, plusieurs opérateurs, précédence,
+  exposants et diagnostics complets.
+- **Entrées :** `BASIC_LANGUAGE.md`, R1 D, encodages R2 des transferts F/X et
+  layout du record target-side.
+- **Fichiers/modules :** `payload-repl.rv`, test QEMU unary/parenthesis et docs.
+- **Dépendances :** BASIC-LOAD-005W/V, `fmv.x.d`, `fmv.d.x` et opérations D.
+- **Tests :** `PRINT (-2.5) + (+3.5)`, breakpoint, `f1=-2.5`, `f2=3.5`,
+  `f3=1.0` et dump exact en RAM sous QEMU.
+- **Critères de sortie :** le signe est appliqué dans le guest ; aucune
+  valeur négative ni aucun résultat n’est injecté par le harnais.
+- **Cas limites :** signe isolé, parenthèse vide/non fermée, double signe,
+  imbrication, NaN et débordement syntaxique restent à diagnostiquer.
+- **Taille :** 3 points / 1,5 journée-agent, incertitude moyenne.
+- **Compétences/outils :** assembleur RV64, transferts de bits FP, QEMU et
+  débogueur.
+- **Parallélisable :** oui avec les diagnostics ; non avec la refonte du parser
+  vers une pile d’opérateurs.
+- **Paquet de contexte :** BASIC-LOAD-005V/W, payload REPL, test multidigit,
+  règles D et ABI cible.
+
 ### BASIC-LOAD-004 — Porter le magasin de lignes et le contrôle de flot
 
 - **Priorité :** P0.
