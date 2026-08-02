@@ -59,6 +59,8 @@ data 0x820000b2 .byte 0x20
 data 0x820000c0 .byte 0x0a
 data 0x820003b8 .dword 0x4014000000000000
 data 0x820003c0 .dword 0x4008000000000000
+data 0x820003c8 .dword 0x41f0000000000000
+data 0x820003d0 .dword 0x41e0000000000000
 data 0x82000200 .dword 0x0000000000000000
 data 0x82000218 .dword 0x0000000000000000
 assemble-program 0x81000100
@@ -92,6 +94,8 @@ sd x0,1160(x8)
 sd x0,1616(x8)
 sd x0,1704(x8)
 sd x0,1712(x8)
+addi x10,x0,1
+sd x10,1360(x8)
 ; Pile WHILE/WEND : profondeur à 2048, huit indices de lignes à 2056.
 addi x29,x8,2047
 addi x29,x29,1
@@ -817,6 +821,8 @@ ecall
 jal x0,command_loop
 new_program:
 addi x10,x0,0
+addi x11,x0,1
+sd x11,1360(x8)
 sd x10,512(x8)
 sd x10,520(x8)
 sd x10,528(x8)
@@ -3567,6 +3573,8 @@ addi x6,x0,89
 beq x5,x6,atom_y
 addi x6,x0,65
 beq x5,x6,atom_a
+addi x6,x0,82
+beq x5,x6,atom_rnd_dispatch
 addi x6,x0,84
 beq x5,x6,atom_trunc_dispatch
 addi x6,x0,70
@@ -3628,6 +3636,69 @@ lbu x6,3(x21)
 addi x7,x0,40
 bne x6,x7,atom_array_name_scan
 jal x0,atom_mod_function
+atom_rnd_dispatch:
+lbu x6,1(x21)
+addi x7,x0,78
+bne x6,x7,atom_array_name_scan
+lbu x6,2(x21)
+addi x7,x0,68
+bne x6,x7,atom_array_name_scan
+lbu x6,3(x21)
+addi x7,x0,40
+beq x6,x7,atom_rnd_paren
+beq x6,x0,atom_rnd_bare
+addi x7,x0,32
+beq x6,x7,atom_rnd_bare
+addi x7,x0,43
+beq x6,x7,atom_rnd_bare
+addi x7,x0,45
+beq x6,x7,atom_rnd_bare
+addi x7,x0,42
+beq x6,x7,atom_rnd_bare
+addi x7,x0,47
+beq x6,x7,atom_rnd_bare
+addi x7,x0,41
+beq x6,x7,atom_rnd_bare
+addi x7,x0,44
+beq x6,x7,atom_rnd_bare
+jal x0,atom_array_name_scan
+atom_rnd_paren:
+lbu x6,4(x21)
+addi x7,x0,41
+bne x6,x7,atom_function_error
+addi x21,x21,5
+jal x0,atom_rnd_generate
+atom_rnd_bare:
+addi x21,x21,3
+atom_rnd_generate:
+ld x10,1360(x8)
+lui x6,0x196
+addi x6,x6,1549
+mul x10,x10,x6
+lui x6,0x3c6ef
+addi x6,x6,863
+add x10,x10,x6
+sd x10,1360(x8)
+slli x11,x10,33
+srli x11,x11,33
+fcvt.d.l f4,x11,0
+srli x11,x10,31
+andi x11,x11,1
+beq x11,x0,atom_rnd_no_high_bit
+lui x7,0x82000
+slli x7,x7,32
+srli x7,x7,32
+addi x7,x7,976
+fld f6,0(x7)
+fadd.d f4,f4,f6
+atom_rnd_no_high_bit:
+lui x7,0x82000
+slli x7,x7,32
+srli x7,x7,32
+addi x7,x7,968
+fld f5,0(x7)
+fdiv.d f4,f4,f5
+jal x0,store_atom
 atom_array_name_scan:
 lbu x6,0(x27)
 addi x7,x0,40

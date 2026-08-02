@@ -151,3 +151,9 @@
   positive, negative, nested, and division-by-zero cases; `FRAC(-3.9)` is
   observed as the deterministic fixed-format `-0.899999`. The parity matrix
   reports 67 assembly QEMU tests.
+- I added deterministic target-side `RND` and `RND()` using a 32-bit LCG
+  (`1664525`, `1013904223`), with seed `1` at load and after `NEW`. The first
+  implementation exposed the signed/unsigned conversion issue when a 32-bit
+  state crossed bit 31; converting the low 31 bits and adding `2^31` when the
+  high bit is set fixes the full `[0,1)` range. QEMU proves the first four
+  sequence values and rejects `RND(1)`; the parity matrix now reports 69 tests.

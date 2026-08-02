@@ -35,6 +35,7 @@ utilisé comme oracle des résultats target-side.
 | `INPUT` | numérique et chaînes, y compris noms longs | VERT | `input.sh`, `long-input.sh`, `long-string-input.sh` |
 | Expressions | parenthèses, signes, précédence, comparaisons, binary64 D | VERT | `precedence.sh`, `unary-paren.sh`, `format-negative-fraction.sh` |
 | Fonctions numériques | `TRUNC`, `FRAC`, `MOD`, appels target-side et un niveau d’imbrication | VERT | `test-guest-runtime-asm-repl-numeric-functions.sh`, `numeric-functions-error.sh` |
+| `RND` | LCG target-side reproductible, formes `RND` et `RND()` | VERT | `test-guest-runtime-asm-repl-rnd.sh`, `rnd-error.sh` |
 | Variables numériques | `A..Z` et noms ASCII jusqu’à 16 caractères | VERT | `scalars.sh`, `long-names.sh`, `keyword-vars.sh` |
 | Chaînes | cellules target-side, noms courts/longs, affectation/affichage | VERT | `string-var.sh`, `long-string.sh` |
 | Tableaux numériques | 1D/2D, noms courts/longs, index calculés et bornes | VERT | `array*.sh`, `long-numeric-array*.sh` |
@@ -84,8 +85,9 @@ opérations DOS propriétaires.
 
 ## Prochaine séquence recommandée
 
-1. Ajouter `RND` avec une graine et une séquence explicitement reproductibles,
-   puis tester ses bornes et son état target-side.
+1. Étendre les fonctions numériques historiques restantes seulement après une
+   décision de syntaxe et d’oracle target-side ; la prochaine priorité est la
+   couverture pédagogique de Hammurabi et des entrées interactives.
 
 ## Audit courant
 
@@ -93,7 +95,7 @@ La conversion assembleur couvre actuellement le chemin utile de bout en bout :
 source assembleur accepté par le moniteur, chargement U-mode, lexing et
 évaluation BASIC dans la cible, registres flottants observables, mémoire cible,
 breakpoints, interruption et reprise. La matrice assembleur compte maintenant
-67 tests QEMU ; après durcissement du harnais de tableau de chaînes 2D, le cas
+69 tests QEMU ; après durcissement du harnais de tableau de chaînes 2D, le cas
 qui échouait sporadiquement passe cinq fois consécutives. La parité TBXL n’est
 pas déclarée complète tant que les décisions sur les extensions restantes ne
 sont pas résolues.

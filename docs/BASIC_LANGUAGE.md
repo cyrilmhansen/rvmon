@@ -47,6 +47,7 @@ factor        = number | variable | "(" , expression , ")"
               | "TRUNC" , "(" , expression , ")"
               | "FRAC" , "(" , expression , ")"
               | "MOD" , "(" , expression , "," , expression , ")"
+              | "RND" | "RND" , "(" , ")"
               | ( "+" | "-" ) , factor ;
 variable      = identifier ;
 identifier    = letter , { letter | digit | "_" } ;
@@ -97,6 +98,12 @@ la politique RISC-V de conversion implémentée par le moteur et restent une
 limite V1. Le format décimal fixe peut afficher `FRAC(-3.9)` comme `-0.899999`
 après l’arrondi binary64 et le formateur à six chiffres ; ce résultat est
 déterministe et n’est pas une valeur décimale exacte.
+
+`RND` et `RND()` renvoient un nombre pseudo-aléatoire binary64 dans `[0,1)`.
+Le générateur est un LCG 32 bits target-side de paramètres `1664525` et
+`1013904223`, initialisé à la graine `1` au chargement et réinitialisé par
+`NEW`. Cette séquence est volontairement reproductible ; les arguments comme
+`RND(1)` sont rejetés en V1.
 
 `FOR` et `GOSUB` utilisent chacun une pile cible fixe de huit frames. Un STEP
 nul, une pile pleine, une cible GOTO/THEN/GOSUB absente et une boucle
