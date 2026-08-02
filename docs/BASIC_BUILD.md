@@ -33,6 +33,27 @@ rvmonitor> info payload
 
 Cette commande est informative et ne modifie ni les registres ni la mémoire.
 
+## Payload assembleur autonome
+
+Le payload MiniBASIC assembleur peut maintenant être produit indépendamment de
+l’ELF du moniteur :
+
+```text
+bash scripts/build-minibasic-asm-payload.sh
+bash scripts/test-guest-minibasic-asm-payload.sh
+```
+
+La première commande génère `target/payloads/minibasic-payload-asm.bin`, son
+listing et l’image de données initiales
+`minibasic-payload-asm-data.bin`. La seconde charge les deux images avec
+`payload-load` et `payload-load-data`, lance `run-at 0x81000100` et vérifie des
+résultats calculés par le BASIC dans la cible. Le chemin ne fait pas appel à
+`minibasic.rs` et n’utilise pas `assemble-program` au moment du lancement.
+
+`payload-load-data` est limité à la région de données cible et complète
+`payload-load`, limité au workspace de code ; les deux commandes acceptent au
+plus 32 octets hexadécimaux par bloc.
+
 ## Statut du chargement
 
 Dans cette version, MiniBASIC est lié dans l’ELF guest et `basic` saute vers

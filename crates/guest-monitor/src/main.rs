@@ -418,7 +418,10 @@ fn monitor_loop(context: *mut TargetContext) -> ! {
             command if command.starts_with(b"source ") => source_command(&command[7..]),
             b"assemble-source" => assemble_saved_source(context),
             command if command.starts_with(b"payload-load ") => {
-                load_payload_binary(context, &command[13..])
+                load_payload_binary(context, &command[13..], false)
+            }
+            command if command.starts_with(b"payload-load-data ") => {
+                load_payload_binary(context, &command[18..], true)
             }
             b"snapshot save" | b"project-save" => save_guest_snapshot(context),
             b"snapshot restore" | b"project-load" => restore_guest_snapshot(context),
@@ -486,7 +489,8 @@ fn print_help() {
           assemble <addr> <instruction> assemble one instruction\r\n\
           assemble-program <addr> ... end  assemble a bounded source buffer\r\n\
           assemble-source                 reassemble the edited source buffer\r\n\
-          payload-load <addr> <hex-bytes> load a payload chunk into workspace\r\n\
+          payload-load <addr> <hex-bytes> load a code chunk into workspace\r\n\
+          payload-load-data <addr> <hex-bytes> load initialized data into target data\r\n\
           source [line]|replace ...       inspect or edit source buffer\r\n\
           assembler comments: ';' starts a comment to end of line\r\n\
           symbols                         list source symbols\r\n\
@@ -557,7 +561,7 @@ fn print_uart_info() {
     uart_write("\r\n");
 }
 
-fn load_payload_binary(context: *mut TargetContext, argument: &[u8]) {
+fn load_payload_binary(context: *mut TargetContext, argument: &[u8], data_region: bool) {
     if unsafe { (*context).mcause } != StopReason::Breakpoint as u64 {
         uart_write("error: target is not stopped at a breakpoint\r\n");
         return;
@@ -585,10 +589,19 @@ fn load_payload_binary(context: *mut TargetContext, argument: &[u8]) {
         guest_error(b"GUEST-PAYLOAD-004", b"payload range overflows");
         return;
     };
-    if address < target_workspace_start() || end > target_workspace_end() {
+    let in_region = if data_region {
+        address >= target_data_start() && end <= target_data_end()
+    } else {
+        address >= target_workspace_start() && end <= target_workspace_end()
+    };
+    if !in_region {
         guest_error(
             b"GUEST-PAYLOAD-005",
-            b"payload range is outside target workspace",
+            if data_region {
+                b"payload range is outside target data"
+            } else {
+                b"payload range is outside target workspace"
+            },
         );
         return;
     }
