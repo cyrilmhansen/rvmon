@@ -314,3 +314,15 @@ bash scripts/test-guest-runtime-command-list.sh
 ```
 
 Les commandes invalides et `NEW` restent à traiter dans la boucle de commandes.
+
+La fixture [`minibasic-runtime-command-new.rv`](../examples/minibasic-runtime-command-new.rv)
+ajoute `NEW` target-side : elle valide la commande, efface le compteur et les
+records dans la RAM cible, puis produit `NEW OK` par `write-buffer` :
+
+```text
+bash scripts/test-guest-runtime-command-new.sh
+```
+
+La commande ne persiste encore qu’un état borné à deux records ; la capacité
+finale, les erreurs structurées et le retour à une invite persistante restent à
+intégrer.

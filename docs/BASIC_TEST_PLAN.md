@@ -74,6 +74,9 @@
 - `scripts/test-guest-runtime-command-list.sh` vérifie la réception de `LIST`,
   sa reconnaissance target-side caractère par caractère, le dispatch vers le
   parcours des records et la sortie `10 PRINT A` / `20 PRINT B`.
+- `scripts/test-guest-runtime-command-new.sh` vérifie la réception de `NEW`,
+  l’effacement target-side du compteur et des records, la réponse `NEW OK` et
+  les dumps mémoire nuls après la commande.
 - Le breakpoint `minibasic_divide` et `disasm` permettent d’observer la
   correspondance adresse → `fdiv.d`; les registres f et `fcsr` sont affichés
   avant/après le pas.

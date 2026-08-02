@@ -2388,6 +2388,28 @@ release. Elles n’ajoutent aucune extension ISA.
 - **Parallélisable :** oui avec `NEW` ; non avec une modification du protocole
   de dispatch.
 
+#### BASIC-LOAD-004J — Dispatch target-side de la commande NEW — TERMINÉE
+
+- **Priorité :** P0, réinitialisation explicite du magasin.
+- **But :** recevoir `NEW`, valider ses caractères, effacer le compteur et les
+  records bornés dans la RAM cible, puis produire `NEW OK` via `write-buffer`.
+- **Non-but :** invite persistante, capacité finale, snapshots, annulation,
+  gestion des commandes inconnues et `RUN`.
+- **Entrées :** `BASIC_LANGUAGE.md`, `GUEST_PAYLOAD_ABI.md`, layout record,
+  ABI UART/ecall et contrat `LIST`.
+- **Fichiers/modules :** `examples/minibasic-runtime-command-new.rv`,
+  `scripts/test-guest-runtime-command-new.sh`, documentation BASIC.
+- **Dépendances :** BASIC-LOAD-004I, table target-side et `write-buffer`.
+- **Tests :** commande `NEW`, réponse exacte, compteur nul, records nuls et
+  statut de fin 0 sous QEMU.
+- **Critères de sortie :** aucune donnée résiduelle des deux records n’est
+  observable après la commande ; l’accusé est produit par le payload.
+- **Cas limites :** table de capacité complète, commande minuscule, suffixe,
+  CRLF, erreur d’E/S et réinitialisation répétée restent à couvrir.
+- **Taille :** 3 points / 1,5 journée-agent, incertitude faible.
+- **Parallélisable :** oui avec commandes invalides ; non avec une modification
+  du layout de métadonnées.
+
 ### BASIC-LOAD-004 — Porter le magasin de lignes et le contrôle de flot
 
 - **Priorité :** P0.
