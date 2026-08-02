@@ -56,11 +56,18 @@ plus 32 octets hexadécimaux par bloc.
 
 ## Statut du chargement
 
-La commande historique `basic` reste liée dans l’ELF guest et saute vers
-`minibasic_entry` pour conserver un démarrage de compatibilité. Le chemin
-recommandé pour le démonstrateur assembleur est désormais le payload autonome
-ci-dessus : son code et ses données sont chargés dans les régions cible puis
-lancé par `run-at`.
+La commande `basic` est maintenant le chemin assembleur : le build du guest
+génère le payload depuis `examples/minibasic-asm/payload-repl.rv`, l’embarque
+comme artefact binaire, puis le copie à chaque lancement dans le workspace
+`0x81000100` et dans la région de données `0x82000000` avant le saut U-mode.
+Le test dédié est :
+
+```text
+bash scripts/test-guest-minibasic-basic-command.sh
+```
+
+Le chemin Rust résident reste disponible explicitement avec `basic-rust` pour
+la comparaison et la régression ; il n’est plus le chemin par défaut.
 
 La première brique du futur chemin utilisateur est maintenant disponible :
 
@@ -77,8 +84,9 @@ rvmonitor> run-at 0x81000100
 ```
 
 `run-at` lance ce payload U-mode déjà assemblé. Le contrat est décrit dans
-[`GUEST_PAYLOAD_ABI.md`](GUEST_PAYLOAD_ABI.md) ; le remplacement de MiniBASIC
-résident par un payload BASIC assembleur est une étape ultérieure.
+[`GUEST_PAYLOAD_ABI.md`](GUEST_PAYLOAD_ABI.md). Le chargement automatique de
+`basic` ne remplace pas encore le chargeur général de fichiers : il s’agit
+d’une intégration spécialisée, vérifiée par le test QEMU ci-dessus.
 
 Le squelette assembleur utilisateur, indépendant du runtime Rust résident,
 peut être rejoué ainsi :

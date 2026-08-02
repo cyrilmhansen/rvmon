@@ -119,7 +119,8 @@ erreur et décrit les commandes réellement présentes dans l’image :
 rvmonitor> help
 RVMonitor guest commands
   help/?                         this help
-  basic                          launch resident MiniBASIC-RV
+  basic                          load and launch assembly MiniBASIC-RV
+  basic-rust                     launch legacy resident Rust MiniBASIC-RV
   regs|registers                 show integer/floating registers
   set <xreg> <hex64>             edit an integer register
   setf <freg> <hex64>            edit raw floating bits
@@ -626,34 +627,30 @@ plus haut. Le parcours ci-dessous introduit une seule idée à la fois.
 
 ### 4.0 Ce que fait réellement `basic`
 
-Dans l’image actuelle, MiniBASIC n’est pas encore un fichier chargé par
-`assemble-program`. Il est compilé en `no_std` avec le guest monitor, lié dans
-le même ELF et lancé par `launch_minibasic` : le moniteur remet à zéro le
-contexte U-mode, place `x2` sur la pile BASIC et charge le PC avec le symbole
-`minibasic_entry`. Le code est donc résident dans l’image, comme un service
-embarqué, même si son état d’exécution reste en U-mode et que ses calculs sont
-réels dans la cible.
+Lors du build, le script `scripts/build-minibasic-asm-payload.sh` assemble
+`examples/minibasic-asm/payload-repl.rv` et produit une image de code ainsi
+qu’une image de données. La commande `basic` copie ces images dans le workspace
+et la région de données de la cible, réinitialise le contexte U-mode, puis
+commence à `0x81000100`. Le parseur, le magasin de lignes, les calculs et les
+appels UART sont donc exécutés par le payload RV64 dans la machine cible.
 
-On peut le constater sans supposer une adresse fixe :
+Pour rejouer directement le chemin indépendant du moniteur de commande :
 
 ```sh
-$ riscv64-linux-gnu-nm -n \
-    target/riscv64gc-unknown-none-elf/debug/luna-guest-monitor \
-    | awk '$3 == "minibasic_entry" || $3 == "minibasic_divide"'
+$ bash scripts/test-guest-minibasic-basic-command.sh
 ```
 
-La commande `basic` ne copie donc ni source ni binaire dans le workspace. Les
-lignes BASIC saisies ensuite résident dans la table interne de MiniBASIC, pas
-dans le chargeur assembleur du moniteur. Cette distinction sépare « programme
-utilisateur U-mode » et « payload utilisateur chargé dynamiquement ».
+`basic-rust` conserve temporairement l’ancien moteur lié dans l’ELF afin de
+faciliter les comparaisons et les régressions. Il n’est pas utilisé par le
+parcours normal.
 
-### 4.0.1 Trajectoire vers un MiniBASIC réellement chargé
+### 4.0.1 Limites restantes du chargement
 
-Le passage à un programme utilisateur assemblé est faisable, mais ce n’est pas
-un simple changement de commande. Le cœur actuel dépend de services Rust
-(`f64`, tableaux fixes, lecture UART, diagnostics) et l’assembleur guest ne
-gère encore ni appels symboliques complets, ni relocations, ni un programme de
-plus de 16 lignes source. La conversion automatique du désassemblage Rust en
+Le chargement automatique actuel est spécialisé au payload MiniBASIC et ne
+constitue pas encore un chargeur général de fichiers utilisateur. Le dialecte
+assembleur guest ne gère encore ni appels symboliques complets, ni relocations,
+ni un programme source dépassant les 256 lignes du tampon. La conversion
+automatique du désassemblage Rust en
 source pédagogique ne produirait donc pas encore un programme maintenable.
 
 La trajectoire retenue est :

@@ -15,6 +15,8 @@ mod plic;
 mod uart16550;
 
 use uart16550::{get as uart_get, init as uart_init, put as uart_put};
+static MINIBASIC_ASM_CODE: &[u8] = include_bytes!(env!("RVMON_MINIBASIC_ASM_CODE"));
+static MINIBASIC_ASM_DATA: &[u8] = include_bytes!(env!("RVMON_MINIBASIC_ASM_DATA"));
 const COMMAND_CAPACITY: usize = 128;
 const TARGET_RAM_START: u64 = 0x8000_0000;
 const TARGET_RAM_END: u64 = 0x8400_0000;
@@ -425,7 +427,8 @@ fn monitor_loop(context: *mut TargetContext) -> ! {
             }
             b"snapshot save" | b"project-save" => save_guest_snapshot(context),
             b"snapshot restore" | b"project-load" => restore_guest_snapshot(context),
-            b"basic" => launch_minibasic(context),
+            b"basic" => launch_minibasic_asm(context),
+            b"basic-rust" => launch_minibasic(context),
             b"info payload" | b"info p" => print_payload_info(),
             b"snapshot info" => snapshot_info(),
             b"snapshot manifest" => snapshot_manifest(),
@@ -477,7 +480,8 @@ fn print_help() {
     uart_write(
         "RVMonitor guest commands\r\n\
           help/?                         this help\r\n\
-          basic                          launch resident MiniBASIC-RV\r\n\
+          basic                          load and launch assembly MiniBASIC-RV\r\n\
+          basic-rust                     launch legacy resident Rust MiniBASIC-RV\r\n\
           info payload|p                 show loaded-payload ABI and memory map\r\n\
           info uart                       show UART queue and error counters\r\n\
           regs|registers                 show integer/floating registers\r\n\
@@ -643,6 +647,63 @@ fn launch_minibasic(context: *mut TargetContext) -> ! {
     let entry = minibasic::minibasic_entry as *const () as u64;
     let stack = BASIC_STACK.as_ptr() as u64 + BASIC_STACK.len() as u64;
     context.x[2] = stack;
+    context.pc = entry;
+    context.mepc = entry;
+    context.mcause = StopReason::Breakpoint as u64;
+    context.mtval = 0;
+    resume_target(context as *mut TargetContext)
+}
+
+fn launch_minibasic_asm(context: *mut TargetContext) -> ! {
+    let entry = target_workspace_start() + 0x100;
+    let workspace_end = target_workspace_end();
+    let data_start = target_data_start();
+    let data_end = target_data_end();
+    let Some(code_end) = entry.checked_add(MINIBASIC_ASM_CODE.len() as u64) else {
+        guest_error(b"GUEST-BASIC-ASM-001", b"assembly payload address overflow");
+        monitor_loop(unsafe { &mut *context });
+    };
+    let Some(data_image_end) = data_start.checked_add(MINIBASIC_ASM_DATA.len() as u64) else {
+        guest_error(
+            b"GUEST-BASIC-ASM-002",
+            b"assembly data image address overflow",
+        );
+        monitor_loop(unsafe { &mut *context });
+    };
+    if code_end > workspace_end {
+        guest_error(
+            b"GUEST-BASIC-ASM-003",
+            b"assembly payload does not fit workspace",
+        );
+        monitor_loop(unsafe { &mut *context });
+    }
+    if data_image_end > data_end {
+        guest_error(
+            b"GUEST-BASIC-ASM-004",
+            b"assembly data image does not fit target data",
+        );
+        monitor_loop(unsafe { &mut *context });
+    }
+
+    unsafe {
+        core::ptr::copy_nonoverlapping(
+            MINIBASIC_ASM_CODE.as_ptr(),
+            entry as *mut u8,
+            MINIBASIC_ASM_CODE.len(),
+        );
+        core::ptr::copy_nonoverlapping(
+            MINIBASIC_ASM_DATA.as_ptr(),
+            data_start as *mut u8,
+            MINIBASIC_ASM_DATA.len(),
+        );
+    }
+    flush_icache();
+
+    let context = unsafe { &mut *context };
+    context.x = [0; 32];
+    context.f = [0xffff_ffff_0000_0000; 32];
+    context.fcsr = 0;
+    context.x[2] = TARGET_STACK.as_ptr() as u64 + TARGET_STACK.len() as u64;
     context.pc = entry;
     context.mepc = entry;
     context.mcause = StopReason::Breakpoint as u64;

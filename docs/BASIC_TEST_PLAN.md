@@ -242,6 +242,9 @@ est contrôlée par désassemblage de l’ELF cible.
 
 ## Écart explicitement suivi
 
-Le moteur fonctionnel est actuellement compilé depuis `minibasic.rs`. Le port
-de son cœur vers une source assembleur acceptée par le parseur guest et son
-chargement par `assemble-program` constituent le jalon assembleur restant.
+Le chemin par défaut `basic` charge maintenant le payload assembleur généré
+depuis `examples/minibasic-asm/payload-repl.rv` et le test
+`scripts/test-guest-minibasic-basic-command.sh` le vérifie sous QEMU. Le moteur
+Rust de `minibasic.rs` reste disponible sous `basic-rust` comme référence de
+compatibilité ; sa suppression définitive attend la couverture fonctionnelle
+complète du payload assembleur.
