@@ -23,6 +23,7 @@ statement     = "REM" , text
               | "RETURN"
               | "DATA" , expression , { "," , expression }
               | "READ" , variable
+              | "RESTORE"
               | "FOR" , variable , "=" , expression , "TO" , expression , [ "STEP" , expression ]
               | "NEXT" , variable
               | "END" ;
@@ -76,7 +77,7 @@ sont ignorés. `DATA` ne produit aucune sortie et `READ` consomme la prochaine
 valeur du type demandé dans l’ordre des lignes du programme. Une chaîne est
 copiée dans la variable cible avec une capacité maximale de 120 octets. Une
 lecture au-delà des données disponibles ou un type incompatible est une erreur
-de flot.
+de flot. `RESTORE` remet ce curseur au début des lignes `DATA`.
 
 ## Commandes directes
 
