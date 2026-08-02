@@ -303,3 +303,14 @@ bash scripts/test-guest-runtime-repl-two-lines.sh
 
 La borne de deux tours est volontaire pour cette preuve ; la boucle persistante
 et le dispatch des commandes seront ajoutés ensuite.
+
+La fixture [`minibasic-runtime-command-list.rv`](../examples/minibasic-runtime-command-list.rv)
+ajoute le premier dispatch textuel target-side : elle lit `LIST`, vérifie ses
+quatre caractères dans la cible, puis appelle le parcours de listing sur la
+table déjà présente. La sortie est produite par `write-buffer` :
+
+```text
+bash scripts/test-guest-runtime-command-list.sh
+```
+
+Les commandes invalides et `NEW` restent à traiter dans la boucle de commandes.

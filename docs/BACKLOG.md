@@ -2365,6 +2365,29 @@ release. Elles n’ajoutent aucune extension ISA.
 - **Parallélisable :** oui avec le renderer `LIST`; non avec une modification du
   protocole d’entrée UART.
 
+#### BASIC-LOAD-004I — Dispatch target-side de la commande LIST — TERMINÉE
+
+- **Priorité :** P0, première commande REPL réellement reconnue dans la cible.
+- **But :** recevoir `LIST`, valider ses quatre caractères, sélectionner le
+  parcours de records et produire la sortie par `write-buffer`.
+- **Non-but :** parseur de commandes général, commandes invalides structurées,
+  `NEW`, `RUN`, historique et boucle persistante sans borne.
+- **Entrées :** `BASIC_LANGUAGE.md`, `GUEST_PAYLOAD_ABI.md`, ABI UART/ecall,
+  layout record et sortie LIST précédente.
+- **Fichiers/modules :** `examples/minibasic-runtime-command-list.rv`,
+  `scripts/test-guest-runtime-command-list.sh`, documentation BASIC.
+- **Dépendances :** BASIC-LOAD-004E/H, `read-char`, `write-buffer` et table
+  target-side.
+- **Tests :** ligne `LIST`, validation caractère par caractère, sortie de deux
+  records dans l’ordre, statut de fin 0 et absence de parsing hôte.
+- **Critères de sortie :** `LIST` déclenche la sortie cible exacte
+  `10 PRINT A` puis `20 PRINT B`; une autre commande prend le chemin d’erreur.
+- **Cas limites :** minuscules, suffixe, commande vide, CRLF, buffer plein et
+  commande inconnue restent dans le parseur de commandes complet.
+- **Taille :** 3 points / 1,5 journée-agent, incertitude faible.
+- **Parallélisable :** oui avec `NEW` ; non avec une modification du protocole
+  de dispatch.
+
 ### BASIC-LOAD-004 — Porter le magasin de lignes et le contrôle de flot
 
 - **Priorité :** P0.

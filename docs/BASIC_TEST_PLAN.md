@@ -71,6 +71,9 @@
 - `scripts/test-guest-runtime-repl-two-lines.sh` vérifie deux tours UART dans
   le même payload, l’insertion de `10 PRINT A` avant `20 PRINT B`, les deux
   corps intacts et le compteur target-side égal à 2.
+- `scripts/test-guest-runtime-command-list.sh` vérifie la réception de `LIST`,
+  sa reconnaissance target-side caractère par caractère, le dispatch vers le
+  parcours des records et la sortie `10 PRINT A` / `20 PRINT B`.
 - Le breakpoint `minibasic_divide` et `disasm` permettent d’observer la
   correspondance adresse → `fdiv.d`; les registres f et `fcsr` sont affichés
   avant/après le pas.
