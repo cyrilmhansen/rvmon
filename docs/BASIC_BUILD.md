@@ -665,3 +665,24 @@ fait évoluer l’évaluation vers deux opérandes de la table : `X=5.0`, `Y=3.0
 ```text
 bash scripts/test-guest-runtime-command-run-two-variables-add.sh
 ```
+
+## Boucle FOR/NEXT target-side
+
+Le payload assembleur exécute aussi le sous-ensemble pédagogique suivant :
+
+```text
+10 FOR X=1 TO 3
+20 NEXT X
+RUN
+```
+
+La vérification reproductible est :
+
+```text
+bash scripts/test-guest-runtime-asm-repl-for.sh
+```
+
+Le test attend les trois valeurs produites par le guest (`1.000000`,
+`2.000000`, `3.000000`) et le motif binary64 de la dernière valeur dans le
+registre observé. `STEP`, les boucles imbriquées et une pile `FOR` générale ne
+sont pas encore inclus dans ce sous-ensemble.

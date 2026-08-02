@@ -3355,6 +3355,36 @@ release. Elles n’ajoutent aucune extension ISA.
 - **Parallélisable :** oui avec le pool de chaînes ; non avec le layout record.
 - **Paquet de contexte :** BASIC-LOAD-005AJ, payload string et test QEMU.
 
+#### BASIC-LOAD-005AL — FOR/NEXT target-side borné — TERMINÉE
+
+- **Priorité :** P0, première boucle réellement exécutée dans le payload
+  assembleur.
+- **But :** exécuter `FOR X=1 TO 3` et `NEXT X` dans la cible, conserver la
+  variable et la borne en binary64, incrémenter par `fadd.d` et décider la
+  reprise par `fle.d`.
+- **Non-but :** `STEP`, variables de boucle arbitraires, boucles imbriquées,
+  pile FOR générale et diagnostics de profondeur.
+- **Entrées :** ISA D, layout de la table variable et dispatcher target-side
+  existant.
+- **Fichiers/modules :** `examples/minibasic-asm/payload-repl.rv`, test QEMU
+  FOR/NEXT et documentation pédagogique.
+- **Dépendances :** BASIC-LOAD-005AK, affectation, comparaison FP et dispatch
+  `GOTO`.
+- **Tests :** `scripts/test-guest-runtime-asm-repl-for.sh`, sorties
+  `1.000000`, `2.000000`, `3.000000`, motif `f3=0x4008000000000000` et arrêt
+  contrôlé.
+- **Critères de sortie :** la boucle, l’arithmétique, la comparaison et la
+  sortie proviennent du guest ; le script ne fournit que les octets UART et
+  observe QEMU.
+- **Cas limites :** borne inférieure immédiate, `STEP`, borne négative,
+  profondeur et programme plein restent à couvrir.
+- **Taille :** 4 points / 2 journées-agent, incertitude moyenne.
+- **Compétences/outils :** assembleur RV64D, QEMU, désassemblage et tests shell.
+- **Parallélisable :** oui avec la conception du layout de chaînes/tableaux ;
+  non avec une modification concurrente du dispatcher.
+- **Paquet de contexte :** BASIC-LOAD-005AK, `payload-repl.rv`, tests IF/GOTO et
+  contrat de table des variables.
+
 ### BASIC-LOAD-004 — Porter le magasin de lignes et le contrôle de flot
 
 - **Priorité :** P0.

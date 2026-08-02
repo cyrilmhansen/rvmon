@@ -181,6 +181,10 @@
   vérifie Ctrl-C sur `10 GOTO 10`, `BREAK` et le retour au moniteur.
 - `scripts/test-guest-runtime-asm-repl-string.sh` vérifie deux littéraux ASCII
   `PRINT "FIRST"`/`PRINT "SECOND"`, lus en RAM cible et émis par `ecall 1`.
+- `scripts/test-guest-runtime-asm-repl-for.sh` vérifie la première boucle de
+  contrôle itérative entièrement target-side : `FOR X=1 TO 3` initialise la
+  variable, `NEXT X` incrémente par `fadd.d`, compare par `fle.d` et produit
+  `1.000000`, `2.000000`, puis `3.000000` avant l'arrêt.
 - Le breakpoint `minibasic_divide` et `disasm` permettent d’observer la
   correspondance adresse → `fdiv.d`; les registres f et `fcsr` sont affichés
   avant/après le pas.

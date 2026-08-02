@@ -179,6 +179,24 @@ chaîne sont lus depuis le record en RAM cible et envoyés par `ecall 1`. Les
 chaînes sont ASCII, sans échappement ni variable chaîne à ce stade ; la preuve
 est `scripts/test-guest-runtime-asm-repl-string.sh`.
 
+La première boucle itérative est maintenant exécutée par le payload, sans
+interpréteur hôte :
+
+```text
+10 FOR X=1 TO 3
+20 NEXT X
+RUN
+```
+
+`FOR` lit les littéraux dans la ligne cible, initialise la table binary64 et
+mémorise la borne. `NEXT` incrémente avec `fadd.d`, compare la nouvelle valeur
+avec `fle.d`, puis redispatche vers la ligne 20 ou termine `RUN`. Le test QEMU
+est `scripts/test-guest-runtime-asm-repl-for.sh`.
+
+Cette tranche est volontairement bornée à `FOR X=1 TO 3` et `NEXT X` : `STEP`,
+les variables de boucle arbitraires, les boucles imbriquées et les diagnostics
+de pile restent des extensions distinctes.
+
 `END` est également dispatché target-side, émet `END\n` puis arrête la séance
 sur un breakpoint contrôlable. Sa non-régression est :
 
