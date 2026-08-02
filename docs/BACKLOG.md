@@ -3390,8 +3390,8 @@ release. Elles n’ajoutent aucune extension ISA.
 #### BASIC-LOAD-005AM — Premier tableau numérique target-side — TERMINÉE
 
 - **Priorité :** P0, preuve d'intégration du stockage indexé dans le payload.
-- **But :** exécuter `DIM A(10)`, écrire `A(10)=42` et relire la valeur avec
-  `PRINT A(10)` dans la cible RV64.
+- **But :** exécuter `DIM A(n)`, écrire et relire des indices entiers bornés,
+  dont `A(0)` et `A(10)`, dans la cible RV64.
 - **Non-but :** dimensions variables, indices expressions, tableaux de chaînes,
   partage d'un nom entre scalaire et tableau et compatibilité binaire Atari.
 - **Entrées :** contrat D-018 du layout de tableau, ISA D et parseur target-side.
@@ -3402,8 +3402,8 @@ release. Elles n’ajoutent aucune extension ISA.
   `42.000000`, exécution des lignes et arrêt contrôlé.
 - **Critères de sortie :** les onze cellules et les opérations vivent en RAM
   cible; aucune valeur n'est injectée dans la sortie par le script.
-- **Cas limites :** index 0, index 10, index 11, DIM répétée et diagnostics
-  d'index restent à généraliser.
+- **Cas limites :** index 0, index 10, index 11, dimension 32, DIM répétée et
+  diagnostics d'index restent à généraliser.
 - **Taille :** 5 points / 2,5 journées-agent, incertitude élevée.
 - **Compétences/outils :** assembleur RV64D, layout mémoire, QEMU et DUMP.
 - **Parallélisable :** oui avec le pool de chaînes; non avec une refonte du

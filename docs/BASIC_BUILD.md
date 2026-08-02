@@ -716,6 +716,7 @@ RUN
 bash scripts/test-guest-runtime-asm-repl-array.sh
 ```
 
-Cette étape couvre volontairement l'indice littéral `10` et onze cellules
-`binary64`; les dimensions dynamiques, les indices variables et les tableaux de
-chaînes restent à implémenter.
+Cette étape couvre des indices entiers littéraux (dont `0` et `10`) dans une
+dimension maximale de 32 cellules `binary64`; les indices expressions, les
+dimensions multidimensionnelles et les tableaux de chaînes restent à
+implémenter.
