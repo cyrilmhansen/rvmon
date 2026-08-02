@@ -32,6 +32,10 @@ printf '%s\n' \
   'LET OUT$=TEXT$+' \
   'LET OUT$=TEXT$+"THIS LINE MUST NOT FIT........................................................................................................................."' \
   'LET OUT$=TEXT$+123' \
+  'LET OUT$=""+LEFT$(TEXT$,-1)' \
+  'LET OUT$=RIGHT$(TEXT$,121)+"!"' \
+  'LET OUT$=MID$(TEXT$,0,2)+"!"' \
+  'LET OUT$=""+UNKNOWN$(TEXT$,2)' \
   '10 END' \
   'RUN' | while IFS= read -r line; do
     printf '%s\n' "$line" >&3
@@ -46,9 +50,9 @@ wait "$qemu_pid" 2>/dev/null || true
 qemu_pid=""
 
 error_count=$(grep -aF -- 'ERR' "$output_file" | wc -l)
-if (( error_count < 3 )); then
+if (( error_count < 7 )); then
     cat "$output_file"
-    printf 'expected three string-concat diagnostics, got %s\n' "$error_count" >&2
+    printf 'expected seven string-concat diagnostics, got %s\n' "$error_count" >&2
     exit 1
 fi
 if ! grep -aFq -- 'trap: breakpoint' "$output_file"; then

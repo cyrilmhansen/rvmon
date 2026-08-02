@@ -5060,15 +5060,12 @@ lbu x5,0(x21)
 addi x6,x0,34
 beq x5,x6,string_literal_open
 addi x6,x0,76
-beq x5,x6,string_assign_left
+beq x5,x6,string_assign_check_left
 addi x6,x0,82
-beq x5,x6,string_assign_right
+beq x5,x6,string_assign_check_right
 addi x6,x0,77
 bne x5,x6,string_assign_concat
-sd x1,2000(x8)
-jal x1,string_mid_assign
-ld x1,2000(x8)
-jalr x0,0(x1)
+jal x0,string_assign_check_mid
 string_assign_concat:
 sd x1,2000(x8)
 jal x1,string_concat_assign
@@ -5117,15 +5114,12 @@ lbu x5,0(x21)
 addi x6,x0,34
 beq x5,x6,string_array_literal_open
 addi x6,x0,76
-beq x5,x6,string_array_assign_left
+beq x5,x6,string_assign_check_left
 addi x6,x0,82
-beq x5,x6,string_array_assign_right
+beq x5,x6,string_assign_check_right
 addi x6,x0,77
 bne x5,x6,string_array_assign_concat
-sd x1,2000(x8)
-jal x1,string_mid_assign
-ld x1,2000(x8)
-jalr x0,0(x1)
+jal x0,string_assign_check_mid
 string_array_assign_concat:
 sd x1,2000(x8)
 jal x1,string_concat_assign
@@ -5139,6 +5133,61 @@ jalr x0,0(x1)
 string_array_assign_right:
 sd x1,2000(x8)
 jal x1,string_right_assign
+ld x1,2000(x8)
+jalr x0,0(x1)
+string_assign_check_left:
+lbu x5,1(x21)
+addi x6,x0,69
+bne x5,x6,string_assign_concat
+lbu x5,2(x21)
+addi x6,x0,70
+bne x5,x6,string_assign_concat
+lbu x5,3(x21)
+addi x6,x0,84
+bne x5,x6,string_assign_concat
+lbu x5,4(x21)
+addi x6,x0,36
+bne x5,x6,string_assign_concat
+lbu x5,5(x21)
+addi x6,x0,40
+bne x5,x6,string_assign_concat
+jal x0,string_assign_left
+string_assign_check_right:
+lbu x5,1(x21)
+addi x6,x0,73
+bne x5,x6,string_assign_concat
+lbu x5,2(x21)
+addi x6,x0,71
+bne x5,x6,string_assign_concat
+lbu x5,3(x21)
+addi x6,x0,72
+bne x5,x6,string_assign_concat
+lbu x5,4(x21)
+addi x6,x0,84
+bne x5,x6,string_assign_concat
+lbu x5,5(x21)
+addi x6,x0,36
+bne x5,x6,string_assign_concat
+lbu x5,6(x21)
+addi x6,x0,40
+bne x5,x6,string_assign_concat
+jal x0,string_assign_right
+string_assign_check_mid:
+lbu x5,1(x21)
+addi x6,x0,73
+bne x5,x6,string_assign_concat
+lbu x5,2(x21)
+addi x6,x0,68
+bne x5,x6,string_assign_concat
+lbu x5,3(x21)
+addi x6,x0,36
+bne x5,x6,string_assign_concat
+lbu x5,4(x21)
+addi x6,x0,40
+bne x5,x6,string_assign_concat
+string_assign_mid:
+sd x1,2000(x8)
+jal x1,string_mid_assign
 ld x1,2000(x8)
 jalr x0,0(x1)
 string_array_literal_open:
@@ -6162,7 +6211,7 @@ sd x1,2016(x8)
 addi x9,x0,0
 string_concat_term:
 sd x9,2032(x8)
-jal x1,resolve_string_source
+jal x1,resolve_string_concat_term
 ld x9,2032(x8)
 add x6,x9,x11
 sltiu x7,x6,121
@@ -6214,6 +6263,192 @@ string_concat_done:
 ld x1,2016(x8)
 jalr x0,0(x1)
 string_concat_error:
+jal x0,error_line
+resolve_string_concat_term:
+lbu x5,0(x21)
+addi x6,x0,76
+bne x5,x6,string_concat_check_right
+lbu x5,1(x21)
+addi x6,x0,69
+bne x5,x6,string_concat_source
+lbu x5,2(x21)
+addi x6,x0,70
+bne x5,x6,string_concat_source
+lbu x5,3(x21)
+addi x6,x0,84
+bne x5,x6,string_concat_source
+lbu x5,4(x21)
+addi x6,x0,36
+bne x5,x6,string_concat_source
+lbu x5,5(x21)
+addi x6,x0,40
+beq x5,x6,string_concat_left_term
+jal x0,string_concat_source
+string_concat_check_right:
+addi x6,x0,82
+bne x5,x6,string_concat_check_mid
+lbu x5,1(x21)
+addi x6,x0,73
+bne x5,x6,string_concat_source
+lbu x5,2(x21)
+addi x6,x0,71
+bne x5,x6,string_concat_source
+lbu x5,3(x21)
+addi x6,x0,72
+bne x5,x6,string_concat_source
+lbu x5,4(x21)
+addi x6,x0,84
+bne x5,x6,string_concat_source
+lbu x5,5(x21)
+addi x6,x0,36
+bne x5,x6,string_concat_source
+lbu x5,6(x21)
+addi x6,x0,40
+beq x5,x6,string_concat_right_term
+jal x0,string_concat_source
+string_concat_check_mid:
+addi x6,x0,77
+bne x5,x6,string_concat_source
+lbu x5,1(x21)
+addi x6,x0,73
+bne x5,x6,string_concat_source
+lbu x5,2(x21)
+addi x6,x0,68
+bne x5,x6,string_concat_source
+lbu x5,3(x21)
+addi x6,x0,36
+bne x5,x6,string_concat_source
+lbu x5,4(x21)
+addi x6,x0,40
+beq x5,x6,string_concat_mid_term
+jal x0,string_concat_source
+string_concat_source:
+sd x1,2000(x8)
+jal x1,resolve_string_source
+ld x1,2000(x8)
+jalr x0,0(x1)
+string_concat_left_term:
+addi x28,x0,1
+sd x28,2040(x8)
+addi x21,x21,6
+jal x0,string_concat_slice_term
+string_concat_right_term:
+addi x28,x0,2
+sd x28,2040(x8)
+addi x21,x21,7
+jal x0,string_concat_slice_term
+string_concat_mid_term:
+addi x28,x0,3
+sd x28,2040(x8)
+addi x21,x21,5
+string_concat_slice_term:
+sd x1,2000(x8)
+jal x1,resolve_string_source
+sd x7,1944(x8)
+sd x11,1952(x8)
+ld x28,2040(x8)
+addi x6,x0,3
+beq x28,x6,string_concat_mid_arguments
+lbu x5,0(x21)
+addi x6,x0,44
+bne x5,x6,string_concat_slice_error
+addi x21,x21,1
+addi x22,x0,0
+jal x1,eval_expression
+lbu x5,0(x21)
+addi x6,x0,41
+bne x5,x6,string_concat_slice_error
+addi x21,x21,1
+jal x0,string_concat_slice_count
+string_concat_mid_arguments:
+lbu x5,0(x21)
+addi x6,x0,44
+bne x5,x6,string_concat_slice_error
+addi x21,x21,1
+addi x22,x0,0
+jal x1,eval_expression
+fcvt.l.d x10,f3,1
+srai x6,x10,63
+bne x6,x0,string_concat_slice_error
+beq x10,x0,string_concat_slice_error
+sd x10,1960(x8)
+lbu x5,0(x21)
+addi x6,x0,44
+bne x5,x6,string_concat_slice_error
+addi x21,x21,1
+addi x22,x0,0
+jal x1,eval_expression
+lbu x5,0(x21)
+addi x6,x0,41
+bne x5,x6,string_concat_slice_error
+addi x21,x21,1
+string_concat_slice_count:
+fcvt.l.d x10,f3,1
+srai x6,x10,63
+bne x6,x0,string_concat_slice_error
+sltiu x7,x10,121
+beq x7,x0,string_concat_slice_error
+ld x7,1952(x8)
+ld x28,2040(x8)
+addi x6,x0,1
+beq x28,x6,string_concat_slice_left
+addi x6,x0,2
+beq x28,x6,string_concat_slice_right
+ld x28,1960(x8)
+addi x28,x28,-1
+sltu x6,x28,x7
+beq x6,x0,string_concat_slice_empty
+sub x6,x7,x28
+sltu x27,x6,x10
+beq x27,x0,string_concat_slice_mid_count
+addi x10,x6,0
+string_concat_slice_mid_count:
+ld x27,1944(x8)
+add x7,x27,x28
+jal x0,string_concat_slice_copy_setup
+string_concat_slice_left:
+sltu x6,x7,x10
+beq x6,x0,string_concat_slice_left_count
+addi x10,x7,0
+string_concat_slice_left_count:
+ld x7,1944(x8)
+jal x0,string_concat_slice_copy_setup
+string_concat_slice_right:
+sltu x6,x7,x10
+beq x6,x0,string_concat_slice_right_count
+addi x10,x7,0
+string_concat_slice_right_count:
+sub x6,x7,x10
+ld x7,1944(x8)
+add x7,x7,x6
+jal x0,string_concat_slice_copy_setup
+string_concat_slice_empty:
+addi x10,x0,0
+ld x7,1944(x8)
+string_concat_slice_copy_setup:
+lui x27,0x82060
+slli x27,x27,32
+srli x27,x27,32
+addi x27,x27,768
+addi x9,x0,0
+string_concat_slice_copy:
+sltu x6,x9,x10
+beq x6,x0,string_concat_slice_done
+lbu x5,0(x7)
+sb x5,0(x27)
+addi x7,x7,1
+addi x27,x27,1
+addi x9,x9,1
+jal x0,string_concat_slice_copy
+string_concat_slice_done:
+lui x7,0x82060
+slli x7,x7,32
+srli x7,x7,32
+addi x7,x7,768
+addi x11,x10,0
+ld x1,2000(x8)
+jalr x0,0(x1)
+string_concat_slice_error:
 jal x0,error_line
 string_left_assign:
 sd x1,2016(x8)

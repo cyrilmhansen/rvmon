@@ -29,14 +29,25 @@ awk '/^symbols$/{print; found=1; next} found && /^run-at /{print; exit} !found{p
 sleep 0.3
 printf '%s\n' \
   'LET TEXT$="HAMMURABI"' \
+  'LET LONGTEXT$="NILE"' \
+  'LET COPIED$=LONGTEXT$' \
+  'LET LONGTEXT2$=LONGTEXT$+" RIVER"' \
   'LET PREFIX$="RV "+TEXT$' \
   'LET COMPOSED$=PREFIX$+"!"' \
+  'LET WITHLEFT$=">"+LEFT$(TEXT$,4)' \
+  'LET WITHRIGHT$=RIGHT$(TEXT$,4)+"<"' \
+  'LET WITHMID$="["+MID$(TEXT$,2,4)+"]"' \
   'DIM A$(1)' \
   'LET A$(0)=TEXT$+" GAME"' \
   '10 PRINT PREFIX$' \
   '20 PRINT COMPOSED$' \
   '30 PRINT A$(0)' \
-  '40 END' \
+  '40 PRINT WITHLEFT$' \
+  '50 PRINT WITHRIGHT$' \
+  '60 PRINT WITHMID$' \
+  '70 PRINT COPIED$' \
+  '80 PRINT LONGTEXT2$' \
+  '90 END' \
   'RUN' | while IFS= read -r line; do
     printf '%s\n' "$line" >&3
     sleep 0.08
@@ -49,7 +60,7 @@ kill "$qemu_pid" 2>/dev/null || true
 wait "$qemu_pid" 2>/dev/null || true
 qemu_pid=""
 
-for expected in 'RV HAMMURABI' 'RV HAMMURABI!' 'HAMMURABI GAME' 'trap: breakpoint'; do
+for expected in 'RV HAMMURABI' 'RV HAMMURABI!' 'HAMMURABI GAME' '>HAMM<' 'RABI<' '[AMMU]' 'NILE' 'NILE RIVER' 'trap: breakpoint'; do
     if ! grep -aFq -- "$expected" "$output_file"; then
         cat "$output_file"
         printf 'missing string-concat result: %s\n' "$expected" >&2
