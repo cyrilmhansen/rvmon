@@ -933,6 +933,9 @@ addi x7,x0,61
 beq x5,x7,assignment_statement
 jal x0,error_line
 string_statement:
+ lbu x5,17(x24)
+ addi x7,x0,61
+ beq x5,x7,assignment_statement
 addi x21,x24,16
 jal x1,string_assign
 jal x0,if_false
@@ -1054,6 +1057,9 @@ addi x10,x0,3
 sd x10,536(x8)
 jal x0,run_line
 end_statement:
+ lbu x5,17(x24)
+ addi x7,x0,61
+ beq x5,x7,assignment_statement
 addi x10,x8,64
 addi x11,x0,4
 addi x17,x0,4
@@ -1067,6 +1073,8 @@ ecall
 ebreak
 statement_i:
 lbu x5,17(x24)
+addi x7,x0,61
+beq x5,x7,assignment_statement
 addi x7,x0,70
 beq x5,x7,if_statement
 addi x7,x0,78
@@ -1103,6 +1111,9 @@ jal x0,if_false
 error_line_near:
 jal x0,error_line
 for_statement:
+ lbu x5,17(x24)
+ addi x7,x0,61
+ beq x5,x7,assignment_statement
 ld x27,1240(x8)
 sltiu x7,x27,8
 beq x7,x0,error_line
@@ -1166,6 +1177,9 @@ sd x27,1240(x8)
 sd x0,568(x8)
 jal x0,if_false
 next_statement:
+ lbu x5,17(x24)
+ addi x7,x0,61
+ beq x5,x7,assignment_statement
 ld x27,1240(x8)
 beq x27,x0,error_line_near
 addi x27,x27,-1
