@@ -103,9 +103,47 @@ jal x0,command_loop
 run_line:
 ld x10,512(x8)
 beq x10,x0,error_line
+; Facteur gauche : X/Y sont des variables, les chiffres sont des littéraux.
+lbu x5,22(x19)
+addi x6,x0,88
+beq x5,x6,left_x
+addi x6,x0,89
+beq x5,x6,left_y
+sltiu x6,x5,48
+bne x6,x0,error_line
+sltiu x6,x5,58
+beq x6,x0,error_line
+addi x6,x0,48
+sub x10,x5,x6
+fcvt.d.l f1,x10,0
+jal x0,right_factor
+left_x:
 fld f1,0(x20)
+jal x0,right_factor
+left_y:
+fld f1,8(x20)
+right_factor:
+; Facteur droit : même règle, à l’octet 24 du record.
+lbu x5,24(x19)
+addi x6,x0,88
+beq x5,x6,right_x
+addi x6,x0,89
+beq x5,x6,right_y
+sltiu x6,x5,48
+bne x6,x0,error_line
+sltiu x6,x5,58
+beq x6,x0,error_line
+addi x6,x0,48
+sub x10,x5,x6
+fcvt.d.l f2,x10,0
+jal x0,dispatch_operator
+right_x:
+fld f2,0(x20)
+jal x0,dispatch_operator
+right_y:
 fld f2,8(x20)
 ; L’opérateur est le huitième octet de PRINT X<op>Y.
+dispatch_operator:
 lbu x5,23(x19)
 addi x6,x0,43
 beq x5,x6,run_add
