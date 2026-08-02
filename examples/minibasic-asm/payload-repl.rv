@@ -243,12 +243,21 @@ run_save:
 fsd f3,1024(x8)
 ebreak
 parse_atom:
+addi x28,x0,0
+addi x29,x0,0
 skip_atom_spaces:
 lbu x5,0(x21)
 addi x6,x0,32
-bne x5,x6,atom_dispatch
+bne x5,x6,atom_prefix
 addi x21,x21,1
 jal x0,skip_atom_spaces
+atom_prefix:
+addi x6,x0,40
+beq x5,x6,atom_open_paren
+addi x6,x0,43
+beq x5,x6,atom_plus
+addi x6,x0,45
+beq x5,x6,atom_minus
 atom_dispatch:
 addi x6,x0,88
 beq x5,x6,atom_x
@@ -307,6 +316,25 @@ fcvt.d.l f6,x25,0
 fdiv.d f5,f5,f6
 fadd.d f4,f4,f5
 store_atom:
+beq x28,x0,atom_sign_done
+fmv.x.d x10,f4
+addi x6,x0,1
+slli x6,x6,63
+xor x10,x10,x6
+fmv.d.x f4,x10
+atom_sign_done:
+beq x29,x0,atom_paren_done
+atom_close_spaces:
+lbu x5,0(x21)
+addi x6,x0,32
+bne x5,x6,atom_close_check
+addi x21,x21,1
+jal x0,atom_close_spaces
+atom_close_check:
+addi x6,x0,41
+bne x5,x6,error_line
+addi x21,x21,1
+atom_paren_done:
 fsd f4,1032(x8)
 beq x22,x0,store_left_atom
 fld f2,1032(x8)
@@ -322,6 +350,17 @@ atom_y:
 fld f4,8(x20)
 addi x21,x21,1
 jal x0,store_atom
+atom_open_paren:
+addi x29,x0,1
+addi x21,x21,1
+jal x0,skip_atom_spaces
+atom_plus:
+addi x21,x21,1
+jal x0,skip_atom_spaces
+atom_minus:
+addi x28,x0,1
+addi x21,x21,1
+jal x0,skip_atom_spaces
 error_line:
 addi x10,x8,48
 addi x11,x0,4
