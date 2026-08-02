@@ -52,3 +52,14 @@
   integrated payload, and old chronological paragraphs are labelled as such.
   I deliberately did not stage the guide yet because it already contains
   unrelated worktree edits from the user.
+- I added a first target-side `WHILE`/`WEND` implementation with an eight-level
+  stack and isolated QEMU tests. The first assembly attempt exposed two real
+  integration issues: the existing 512-label scratch table was too small for
+  the expanded payload, and newly added conditional branches exceeded the
+  RISC-V branch displacement range. The symbol capacity is now 1024 and the
+  long branches use inverted local branches plus `jal`.
+- An initial branch-range rewrite around array-name validation accidentally
+  inverted its semantic condition. The isolated short-array test caught this
+  immediately: valid `A(...)` accesses produced `ERR`. I corrected the
+  rewrite, reran the test successfully, and am keeping the incident here as a
+  reminder that range-preserving transformations require behavioral tests.

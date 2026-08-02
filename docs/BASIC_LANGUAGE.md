@@ -22,6 +22,8 @@ statement     = "REM" , text
               | "GOTO" , number
               | "GOSUB" , number
               | "RETURN"
+              | "WHILE" , expression
+              | "WEND"
               | "DATA" , expression , { "," , expression }
               | "READ" , variable
               | "RESTORE"
@@ -78,6 +80,16 @@ interrompue produisent respectivement `BASIC-FLOW-003`, `BASIC-FLOW-002`,
 de flot et rend la main à l’invite sans modifier le programme.
 Une réponse `INPUT` vide ou syntaxiquement invalide produit
 `BASIC-INPUT-001`.
+
+`WHILE expression` et `WEND` sont exécutés dans la cible et partagent une pile
+de huit niveaux dédiée. Une expression numérique est vraie si elle est
+différente de `0.0`; les comparaisons utilisent la même sémantique que `IF`.
+Quand la condition est fausse, le guest recherche le `WEND` correspondant en
+comptant les `WHILE`/`WEND` imbriqués et reprend à la ligne suivante. `WEND`
+sans boucle active et une imbrication dépassant huit niveaux sont des erreurs
+de flot. La résolution structurelle porte sur le premier statement de chaque
+ligne ; les formes imbriquées dans une même ligne séparée par `:` restent
+exclues de cette tranche.
 
 `DATA` et `READ` utilisent un curseur séquentiel conservé dans la mémoire
 cible. La tranche actuelle accepte des valeurs numériques binary64 et des

@@ -40,7 +40,9 @@ const MAX_SOURCE_LINES: usize = 4096;
 // Keep the persistent editor/snapshot contract at 4096 lines while allowing
 // generated target programs such as MiniBASIC-RV to be assembled in one pass.
 const MAX_ASSEMBLY_LINES: usize = 8192;
-const MAX_SYMBOLS: usize = 512;
+// Standalone payloads may contain hundreds of local control-flow labels.
+// Keep this scratch capacity independent from the editable source document.
+const MAX_SYMBOLS: usize = 1024;
 const SYMBOL_NAME_CAPACITY: usize = 32;
 // Target service ABI: a7 selects the service; a0/a1 carry arguments/results.
 const ECALL_WRITE_CHAR: u64 = 1;
@@ -1531,10 +1533,10 @@ fn assemble_program_command(context: *mut TargetContext, argument: &[u8]) {
             );
             return;
         }
-            let Some(word) = (unsafe {
-                parse_source_instruction(line, line_address, &*core::ptr::addr_of!(ASSEMBLY_SYMBOLS))
-            }) else {
-                guest_source_error(
+        let Some(word) = (unsafe {
+            parse_source_instruction(line, line_address, &*core::ptr::addr_of!(ASSEMBLY_SYMBOLS))
+        }) else {
+            guest_source_error(
                 index + 1,
                 b"GUEST-ASM-008",
                 b"supports integer/control, byte/word loads-stores, ld/sd/fld/fsd, f arithmetic or fmv syntax",
