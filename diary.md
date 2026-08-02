@@ -63,3 +63,10 @@
   immediately: valid `A(...)` accesses produced `ERR`. I corrected the
   rewrite, reran the test successfully, and am keeping the incident here as a
   reminder that range-preserving transformations require behavioral tests.
+- The WHILE/WEND tranche was committed as `ad917cb`. The workspace Rust test
+  suite passed, and the focused QEMU matrix passed sequentially for arrays,
+  strings, GOSUB/RETURN, DATA/READ, Hammurabi, WHILE/WEND, and orphan-WEND
+  diagnostics. One existing long-string-array harness is timing-sensitive
+  under repeated runs; an isolated traced run passes, so this remains a test
+  infrastructure issue to harden separately rather than a hidden runtime
+  failure.
