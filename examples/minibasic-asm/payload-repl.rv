@@ -2804,10 +2804,14 @@ addi x6,x0,44
 beq x5,x6,lna2_second
 addi x6,x0,41
 bne x5,x6,long_num_error
+addi x6,x24,-4
+beq x6,x0,resolve_long_string_index_mode
 addi x6,x24,-2
 beq x6,x0,lna_index_short
 addi x6,x24,-3
 beq x6,x0,assign_index_shared
+addi x6,x24,-5
+beq x6,x0,string_array_index_shared
 beq x24,x0,lna_index_1d
 addi x23,x22,0
 ld x22,1776(x8)
@@ -2817,6 +2821,36 @@ addi x23,x22,0
 ld x22,1776(x8)
 ld x30,1752(x8)
 jal x0,array_index_done
+string_array_index_shared:
+addi x23,x22,0
+ld x22,1776(x8)
+ld x30,1752(x8)
+jal x0,string_array_index_done
+resolve_long_string_index_mode:
+addi x6,x0,44
+beq x5,x6,resolve_long_string_2d_jump
+addi x6,x0,41
+bne x5,x6,string_long_error
+ld x6,16(x26)
+sltu x7,x22,x6
+beq x7,x0,string_long_error
+addi x21,x21,1
+lui x7,0x82020
+slli x6,x29,12
+add x7,x7,x6
+slli x6,x22,7
+add x7,x7,x6
+addi x7,x7,8
+ld x11,-8(x7)
+ld x22,1168(x8)
+ld x24,1120(x8)
+ld x25,1128(x8)
+ld x26,1136(x8)
+ld x27,1144(x8)
+ld x1,1152(x8)
+jalr x0,0(x1)
+resolve_long_string_2d_jump:
+jal x0,resolve_long_array_2d
 lna_index_1d:
 ld x6,16(x26)
 sltu x7,x22,x6
@@ -2924,7 +2958,7 @@ sd x1,1152(x8)
 jal x1,resolve_variable
 ld x1,1152(x8)
 fld f4,0(x7)
-fcvt.l.d x23,f4
+fcvt.l.d x23,f4,1
 addi x27,x0,1
 lbu x5,0(x21)
 jal x0,dim_index_done
@@ -3854,6 +3888,8 @@ addi x22,x22,1
 jal x0,resolve_string_array_probe
 resolve_string_array_short:
 sd x1,1152(x8)
+sd x22,1776(x8)
+sd x30,1752(x8)
 lbu x5,0(x21)
 addi x6,x5,-97
 sltiu x7,x6,26
@@ -3872,37 +3908,9 @@ lbu x5,2(x21)
 addi x7,x0,40
 bne x5,x7,string_long_error
 addi x21,x21,3
-addi x23,x0,0
-addi x27,x0,0
-lbu x5,0(x21)
-addi x6,x5,-65
-sltiu x7,x6,26
-beq x7,x0,string_array_index_digits
-sd x1,1576(x8)
-jal x1,resolve_variable
-ld x1,1576(x8)
-fld f4,0(x7)
-fcvt.l.d x23,f4
-addi x27,x0,1
-lbu x5,0(x21)
-jal x0,string_array_index_done
-string_array_index_digits:
-lbu x5,0(x21)
-addi x6,x0,48
-sltu x7,x5,x6
-bne x7,x0,string_array_index_done
-addi x6,x0,58
-sltu x7,x5,x6
-beq x7,x0,string_array_index_done
-addi x6,x0,48
-sub x5,x5,x6
-slli x6,x23,3
-slli x7,x23,1
-add x23,x6,x7
-add x23,x23,x5
-addi x27,x0,1
-addi x21,x21,1
-jal x0,string_array_index_digits
+addi x24,x0,5
+addi x22,x0,0
+jal x0,lna_index
 string_array_index_done:
 beq x27,x0,string_long_error
 addi x6,x0,41
@@ -4016,8 +4024,9 @@ addi x27,x27,-1
 bne x27,x0,resolve_long_array_slot_loop
 jal x0,string_long_error
 resolve_long_array_slot_match:
+addi x24,x0,4
 addi x22,x0,0
-addi x27,x0,0
+jal x0,lna_index
 resolve_long_array_index:
 lbu x5,0(x21)
 addi x6,x5,-65
@@ -4027,7 +4036,7 @@ sd x1,1576(x8)
 jal x1,resolve_variable
 ld x1,1576(x8)
 fld f4,0(x7)
-fcvt.l.d x22,f4
+fcvt.l.d x22,f4,1
 addi x27,x0,1
 lbu x5,0(x21)
 jal x0,resolve_long_array_index_done
@@ -4085,7 +4094,7 @@ sd x1,1576(x8)
 jal x1,resolve_variable
 ld x1,1576(x8)
 fld f4,0(x7)
-fcvt.l.d x23,f4
+fcvt.l.d x23,f4,1
 addi x27,x0,1
 lbu x5,0(x21)
 jal x0,resolve_long_array_2d_done

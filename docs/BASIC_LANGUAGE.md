@@ -177,3 +177,11 @@ Le même index calculé `base [+|-] entier` est également disponible pour les
 tableaux numériques courts `A(…)`, en lecture, affichage et affectation, y
 compris sur leurs deux dimensions. Le parseur partagé restaure le contexte de
 l’évaluateur avant de revenir au chemin de stockage court.
+
+Les tableaux de chaînes courts acceptent cette même forme calculée en une
+dimension, par exemple `A$(I+0)`, en lecture, affichage et affectation. Les
+tableaux de chaînes longs l'acceptent pour leur première dimension, y compris
+dans la forme à deux dimensions (`LONGGRID$(I+0,J)`) ; la seconde dimension
+reste limitée à un entier ou à une variable simple dans cette tranche. Le
+calcul d'index et les contrôles de bornes restent exécutés exclusivement dans
+la cible.

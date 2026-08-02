@@ -25,11 +25,59 @@ qemu-system-riscv64 -M virt -m 64M -bios none -kernel "$image" \
 qemu_pid=$!
 exec 3>"$input_fifo"
 sleep 0.1
-awk '/^symbols$/{print; found=1; next} found && /^run-at /{print; exit} !found{print}' \
-    examples/minibasic-asm/payload-repl.rv |
-    while IFS= read -r line; do printf '%s\n' "$line" >&3; sleep 0.002; done
-sleep 0.2
-printf 'DIM LONGARRAY$(2)\nLONGARRAY$(1)="ARRAY-DIRECT-TARGET"\n10 PRINT LONGARRAY$(1)\n20 LET LONGARRAY$(1)="ARRAY-PROGRAM-TARGET"\n30 PRINT "VALUE",LONGARRAY$(1)\n40 END\nRUN\n' >&3
+wait_for_text() {
+    local text="$1"
+    for _ in {1..500}; do
+        if grep -aFq -- "$text" "$output_file"; then
+            return 0
+        fi
+        sleep 0.01
+    done
+    cat "$output_file" >&2
+    printf 'timeout waiting for guest text: %s\n' "$text" >&2
+    return 1
+}
+source_prompt_count() { grep -ao 'source> ' "$output_file" | wc -l; }
+monitor_prompt_count() { grep -ao 'rvmonitor> ' "$output_file" | wc -l; }
+payload_stream() {
+    awk '/^symbols$/{print; found=1; next} found && /^run-at /{print; exit} !found{print}' \
+        examples/minibasic-asm/payload-repl.rv
+}
+in_source_mode=0
+while IFS= read -r line; do
+    if (( in_source_mode == 0 )); then
+        before=$(monitor_prompt_count)
+        printf '%s\n' "$line" >&3
+        if [[ "$line" == "assemble-program "* ]]; then
+            wait_for_text 'source mode:'
+            in_source_mode=1
+        else
+            for _ in {1..500}; do
+                (( $(monitor_prompt_count) > before )) && break
+                sleep 0.01
+            done
+        fi
+    elif [[ "$line" == end ]]; then
+        printf '%s\n' "$line" >&3
+        wait_for_text 'assembled program:'
+        in_source_mode=2
+    elif (( in_source_mode == 1 )); then
+        before=$(source_prompt_count)
+        printf '%s\n' "$line" >&3
+        for _ in {1..500}; do
+            (( $(source_prompt_count) > before )) && break
+            sleep 0.01
+        done
+    else
+        before=$(monitor_prompt_count)
+        printf '%s\n' "$line" >&3
+        for _ in {1..500}; do
+            (( $(monitor_prompt_count) > before )) && break
+            sleep 0.01
+        done
+    fi
+done < <(payload_stream)
+printf 'DIM LONGARRAY$(2)\nI=1\nLONGARRAY$(1)="ARRAY-DIRECT-TARGET"\n10 PRINT LONGARRAY$(I+0)\n20 LET LONGARRAY$(1)="ARRAY-PROGRAM-TARGET"\n30 PRINT "VALUE",LONGARRAY$(1)\n40 END\nRUN\n' >&3
 sleep 1.0
 printf 'q\n' >&3
 exec 3>&-
