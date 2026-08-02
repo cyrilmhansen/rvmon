@@ -88,6 +88,10 @@
 - `scripts/test-guest-runtime-command-run-fadd-d.sh` vérifie `RUN` avec le
   même record, `fcvt.d.l`, `fadd.d`, le motif `5.0` dans `f3`, le breakpoint et
   l’écriture binary64 exacte en RAM cible.
+- `scripts/test-guest-runtime-command-run-variable.sh` vérifie que `RUN` lit
+  `PRINT X` dans un record target-side, adresse `X` à l’offset `23*8` de la
+  table numérique, charge réellement sa valeur par `fld` dans `f1` et expose
+  le motif binary64 exact au breakpoint et en mémoire.
 - Le breakpoint `minibasic_divide` et `disasm` permettent d’observer la
   correspondance adresse → `fdiv.d`; les registres f et `fcsr` sont affichés
   avant/après le pas.

@@ -373,3 +373,18 @@ bash scripts/test-guest-runtime-command-run-fadd-d.sh
 
 Le formatage décimal de sortie et les variables restent distincts de cette
 preuve arithmétique.
+
+La fixture [`minibasic-runtime-command-run-variable.rv`](../examples/minibasic-runtime-command-run-variable.rv)
+branche ensuite `RUN` sur la table numérique target-side. Le record contient
+`10 PRINT X` et la cible lit directement la variable `X` à l’index 23 dans la
+table de 26 `binary64` (`23 * 8 = 184` octets). La valeur `5.0` est chargée par
+`fld`, conservée dans `f1`, puis recopiée en mémoire pour inspection exacte :
+
+```text
+bash scripts/test-guest-runtime-command-run-variable.sh
+```
+
+Cette preuve établit la lecture cible d’une variable et le lien
+ligne → table → registre flottant ; les affectations, expressions composées,
+le formatage décimal et le contrôle de flot restent à intégrer dans le
+payload général.

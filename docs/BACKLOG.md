@@ -2501,6 +2501,34 @@ release. Elles n’ajoutent aucune extension ISA.
 - **Parallélisable :** oui avec le parser des variables ; non avec une
   modification de la convention des registres flottants.
 
+#### BASIC-LOAD-005C — RUN lecture d’une variable numérique target-side — TERMINÉE
+
+- **Priorité :** P0, raccordement de la table de variables au chemin RUN.
+- **But :** reconnaître le record `10 PRINT X`, valider l’identifiant `X`,
+  calculer son index `23`, charger la valeur depuis la table cible et la rendre
+  observable dans un registre flottant et en mémoire.
+- **Non-but :** affectations, expressions composées, noms de plus d’un
+  caractère, formatage décimal, contrôle de flot et dispatch général.
+- **Entrées :** `BASIC_LANGUAGE.md`, D-018, `GUEST_PAYLOAD_ABI.md`, R1
+  chapitre F et D, R2 généré.
+- **Fichiers/modules :** `examples/minibasic-runtime-command-run-variable.rv`,
+  `scripts/test-guest-runtime-command-run-variable.sh`, documentation BASIC.
+- **Dépendances :** BASIC-LOAD-005A/B, table target-side des 26 variables et
+  instructions `fld`/`fsd`.
+- **Tests :** commande `RUN`, record `PRINT X`, `f1=0x4014000000000000`, dump
+  little-endian exact de `5.0`, breakpoint `ebreak` et statut QEMU 0.
+- **Critères de sortie :** la valeur est lue et chargée par le payload RV ; le
+  script hôte ne calcule ni ne fournit le résultat.
+- **Cas limites :** `A`/`Z`, variable non initialisée, minuscule, nom long,
+  table absente et erreur de syntaxe restent à traiter par l’exécuteur général.
+- **Taille :** 3 points / 1,5 journée-agent, incertitude faible.
+- **Compétences/outils :** assembleur RV64, ABI payload, QEMU et inspection
+  des registres flottants.
+- **Parallélisable :** oui avec le lexer d’identifiants et le formatage
+  binary64 ; non avec une modification du layout de la table.
+- **Paquet de contexte :** BASIC-LOAD-005A/B, `BASIC_LANGUAGE.md`,
+  `GUEST_PAYLOAD_ABI.md`, fixture de table `variable.rv` et contrat `fld`/`fsd`.
+
 ### BASIC-LOAD-004 — Porter le magasin de lignes et le contrôle de flot
 
 - **Priorité :** P0.
