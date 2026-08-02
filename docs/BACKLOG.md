@@ -2967,6 +2967,30 @@ release. Elles n’ajoutent aucune extension ISA.
 - **Paquet de contexte :** BASIC-LOAD-005S/R, payload REPL, tests direct/literal
   et règles d’alias de `BASIC_LANGUAGE.md`.
 
+#### BASIC-LOAD-005U — Affectation numérique target-side — TERMINÉE
+
+- **Priorité :** P0, première mutation observable de l’état BASIC assembleur.
+- **But :** reconnaître `X=7` ou `Y=7`, convertir le chiffre par `fcvt.d.l`,
+  l’écrire dans la table binary64 cible et le relire lors d’un `PRINT`.
+- **Non-but :** expressions à droite, affectations numérotées, nombres signés
+  ou fractionnaires, variables longues, chaînes et diagnostics généraux.
+- **Entrées :** `BASIC_LANGUAGE.md`, layout de table A..Z, R1 F/D et ABI cible.
+- **Fichiers/modules :** payload assembleur, test QEMU assignment et docs BASIC.
+- **Dépendances :** BASIC-LOAD-005S/T/R, table variables et capacité source
+  assembleur 512 lignes.
+- **Tests :** `X=7`, `PRINT X+3`, `f1=7.0`, `f2=3.0`, `f3=10.0`, dumps exacts
+  des variables et du résultat sous QEMU.
+- **Critères de sortie :** la mutation, la lecture et le calcul sont exécutés
+  dans le payload ; l’hôte ne fournit aucune valeur.
+- **Cas limites :** `Y`, affectation absente, signe, fraction, variable
+  inconnue, expression RHS et retour d’erreur restent à intégrer.
+- **Taille :** 3 points / 1,5 journée-agent, incertitude moyenne.
+- **Compétences/outils :** assembleur RV64, table binary64, QEMU et debugger.
+- **Parallélisable :** oui avec le lexer RHS ; non avec une modification du
+  layout de variables.
+- **Paquet de contexte :** BASIC-LOAD-005Q/S/T, payload REPL, test assignment
+  et règles d’affectation de `BASIC_LANGUAGE.md`.
+
 ### BASIC-LOAD-004 — Porter le magasin de lignes et le contrôle de flot
 
 - **Priorité :** P0.

@@ -451,6 +451,13 @@ vers `PRINT` :
 bash scripts/test-guest-runtime-asm-repl-question.sh
 ```
 
+Le payload accepte aussi une affectation numérique directe bornée :
+`X=7` écrit la table cible, puis `PRINT X+3` produit `10.0` :
+
+```text
+bash scripts/test-guest-runtime-asm-repl-assignment.sh
+```
+
 La variante [`minibasic-runtime-command-run-variable-sub.rv`](../examples/minibasic-runtime-command-run-variable-sub.rv)
 applique le même contrat à `PRINT X-3` et vérifie `2.0` après `fsub.d` :
 

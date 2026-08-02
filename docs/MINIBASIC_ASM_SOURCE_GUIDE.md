@@ -127,6 +127,17 @@ L’alias historique `?` est normalisé par le payload vers le même préfixe
 bash scripts/test-guest-runtime-asm-repl-question.sh
 ```
 
+Une affectation numérique directe `X=7` modifie désormais la table cible ; un
+`PRINT X+3` ultérieur relit la valeur par `fld`. La séance est vérifiée par :
+
+```text
+bash scripts/test-guest-runtime-asm-repl-assignment.sh
+```
+
+La source du noyau dépasse désormais 256 lignes ; la séance utilise la
+capacité assembleur étendue à 512 lignes du moniteur. Cette modification du
+moniteur doit encore être regroupée dans son propre commit d’intégration.
+
 ## Références historiques
 
 Le découpage suit le principe historique de tables de syntaxe, pile
