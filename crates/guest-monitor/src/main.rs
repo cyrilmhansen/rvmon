@@ -2458,9 +2458,22 @@ fn parse_source_instruction(
         (b"fmul.d ", "fmul.d"),
         (b"fdiv.s ", "fdiv.s"),
         (b"fdiv.d ", "fdiv.d"),
+        (b"feq.s ", "feq.s"),
+        (b"feq.d ", "feq.d"),
+        (b"flt.s ", "flt.s"),
+        (b"flt.d ", "flt.d"),
+        (b"fle.s ", "fle.s"),
+        (b"fle.d ", "fle.d"),
     ] {
         if let Some(operands) = source.strip_prefix(prefix) {
-            return parse_fadd_operands(mnemonic, operands);
+            return if mnemonic.starts_with("feq")
+                || mnemonic.starts_with("flt")
+                || mnemonic.starts_with("fle")
+            {
+                parse_fcompare_operands(mnemonic, operands)
+            } else {
+                parse_fadd_operands(mnemonic, operands)
+            };
         }
     }
     for (prefix, mnemonic) in [
@@ -2644,6 +2657,15 @@ fn parse_fadd_operands(mnemonic: &str, operands: &[u8]) -> Option<u32> {
         (value <= 7).then_some(value as u8)?
     };
     luna_isa_core::encode_f_r(mnemonic, rd, rs1, rs2, rm)
+}
+
+fn parse_fcompare_operands(mnemonic: &str, operands: &[u8]) -> Option<u32> {
+    let (rd_bytes, rest) = split_once_comma(operands)?;
+    let (rs1_bytes, rs2_bytes) = split_once_comma(rest)?;
+    let rd = parse_register(rd_bytes.trim_ascii())?;
+    let rs1 = parse_float_register(rs1_bytes.trim_ascii())?;
+    let rs2 = parse_float_register(rs2_bytes.trim_ascii())?;
+    luna_isa_core::encode_f_r(mnemonic, rd, rs1, rs2, 0)
 }
 
 fn parse_float_move_operands(

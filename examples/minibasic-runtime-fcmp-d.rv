@@ -1,0 +1,21 @@
+data 0x82000100 .dword 0x4000000000000000
+data 0x82000108 .dword 0x4008000000000000
+assemble-program 0x81000100
+entry:
+auipc x8,0x1000
+addi x8,x8,-256
+fld f1,256(x8)
+fld f2,264(x8)
+feq.d x10,f1,f2
+flt.d x11,f1,f2
+fle.d x12,f1,f2
+sd x10,272(x8)
+sd x11,280(x8)
+sd x12,288(x8)
+ebreak
+end
+symbols
+run-at 0x81000100
+regs
+memory 0x82000110 24
+q
