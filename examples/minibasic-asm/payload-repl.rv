@@ -1340,6 +1340,18 @@ addi x7,x0,36
 beq x5,x7,print_string_or_array
 addi x21,x24,22
 addi x22,x21,0
+lbu x5,0(x22)
+addi x7,x0,76
+bne x5,x7,print_statement_string_scan
+lbu x5,1(x22)
+addi x7,x0,69
+bne x5,x7,print_statement_string_scan
+lbu x5,2(x22)
+addi x7,x0,78
+bne x5,x7,print_statement_string_scan
+lbu x5,3(x22)
+addi x7,x0,40
+beq x5,x7,print_numeric_statement
 print_statement_string_scan:
 lbu x5,0(x22)
 addi x7,x0,36
@@ -3579,6 +3591,8 @@ addi x6,x0,73
 beq x5,x6,atom_int_dispatch
 addi x6,x0,83
 beq x5,x6,atom_sgn_dispatch
+addi x6,x0,76
+beq x5,x6,atom_len_dispatch
 addi x6,x0,84
 beq x5,x6,atom_trunc_dispatch
 addi x6,x0,70
@@ -3628,6 +3642,17 @@ lbu x6,3(x21)
 addi x7,x0,40
 bne x6,x7,atom_array_name_scan
 jal x0,atom_sgn_function
+atom_len_dispatch:
+lbu x6,1(x21)
+addi x7,x0,69
+bne x6,x7,atom_array_name_scan
+lbu x6,2(x21)
+addi x7,x0,78
+bne x6,x7,atom_array_name_scan
+lbu x6,3(x21)
+addi x7,x0,40
+bne x6,x7,atom_array_name_scan
+jal x0,atom_len_function
 atom_trunc_dispatch:
 lbu x6,0(x21)
 addi x7,x0,84
@@ -3978,6 +4003,61 @@ ld x29,1512(x8)
 ld x30,1520(x8)
 ld x31,1528(x8)
 ld x1,1488(x8)
+jal x0,store_atom
+atom_len_function:
+sd x1,1832(x8)
+sd x22,1840(x8)
+sd x24,1848(x8)
+sd x25,1856(x8)
+sd x26,1896(x8)
+sd x27,1904(x8)
+sd x28,1912(x8)
+sd x29,1920(x8)
+sd x30,1928(x8)
+sd x31,1936(x8)
+addi x21,x21,4
+addi x27,x21,0
+atom_len_name_scan:
+lbu x5,0(x27)
+beq x5,x0,atom_function_error
+addi x6,x0,36
+beq x5,x6,atom_len_name_done
+addi x27,x27,1
+jal x0,atom_len_name_scan
+atom_len_name_done:
+lbu x6,1(x27)
+addi x7,x0,40
+beq x6,x7,atom_len_array
+jal x1,resolve_string_variable
+jal x0,atom_len_value
+atom_len_array:
+jal x1,resolve_string_array
+atom_len_value:
+fcvt.d.l f4,x11,0
+lbu x5,0(x21)
+addi x6,x0,41
+beq x5,x6,atom_len_close_present
+beq x5,x0,atom_len_close_consumed
+jal x0,atom_function_error
+atom_len_close_present:
+addi x21,x21,1
+jal x0,atom_len_close_done
+atom_len_close_consumed:
+addi x6,x21,-1
+lbu x5,0(x6)
+addi x6,x0,41
+bne x5,x6,atom_function_error
+atom_len_close_done:
+ld x22,1840(x8)
+ld x24,1848(x8)
+ld x25,1856(x8)
+ld x26,1896(x8)
+ld x27,1904(x8)
+ld x28,1912(x8)
+ld x29,1920(x8)
+ld x30,1928(x8)
+ld x31,1936(x8)
+ld x1,1832(x8)
 jal x0,store_atom
 atom_trunc_function:
 sd x1,1184(x8)
