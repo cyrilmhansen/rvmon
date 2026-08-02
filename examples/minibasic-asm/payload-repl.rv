@@ -1028,26 +1028,31 @@ jal x1,resolve_variable
 fsd f1,0(x7)
 jal x0,if_false
 for_statement:
-addi x30,x24,0
-lbu x5,20(x24)
-addi x7,x0,89
-beq x5,x7,for_variable_y
-addi x7,x0,88
+addi x21,x24,20
+jal x1,resolve_variable
+sd x7,576(x8)
+lbu x5,0(x21)
+addi x7,x0,61
 bne x5,x7,error_line
-addi x6,x0,184
-sd x6,576(x8)
-jal x0,for_parse_start
-for_variable_y:
-addi x6,x0,192
-sd x6,576(x8)
-for_parse_start:
-addi x21,x24,22
+addi x21,x21,1
 addi x22,x0,0
 jal x1,parse_atom
-ld x6,576(x8)
-add x31,x20,x6
+ld x31,576(x8)
 fsd f1,0(x31)
-addi x21,x30,27
+for_to_skip_spaces:
+lbu x5,0(x21)
+addi x6,x0,32
+bne x5,x6,for_to_check
+addi x21,x21,1
+jal x0,for_to_skip_spaces
+for_to_check:
+addi x6,x0,84
+bne x5,x6,error_line
+addi x21,x21,1
+lbu x5,0(x21)
+addi x6,x0,79
+bne x5,x6,error_line
+addi x21,x21,1
 addi x22,x0,1
 jal x1,parse_atom
 fsd f2,552(x8)
@@ -1071,8 +1076,7 @@ for_step_done:
 sd x0,568(x8)
 jal x0,if_false
 next_statement:
-ld x6,576(x8)
-add x31,x20,x6
+ld x31,576(x8)
 fld f1,0(x31)
 fld f2,560(x8)
 fmv.x.d x10,f1
