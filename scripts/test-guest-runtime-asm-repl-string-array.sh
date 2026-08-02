@@ -29,7 +29,7 @@ awk '/^symbols$/{print; found=1; next} found && /^run-at /{print; exit} !found{p
     examples/minibasic-asm/payload-repl.rv |
     while IFS= read -r line; do printf '%s\n' "$line" >&3; sleep 0.002; done
 sleep 0.2
-printf 'DIM A$(2)\nI=1\nA$(I)="DIRECT"\n10 PRINT A$(I)\n20 DIM B$(2)\n30 B$(I)="PROGRAM"\n40 PRINT B$(I)\n50 END\nRUN\n' >&3
+printf 'DIM A$(2)\nI=1\nA$(I)="DIRECT"\n10 LET S$="SCALAR"\n20 PRINT A$(I),S$\n30 DIM B$(2)\n40 LET B$(I)="PROGRAM"\n50 PRINT B$(I),S$\n60 END\nRUN\n' >&3
 sleep 0.8
 printf 'q\n' >&3
 exec 3>&-

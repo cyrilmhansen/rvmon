@@ -868,9 +868,27 @@ lbu x5,19(x24)
 addi x7,x0,32
 bne x5,x7,assignment_statement
 addi x21,x24,20
+addi x30,x21,0
+addi x5,x0,1
+sd x5,1592(x8)
+let_target_common:
+addi x30,x21,0
+let_target_scan:
+lbu x5,0(x21)
+beq x5,x0,error_line
+addi x7,x0,36
+beq x5,x7,let_string_target
+addi x7,x0,40
+beq x5,x7,let_numeric_array_target
+addi x7,x0,61
+beq x5,x7,let_numeric_target
+addi x21,x21,1
+jal x0,let_target_scan
+let_numeric_target:
+addi x21,x30,0
 jal x1,resolve_variable
 sd x7,1112(x8)
-lbu x5,0(x21)
+ lbu x5,0(x21)
 addi x7,x0,61
 bne x5,x7,error_line
 addi x21,x21,1
@@ -878,6 +896,25 @@ addi x22,x0,0
 jal x1,eval_expression
 ld x6,1112(x8)
 fsd f3,0(x6)
+jal x0,let_target_done
+let_numeric_array_target:
+addi x21,x30,0
+jal x1,assign_array
+jal x0,let_target_done
+let_string_target:
+lbu x5,1(x21)
+addi x7,x0,40
+beq x5,x7,let_string_array_target
+addi x21,x30,0
+jal x1,string_assign
+jal x0,let_target_done
+let_string_array_target:
+addi x21,x30,0
+jal x1,string_array_assign
+jal x0,let_target_done
+let_target_done:
+ld x5,1592(x8)
+beq x5,x0,command_loop
 jal x0,if_false
 print_statement:
 lbu x5,22(x24)
