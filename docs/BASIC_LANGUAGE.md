@@ -21,6 +21,7 @@ statement     = "REM" , text
               | "IF" , expression , "THEN" , number
               | "GOTO" , number
               | "GOSUB" , number
+              | "ON" , expression , ( "GOTO" | "GOSUB" ) , number , { "," , number }
               | "RETURN"
               | "POP"
               | "EXIT"
@@ -129,6 +130,15 @@ type 5 uniquement lors de la première entrée ; le retour de `LOOP` vers la
 ligne `DO` reconnaît ce cadre et ne le duplique pas. `LOOP` sans `DO` actif et
 les variantes conditionnelles (`DO WHILE`, `DO UNTIL`, `LOOP WHILE` ou `LOOP
 UNTIL`) sont rejetés dans cette tranche.
+
+`ON expression GOTO n1,n2,...` et `ON expression GOSUB n1,n2,...` évaluent
+`expression` dans la cible, la convertissent en index entier 1-based et
+sélectionnent le numéro correspondant dans la liste. `GOTO` transfère
+directement le contrôle ; `GOSUB` empile la ligne suivante et utilise le même
+contrat de `RETURN` que l’instruction simple. Un index nul, négatif, hors liste,
+une liste vide ou une cible absente produit une erreur de flot. Les listes sont
+volontairement limitées aux numéros de lignes, sans expressions dans les
+cibles.
 
 `DATA` et `READ` utilisent un curseur séquentiel conservé dans la mémoire
 cible. La tranche actuelle accepte des valeurs numériques binary64 et des

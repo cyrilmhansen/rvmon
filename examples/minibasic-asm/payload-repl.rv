@@ -906,7 +906,9 @@ run_line_generic:
 addi x17,x0,5
 ecall
 addi x7,x0,3
-beq x10,x7,break_statement
+bne x10,x7,run_line_not_break
+jal x0,break_statement
+run_line_not_break:
 slli x7,x26,3
 ld x10,480(x8)
 add x10,x10,x7
@@ -932,7 +934,9 @@ run_line_legacy:
 addi x17,x0,5
 ecall
 addi x7,x0,3
-beq x10,x7,break_statement
+bne x10,x7,legacy_not_break
+jal x0,break_statement
+legacy_not_break:
 ld x10,512(x8)
 beq x10,x0,run_line_error
 ld x10,536(x8)
@@ -988,6 +992,13 @@ trace_done:
 lbu x10,16(x24)
 addi x7,x0,71
 beq x10,x7,goto_dispatch
+addi x7,x0,79
+bne x10,x7,dispatch_not_on
+lbu x5,17(x24)
+addi x7,x0,78
+beq x5,x7,on_statement
+jal x0,assignment_statement
+dispatch_not_on:
 addi x7,x0,87
 bne x10,x7,dispatch_not_while
 jal x0,while_dispatch
@@ -999,9 +1010,13 @@ dispatch_not_until:
 addi x7,x0,69
 beq x10,x7,end_statement
 addi x7,x0,70
-beq x10,x7,for_statement
+bne x10,x7,dispatch_not_for
+jal x0,for_statement
+dispatch_not_for:
 addi x7,x0,78
-beq x10,x7,next_statement
+bne x10,x7,dispatch_not_next
+jal x0,next_statement
+dispatch_not_next:
 addi x7,x0,68
 beq x10,x7,dim_dispatch
 addi x7,x0,65
@@ -1670,6 +1685,139 @@ goto_save_target:
 sd x26,536(x8)
 jal x0,run_line
 
+on_statement:
+; ON expression GOTO/GOSUB line[,line...], with a 1-based selector.
+lbu x5,18(x24)
+addi x7,x0,32
+bne x5,x7,error_line_near
+sd x26,1696(x8)
+addi x21,x24,19
+addi x22,x0,0
+jal x1,eval_expression
+fcvt.l.d x27,f3,1
+srai x7,x27,63
+bne x7,x0,error_line_near
+beq x27,x0,error_line_near
+on_keyword_spaces:
+lbu x5,0(x21)
+addi x7,x0,32
+bne x5,x7,on_keyword
+addi x21,x21,1
+jal x0,on_keyword_spaces
+on_keyword:
+addi x7,x0,71
+bne x5,x7,error_line_near
+lbu x5,1(x21)
+addi x7,x0,79
+bne x5,x7,error_line_near
+lbu x6,2(x21)
+addi x7,x0,84
+beq x6,x7,on_goto_keyword
+addi x7,x0,83
+beq x6,x7,on_gosub_keyword
+jal x0,error_line_near
+on_goto_keyword:
+lbu x5,3(x21)
+addi x7,x0,79
+bne x5,x7,error_line_near
+lbu x5,4(x21)
+addi x7,x0,32
+bne x5,x7,error_line_near
+addi x10,x0,0
+sd x10,1672(x8)
+addi x21,x21,5
+jal x0,on_target_loop
+on_gosub_keyword:
+lbu x5,3(x21)
+addi x7,x0,85
+bne x5,x7,error_line_near
+lbu x5,4(x21)
+addi x7,x0,66
+bne x5,x7,error_line_near
+lbu x5,5(x21)
+addi x7,x0,32
+bne x5,x7,error_line_near
+addi x10,x0,1
+sd x10,1672(x8)
+addi x21,x21,6
+on_target_loop:
+; x27 = remaining selector, x21 = current target text.
+on_target_spaces:
+lbu x5,0(x21)
+addi x7,x0,32
+bne x5,x7,on_target_start
+addi x21,x21,1
+jal x0,on_target_spaces
+on_target_start:
+addi x26,x0,0
+addi x29,x0,0
+on_target_digits:
+lbu x5,0(x21)
+addi x6,x0,48
+sltu x28,x5,x6
+bne x28,x0,on_target_done
+addi x6,x0,58
+sltu x28,x5,x6
+beq x28,x0,on_target_done
+addi x6,x0,48
+sub x5,x5,x6
+addi x6,x0,10
+mul x26,x26,x6
+add x26,x26,x5
+addi x21,x21,1
+addi x29,x29,1
+jal x0,on_target_digits
+on_target_done:
+beq x29,x0,error_line_near
+addi x6,x0,10
+remu x5,x26,x6
+bne x5,x0,error_line_near
+sltiu x6,x26,10
+bne x6,x0,error_line_near
+lui x6,1
+addi x6,x6,-1535
+sltu x6,x26,x6
+beq x6,x0,error_line_near
+addi x6,x0,1
+bne x27,x6,on_target_skip
+jal x0,on_target_selected
+on_target_skip:
+addi x27,x27,-1
+lbu x5,0(x21)
+addi x6,x0,44
+beq x5,x6,on_target_more
+jal x0,error_line_near
+on_target_more:
+addi x21,x21,1
+jal x0,on_target_loop
+on_target_selected:
+addi x6,x0,10
+divu x26,x26,x6
+addi x26,x26,-1
+slli x7,x26,3
+ld x6,480(x8)
+add x6,x6,x7
+ld x7,0(x6)
+beq x7,x0,error_line_near
+ld x30,1672(x8)
+beq x30,x0,on_goto_target
+ld x27,1616(x8)
+sltiu x7,x27,8
+beq x7,x0,error_line_near
+ld x6,1696(x8)
+addi x6,x6,1
+slli x7,x27,3
+addi x30,x8,1624
+add x30,x30,x7
+sd x6,0(x30)
+addi x27,x27,1
+sd x27,1616(x8)
+addi x10,x0,2
+jal x1,control_push
+on_goto_target:
+sd x26,536(x8)
+jal x0,run_line
+
 goto_statement_legacy:
 lbu x10,21(x24)
 addi x7,x0,49
@@ -1983,8 +2131,10 @@ addi x7,x0,78
 bne x5,x7,error_line_near
 ld x27,1616(x8)
 beq x27,x0,error_line_near
+sd x27,1688(x8)
 addi x10,x0,2
 jal x1,control_pop_expected
+ld x27,1688(x8)
 addi x27,x27,-1
 slli x7,x27,3
 addi x30,x8,1624

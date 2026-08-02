@@ -129,3 +129,11 @@
   the frame. Conditional DO/LOOP spellings remain rejected deliberately. The
   new QEMU test loops through an `IF` back-edge, exits the loop, and reaches
   `DO-OK`; the parity matrix now reports 61 assembly QEMU tests.
+- I implemented `ON expression GOTO/GOSUB` with target-side 1-based selection
+  over comma-separated line numbers. The normal QEMU test exercises selection
+  of the second GOTO target and a GOSUB/RETURN target; a separate test rejects
+  selector zero. Debugging exposed two low-level issues: the new handler first
+  collided with a GOSUB stack slot, and RETURN incorrectly reused the unified
+  stack depth when indexing the specialized return stack. Moving the scratch
+  word and preserving the specialized depth fixed both. The parity matrix now
+  reports 63 assembly QEMU tests.
