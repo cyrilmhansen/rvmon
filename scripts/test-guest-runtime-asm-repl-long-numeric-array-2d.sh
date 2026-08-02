@@ -29,7 +29,7 @@ awk '/^symbols$/{print; found=1; next} found && /^run-at /{print; exit} !found{p
     examples/minibasic-asm/payload-repl.rv |
     while IFS= read -r line; do printf '%s\n' "$line" >&3; sleep 0.002; done
 sleep 0.2
-printf 'DIM LONGGRID(2,3)\nLONGGRID(1,2)=7\n10 LET LONGGRID(0,1)=LONGGRID(1,2)+5\n20 PRINT LONGGRID(0,1),LONGGRID(1,2),LONGGRID(2,3)\n30 END\nRUN\n' >&3
+printf 'DIM LONGGRID(2,3)\nLONGGRID(1+0,2-0)=7\n10 LET LONGGRID(0+0,1+0)=LONGGRID(1-0,2-0)+5\n20 PRINT LONGGRID(0+0,1+0),LONGGRID(1-0,2-0),LONGGRID(2,3)\n30 END\nRUN\n' >&3
 sleep 1.0
 printf 'q\n' >&3
 exec 3>&-

@@ -2760,6 +2760,7 @@ jal x0,long_num_error
 lna_slot_match:
 addi x22,x0,0
 addi x27,x0,0
+addi x24,x0,0
 lna_index:
 lbu x5,0(x21)
 addi x6,x5,-65
@@ -2791,11 +2792,11 @@ addi x21,x21,1
 jal x0,lna_index
 lna_index_operator:
 addi x6,x0,43
-addi x24,x0,0
+addi x30,x0,0
 beq x5,x6,lna_index_op_start
 addi x6,x0,45
 bne x5,x6,lna_index_done
-addi x24,x0,1
+addi x30,x0,1
 jal x0,lna_index_op_start
 lna_index_op_start:
 addi x21,x21,1
@@ -2817,7 +2818,7 @@ add x23,x23,x5
 addi x21,x21,1
 jal x0,lna_index_op_digits
 lna_index_op_done:
-beq x24,x0,lna_index_op_add
+beq x30,x0,lna_index_op_add
 sub x22,x22,x23
 lbu x5,0(x21)
 jal x0,lna_index_done
@@ -2831,6 +2832,11 @@ addi x6,x0,44
 beq x5,x6,lna2_second
 addi x6,x0,41
 bne x5,x6,long_num_error
+beq x24,x0,lna_index_1d
+addi x23,x22,0
+ld x22,1776(x8)
+jal x0,lna2_done
+lna_index_1d:
 ld x6,16(x26)
 sltu x7,x22,x6
 beq x7,x0,long_num_error
@@ -2850,38 +2856,11 @@ ld x27,1144(x8)
 jalr x0,0(x1)
 ; Resolve LONGNAME(I,J) using row-major binary64 storage.
 lna2_second:
+sd x22,1776(x8)
 addi x21,x21,1
-addi x23,x0,0
-addi x27,x0,0
-lna2_scan:
-lbu x5,0(x21)
-addi x6,x5,-65
-sltiu x7,x6,26
-beq x7,x0,lna2_digits
-sd x1,1576(x8)
-jal x1,resolve_variable
-ld x1,1576(x8)
-fld f4,0(x7)
-fcvt.l.d x23,f4
-addi x27,x0,1
-lbu x5,0(x21)
-jal x0,lna2_done
-lna2_digits:
-addi x6,x0,48
-sltu x7,x5,x6
-bne x7,x0,lna2_done
-addi x6,x0,58
-sltu x7,x5,x6
-beq x7,x0,lna2_done
-addi x6,x0,48
-sub x5,x5,x6
-slli x6,x23,3
-slli x7,x23,1
-add x23,x6,x7
-add x23,x23,x5
-addi x27,x0,1
-addi x21,x21,1
-jal x0,lna2_scan
+addi x24,x0,1
+addi x22,x0,0
+jal x0,lna_index
 lna2_done:
 beq x27,x0,long_num_error
 addi x6,x0,41

@@ -153,11 +153,12 @@ dimensions. Les variantes `LET` de ces affectations sont prises en charge dans
 les lignes de programme et en mode direct.
 
 Le payload assembleur accepte aussi, pour les tableaux numériques longs à une
-dimension, un index calculé de la forme `index [+|-] entier` : par exemple
-`LONGNUM(10+1)` et `LONGNUM(I-1)`. Le calcul, la conversion en entier et le
-contrôle de borne sont exécutés dans la cible avant l’accès. Les expressions
-générales, les parenthèses imbriquées et cette forme calculée pour les autres
-familles de tableaux restent des extensions à porter séparément.
+ou deux dimensions, un index calculé de la forme `index [+|-] entier` : par
+exemple `LONGNUM(10+1)`, `LONGNUM(I-1)` et `LONGGRID(1+0,2-0)`. Le calcul, la
+conversion en entier et le contrôle de borne sont exécutés dans la cible avant
+l’accès. Les expressions générales, les parenthèses imbriquées et cette forme
+calculée pour les autres familles de tableaux restent des extensions à porter
+séparément.
 
 Les tableaux numériques à nom long (2 à 16 caractères ASCII alphanumériques ou
 `_`) utilisent 32 descripteurs de 32 octets à `0x82011000`. Chaque descripteur
