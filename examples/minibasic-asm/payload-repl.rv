@@ -903,8 +903,27 @@ addi x7,x0,84
 beq x5,x7,return_statement
 addi x7,x0,65
 beq x5,x7,read_statement
+addi x7,x0,83
+beq x5,x7,restore_statement
 jal x0,assignment_statement
 rem_statement:
+jal x0,if_false
+restore_statement:
+lbu x5,19(x24)
+addi x7,x0,84
+bne x5,x7,error_line_near
+lbu x5,20(x24)
+addi x7,x0,79
+bne x5,x7,error_line_near
+lbu x5,21(x24)
+addi x7,x0,82
+bne x5,x7,error_line_near
+ lbu x5,22(x24)
+addi x7,x0,69
+bne x5,x7,error_line_near
+addi x7,x0,0
+sd x7,1704(x8)
+sd x7,1712(x8)
 jal x0,if_false
 read_statement:
 lbu x5,19(x24)
