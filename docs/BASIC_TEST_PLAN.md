@@ -161,6 +161,8 @@
 - `scripts/test-guest-runtime-asm-repl-two-lines.sh` vérifie l’insertion hors
   ordre de `20` puis `10`, le tri observable de `LIST`, les deux slots mémoire
   et l’exécution séquentielle target-side des lignes `10` puis `20`.
+- `scripts/test-guest-runtime-asm-repl-goto.sh` vérifie `10 GOTO 20`, le
+  transfert target-side vers le slot 20, `5.000000` et le breakpoint final.
 - Le breakpoint `minibasic_divide` et `disasm` permettent d’observer la
   correspondance adresse → `fdiv.d`; les registres f et `fcsr` sont affichés
   avant/après le pas.

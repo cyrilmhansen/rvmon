@@ -488,7 +488,13 @@ Cette étape prouve d’abord le stockage et l’inspection des deux lignes.
 
 Le payload exécute désormais aussi les deux slots séquentiellement : la séance
 termine sur les résultats `9.000000` puis `5.000000` et s’arrête après la ligne
-20. Les sauts conditionnels restent à implémenter.
+20. `GOTO 20` est également exécuté depuis la ligne 10 et vérifié par :
+
+```text
+bash scripts/test-guest-runtime-asm-repl-goto.sh
+```
+
+Les sauts conditionnels restent à implémenter.
 
 Le mode direct `PRINT 2+3` est également pris en charge par le payload
 assembleur et passe par le même évaluateur :

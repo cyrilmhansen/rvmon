@@ -140,8 +140,16 @@ bash scripts/test-guest-runtime-asm-repl-two-lines.sh
 
 `RUN` sélectionne la ligne 10 puis enchaîne la ligne 20 si elle existe, avec un
 seul arrêt au breakpoint après la dernière. Les sauts entre lignes appartiennent
-encore à la prochaine tranche de contrôle de flot. La capacité assembleur du
-moniteur est passée à 768 lignes pour absorber ce payload pédagogique.
+encore à la prochaine tranche de contrôle de flot. `GOTO 20` est maintenant
+reconnu par le dispatcher et transfère réellement l’exécution au second slot ;
+la séance est vérifiée par :
+
+```text
+bash scripts/test-guest-runtime-asm-repl-goto.sh
+```
+
+La capacité assembleur du moniteur est passée à 768 lignes pour absorber ce
+payload pédagogique.
 
 Le scanner reconnaît maintenant les signes `+`/`-` et une parenthèse autour
 d’un atome, par exemple `PRINT (-2.5) + (+3.5)`. La négation est exécutée par

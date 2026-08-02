@@ -3183,6 +3183,28 @@ release. Elles n’ajoutent aucune extension ISA.
 - **Parallélisable :** oui avec les comparaisons ; non avec le format de slot.
 - **Paquet de contexte :** BASIC-LOAD-005AB, payload REPL et test two-lines.
 
+#### BASIC-LOAD-005AD — Dispatcher GOTO entre slots — TERMINÉE
+
+- **Priorité :** P0, premier saut de contrôle de flot target-side.
+- **But :** reconnaître `GOTO 10`/`GOTO 20` dans le record courant et modifier
+  l’état d’exécution vers le slot cible avant de reprendre `RUN`.
+- **Non-but :** `IF`, expressions de comparaison, lignes arbitraires, boucle
+  infinie interrompable et diagnostics complets.
+- **Entrées :** `BASIC_LANGUAGE.md`, layout des records et état `RUN` cible.
+- **Fichiers/modules :** `payload-repl.rv`, test QEMU GOTO et documentation.
+- **Dépendances :** BASIC-LOAD-005AC et slots 10/20.
+- **Tests :** `20 PRINT 2+3`, `10 GOTO 20`, `RUN`, résultat `5.000000`, état
+  `f3` et breakpoint après la cible.
+- **Critères de sortie :** le saut et la sélection de slot sont exécutés par le
+  payload ; aucun ordre d’exécution n’est imposé par le harnais.
+- **Cas limites :** cible absente, ligne 10, saut arrière, boucle et argument
+  non numérique restent à traiter.
+- **Taille :** 3 points / 1,5 journée-agent, incertitude moyenne.
+- **Compétences/outils :** assembleur RV64, contrôle de flot, QEMU et debugger.
+- **Parallélisable :** oui avec les comparaisons ; non avec la représentation de
+  l’état `RUN`.
+- **Paquet de contexte :** BASIC-LOAD-005AC, payload REPL et test GOTO.
+
 ### BASIC-LOAD-004 — Porter le magasin de lignes et le contrôle de flot
 
 - **Priorité :** P0.
