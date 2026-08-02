@@ -56,6 +56,7 @@ data 0x820000a2 .byte 0x20
 data 0x820000b0 .byte 0x34
 data 0x820000b1 .byte 0x30
 data 0x820000b2 .byte 0x20
+data 0x820000c0 .byte 0x0a
 data 0x82000300 .dword 0x4014000000000000
 data 0x82000308 .dword 0x4008000000000000
 data 0x82000200 .dword 0x0000000000000000
@@ -347,7 +348,7 @@ addi x10,x19,16
 ld x11,520(x8)
 addi x17,x0,4
 ecall
-addi x10,x8,32
+addi x10,x8,192
 addi x11,x0,1
 addi x17,x0,4
 ecall
@@ -362,7 +363,7 @@ addi x10,x19,1040
 ld x11,528(x8)
 addi x17,x0,4
 ecall
-addi x10,x8,32
+addi x10,x8,192
 addi x11,x0,1
 addi x17,x0,4
 ecall
@@ -380,7 +381,7 @@ addi x10,x10,16
 ld x11,1816(x8)
 addi x17,x0,4
 ecall
-addi x10,x8,32
+addi x10,x8,192
 addi x11,x0,1
 addi x17,x0,4
 ecall
@@ -399,7 +400,7 @@ addi x10,x10,16
 ld x11,1824(x8)
 addi x17,x0,4
 ecall
-addi x10,x8,32
+addi x10,x8,192
 addi x11,x0,1
 addi x17,x0,4
 ecall
