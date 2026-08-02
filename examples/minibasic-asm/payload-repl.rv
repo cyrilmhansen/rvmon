@@ -5897,7 +5897,7 @@ ld x1,1152(x8)
 jalr x0,0(x1)
 print_left_string:
 addi x21,x21,6
-jal x1,resolve_string_variable
+jal x1,resolve_string_source
 sd x7,1944(x8)
 sd x11,1952(x8)
 lbu x5,0(x21)
@@ -5950,7 +5950,7 @@ print_left_error:
 jal x0,error_line
 print_right_string:
 addi x21,x21,7
-jal x1,resolve_string_variable
+jal x1,resolve_string_source
 sd x7,1944(x8)
 sd x11,1952(x8)
 lbu x5,0(x21)
@@ -6005,7 +6005,7 @@ print_right_error:
 jal x0,error_line
 print_mid_string:
 addi x21,x21,5
-jal x1,resolve_string_variable
+jal x1,resolve_string_source
 sd x7,1944(x8)
 sd x11,1952(x8)
 lbu x5,0(x21)
@@ -6078,10 +6078,31 @@ ecall
 jal x0,if_false
 print_mid_error:
 jal x0,error_line
+resolve_string_source:
+sd x1,2024(x8)
+addi x22,x21,0
+resolve_string_source_scan:
+lbu x5,0(x22)
+addi x6,x0,36
+beq x5,x6,resolve_string_source_after_dollar
+beq x5,x0,string_long_error
+addi x22,x22,1
+jal x0,resolve_string_source_scan
+resolve_string_source_after_dollar:
+lbu x5,1(x22)
+addi x6,x0,40
+beq x5,x6,resolve_string_source_array
+jal x1,resolve_string_variable
+ld x1,2024(x8)
+jalr x0,0(x1)
+resolve_string_source_array:
+jal x1,resolve_string_array
+ld x1,2024(x8)
+jalr x0,0(x1)
 string_left_assign:
 sd x1,2016(x8)
 addi x21,x21,6
-jal x1,resolve_string_variable
+jal x1,resolve_string_source
 sd x7,1944(x8)
 sd x11,1952(x8)
 lbu x5,0(x21)
@@ -6142,7 +6163,7 @@ jal x0,error_line
 string_right_assign:
 sd x1,2016(x8)
 addi x21,x21,7
-jal x1,resolve_string_variable
+jal x1,resolve_string_source
 sd x7,1944(x8)
 sd x11,1952(x8)
 lbu x5,0(x21)
@@ -6205,7 +6226,7 @@ jal x0,error_line
 string_mid_assign:
 sd x1,2016(x8)
 addi x21,x21,5
-jal x1,resolve_string_variable
+jal x1,resolve_string_source
 sd x7,1944(x8)
 sd x11,1952(x8)
 lbu x5,0(x21)
