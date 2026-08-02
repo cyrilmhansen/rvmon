@@ -1030,7 +1030,9 @@ beq x10,x7,array_dispatch
 addi x7,x0,83
 beq x10,x7,string_statement
 addi x7,x0,73
-beq x10,x7,statement_i
+bne x10,x7,dispatch_not_i
+jal x0,statement_i
+dispatch_not_i:
 addi x7,x0,80
 beq x10,x7,print_dispatch
 addi x7,x0,82
@@ -1082,20 +1084,22 @@ jal x0,if_false
 restore_statement:
 lbu x5,19(x24)
 addi x7,x0,84
-bne x5,x7,error_line_near
+bne x5,x7,restore_error
 lbu x5,20(x24)
 addi x7,x0,79
-bne x5,x7,error_line_near
+bne x5,x7,restore_error
 lbu x5,21(x24)
 addi x7,x0,82
-bne x5,x7,error_line_near
+bne x5,x7,restore_error
  lbu x5,22(x24)
 addi x7,x0,69
-bne x5,x7,error_line_near
+bne x5,x7,restore_error
 addi x7,x0,0
 sd x7,1704(x8)
 sd x7,1712(x8)
 jal x0,if_false
+restore_error:
+jal x0,error_line
 read_statement:
 lbu x5,19(x24)
 addi x7,x0,68
@@ -1348,10 +1352,24 @@ addi x7,x0,69
 bne x5,x7,print_statement_string_scan
 lbu x5,2(x22)
 addi x7,x0,78
+beq x5,x7,print_len_probe
+addi x7,x0,70
 bne x5,x7,print_statement_string_scan
+lbu x5,3(x22)
+addi x7,x0,84
+bne x5,x7,print_statement_string_scan
+lbu x5,4(x22)
+addi x7,x0,36
+bne x5,x7,print_statement_string_scan
+lbu x5,5(x22)
+addi x7,x0,40
+bne x5,x7,print_statement_string_scan
+jal x0,print_left_string
+print_len_probe:
 lbu x5,3(x22)
 addi x7,x0,40
 beq x5,x7,print_numeric_statement
+jal x0,print_statement_string_scan
 print_statement_string_scan:
 lbu x5,0(x22)
 addi x7,x0,36
@@ -5815,6 +5833,59 @@ ld x26,1136(x8)
 ld x27,1144(x8)
 ld x1,1152(x8)
 jalr x0,0(x1)
+print_left_string:
+addi x21,x21,6
+jal x1,resolve_string_variable
+sd x7,1944(x8)
+sd x11,1952(x8)
+lbu x5,0(x21)
+addi x6,x0,44
+bne x5,x6,print_left_error
+addi x21,x21,1
+addi x22,x0,0
+jal x1,eval_expression
+lbu x5,0(x21)
+addi x6,x0,41
+bne x5,x6,print_left_error
+addi x21,x21,1
+fcvt.l.d x10,f3,1
+srai x6,x10,63
+bne x6,x0,print_left_error
+sltiu x7,x10,121
+beq x7,x0,print_left_error
+ld x7,1952(x8)
+sltu x6,x7,x10
+beq x6,x0,print_left_count_ready
+addi x10,x7,0
+print_left_count_ready:
+ld x7,1944(x8)
+lui x27,0x82060
+slli x27,x27,32
+srli x27,x27,32
+addi x9,x0,0
+print_left_copy:
+sltu x6,x9,x10
+beq x6,x0,print_left_copy_done
+lbu x5,0(x7)
+sb x5,0(x27)
+addi x7,x7,1
+addi x27,x27,1
+addi x9,x9,1
+jal x0,print_left_copy
+print_left_copy_done:
+lui x27,0x82060
+slli x27,x27,32
+srli x27,x27,32
+addi x11,x10,0
+addi x10,x27,0
+addi x17,x0,4
+ecall
+addi x10,x0,10
+addi x17,x0,1
+ecall
+jal x0,if_false
+print_left_error:
+jal x0,error_line
 end
 symbols
 run-at 0x81000100
