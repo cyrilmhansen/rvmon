@@ -1345,6 +1345,8 @@ beq x5,x7,print_string_or_array
 addi x21,x24,22
 addi x22,x21,0
 lbu x5,0(x22)
+addi x7,x0,82
+beq x5,x7,print_right_probe
 addi x7,x0,76
 bne x5,x7,print_statement_string_scan
 lbu x5,1(x22)
@@ -1370,6 +1372,26 @@ lbu x5,3(x22)
 addi x7,x0,40
 beq x5,x7,print_numeric_statement
 jal x0,print_statement_string_scan
+print_right_probe:
+lbu x5,1(x22)
+addi x7,x0,73
+bne x5,x7,print_statement_string_scan
+lbu x5,2(x22)
+addi x7,x0,71
+bne x5,x7,print_statement_string_scan
+lbu x5,3(x22)
+addi x7,x0,72
+bne x5,x7,print_statement_string_scan
+lbu x5,4(x22)
+addi x7,x0,84
+bne x5,x7,print_statement_string_scan
+lbu x5,5(x22)
+addi x7,x0,36
+bne x5,x7,print_statement_string_scan
+lbu x5,6(x22)
+addi x7,x0,40
+bne x5,x7,print_statement_string_scan
+jal x0,print_right_string
 print_statement_string_scan:
 lbu x5,0(x22)
 addi x7,x0,36
@@ -5885,6 +5907,61 @@ addi x17,x0,1
 ecall
 jal x0,if_false
 print_left_error:
+jal x0,error_line
+print_right_string:
+addi x21,x21,7
+jal x1,resolve_string_variable
+sd x7,1944(x8)
+sd x11,1952(x8)
+lbu x5,0(x21)
+addi x6,x0,44
+bne x5,x6,print_right_error
+addi x21,x21,1
+addi x22,x0,0
+jal x1,eval_expression
+lbu x5,0(x21)
+addi x6,x0,41
+bne x5,x6,print_right_error
+addi x21,x21,1
+fcvt.l.d x10,f3,1
+srai x6,x10,63
+bne x6,x0,print_right_error
+sltiu x7,x10,121
+beq x7,x0,print_right_error
+ld x7,1952(x8)
+sltu x6,x7,x10
+beq x6,x0,print_right_count_ready
+addi x10,x7,0
+print_right_count_ready:
+sub x6,x7,x10
+ld x7,1944(x8)
+add x7,x7,x6
+lui x27,0x82060
+slli x27,x27,32
+srli x27,x27,32
+addi x9,x0,0
+print_right_copy:
+sltu x6,x9,x10
+beq x6,x0,print_right_copy_done
+lbu x5,0(x7)
+sb x5,0(x27)
+addi x7,x7,1
+addi x27,x27,1
+addi x9,x9,1
+jal x0,print_right_copy
+print_right_copy_done:
+lui x27,0x82060
+slli x27,x27,32
+srli x27,x27,32
+addi x11,x10,0
+addi x10,x27,0
+addi x17,x0,4
+ecall
+addi x10,x0,10
+addi x17,x0,1
+ecall
+jal x0,if_false
+print_right_error:
 jal x0,error_line
 end
 symbols
