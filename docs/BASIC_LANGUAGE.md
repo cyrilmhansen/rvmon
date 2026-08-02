@@ -147,10 +147,10 @@ la dimension 2 est stockée dans le descripteur à `+24` et la même zone de slo
 est utilisée, avec au plus 32 cellules.
 Les dimensions sont fixes après `DIM`, les tableaux numériques longs peuvent
 avoir une ou deux dimensions, et tout index hors bornes produit une erreur
-cible avant mutation. Les tableaux de chaînes courts restent unidimensionnels
-dans cette tranche ; les tableaux de chaînes longs acceptent également deux
-dimensions. Les variantes `LET` de ces affectations sont prises en charge dans
-les lignes de programme et en mode direct.
+cible avant mutation. Les tableaux de chaînes courts acceptent une ou deux
+dimensions ; la forme 2D utilise le même layout de descripteurs borné que les
+tableaux de chaînes longs. Les variantes `LET` de ces affectations sont prises
+en charge dans les lignes de programme et en mode direct.
 
 Le payload assembleur accepte aussi, pour les tableaux numériques longs à une
 ou deux dimensions, un index calculé de la forme `index [+|-] entier` : par
@@ -178,10 +178,10 @@ tableaux numériques courts `A(…)`, en lecture, affichage et affectation, y
 compris sur leurs deux dimensions. Le parseur partagé restaure le contexte de
 l’évaluateur avant de revenir au chemin de stockage court.
 
-Les tableaux de chaînes courts acceptent cette même forme calculée en une
-dimension, par exemple `A$(I+0)`, en lecture, affichage et affectation. Les
-tableaux de chaînes longs l'acceptent pour leur première dimension, y compris
-dans la forme à deux dimensions (`LONGGRID$(I+0,J)`) ; la seconde dimension
-reste limitée à un entier ou à une variable simple dans cette tranche. Le
-calcul d'index et les contrôles de bornes restent exécutés exclusivement dans
-la cible.
+Les tableaux de chaînes courts acceptent cette même forme calculée en une ou
+deux dimensions, par exemple `A$(I+0)` et `A$(I+0,J)`, en lecture, affichage et
+affectation. Les tableaux de chaînes longs l'acceptent pour leur première
+dimension, y compris dans la forme à deux dimensions
+(`LONGGRID$(I+0,J)`) ; la seconde dimension reste limitée à un entier ou à une
+variable simple dans cette tranche. Le calcul d'index et les contrôles de
+bornes restent exécutés exclusivement dans la cible.
