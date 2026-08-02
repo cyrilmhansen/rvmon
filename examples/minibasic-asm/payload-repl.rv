@@ -377,6 +377,9 @@ sd x0,536(x8)
 jal x0,run_line
 ; Affectation directe des autres variables scalaires A..Z.
 check_generic_assignment:
+addi x7,x0,40
+lbu x5,1(x18)
+beq x5,x7,array_assign_direct_generic
 addi x7,x0,36
 lbu x5,1(x18)
 beq x5,x7,string_assign_direct
@@ -436,6 +439,10 @@ addi x7,x0,91
 sltu x6,x10,x7
 beq x6,x0,command_number_check
 jal x0,assign_generic_direct
+array_assign_direct_generic:
+addi x21,x18,0
+jal x1,assign_array
+jal x0,command_loop
 assign_generic_direct:
 addi x21,x18,0
 jal x1,resolve_variable
@@ -799,6 +806,8 @@ lbu x5,17(x24)
 addi x7,x0,61
 beq x5,x7,assignment_statement
 lbu x5,17(x24)
+addi x7,x0,40
+beq x5,x7,array_statement
 addi x7,x0,36
 beq x5,x7,string_statement
 lbu x5,16(x24)
@@ -1719,6 +1728,9 @@ bne x7,x0,atom_numeric
 addi x6,x0,91
 sltu x7,x5,x6
 beq x7,x0,atom_numeric
+lbu x6,1(x21)
+addi x7,x0,40
+beq x6,x7,array_open_generic
 sd x1,1152(x8)
 jal x1,resolve_variable
 fld f4,0(x7)
@@ -1819,16 +1831,19 @@ fld f4,0(x7)
 addi x21,x21,1
 jal x0,store_atom
 atom_a:
-addi x21,x21,1
 addi x6,x0,40
-lbu x5,0(x21)
-beq x5,x6,atom_array_open
+lbu x5,1(x21)
+beq x5,x6,array_open_generic
+addi x21,x21,1
 addi x6,x0,0
 add x7,x20,x6
 fld f4,0(x7)
 jal x0,store_atom
-atom_array_open:
-addi x21,x21,1
+array_open_generic:
+sd x1,1152(x8)
+jal x1,resolve_array_name
+ld x1,1152(x8)
+addi x21,x21,2
 addi x23,x0,0
 addi x27,x0,0
 array_index_digits:
@@ -1852,13 +1867,21 @@ array_index_done:
 beq x27,x0,error_line
 addi x6,x0,41
 bne x5,x6,error_line
-ld x6,584(x8)
+addi x6,x8,584
+slli x7,x26,3
+add x6,x6,x7
+ld x6,0(x6)
 sltu x7,x23,x6
 beq x7,x0,error_line
 addi x21,x21,1
-slli x6,x23,3
+slli x6,x26,8
 addi x7,x8,2047
-addi x7,x7,1
+addi x7,x7,2047
+addi x7,x7,2047
+addi x7,x7,2047
+addi x7,x7,4
+add x7,x7,x6
+slli x6,x23,3
 add x7,x7,x6
 fld f4,0(x7)
 jal x0,store_atom
@@ -1873,7 +1896,24 @@ atom_minus:
 addi x28,x0,1
 addi x21,x21,1
 jal x0,skip_atom_spaces
+resolve_array_name:
+lbu x5,0(x21)
+addi x6,x5,-97
+sltiu x7,x6,26
+beq x7,x0,array_name_upper
+addi x5,x5,-32
+sb x5,0(x21)
+array_name_upper:
+addi x6,x5,-65
+sltiu x7,x6,26
+beq x7,x0,error_line
+addi x26,x6,0
+lbu x5,1(x21)
+addi x7,x0,40
+bne x5,x7,error_line
+jalr x0,0(x1)
 dim_array:
+addi x30,x1,0
 lbu x5,0(x21)
 addi x6,x0,68
 bne x5,x6,error_line
@@ -1886,13 +1926,9 @@ bne x5,x6,error_line
 lbu x5,3(x21)
 addi x6,x0,32
 bne x5,x6,error_line
-lbu x5,4(x21)
-addi x6,x0,65
-bne x5,x6,error_line
-lbu x5,5(x21)
-addi x6,x0,40
-bne x5,x6,error_line
-addi x21,x21,6
+addi x21,x21,4
+jal x1,resolve_array_name
+addi x21,x21,2
 addi x23,x0,0
 addi x27,x0,0
 dim_index_digits:
@@ -1919,26 +1955,30 @@ bne x5,x6,error_line
 sltiu x7,x23,32
 beq x7,x0,error_line
 addi x6,x23,1
-sd x6,584(x8)
+addi x7,x8,584
+slli x5,x26,3
+add x7,x7,x5
+sd x6,0(x7)
+addi x31,x7,0
 addi x9,x0,0
 dim_array_loop:
-slli x6,x9,3
 addi x7,x8,2047
-addi x7,x7,1
+addi x7,x7,2047
+addi x7,x7,2047
+addi x7,x7,2047
+addi x7,x7,4
+slli x6,x26,8
+add x7,x7,x6
+slli x6,x9,3
 add x7,x7,x6
 sd x0,0(x7)
 addi x9,x9,1
-ld x6,584(x8)
+ld x6,0(x31)
 bne x9,x6,dim_array_loop
-jalr x0,0(x1)
+jalr x0,0(x30)
 assign_array:
-addi x30,x1,0
-lbu x5,0(x21)
-addi x6,x0,65
-bne x5,x6,error_line
-lbu x5,1(x21)
-addi x6,x0,40
-bne x5,x6,error_line
+sd x1,1152(x8)
+jal x1,resolve_array_name
 addi x21,x21,2
 addi x23,x0,0
 addi x27,x0,0
@@ -1967,20 +2007,29 @@ addi x21,x21,1
 lbu x5,0(x21)
 addi x6,x0,61
 bne x5,x6,error_line
-ld x6,584(x8)
+addi x6,x8,584
+slli x7,x26,3
+add x6,x6,x7
+ld x6,0(x6)
 sltu x7,x23,x6
 beq x7,x0,error_line
+addi x7,x8,2047
+addi x7,x7,2047
+addi x7,x7,2047
+addi x7,x7,2047
+addi x7,x7,4
+slli x6,x26,8
+add x7,x7,x6
 slli x6,x23,3
-sd x6,1112(x8)
+add x7,x7,x6
+sd x7,1112(x8)
 addi x21,x21,1
 addi x22,x0,0
 jal x1,parse_atom
+ld x1,1152(x8)
 ld x6,1112(x8)
-addi x7,x8,2047
-addi x7,x7,1
-add x7,x7,x6
-fsd f1,0(x7)
-jalr x0,0(x30)
+fsd f1,0(x6)
+jalr x0,0(x1)
 string_assign:
 sd x1,1152(x8)
 jal x1,resolve_string_variable
