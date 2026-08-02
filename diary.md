@@ -43,3 +43,12 @@
   target `cargo check`, and `git diff --check`. The assembly payload changes
   are therefore ready for an isolated fine-grained commit; unrelated dirty
   worktree changes remain deliberately unstaged.
+- After the payload commit, a focused QEMU rerun passed the long-name
+  Hammurabi session and the long two-dimensional string-array case. The build
+  still emits known compressed-instruction overlap warnings from the generated
+  decoder; these are pre-existing diagnostics and did not fail the tests.
+- The assembly guide was audited and its opening status was corrected: its
+  small modular examples are now explicitly separated from the much larger
+  integrated payload, and old chronological paragraphs are labelled as such.
+  I deliberately did not stage the guide yet because it already contains
+  unrelated worktree edits from the user.
