@@ -78,3 +78,14 @@
   conditional-branch range. The focused QEMU test caught the first behavior;
   a static branch-distance audit caught the second. Both were corrected before
   the repeat tests were accepted.
+- The post-`REPEAT/UNTIL` sequential guest matrix reached 57/58 on its first
+  pass. The sole miss was `long-string-array-2d`; it passed on isolated runs
+  1 and 3 and reproduced the known prompt-synchronization flake on run 2.
+  This is evidence for a harness timing defect, not a runtime regression. The
+  full matrix still exercises the new loop paths alongside the existing array,
+  string, input, control-flow, and Hammurabi cases.
+- The local ASM-One v1.48 Markdown reference is present under
+  `docs/dontcommit/` and is intentionally ignored by Git. I began comparing
+  its CLI vocabulary (`@D`, `@H`, `@N`, `G`, `K`, `M`, `N`, `S`, `F`, `C`, `Q`)
+  with the modern monitor command surface; it will be used as a compatibility
+  reference, not copied as a product specification.
