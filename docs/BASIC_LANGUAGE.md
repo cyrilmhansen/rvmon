@@ -17,7 +17,7 @@ statement-list = statement , { space , ":" , space , statement } ;
 statement     = "REM" , text
               | "PRINT" , print-item , { "," , print-item }
               | "INPUT" , variable
-              | [ "LET" , space ] , string-variable , "=" , string-assignment-function
+              | [ "LET" , space ] , string-target , "=" , string-assignment-function
               | [ "LET" , space ] , variable , "=" , expression
               | "IF" , expression , "THEN" , number
               | "IF" , expression , "THEN" , end-of-line , block-body , "ENDIF"
@@ -61,6 +61,7 @@ factor        = number | variable | "(" , expression , ")"
 variable      = identifier ;
 string-variable = identifier , "$" ;
 string-reference = string-variable , [ "(" , index , [ "," , index ] , ")" ] ;
+string-target = string-reference ;
 index         = number | variable | number , ( "+" | "-" ) , number
               | variable , ( "+" | "-" ) , number ;
 identifier    = letter , { letter | digit | "_" } ;
@@ -145,9 +146,8 @@ une affectation, sur un tableau chaîne ou avec une chaîne littérale.
 
 La tranche assembleur accepte également
 `LET destination$=LEFT$(source$,n)`, `RIGHT$` et `MID$` (avec `LET` facultatif).
-La source peut être une variable chaîne scalaire ou un élément de tableau
-chaîne 1D/2D déjà résolu par le guest ; la destination reste une variable
-chaîne scalaire. Pour
+La source et la destination peuvent être une variable chaîne scalaire ou un
+élément de tableau chaîne 1D/2D déjà résolu par le guest. Pour
 `LEFT$`/`RIGHT$`, `n` est évalué dans le guest, doit être entier et compris entre
 0 et 120 ; une valeur supérieure à la source est ramenée à sa longueur. Pour
 `MID$`, la position est 1-based, strictement positive, et la longueur suit les

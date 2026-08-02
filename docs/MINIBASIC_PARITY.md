@@ -17,7 +17,7 @@ expressions, données, chaînes, tableaux et diagnostics. Elle ne signifie ni
 compatibilité Atari, ni compatibilité binaire, ni compatibilité des tokens,
 des nombres historiques, des périphériques, du DOS ou des graphismes.
 
-État de l’audit au 3 août 2026 : **84 scripts QEMU assembleur MiniBASIC
+État de l’audit au 3 août 2026 : **87 scripts QEMU assembleur MiniBASIC
 recensés**. Le nombre
 est contrôlable par :
 
@@ -73,7 +73,7 @@ entièrement dans le guest.
 | Fonctions numériques | `ABS`, `SGN`, `INT`, `TRUNC`, `FRAC`, `MOD`, appels target-side et imbrication documentée | VERT | `numeric-rounding.sh`, `numeric-rounding-error.sh`, `numeric-functions.sh` |
 | Aléatoire | `RND` et `RND()`, LCG target-side reproductible, graine à 1 | VERT | `rnd.sh`, `rnd-error.sh` |
 | Fonctions de chaînes | `LEN`, `PRINT LEFT$`, `PRINT RIGHT$` et `PRINT MID$` avec buffer target-side, sources scalaires ou tableaux chaîne | PARTIEL | `string-len*.sh`, `string-left*.sh`, `string-right*.sh`, `string-mid*.sh`, `string-slice-array-source.sh`; littéraux et expressions chaîne différés |
-| Affectation chaîne par fonction | `LET destination$=LEFT$`, `RIGHT$` ou `MID$` avec source scalaire ou élément de tableau chaîne, copie target-side bornée et sûre en cas de recouvrement | PARTIEL | `string-assignment.sh`, `string-slice-assignment*.sh`, `string-slice-array-source.sh`; destinations tableau, littéraux et expressions chaîne générales différés |
+| Affectation chaîne par fonction | `LET destination$=LEFT$`, `RIGHT$` ou `MID$` avec source et destination scalaires ou éléments de tableau chaîne, copie target-side bornée et sûre en cas de recouvrement | PARTIEL | `string-assignment.sh`, `string-slice-assignment*.sh`, `string-slice-array-source.sh`, `string-slice-array-destination*.sh`; littéraux et expressions chaîne générales différés |
 | Variables numériques | variables courtes historiques et identifiants ASCII de 2 à 16 caractères | VERT | `scalars.sh`, `long-names.sh`, `keyword-vars.sh` |
 | Chaînes | littéraux, variables courtes/longues, affectation, affichage et entrée | VERT | `string-var.sh`, `long-string.sh` |
 | Tableaux numériques | 1D/2D, noms courts/longs, index calculés et contrôle des bornes | VERT | `array*.sh`, `long-numeric-array*.sh` |
@@ -169,8 +169,8 @@ Priorité suivante, après stabilisation du socle actuel :
 1. produire une démonstration Hammurabi complète et auditée, incluant les
    variables longues et les tableaux visibles dans le moniteur ;
 2. finaliser le tutoriel progressif et son scénario de démonstration ;
-3. étendre prudemment les fonctions chaîne aux destinations tableau, aux
-   littéraux et aux expressions générales ; `LEN`, `PRINT LEFT$`, `PRINT RIGHT$`,
+3. étendre prudemment les fonctions chaîne aux littéraux et aux expressions
+   générales ; `LEN`, `PRINT LEFT$`, `PRINT RIGHT$`,
    `PRINT MID$` et les affectations scalaires `LEFT$`/`RIGHT$`/`MID$` sont
    désormais implémentés avec les limites documentées ;
 4. traiter les limites documentées des blocs structurés et des expressions
@@ -204,9 +204,9 @@ sortie BASIC préenregistrée.
 - **Décisions de parité figées :** mode direct, lignes, contrôle de flot,
   chaînes, tableaux, binary64 target-side, interruption et périmètre Atari
   rejeté ;
-- **Preuve automatisée :** 84 tests QEMU assembleur recensés au moment de cet
-  audit, dont quatre scénarios dédiés aux affectations chaîne et à leurs
-  erreurs ;
+- **Preuve automatisée :** 87 tests QEMU assembleur recensés au moment de cet
+  audit, dont six scénarios dédiés aux affectations chaîne et à leurs sources
+  ou destinations tableau ;
 - **Écart important restant :** `IF/ELSE/ENDIF` est non imbriqué ; certaines
   fonctions historiques TBXL ne sont pas encore retenues ; les expressions
   chaîne générales et les affectations sur tableaux ou littéraux restent
@@ -220,13 +220,14 @@ sortie BASIC préenregistrée.
 | Date | Évolution | Preuve | Impact de parité |
 |---|---|---|---|
 | 2026-08-03 | Ajout des affectations scalaires `LEFT$`, `RIGHT$` et `MID$` dans le payload assembleur | quatre tests QEMU target-side : cas nominaux, auto-affectation et erreurs de forme/bornes | les fonctions de découpe sont maintenant réutilisables par les programmes, tout en restant PARTIEL pour les tableaux et expressions chaîne |
-| 2026-08-03 | Résolution de sources scalaires et d’éléments de tableaux chaîne dans les fonctions de découpe | `test-guest-runtime-asm-repl-string-slice-array-source.sh` sous QEMU, incluant tableau court et long | les fonctions peuvent consommer les données de tableaux sans délégation hôte ; les destinations tableau restent différées |
-| 2026-08-03 | Inventaire recalculé | `find scripts -maxdepth 1 -type f -name 'test-guest-runtime-asm-repl*.sh' \| wc -l` → `85` | le nombre annoncé dans ce document est reproductible et non maintenu manuellement |
+| 2026-08-03 | Résolution de sources scalaires et d’éléments de tableaux chaîne dans les fonctions de découpe | `test-guest-runtime-asm-repl-string-slice-array-source.sh` sous QEMU, incluant tableau court et long | les fonctions peuvent consommer les données de tableaux sans délégation hôte |
+| 2026-08-03 | Écriture dans des destinations scalaires et éléments de tableaux chaîne | `test-guest-runtime-asm-repl-string-slice-array-destination*.sh` sous QEMU, cas nominal et erreurs | les trois fonctions de découpe peuvent alimenter les tableaux target-side, sans écriture partielle lors d’une erreur |
+| 2026-08-03 | Inventaire recalculé | `find scripts -maxdepth 1 -type f -name 'test-guest-runtime-asm-repl*.sh' \| wc -l` → `87` | le nombre annoncé dans ce document est reproductible et non maintenu manuellement |
 
 Les affectations ne constituent pas encore une parité chaîne complète : le RHS
 doit être exactement une forme `LEFT$`, `RIGHT$` ou `MID$` avec variable scalaire
-ou élément de tableau chaîne source ; les destinations tableau, littéraux et
-expressions chaîne générales sont explicitement hors de cette tranche. Toute
-extension ultérieure doit ajouter
+ou élément de tableau chaîne source, et la destination doit être une variable
+scalaire ou un élément de tableau chaîne ; littéraux et expressions chaîne
+générales sont explicitement hors de cette tranche. Toute extension doit ajouter
 un test QEMU target-side et une entrée à cette matrice avant d’être marquée
 VERT.
