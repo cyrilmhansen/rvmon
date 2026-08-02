@@ -2275,6 +2275,28 @@ release. Elles n’ajoutent aucune extension ISA.
 - **Taille :** 3 points / 1,5 journée-agent, incertitude faible.
 - **Parallélisable :** oui avec `LIST`; non avec une modification du layout.
 
+#### BASIC-LOAD-004E — LIST target-side et sortie du magasin — TERMINÉE
+
+- **Priorité :** P0, première commande observable du magasin cible.
+- **But :** parcourir les records ordonnés, convertir les numéros de ligne,
+  copier les corps et produire la sortie par `write-buffer`.
+- **Non-but :** REPL, lecture UART, exécution des instructions BASIC, formatage
+  complet des erreurs et annulation.
+- **Entrées :** `BASIC_LANGUAGE.md`, `GUEST_PAYLOAD_ABI.md`, D-018, R1 I/M et
+  R2 pour `divu`, `remu`, loads/stores et ecall.
+- **Fichiers/modules :** `examples/minibasic-runtime-list.rv`,
+  `scripts/test-guest-runtime-list.sh`, documentation BASIC.
+- **Dépendances :** BASIC-LOAD-004A..D, ABI `write-buffer` et table record.
+- **Tests :** deux records `10 PRINT A`/`20 PRINT B`, conversion ASCII
+  target-side, longueur du buffer, sortie UART et statut de fin 0.
+- **Critères de sortie :** QEMU observe exactement les deux lignes dans l’ordre
+  et le programme termine par le service cible d’arrêt.
+- **Cas limites :** table vide, numéro à 1/3 chiffres, corps vide, corps plein,
+  buffer de sortie plein et compteur incohérent restent à traiter.
+- **Taille :** 3 points / 1,5 journée-agent, incertitude faible.
+- **Parallélisable :** oui avec le REPL UART ; non avec une modification de
+  l’ABI `write-buffer`.
+
 ### BASIC-LOAD-004 — Porter le magasin de lignes et le contrôle de flot
 
 - **Priorité :** P0.

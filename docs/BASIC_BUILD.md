@@ -250,3 +250,20 @@ bash scripts/test-guest-runtime-line-edit.sh
 
 La commande `LIST` et la capacité générale restent volontairement séparées de
 ce test mémoire.
+
+La fixture [`minibasic-runtime-list.rv`](../examples/minibasic-runtime-list.rv)
+ajoute `LIST` target-side : elle parcourt les records ordonnés, convertit les
+numéros en ASCII, copie les corps dans un buffer cible et appelle
+`write-buffer`. Elle produit réellement :
+
+```text
+10 PRINT A
+20 PRINT B
+```
+
+```text
+bash scripts/test-guest-runtime-list.sh
+```
+
+La commande interactive `LIST`, les bornes de capacité et les lignes reçues par
+UART seront raccordées au même parcours.

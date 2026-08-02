@@ -59,6 +59,9 @@
 - `scripts/test-guest-runtime-line-edit.sh` vérifie le remplacement du corps
   de la ligne 20, la suppression de la ligne 10 par compactage, le compteur 1
   et le record `20 PRINT C` dans la RAM cible.
+- `scripts/test-guest-runtime-list.sh` vérifie le parcours target-side de deux
+  records, la conversion décimale des numéros, la copie des corps et la sortie
+  `10 PRINT A` / `20 PRINT B` produite par `write-buffer`.
 - Le breakpoint `minibasic_divide` et `disasm` permettent d’observer la
   correspondance adresse → `fdiv.d`; les registres f et `fcsr` sont affichés
   avant/après le pas.

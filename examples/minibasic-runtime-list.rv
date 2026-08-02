@@ -1,0 +1,83 @@
+info payload
+data 0x82000100 .dword 0x000000000000000a
+data 0x82000108 .dword 0x0000000000000007
+data 0x82000110 .byte 0x50
+data 0x82000111 .byte 0x52
+data 0x82000112 .byte 0x49
+data 0x82000113 .byte 0x4e
+data 0x82000114 .byte 0x54
+data 0x82000115 .byte 0x20
+data 0x82000116 .byte 0x41
+data 0x82000120 .dword 0x0000000000000014
+data 0x82000128 .dword 0x0000000000000007
+data 0x82000130 .byte 0x50
+data 0x82000131 .byte 0x52
+data 0x82000132 .byte 0x49
+data 0x82000133 .byte 0x4e
+data 0x82000134 .byte 0x54
+data 0x82000135 .byte 0x20
+data 0x82000136 .byte 0x42
+data 0x82000200 .dword 0x0000000000000002
+assemble-program 0x81000100
+; x6 record courant, x5 nombre restant, x18 sortie, x21 longueur sortie.
+entry:
+auipc x8,0x1000
+addi x8,x8,-256
+addi x6,x8,256
+ld x5,512(x8)
+addi x18,x8,768
+addi x21,x0,0
+list_line:
+beq x5,x0,list_write
+ld x10,0(x6)
+addi x12,x0,10
+divu x11,x10,x12
+remu x13,x10,x12
+addi x11,x11,48
+sb x11,0(x18)
+addi x18,x18,1
+addi x21,x21,1
+addi x13,x13,48
+sb x13,0(x18)
+addi x18,x18,1
+addi x21,x21,1
+addi x14,x0,32
+sb x14,0(x18)
+addi x18,x18,1
+addi x21,x21,1
+ld x14,8(x6)
+addi x15,x0,0
+addi x19,x6,16
+copy_list_body:
+beq x15,x14,list_body_done
+lbu x20,0(x19)
+sb x20,0(x18)
+addi x19,x19,1
+addi x18,x18,1
+addi x15,x15,1
+addi x21,x21,1
+jal x0,copy_list_body
+list_body_done:
+addi x14,x0,10
+sb x14,0(x18)
+addi x18,x18,1
+addi x21,x21,1
+addi x6,x6,32
+addi x5,x5,-1
+jal x0,list_line
+list_write:
+addi x10,x8,768
+add x11,x21,x0
+addi x17,x0,4
+ecall
+addi x10,x0,0
+addi x17,x0,3
+ecall
+fail:
+addi x10,x0,1
+addi x17,x0,3
+ecall
+end
+symbols
+run-at 0x81000100
+q
