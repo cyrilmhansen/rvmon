@@ -77,6 +77,8 @@ addi x19,x19,2
 addi x20,x8,768
 sd x0,1160(x8)
 sd x0,1616(x8)
+sd x0,1704(x8)
+sd x0,1712(x8)
 command_loop:
 addi x10,x8,0
 addi x11,x0,7
@@ -144,25 +146,27 @@ jal x0,list_line
 let_direct_command:
 lbu x5,1(x18)
 addi x7,x0,69
-bne x5,x7,error_line_near
+bne x5,x7,let_error
 lbu x5,2(x18)
 addi x7,x0,84
-bne x5,x7,error_line_near
+bne x5,x7,let_error
 lbu x5,3(x18)
 addi x7,x0,32
-bne x5,x7,error_line_near
+bne x5,x7,let_error
 addi x21,x18,4
 jal x1,resolve_variable
 sd x7,1112(x8)
 lbu x5,0(x21)
 addi x7,x0,61
-bne x5,x7,error_line_near
+bne x5,x7,let_error
 addi x21,x21,1
 addi x22,x0,0
 jal x1,eval_expression
 ld x6,1112(x8)
 fsd f3,0(x6)
 jal x0,command_loop
+let_error:
+jal x0,error_line_near
 check_p_command:
 lbu x5,1(x18)
 addi x7,x0,82
@@ -728,6 +732,8 @@ run_command:
 jal x0,run_command_generic
 run_command_generic:
 sd x0,1616(x8)
+sd x0,1704(x8)
+sd x0,1712(x8)
 addi x26,x0,0
 run_find_first_generic:
 addi x7,x0,1
@@ -893,9 +899,89 @@ addi x7,x0,77
 beq x5,x7,rem_statement
 addi x7,x0,84
 beq x5,x7,return_statement
+addi x7,x0,65
+beq x5,x7,read_statement
 jal x0,assignment_statement
 rem_statement:
 jal x0,if_false
+read_statement:
+lbu x5,19(x24)
+addi x7,x0,68
+bne x5,x7,error_line_near
+lbu x5,20(x24)
+addi x7,x0,32
+bne x5,x7,error_line_near
+addi x21,x24,21
+jal x1,resolve_variable
+sd x7,1112(x8)
+ld x26,1704(x8)
+ld x27,1712(x8)
+read_find_line:
+sltiu x7,x26,64
+beq x7,x0,error_line_near
+addi x7,x0,1
+sll x7,x7,x26
+ld x6,512(x8)
+and x7,x6,x7
+beq x7,x0,read_next_line
+slli x7,x26,7
+add x24,x19,x7
+lbu x5,16(x24)
+addi x7,x0,68
+bne x5,x7,read_next_line
+lbu x5,17(x24)
+addi x7,x0,65
+bne x5,x7,read_next_line
+lbu x5,18(x24)
+addi x7,x0,84
+bne x5,x7,read_next_line
+lbu x5,19(x24)
+addi x7,x0,65
+bne x5,x7,read_next_line
+lbu x5,20(x24)
+addi x7,x0,32
+bne x5,x7,read_next_line
+beq x27,x0,read_data_start
+add x21,x24,x27
+jal x0,read_data_value
+read_data_start:
+addi x21,x24,21
+read_data_value:
+sd x26,1720(x8)
+sd x24,1736(x8)
+sub x30,x21,x24
+sd x30,1728(x8)
+addi x22,x0,0
+jal x1,parse_atom
+ld x26,1720(x8)
+ld x27,1728(x8)
+ld x24,1736(x8)
+read_data_separator:
+lbu x5,0(x21)
+addi x7,x0,32
+bne x5,x7,read_data_separator_check
+addi x21,x21,1
+jal x0,read_data_separator
+read_data_separator_check:
+addi x7,x0,44
+beq x5,x7,read_data_more
+addi x26,x26,1
+sd x26,1704(x8)
+sd x0,1712(x8)
+jal x0,read_store_value
+read_data_more:
+addi x21,x21,1
+sub x27,x21,x24
+sd x27,1712(x8)
+read_store_value:
+ld x6,1112(x8)
+fsd f1,0(x6)
+jal x0,if_false
+read_next_line:
+addi x26,x26,1
+sd x26,1704(x8)
+sd x0,1712(x8)
+jal x0,read_find_line
 let_or_assignment:
 lbu x5,17(x24)
 addi x7,x0,69
@@ -1003,7 +1089,22 @@ dim_dispatch:
 lbu x5,17(x24)
 addi x7,x0,61
 beq x5,x7,assignment_statement
+addi x7,x0,65
+beq x5,x7,data_statement
 jal x0,dim_statement
+data_statement:
+lbu x5,18(x24)
+addi x7,x0,84
+bne x5,x7,data_error
+lbu x5,19(x24)
+addi x7,x0,65
+bne x5,x7,data_error
+lbu x5,20(x24)
+addi x7,x0,32
+bne x5,x7,data_error
+jal x0,if_false
+data_error:
+jal x0,error_line_near
 array_statement:
 addi x21,x24,16
 jal x1,assign_array
