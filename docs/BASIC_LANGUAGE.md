@@ -39,7 +39,7 @@ statement     = "REM" , text
               | "NEXT" , variable
               | "END" ;
 print-item    = string | expression | string-function ;
-string-function = "LEFT$" , "(" , string-variable , "," , expression , ")" ;
+string-function = ( "LEFT$" | "RIGHT$" ) , "(" , string-variable , "," , expression , ")" ;
 expression    = comparison ;
 comparison    = sum , [ ( "=" | "<>" | "<" | "<=" | ">" | ">=" ) , sum ] ;
 sum           = product , { ( "+" | "-" ) , product } ;
@@ -122,13 +122,14 @@ en binary64 pour rester utilisable dans une expression numérique. Les chaînes
 littérales et les expressions chaîne générales ne sont pas encore des
 arguments de fonction en V1.
 
-`PRINT LEFT$(string-variable,n)` est disponible dans la tranche target-side
-actuelle pour une variable chaîne scalaire courte ou longue. `n` doit être
-entier, compris entre 0 et 120 ; une valeur supérieure à la longueur source est
-ramenée à cette longueur. Le résultat est copié dans un buffer temporaire de la
-RAM cible puis émis par `write_buffer`. `LEFT$` n’est pas encore une expression
-chaîne générale : son usage en affectation, sur un tableau chaîne ou avec une
-chaîne littérale reste différé avec `RIGHT$` et `MID$`.
+`PRINT LEFT$(string-variable,n)` et `PRINT RIGHT$(string-variable,n)` sont
+disponibles dans la tranche target-side actuelle pour une variable chaîne
+scalaire courte ou longue. `n` doit être entier, compris entre 0 et 120 ; une
+valeur supérieure à la longueur source est ramenée à cette longueur. Le
+résultat est copié dans un buffer temporaire de la RAM cible puis émis par
+`write_buffer`. Ces fonctions ne sont pas encore des expressions chaîne
+générales : leur usage en affectation, sur un tableau chaîne ou avec une chaîne
+littérale reste différé avec `MID$`.
 
 `RND` et `RND()` renvoient un nombre pseudo-aléatoire binary64 dans `[0,1)`.
 Le générateur est un LCG 32 bits target-side de paramètres `1664525` et

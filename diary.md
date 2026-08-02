@@ -186,3 +186,9 @@
   address fixed both faults. QEMU now proves clamping, zero length and invalid
   count/arity cases; `LEN` remains green after the change. The inventory reaches
   76 scripts, while assignment and `RIGHT$/MID$` remain deliberately deferred.
+- I added `PRINT RIGHT$(TEXT$,n)` using the same bounded target buffer and
+  source-variable ABI as `LEFT$`, but copying from `source_length-n` so the
+  suffix is selected without host intervention. QEMU proves suffix, clamp,
+  zero-length and error paths, and the `LEFT$` regression remains green. The
+  audit inventory reaches 78 scripts; `MID$` and string-valued assignments are
+  still the next parity boundary.
