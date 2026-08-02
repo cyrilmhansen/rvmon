@@ -125,6 +125,9 @@
 - `scripts/test-guest-runtime-command-run-two-variables-add.sh` vérifie deux
   lectures de table (`X` dans `f1`, `Y` dans `f2`), `fadd.d` et le résultat
   exact `8.0` (`f3=0x4020000000000000`) dans la cible.
+- `scripts/test-guest-runtime-asm-repl.sh` vérifie la première tranche intégrée
+  assemblée par le moniteur : invite, saisie target-side de `10 PRINT X+Y`,
+  `LIST`, `RUN`, deux variables dans `f1/f2`, `fadd.d` et résultat en RAM.
 - Le breakpoint `minibasic_divide` et `disasm` permettent d’observer la
   correspondance adresse → `fdiv.d`; les registres f et `fcsr` sont affichés
   avant/après le pas.

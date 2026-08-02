@@ -2810,6 +2810,33 @@ release. Elles n’ajoutent aucune extension ISA.
 - **Paquet de contexte :** BASIC-LOAD-005C/D, fixtures `run-variable-add` et
   `run-variable-negative-div`, `BASIC_LANGUAGE.md` et R1 chapitre F.
 
+#### BASIC-LOAD-005O — Premier noyau REPL assembleur intégré — TERMINÉE
+
+- **Priorité :** P0, première tranche verticale du portage complet.
+- **But :** assembler la source `.rv` dans le moniteur, lire une ligne BASIC
+  target-side, la stocker, exécuter `LIST`/`NEW`/`RUN` et atteindre `fadd.d`
+  avec deux variables.
+- **Non-but :** parseur général, affectations, formatage décimal, contrôle de
+  flot complet, chaînes/tableaux et remplacement immédiat du binaire Rust.
+- **Entrées :** `BASIC_LANGUAGE.md`, `GUEST_PAYLOAD_ABI.md`, R1 F/D, R2 généré
+  et `MINIBASIC_ASM_SOURCE_GUIDE.md`.
+- **Fichiers/modules :** `examples/minibasic-asm/payload-repl.rv`,
+  `scripts/test-guest-runtime-asm-repl.sh` et documentation BASIC.
+- **Dépendances :** BASIC-LOAD-004L, BASIC-LOAD-005N, ABI console et
+  assembleur source du moniteur.
+- **Tests :** QEMU réel, saisie `10 PRINT X+Y`, sortie `LIST`, breakpoint,
+  `f1=5.0`, `f2=3.0`, `f3=8.0` et dump exact en RAM.
+- **Critères de sortie :** aucun résultat n’est fourni par l’hôte ; le payload
+  assembleur assure la boucle de commande, le stockage et le calcul.
+- **Cas limites :** ligne invalide, plusieurs lignes, expressions générales,
+  mémoire pleine, reprise après erreur et interruption restent à intégrer.
+- **Taille :** 5 points / 2,5 journées-agent, incertitude moyenne.
+- **Compétences/outils :** assembleur guest, ABI ecall, QEMU et débogage D.
+- **Parallélisable :** lexer général et formatage peuvent avancer en parallèle ;
+  le layout des records et la boucle de commande doivent rester synchronisés.
+- **Paquet de contexte :** `payload-repl.rv`, guide assembleur, fixtures
+  `run-variable` et contrat `RVMPAY01`.
+
 ### BASIC-LOAD-004 — Porter le magasin de lignes et le contrôle de flot
 
 - **Priorité :** P0.

@@ -402,6 +402,20 @@ Le parser général n’est pas encore remplacé par cette fixture ; elle fixe
 cependant le contrat d’évaluation target-side d’un opérande variable et d’un
 opérateur binaire.
 
+Le premier noyau REPL assembleur intégré est disponible dans
+[`payload-repl.rv`](../examples/minibasic-asm/payload-repl.rv). Il est assemblé
+par le moniteur lui-même et exécute dans la cible la séance `10 PRINT X+Y`,
+`LIST`, puis `RUN` :
+
+```text
+bash scripts/test-guest-runtime-asm-repl.sh
+```
+
+La ligne est saisie et stockée dans la RAM cible ; `LIST` la restitue depuis
+cette RAM ; `RUN` charge X/Y et atteint réellement `fadd.d`. Ce payload est le
+premier noyau assembleur intégré, mais le payload Rust de
+`crates/minibasic-payload` reste encore le chemin de build chargé automatisé.
+
 La variante [`minibasic-runtime-command-run-variable-sub.rv`](../examples/minibasic-runtime-command-run-variable-sub.rv)
 applique le même contrat à `PRINT X-3` et vérifie `2.0` après `fsub.d` :
 
