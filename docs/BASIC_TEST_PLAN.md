@@ -80,6 +80,8 @@
 - `scripts/test-guest-runtime-command-loop.sh` vérifie qu’une commande inconnue
   produit `ERR UNKNOWN` sans tuer le payload, puis que `NEW` est reçu et exécuté
   dans le tour suivant.
+- `scripts/test-guest-runtime-prompt.sh` vérifie deux émissions target-side de
+  `READY> `, la continuité après `BOGUS` et l’exécution de `NEW` au tour suivant.
 - Le breakpoint `minibasic_divide` et `disasm` permettent d’observer la
   correspondance adresse → `fdiv.d`; les registres f et `fcsr` sont affichés
   avant/après le pas.

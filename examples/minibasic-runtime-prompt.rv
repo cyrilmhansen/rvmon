@@ -1,0 +1,80 @@
+info payload
+data 0x82000400 .byte 0x52
+data 0x82000401 .byte 0x45
+data 0x82000402 .byte 0x41
+data 0x82000403 .byte 0x44
+data 0x82000404 .byte 0x59
+data 0x82000405 .byte 0x3e
+data 0x82000406 .byte 0x20
+data 0x82000420 .byte 0x45
+data 0x82000421 .byte 0x52
+data 0x82000422 .byte 0x52
+data 0x82000423 .byte 0x20
+data 0x82000424 .byte 0x55
+data 0x82000425 .byte 0x4e
+data 0x82000426 .byte 0x4b
+data 0x82000427 .byte 0x4e
+data 0x82000428 .byte 0x4f
+data 0x82000429 .byte 0x57
+data 0x8200042a .byte 0x4e
+data 0x8200042b .byte 0x0a
+data 0x82000440 .byte 0x4e
+data 0x82000441 .byte 0x45
+data 0x82000442 .byte 0x57
+data 0x82000443 .byte 0x20
+data 0x82000444 .byte 0x4f
+data 0x82000445 .byte 0x4b
+data 0x82000446 .byte 0x0a
+assemble-program 0x81000100
+; Prompt et réponses produits par le payload, jamais par le script hôte.
+entry:
+auipc x8,0x1000
+addi x8,x8,-256
+addi x18,x8,768
+command_loop:
+addi x10,x8,1024
+addi x11,x0,7
+addi x17,x0,4
+ecall
+addi x9,x0,0
+read_command:
+addi x17,x0,2
+ecall
+addi x7,x0,10
+beq x10,x7,command_done
+add x6,x18,x9
+sb x10,0(x6)
+addi x9,x9,1
+jal x0,read_command
+command_done:
+addi x6,x18,0
+lbu x10,0(x6)
+addi x7,x0,78
+bne x10,x7,unknown
+lbu x10,1(x6)
+addi x7,x0,69
+bne x10,x7,unknown
+lbu x10,2(x6)
+addi x7,x0,87
+bne x10,x7,unknown
+addi x10,x8,1088
+addi x11,x0,7
+addi x17,x0,4
+ecall
+addi x10,x0,0
+addi x17,x0,3
+ecall
+unknown:
+addi x10,x8,1056
+addi x11,x0,12
+addi x17,x0,4
+ecall
+jal x0,command_loop
+fail:
+addi x10,x0,1
+addi x17,x0,3
+ecall
+end
+symbols
+run-at 0x81000100
+q

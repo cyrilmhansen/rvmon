@@ -2432,6 +2432,28 @@ release. Elles n’ajoutent aucune extension ISA.
 - **Parallélisable :** oui avec le prompt `READY>` ; non avec une modification
   du protocole de boucle.
 
+#### BASIC-LOAD-004L — Prompt READY target-side persistant — TERMINÉE
+
+- **Priorité :** P0, visibilité du REPL cible.
+- **But :** produire `READY> ` depuis le payload avant chaque commande, puis
+  conserver la boucle après une erreur et accepter `NEW`.
+- **Non-but :** historique, édition de ligne, `RUN`, `TRACE`, couleurs ou
+  prompt fourni par le moniteur hôte.
+- **Entrées :** `BASIC_LANGUAGE.md`, `GUEST_PAYLOAD_ABI.md`, ABI
+  `read-char`/`write-buffer` et BASIC-LOAD-004K.
+- **Fichiers/modules :** `examples/minibasic-runtime-prompt.rv`,
+  `scripts/test-guest-runtime-prompt.sh`, documentation BASIC.
+- **Dépendances :** BASIC-LOAD-004K et services console target-side.
+- **Tests :** deux prompts, `BOGUS`, `ERR UNKNOWN`, `NEW`, `NEW OK`, sortie
+  target-side et absence de prompt injecté par le script.
+- **Critères de sortie :** au moins deux occurrences de `READY> ` sont produites
+  par le payload dans une seule séance QEMU.
+- **Cas limites :** prompt interrompu, ligne vide, CRLF, sortie pleine et
+  interruption Ctrl-C restent à couvrir.
+- **Taille :** 2 points / 1 journée-agent, incertitude faible.
+- **Parallélisable :** oui avec le dispatch `RUN` ; non avec une modification
+  de l’ABI console.
+
 ### BASIC-LOAD-004 — Porter le magasin de lignes et le contrôle de flot
 
 - **Priorité :** P0.

@@ -338,3 +338,14 @@ bash scripts/test-guest-runtime-command-loop.sh
 
 La boucle est encore bornée par le scénario de test ; l’invite `READY>`, le
 dispatch de `RUN` et la reprise après erreur complète restent à intégrer.
+
+La fixture [`minibasic-runtime-prompt.rv`](../examples/minibasic-runtime-prompt.rv)
+ajoute l’invite target-side persistante : chaque tour produit `READY> `, puis
+lit une commande. Le scénario vérifie deux invites, `ERR UNKNOWN`, puis `NEW OK` :
+
+```text
+bash scripts/test-guest-runtime-prompt.sh
+```
+
+L’invite n’est pas fournie par le moniteur hôte ; elle est écrite par le payload
+par `write-buffer`.
