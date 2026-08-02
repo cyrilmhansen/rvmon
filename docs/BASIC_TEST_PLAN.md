@@ -173,6 +173,9 @@
   breakpoint final.
 - `scripts/test-guest-runtime-asm-repl-if-false.sh` vérifie `2<1`, l’absence
   de sortie du slot inexistant et l’arrêt target-side sans branche forcée.
+- `scripts/test-guest-runtime-asm-repl-input.sh` vérifie l’invite, la lecture
+  UART de `3.5`, la conversion target-side vers `X`, puis `PRINT X*X` avec
+  `12.250000` et les motifs FP exacts.
 - Le breakpoint `minibasic_divide` et `disasm` permettent d’observer la
   correspondance adresse → `fdiv.d`; les registres f et `fcsr` sont affichés
   avant/après le pas.

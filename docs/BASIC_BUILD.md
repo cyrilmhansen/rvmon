@@ -521,6 +521,14 @@ bash scripts/test-guest-runtime-asm-repl-if-false.sh
 Les expressions de comparaison composées, `AND/OR`, parenthèses de condition
 et diagnostics détaillés restent à intégrer.
 
+`INPUT X` et `INPUT Y` sont maintenant lus et convertis dans le guest, sans
+conversion hôte. Le scénario `INPUT X` puis `PRINT X*X` avec `3.5` est vérifié
+par :
+
+```text
+bash scripts/test-guest-runtime-asm-repl-input.sh
+```
+
 La commande `END` est distincte de `NEW` et s’arrête proprement après avoir
 émis `END` depuis le guest :
 

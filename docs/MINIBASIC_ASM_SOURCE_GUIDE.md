@@ -163,6 +163,11 @@ transfert de slot se déroulent dans le payload.
 Le chemin faux sans slot cible est couvert par
 `scripts/test-guest-runtime-asm-repl-if-false.sh`.
 
+Le dispatcher distingue maintenant `INPUT X`/`INPUT Y` de `IF`. Il affiche une
+invite, lit la ligne UART dans la cible, réutilise le parseur décimal binary64
+et reprend l’exécution vers le slot suivant. La séance `INPUT X` puis
+`PRINT X*X` est couverte par `scripts/test-guest-runtime-asm-repl-input.sh`.
+
 `END` est également dispatché target-side, émet `END\n` puis arrête la séance
 sur un breakpoint contrôlable. Sa non-régression est :
 

@@ -3289,6 +3289,28 @@ release. Elles n’ajoutent aucune extension ISA.
 - **Parallélisable :** oui avec `INPUT` ; non avec une refonte du dispatcher.
 - **Paquet de contexte :** BASIC-LOAD-005AG, tests IF vrai/faux et payload.
 
+#### BASIC-LOAD-005AI — INPUT numérique target-side — TERMINÉE
+
+- **Priorité :** P0, service d’entrée nécessaire aux programmes interactifs.
+- **But :** lire une ligne UART après `INPUT X` ou `INPUT Y`, convertir sa forme
+  décimale dans la cible et écrire la variable binary64 avant de continuer.
+- **Non-but :** chaînes, validation complète des erreurs, édition de ligne,
+  séparateurs multiples et `INPUT` de plusieurs variables.
+- **Entrées :** `BASIC_LANGUAGE.md`, ABI `ecall 2`, parseur binary64 et table
+  des variables.
+- **Fichiers/modules :** `payload-repl.rv`, test QEMU INPUT et documentation.
+- **Dépendances :** BASIC-LOAD-005AG, lecture UART et `parse_atom`.
+- **Tests :** `20 PRINT X*X`, `10 INPUT X`, entrée `3.5`, invite, sortie
+  `12.250000`, registres `f1/f2/f3` et breakpoint final.
+- **Critères de sortie :** l’octet lu, la conversion et la mutation de variable
+  sont target-side ; l’hôte fournit seulement les octets UART.
+- **Cas limites :** entrée vide, syntaxe invalide, overflow, Ctrl-C et INPUT Y
+  restent à compléter par diagnostics et tests dédiés.
+- **Taille :** 4 points / 2 journées-agent, incertitude moyenne.
+- **Compétences/outils :** UART guest, parseur FP, assembleur et QEMU.
+- **Parallélisable :** oui avec TRACE ; non avec une refonte du buffer d’entrée.
+- **Paquet de contexte :** BASIC-LOAD-005AH, ABI UART, payload IF et test INPUT.
+
 ### BASIC-LOAD-004 — Porter le magasin de lignes et le contrôle de flot
 
 - **Priorité :** P0.
