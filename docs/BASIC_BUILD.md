@@ -465,3 +465,11 @@ vérifie aussi le signe d’un opérande chargé depuis la table : avec `X=-5.0`
 ```text
 bash scripts/test-guest-runtime-command-run-variable-negative-div.sh
 ```
+
+La fixture [`minibasic-runtime-command-run-variable-negative-zero-div.rv`](../examples/minibasic-runtime-command-run-variable-negative-zero-div.rv)
+vérifie enfin le zéro signé : `X=-0.0`, `PRINT X/2` produit `-0.0`, soit le
+motif `0x8000000000000000`, sans modifier `fflags` :
+
+```text
+bash scripts/test-guest-runtime-command-run-variable-negative-zero-div.sh
+```

@@ -2734,6 +2734,32 @@ release. Elles n’ajoutent aucune extension ISA.
 - **Paquet de contexte :** BASIC-LOAD-005G/J, fixtures `variable-div` et
   `zerozero`, `BASIC_LANGUAGE.md` et R1 chapitre F.
 
+#### BASIC-LOAD-005L — Conservation du zéro négatif dans RUN — TERMINÉE
+
+- **Priorité :** P0, couverture du signe zéro IEEE dans l’évaluation cible.
+- **But :** charger `X=-0.0`, exécuter `PRINT X/2` et vérifier `-0.0` dans le
+  registre flottant et la mémoire, sans flag parasite.
+- **Non-but :** syntaxe des littéraux spéciaux, négation unaire, division par
+  zéro, formatage décimal et parser général.
+- **Entrées :** R1 F/D, `BASIC_LANGUAGE.md`, layout de table numérique et
+  affichage raw bits du débogueur.
+- **Fichiers/modules :** fixture et test QEMU dédiés ; documentation dans
+  `BASIC_BUILD.md` et `BASIC_TEST_PLAN.md`.
+- **Dépendances :** BASIC-LOAD-005K, `fld`, `fdiv.d`, représentation binary64
+  et inspection `fcsr`.
+- **Tests :** breakpoint QEMU, `f3=0x8000000000000000`, `fcsr=0`, dump
+  little-endian exact et statut d’exécution vérifié.
+- **Critères de sortie :** le signe zéro est issu de la donnée cible et le
+  quotient est exécuté par `fdiv.d`.
+- **Cas limites :** `+0/-0`, `-0/-0`, addition de zéros signés et arrondis
+  dirigés restent à couvrir.
+- **Taille :** 2 points / 1 journée-agent, incertitude faible.
+- **Compétences/outils :** IEEE 754 binary64, RISC-V D et QEMU.
+- **Parallélisable :** oui avec les tests de littéraux spéciaux ; non avec une
+  modification du layout des variables.
+- **Paquet de contexte :** BASIC-LOAD-005K, fixtures `negative-div` et
+  `zerozero`, `BASIC_LANGUAGE.md` et R1 chapitre F.
+
 ### BASIC-LOAD-004 — Porter le magasin de lignes et le contrôle de flot
 
 - **Priorité :** P0.

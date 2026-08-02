@@ -116,6 +116,9 @@
 - `scripts/test-guest-runtime-command-run-variable-negative-div.sh` vérifie la
   conservation du signe avec `X=-5.0`, `PRINT X/2` et le motif exact `-2.5`
   (`0xc004000000000000`) dans `f3` et en mémoire.
+- `scripts/test-guest-runtime-command-run-variable-negative-zero-div.sh`
+  vérifie `X=-0.0`, `PRINT X/2`, le motif exact `0x8000000000000000` et
+  l’absence de flag flottant (`fcsr=0`).
 - Le breakpoint `minibasic_divide` et `disasm` permettent d’observer la
   correspondance adresse → `fdiv.d`; les registres f et `fcsr` sont affichés
   avant/après le pas.
