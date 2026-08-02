@@ -282,6 +282,8 @@ addi x7,x0,71
 beq x10,x7,goto_statement
 addi x7,x0,69
 beq x10,x7,end_statement
+addi x7,x0,73
+beq x10,x7,if_statement
 addi x21,x24,22
 jal x1,eval_expression
 jal x0,run_save
@@ -312,6 +314,137 @@ addi x11,x0,4
 addi x17,x0,4
 ecall
 ebreak
+if_statement:
+addi x21,x24,19
+addi x22,x0,0
+jal x1,parse_atom
+if_skip_operator_spaces:
+lbu x27,0(x21)
+addi x6,x0,32
+bne x27,x6,if_operator
+addi x21,x21,1
+jal x0,if_skip_operator_spaces
+if_operator:
+addi x6,x0,60
+beq x27,x6,if_less
+addi x6,x0,61
+beq x27,x6,if_equal
+addi x6,x0,62
+beq x27,x6,if_greater
+jal x0,error_line
+if_less:
+addi x21,x21,1
+lbu x5,0(x21)
+addi x6,x0,61
+beq x5,x6,if_less_equal
+addi x6,x0,62
+beq x5,x6,if_not_equal
+addi x27,x0,60
+addi x22,x0,1
+jal x1,parse_atom
+jal x0,if_compare_less
+if_less_equal:
+addi x27,x0,76
+addi x21,x21,1
+addi x22,x0,1
+jal x1,parse_atom
+jal x0,if_compare_less_equal
+if_not_equal:
+addi x27,x0,78
+addi x21,x21,1
+addi x22,x0,1
+jal x1,parse_atom
+jal x0,if_compare_not_equal
+if_equal:
+addi x21,x21,1
+addi x22,x0,1
+jal x1,parse_atom
+jal x0,if_compare_equal
+if_greater:
+addi x21,x21,1
+lbu x5,0(x21)
+addi x6,x0,61
+beq x5,x6,if_greater_equal
+addi x27,x0,71
+addi x22,x0,1
+jal x1,parse_atom
+jal x0,if_compare_greater
+if_greater_equal:
+addi x27,x0,74
+addi x21,x21,1
+addi x22,x0,1
+jal x1,parse_atom
+jal x0,if_compare_greater_equal
+if_compare_less:
+flt.d x10,f1,f2
+jal x0,if_parse_then
+if_compare_less_equal:
+fle.d x10,f1,f2
+jal x0,if_parse_then
+if_compare_equal:
+feq.d x10,f1,f2
+jal x0,if_parse_then
+if_compare_not_equal:
+feq.d x10,f1,f2
+xori x10,x10,1
+jal x0,if_parse_then
+if_compare_greater:
+flt.d x10,f2,f1
+jal x0,if_parse_then
+if_compare_greater_equal:
+fle.d x10,f2,f1
+if_parse_then:
+if_then_spaces:
+lbu x5,0(x21)
+addi x6,x0,32
+bne x5,x6,if_then_word
+addi x21,x21,1
+jal x0,if_then_spaces
+if_then_word:
+addi x6,x0,84
+bne x5,x6,error_line
+lbu x5,1(x21)
+addi x6,x0,72
+bne x5,x6,error_line
+lbu x5,2(x21)
+addi x6,x0,69
+bne x5,x6,error_line
+lbu x5,3(x21)
+addi x6,x0,78
+bne x5,x6,error_line
+lbu x5,4(x21)
+addi x6,x0,32
+bne x5,x6,error_line
+addi x21,x21,5
+beq x10,x0,if_false
+lbu x5,0(x21)
+addi x6,x0,49
+beq x5,x6,if_true_ten
+addi x6,x0,50
+beq x5,x6,if_true_twenty
+jal x0,error_line
+if_true_ten:
+lbu x5,1(x21)
+addi x6,x0,48
+bne x5,x6,error_line
+sd x0,536(x8)
+jal x0,run_line
+if_true_twenty:
+lbu x5,1(x21)
+addi x6,x0,48
+bne x5,x6,error_line
+addi x10,x0,1
+sd x10,536(x8)
+jal x0,run_line
+if_false:
+ld x10,536(x8)
+bne x10,x0,run_stop
+ld x11,512(x8)
+andi x11,x11,2
+beq x11,x0,run_stop
+addi x10,x0,1
+sd x10,536(x8)
+jal x0,run_line
 run_save:
 fsd f3,1024(x8)
 jal x0,print_result
