@@ -2252,7 +2252,7 @@ ld x6,0(x31)
 bne x9,x6,dim_array_loop
 jalr x0,0(x30)
 assign_array:
-sd x1,1152(x8)
+sd x1,1600(x8)
 jal x1,resolve_array_name
 addi x21,x21,2
 addi x23,x0,0
@@ -2313,7 +2313,7 @@ sd x7,1112(x8)
 addi x21,x21,1
 addi x22,x0,0
 jal x1,parse_atom
-ld x1,1152(x8)
+ld x1,1600(x8)
 ld x6,1112(x8)
 fsd f1,0(x6)
 jalr x0,0(x1)
