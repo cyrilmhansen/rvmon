@@ -168,9 +168,9 @@
 - `scripts/test-guest-runtime-fcmp-d.sh` vérifie l’assemblage généré et
   l’exécution QEMU de `feq.d`, `flt.d` et `fle.d`, avec `rd=xN` et les résultats
   booléens exacts en registres et en RAM.
-- `scripts/test-guest-runtime-asm-repl-if.sh` vérifie `10 IF 1<2 THEN 20`, la
-  comparaison dans le guest, le saut vers le slot 20, `15.000000` et le
-  breakpoint final.
+- `scripts/test-guest-runtime-asm-repl-if.sh` vérifie `10 IF 2*3>5 THEN 20`,
+  la condition composée dans le guest, le saut vers le slot 20,
+  `15.000000` et le breakpoint final.
 - `scripts/test-guest-runtime-asm-repl-if-false.sh` vérifie `2<1`, l’absence
   de sortie du slot inexistant et l’arrêt target-side sans branche forcée.
 - `scripts/test-guest-runtime-asm-repl-input.sh` vérifie l’invite, la lecture

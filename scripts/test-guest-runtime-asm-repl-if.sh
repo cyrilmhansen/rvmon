@@ -30,7 +30,7 @@ awk '/^symbols$/{print; found=1; next} found && /^run-at /{print; exit} !found{p
     examples/minibasic-asm/payload-repl.rv |
     while IFS= read -r line; do printf '%s\n' "$line" >&3; sleep 0.003; done
 sleep 0.2
-printf '20 PRINT 7+8\n10 IF 1<2 THEN 20\nRUN\n' >&3
+printf '20 PRINT 15\n10 IF 2*3>5 THEN 20\nRUN\n' >&3
 sleep 0.5
 printf 'regs\nq\n' >&3
 exec 3>&-

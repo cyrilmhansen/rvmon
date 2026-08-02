@@ -1017,7 +1017,9 @@ jal x0,print_result
 if_statement:
 addi x21,x24,19
 addi x22,x0,0
-jal x1,parse_atom
+jal x1,eval_expression
+fmv.x.d x10,f3
+fmv.d.x f1,x10
 if_skip_operator_spaces:
 lbu x27,0(x21)
 addi x6,x0,32
@@ -1041,24 +1043,32 @@ addi x6,x0,62
 beq x5,x6,if_not_equal
 addi x27,x0,60
 addi x22,x0,1
-jal x1,parse_atom
+jal x1,eval_expression
+fmv.x.d x10,f3
+fmv.d.x f2,x10
 jal x0,if_compare_less
 if_less_equal:
 addi x27,x0,76
 addi x21,x21,1
 addi x22,x0,1
-jal x1,parse_atom
+jal x1,eval_expression
+fmv.x.d x10,f3
+fmv.d.x f2,x10
 jal x0,if_compare_less_equal
 if_not_equal:
 addi x27,x0,78
 addi x21,x21,1
 addi x22,x0,1
-jal x1,parse_atom
+jal x1,eval_expression
+fmv.x.d x10,f3
+fmv.d.x f2,x10
 jal x0,if_compare_not_equal
 if_equal:
 addi x21,x21,1
 addi x22,x0,1
-jal x1,parse_atom
+jal x1,eval_expression
+fmv.x.d x10,f3
+fmv.d.x f2,x10
 jal x0,if_compare_equal
 if_greater:
 addi x21,x21,1
@@ -1067,13 +1077,17 @@ addi x6,x0,61
 beq x5,x6,if_greater_equal
 addi x27,x0,71
 addi x22,x0,1
-jal x1,parse_atom
+jal x1,eval_expression
+fmv.x.d x10,f3
+fmv.d.x f2,x10
 jal x0,if_compare_greater
 if_greater_equal:
 addi x27,x0,74
 addi x21,x21,1
 addi x22,x0,1
-jal x1,parse_atom
+jal x1,eval_expression
+fmv.x.d x10,f3
+fmv.d.x f2,x10
 jal x0,if_compare_greater_equal
 if_compare_less:
 flt.d x10,f1,f2

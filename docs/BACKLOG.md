@@ -342,6 +342,28 @@ confondre code présent et exigence formellement auditée.
 - **Limites restantes :** la condition composée de Hammurabi (`Q*10>G`) et
   l’affichage multi-éléments restent à implémenter.
 - **Taille :** 4 points / 2 journées-agent, incertitude moyenne.
+
+#### BASIC-LOAD-005AS — Conditions IF composées target-side — TERMINÉE
+
+- **Priorité :** P0, expression minimale nécessaire à Hammurabi.
+- **But :** évaluer une expression arithmétique complète de chaque côté d’une
+  comparaison `IF`, notamment `Q*10>G` et `D*2>P`.
+- **Non-but :** changer la précédence du parseur ou ajouter les opérateurs
+  logiques; seuls `+`, `-`, `*`, `/`, parenthèses et comparaisons existants
+  sont concernés.
+- **Entrées/sources :** BASIC-LOAD-005AR, parseur `eval_expression`, sémantique
+  BASIC_LANGUAGE.md et extension RISC-V D.
+- **Étapes réalisées :** remplacer les atomes gauche/droit de IF par le
+  parseur d’expression target-side, transférer les motifs binary64 par
+  `fmv.x.d`/`fmv.d.x`, puis réutiliser les comparaisons flottantes existantes.
+- **Tests :** `scripts/test-guest-runtime-asm-repl-if.sh` exécute
+  `2*3>5`; les cas IF simples et faux restent dans les tests dédiés.
+- **Critères de sortie :** la condition composée branche effectivement vers la
+  cible et produit `15.000000`; aucun calcul de référence n’est injecté par le
+  script hôte.
+- **Limites restantes :** PRINT multi-éléments, chaînes de Hammurabi et
+  contrôle d’entrée restent à implémenter.
+- **Taille :** 3 points / 1,5 journée-agent, incertitude faible.
 - **Compétences/outils :** Rust `no_std`, UART, assemblage en deux passes, QEMU.
 - **Parallélisable :** oui avec la spécification de l’éditeur source; non avec une modification concurrente du protocole d’erreur UART.
 - **Paquet de contexte minimal :** `crates/guest-monitor/src/main.rs`, `scripts/test-guest-monitor.sh`, `docs/TUTORIAL-GUEST.md`, SPEC §§11/17–19.
