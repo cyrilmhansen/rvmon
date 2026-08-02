@@ -34,6 +34,22 @@ data 0x82000054 .byte 0x54
 data 0x82000055 .byte 0x20
 data 0x82000060 .byte 0x3f
 data 0x82000061 .byte 0x20
+data 0x82000070 .byte 0x5b
+data 0x82000071 .byte 0x31
+data 0x82000072 .byte 0x30
+data 0x82000073 .byte 0x5d
+data 0x82000074 .byte 0x0a
+data 0x82000080 .byte 0x5b
+data 0x82000081 .byte 0x32
+data 0x82000082 .byte 0x30
+data 0x82000083 .byte 0x5d
+data 0x82000084 .byte 0x0a
+data 0x82000090 .byte 0x42
+data 0x82000091 .byte 0x52
+data 0x82000092 .byte 0x45
+data 0x82000093 .byte 0x41
+data 0x82000094 .byte 0x4b
+data 0x82000095 .byte 0x0a
 data 0x82000300 .dword 0x4014000000000000
 data 0x82000308 .dword 0x4008000000000000
 data 0x82000200 .dword 0x0000000000000000
@@ -79,11 +95,50 @@ addi x7,x0,50
 beq x10,x7,store_line_twenty_command
 addi x7,x0,76
 beq x10,x7,list_line
+addi x7,x0,84
+beq x10,x7,trace_command
 addi x7,x0,82
 beq x10,x7,run_command
 addi x7,x0,78
 beq x10,x7,new_program
 jal x0,error_line
+trace_command:
+lbu x5,1(x18)
+addi x7,x0,82
+bne x5,x7,error_line
+lbu x5,2(x18)
+addi x7,x0,65
+bne x5,x7,error_line
+lbu x5,3(x18)
+addi x7,x0,67
+bne x5,x7,error_line
+lbu x5,4(x18)
+addi x7,x0,69
+bne x5,x7,error_line
+lbu x5,5(x18)
+addi x7,x0,32
+bne x5,x7,error_line
+lbu x5,6(x18)
+addi x7,x0,79
+beq x5,x7,trace_on
+addi x7,x0,79
+bne x5,x7,error_line
+trace_on:
+lbu x5,7(x18)
+addi x7,x0,78
+beq x5,x7,trace_enable
+lbu x5,7(x18)
+addi x7,x0,70
+bne x5,x7,error_line
+lbu x5,8(x18)
+addi x7,x0,70
+bne x5,x7,error_line
+sd x0,544(x8)
+jal x0,command_loop
+trace_enable:
+addi x10,x0,1
+sd x10,544(x8)
+jal x0,command_loop
 store_line_ten_command:
 addi x26,x0,1
 jal x0,store_line
@@ -264,6 +319,10 @@ addi x10,x0,0
 sd x10,536(x8)
 jal x0,run_line
 run_line:
+addi x17,x0,5
+ecall
+addi x7,x0,3
+beq x10,x7,break_statement
 ld x10,512(x8)
 beq x10,x0,error_line
 ld x10,536(x8)
@@ -279,6 +338,21 @@ andi x11,x11,1
 beq x11,x0,error_line
 addi x24,x19,0
 dispatch_statement:
+ld x10,544(x8)
+beq x10,x0,trace_done
+ld x10,536(x8)
+beq x10,x0,trace_ten
+addi x10,x8,128
+addi x11,x0,5
+addi x17,x0,4
+ecall
+jal x0,trace_done
+trace_ten:
+addi x10,x8,112
+addi x11,x0,5
+addi x17,x0,4
+ecall
+trace_done:
 lbu x10,16(x24)
 addi x7,x0,71
 beq x10,x7,goto_statement
@@ -313,6 +387,12 @@ jal x0,run_line
 end_statement:
 addi x10,x8,64
 addi x11,x0,4
+addi x17,x0,4
+ecall
+ebreak
+break_statement:
+addi x10,x8,144
+addi x11,x0,6
 addi x17,x0,4
 ecall
 ebreak
