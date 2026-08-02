@@ -3571,6 +3571,8 @@ addi x21,x21,1
 jal x0,string_long_dim_digits
 string_long_dim_digits_done:
 beq x27,x0,string_long_error
+addi x6,x0,44
+beq x5,x6,string_long_dim_2d
 addi x6,x0,41
 bne x5,x6,string_long_error
 addi x24,x23,1
@@ -3635,6 +3637,112 @@ sd x0,0(x6)
 addi x9,x9,1
 ld x6,16(x26)
 bne x9,x6,string_long_dim_zero_loop
+ld x22,1168(x8)
+ld x24,1120(x8)
+ld x25,1128(x8)
+ld x26,1136(x8)
+ld x27,1144(x8)
+ld x1,1152(x8)
+jalr x0,0(x1)
+; DIM LONGNAME$(N,M): two-dimensional long string array.
+; Cells remain fixed 128-byte records in row-major order, with at most
+; 32 cells per descriptor so one 4-KiB slot remains sufficient.
+string_long_dim_2d:
+addi x21,x21,1
+addi x24,x0,0
+addi x27,x0,0
+string_long_2d_digits:
+lbu x5,0(x21)
+addi x6,x0,48
+sltu x7,x5,x6
+bne x7,x0,string_long_2d_done
+addi x6,x0,58
+sltu x7,x5,x6
+beq x7,x0,string_long_2d_done
+addi x6,x0,48
+sub x5,x5,x6
+slli x6,x24,3
+slli x7,x24,1
+add x24,x6,x7
+add x24,x24,x5
+addi x27,x0,1
+addi x21,x21,1
+jal x0,string_long_2d_digits
+string_long_2d_done:
+beq x27,x0,string_long_error
+addi x6,x0,41
+bne x5,x6,string_long_error
+addi x23,x23,1
+addi x24,x24,1
+mul x9,x23,x24
+sltiu x7,x9,33
+beq x7,x0,string_long_error
+sd x9,1792(x8)
+lui x26,0x82010
+addi x29,x0,0
+addi x27,x0,32
+string_long_2d_slot:
+lbu x5,0(x26)
+beq x5,x0,string_long_2d_new
+addi x22,x0,0
+string_long_2d_cmp:
+sltiu x7,x22,16
+beq x7,x0,string_long_2d_match
+sltu x7,x22,x28
+beq x7,x0,string_long_2d_zero_src
+add x6,x30,x22
+lbu x5,0(x6)
+jal x0,string_long_2d_cmp_table
+string_long_2d_zero_src:
+addi x5,x0,0
+string_long_2d_cmp_table:
+add x6,x26,x22
+lbu x6,0(x6)
+bne x5,x6,string_long_2d_next
+addi x22,x22,1
+jal x0,string_long_2d_cmp
+string_long_2d_match:
+sd x23,16(x26)
+sd x24,24(x26)
+jal x0,string_long_2d_zero
+string_long_2d_next:
+addi x26,x26,32
+addi x29,x29,1
+addi x27,x27,-1
+bne x27,x0,string_long_2d_slot
+jal x0,string_long_error
+string_long_2d_new:
+addi x22,x0,0
+string_long_2d_copy:
+sltu x7,x22,x28
+beq x7,x0,string_long_2d_copy_zero
+add x6,x30,x22
+lbu x5,0(x6)
+jal x0,string_long_2d_copy_store
+string_long_2d_copy_zero:
+addi x5,x0,0
+string_long_2d_copy_store:
+add x6,x26,x22
+sb x5,0(x6)
+addi x22,x22,1
+sltiu x7,x22,16
+bne x7,x0,string_long_2d_copy
+sd x23,16(x26)
+sd x24,24(x26)
+string_long_2d_zero:
+lui x7,0x82020
+slli x7,x7,32
+srli x7,x7,32
+slli x6,x29,12
+add x7,x7,x6
+ld x6,1792(x8)
+addi x9,x0,0
+string_long_2d_zero_loop:
+slli x10,x9,7
+add x10,x7,x10
+sd x0,0(x10)
+addi x9,x9,1
+bne x9,x6,string_long_2d_zero_loop
 ld x22,1168(x8)
 ld x24,1120(x8)
 ld x25,1128(x8)
@@ -3844,6 +3952,8 @@ addi x21,x21,1
 jal x0,resolve_long_array_index
 resolve_long_array_index_done:
 beq x27,x0,string_long_error
+addi x6,x0,44
+beq x5,x6,resolve_long_array_2d
 addi x6,x0,41
 bne x5,x6,string_long_error
 ld x6,16(x26)
@@ -3851,6 +3961,66 @@ sltu x7,x22,x6
 beq x7,x0,string_long_error
 addi x21,x21,1
 lui x7,0x82020
+slli x6,x29,12
+add x7,x7,x6
+slli x6,x22,7
+add x7,x7,x6
+addi x7,x7,8
+ld x11,-8(x7)
+ld x22,1168(x8)
+ld x24,1120(x8)
+ld x25,1128(x8)
+ld x26,1136(x8)
+ld x27,1144(x8)
+ld x1,1152(x8)
+jalr x0,0(x1)
+; Resolve LONGNAME$(I,J), row-major, for the long string-array layout.
+resolve_long_array_2d:
+addi x21,x21,1
+addi x23,x0,0
+addi x27,x0,0
+resolve_long_array_2d_scan:
+lbu x5,0(x21)
+addi x6,x5,-65
+sltiu x7,x6,26
+beq x7,x0,resolve_long_array_2d_digits
+sd x1,1576(x8)
+jal x1,resolve_variable
+ld x1,1576(x8)
+fld f4,0(x7)
+fcvt.l.d x23,f4
+addi x27,x0,1
+lbu x5,0(x21)
+jal x0,resolve_long_array_2d_done
+resolve_long_array_2d_digits:
+addi x6,x0,48
+sltu x7,x5,x6
+bne x7,x0,resolve_long_array_2d_done
+addi x6,x0,58
+sltu x7,x5,x6
+beq x7,x0,resolve_long_array_2d_done
+addi x6,x0,48
+sub x5,x5,x6
+slli x6,x23,3
+slli x7,x23,1
+add x23,x6,x7
+add x23,x23,x5
+addi x27,x0,1
+addi x21,x21,1
+jal x0,resolve_long_array_2d_scan
+resolve_long_array_2d_done:
+beq x27,x0,string_long_error
+addi x6,x0,41
+bne x5,x6,string_long_error
+ld x6,24(x26)
+sltu x7,x23,x6
+beq x7,x0,string_long_error
+mul x22,x22,x6
+add x22,x22,x23
+addi x21,x21,1
+lui x7,0x82020
+slli x7,x7,32
+srli x7,x7,32
 slli x6,x29,12
 add x7,x7,x6
 slli x6,x22,7

@@ -134,12 +134,16 @@ N inclus pour chaque dimension. Les tableaux numériques contiennent des
 binary64 ; les
 tableaux de chaînes contiennent des cellules ASCII de capacité fixe. Les
 tableaux de chaînes nommés longs utilisent 32 descripteurs dans la RAM cible à
-`0x82010000` et leurs cellules sont à `0x82020000 + slot*4096 + index*128`.
+`0x82010000` et leurs cellules sont à `0x82020000 + slot*4096 + index*128`
+pour une dimension. En deux dimensions, l’index ligne-major est `i*dim2+j`;
+la dimension 2 est stockée dans le descripteur à `+24` et la même zone de slot
+est utilisée, avec au plus 32 cellules.
 Les dimensions sont fixes après `DIM`, les tableaux numériques longs peuvent
 avoir une ou deux dimensions, et tout index hors bornes produit une erreur
-cible avant mutation. Les tableaux de chaînes restent unidimensionnels dans
-cette tranche. Les variantes `LET` de ces affectations sont prises en charge
-dans les lignes de programme et en mode direct.
+cible avant mutation. Les tableaux de chaînes courts restent unidimensionnels
+dans cette tranche ; les tableaux de chaînes longs acceptent également deux
+dimensions. Les variantes `LET` de ces affectations sont prises en charge dans
+les lignes de programme et en mode direct.
 
 Les tableaux numériques à nom long (2 à 16 caractères ASCII alphanumériques ou
 `_`) utilisent 32 descripteurs de 32 octets à `0x82011000`. Chaque descripteur
