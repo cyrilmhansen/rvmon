@@ -172,3 +172,8 @@ Les zones sont exclusivement dans la mémoire cible ; une résolution absente,
 un produit de dimensions trop grand ou un index hors limites produit une
 erreur avant écriture. Les noms sont normalisés en majuscules comme les
 variables courtes.
+
+Le même index calculé `base [+|-] entier` est également disponible pour les
+tableaux numériques courts `A(…)`, en lecture, affichage et affectation, y
+compris sur leurs deux dimensions. Le parseur partagé restaure le contexte de
+l’évaluateur avant de revenir au chemin de stockage court.

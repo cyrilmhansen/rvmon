@@ -2595,37 +2595,9 @@ ld x30,1752(x8)
 jal x1,resolve_array_name
 ld x1,1152(x8)
 addi x21,x21,2
-addi x23,x0,0
-addi x27,x0,0
-lbu x5,0(x21)
-addi x6,x5,-65
-sltiu x7,x6,26
-beq x7,x0,array_index_digits
-sd x1,1152(x8)
-jal x1,resolve_variable
-ld x1,1152(x8)
-fld f4,0(x7)
-fcvt.l.d x23,f4
-addi x27,x0,1
-lbu x5,0(x21)
-jal x0,array_index_done
-array_index_digits:
-lbu x5,0(x21)
-addi x6,x0,48
-sltu x7,x5,x6
-bne x7,x0,array_index_done
-addi x6,x0,58
-sltu x7,x5,x6
-beq x7,x0,array_index_done
-addi x6,x0,48
-sub x5,x5,x6
-slli x6,x23,3
-slli x7,x23,1
-add x23,x6,x7
-add x23,x23,x5
-addi x27,x0,1
-addi x21,x21,1
-jal x0,array_index_digits
+addi x24,x0,2
+addi x22,x0,0
+jal x0,lna_index
 array_index_done:
 beq x27,x0,error_line
 addi x6,x0,41
@@ -2832,10 +2804,19 @@ addi x6,x0,44
 beq x5,x6,lna2_second
 addi x6,x0,41
 bne x5,x6,long_num_error
+addi x6,x24,-2
+beq x6,x0,lna_index_short
+addi x6,x24,-3
+beq x6,x0,assign_index_shared
 beq x24,x0,lna_index_1d
 addi x23,x22,0
 ld x22,1776(x8)
 jal x0,lna2_done
+lna_index_short:
+addi x23,x22,0
+ld x22,1776(x8)
+ld x30,1752(x8)
+jal x0,array_index_done
 lna_index_1d:
 ld x6,16(x26)
 sltu x7,x22,x6
@@ -3273,37 +3254,12 @@ assign_array_short:
 sd x1,1600(x8)
 jal x1,resolve_array_name
 addi x21,x21,2
-addi x23,x0,0
-addi x27,x0,0
-lbu x5,0(x21)
-addi x6,x5,-65
-sltiu x7,x6,26
-beq x7,x0,assign_index_digits
-sd x1,1152(x8)
-jal x1,resolve_variable
-ld x1,1152(x8)
-fld f4,0(x7)
-fcvt.l.d x23,f4
-addi x27,x0,1
-lbu x5,0(x21)
+addi x24,x0,3
+addi x22,x0,0
+jal x0,lna_index
+assign_index_shared:
+addi x23,x22,0
 jal x0,assign_index_done
-assign_index_digits:
-lbu x5,0(x21)
-addi x6,x0,48
-sltu x7,x5,x6
-bne x7,x0,assign_index_done
-addi x6,x0,58
-sltu x7,x5,x6
-beq x7,x0,assign_index_done
-addi x6,x0,48
-sub x5,x5,x6
-slli x6,x23,3
-slli x7,x23,1
-add x23,x6,x7
-add x23,x23,x5
-addi x27,x0,1
-addi x21,x21,1
-jal x0,assign_index_digits
 assign_index_done:
 beq x27,x0,long_num_error
 addi x6,x0,41
