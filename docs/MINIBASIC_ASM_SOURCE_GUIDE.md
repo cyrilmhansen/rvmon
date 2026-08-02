@@ -218,6 +218,20 @@ Le test d'intégration est `scripts/test-guest-runtime-asm-repl-array.sh`.
 Il s'agit d'une étape de portage, pas encore du support complet des dimensions,
 des indices expressions ou des tableaux de chaînes.
 
+Le payload possède aussi une première variable chaîne `S$` :
+
+```text
+S$="HELLO GUEST"
+10 S$="FROM PROGRAM"
+20 PRINT S$
+RUN
+```
+
+La chaîne est copiée par le guest dans le pool `data+1200`, avec sa longueur
+dans `data+1160`; `PRINT S$` passe ensuite par `ecall 4`. La preuve QEMU est
+`scripts/test-guest-runtime-asm-repl-string-var.sh`. Les échappements,
+concaténations et plusieurs variables chaîne restent à généraliser.
+
 `END` est également dispatché target-side, émet `END\n` puis arrête la séance
 sur un breakpoint contrôlable. Sa non-régression est :
 

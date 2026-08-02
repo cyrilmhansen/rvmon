@@ -195,6 +195,9 @@
   de tableau numérique intégrée au REPL assembleur : `DIM A(10)`, affectation
   target-side dans une ligne, lecture par `PRINT A(10)` et résultat
   `42.000000`.
+- `scripts/test-guest-runtime-asm-repl-string-var.sh` vérifie une variable
+  chaîne target-side `S$`, son affectation ASCII en direct et dans une ligne,
+  puis sa restitution par `PRINT S$` lors d'un `RUN`.
 - Le breakpoint `minibasic_divide` et `disasm` permettent d’observer la
   correspondance adresse → `fdiv.d`; les registres f et `fcsr` sont affichés
   avant/après le pas.

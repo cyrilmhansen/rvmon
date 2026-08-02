@@ -720,3 +720,20 @@ Cette étape couvre des indices entiers littéraux (dont `0` et `10`) dans une
 dimension maximale de 32 cellules `binary64`; les indices expressions, les
 dimensions multidimensionnelles et les tableaux de chaînes restent à
 implémenter.
+
+Une variable chaîne target-side minimale est également démontrée par :
+
+```text
+S$="HELLO GUEST"
+10 S$="FROM PROGRAM"
+20 PRINT S$
+RUN
+```
+
+```text
+bash scripts/test-guest-runtime-asm-repl-string-var.sh
+```
+
+Le pool et la longueur sont en RAM cible; la conversion ou le contenu ne sont
+pas fournis par l'hôte. Les échappements, concaténations et tableaux de chaînes
+restent hors de cette tranche.

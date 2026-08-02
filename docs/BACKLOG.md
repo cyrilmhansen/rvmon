@@ -3411,6 +3411,28 @@ release. Elles n’ajoutent aucune extension ISA.
 - **Paquet de contexte :** BASIC-LOAD-005AL, test array et section D-018 de
   `BASIC_LANGUAGE.md`.
 
+#### BASIC-LOAD-005AN — Variable chaîne S$ target-side — TERMINÉE
+
+- **Priorité :** P0, première donnée textuelle mutable dans le payload.
+- **But :** copier `S$="..."` dans le pool cible, conserver sa longueur et
+  exécuter `PRINT S$` en direct ou depuis une ligne RUN.
+- **Non-but :** échappements, concaténation, plusieurs variables chaîne,
+  tableaux de chaînes et Unicode.
+- **Entrées :** contrat ASCII, ABI `ecall 4`, layout du pool et dispatcher.
+- **Fichiers/modules :** `payload-repl.rv`, test QEMU string variable et docs.
+- **Dépendances :** BASIC-LOAD-005AM, sortie chaîne littérale et buffer cible.
+- **Tests :** `scripts/test-guest-runtime-asm-repl-string-var.sh`, affectation
+  directe puis depuis une ligne, sortie `FROM PROGRAM` et breakpoint.
+- **Critères de sortie :** octets, longueur et émission sont target-side.
+- **Cas limites :** chaîne vide, capacité 127, guillemet manquant et pool plein
+  restent à couvrir par diagnostics dédiés.
+- **Taille :** 4 points / 2 journées-agent, incertitude moyenne.
+- **Compétences/outils :** assembleur, UART, ecall write-buffer et QEMU.
+- **Parallélisable :** oui avec les tests de tableaux; non avec une refonte du
+  layout de pool.
+- **Paquet de contexte :** BASIC-LOAD-005AM, `payload-repl.rv`, ABI console et
+  test string literal.
+
 ### BASIC-LOAD-004 — Porter le magasin de lignes et le contrôle de flot
 
 - **Priorité :** P0.
