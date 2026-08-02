@@ -105,11 +105,10 @@ service 4 `write_buffer` est documenté dans `docs/TUTORIAL-GUEST.md`.
 ## Limites du jalon courant et extensions conservées
 
 Le jalon actuellement exécuté fournit les variables chaînes courtes et longues,
-tableaux numériques courts et nommés longs, les tableaux de chaînes
-unidimensionnels et `DATA/READ`
+les tableaux numériques et de chaînes 1D/2D et `DATA/READ`
 numérique et chaîne. Il ne fournit pas encore les fichiers, les fonctions
-utilisateur, les exposants, les tableaux multidimensionnels ou les instructions séparées par
-`:`. Cette absence est une limite d’implémentation intermédiaire, pas un rejet
+utilisateur, les exposants ou les instructions séparées par `:`. Cette absence
+est une limite d’implémentation intermédiaire, pas un rejet
 du produit : les chaînes et les tableaux complets restent des fonctionnalités
 obligatoires de la trajectoire MiniBASIC-RV.
 
