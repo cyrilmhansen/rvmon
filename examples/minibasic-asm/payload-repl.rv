@@ -203,14 +203,14 @@ addi x6,x6,1
 addi x27,x27,1
 jal x0,store_number_loop
 store_number_done:
-beq x27,x0,error_line
+beq x27,x0,store_line_error
 addi x7,x0,10
 remu x5,x26,x7
-bne x5,x0,error_line
+bne x5,x0,store_line_error
 sltiu x7,x26,10
-bne x7,x0,error_line
+bne x7,x0,store_line_error
 sltiu x7,x26,641
-beq x7,x0,error_line
+beq x7,x0,store_line_error
 addi x29,x26,0
 addi x26,x26,-10
 addi x7,x0,10
@@ -225,11 +225,11 @@ add x7,x18,x6
 lbu x5,0(x7)
 beq x5,x0,delete_line_generic
 addi x7,x0,32
-bne x5,x7,error_line
+bne x5,x7,store_line_error
 addi x6,x6,1
 sub x28,x9,x6
 sltiu x7,x28,112
-beq x7,x0,error_line
+beq x7,x0,store_line_error
 sd x29,0(x24)
 sd x28,0(x25)
 addi x27,x0,0
@@ -257,6 +257,8 @@ and x10,x10,x7
 sd x10,512(x8)
 sd x0,0(x25)
 jal x0,command_loop
+store_line_error:
+jal x0,error_line
 
 store_line_ten_command:
 addi x26,x0,1
@@ -664,6 +666,7 @@ sd x10,512(x8)
 sd x10,520(x8)
 sd x10,528(x8)
 sd x10,1160(x8)
+sd x10,1240(x8)
 addi x10,x8,32
 addi x11,x0,4
 addi x17,x0,4
@@ -1042,17 +1045,28 @@ jal x1,resolve_variable
 fsd f1,0(x7)
 jal x0,if_false
 for_statement:
+ld x27,1240(x8)
+sltiu x7,x27,8
+beq x7,x0,error_line
+slli x6,x27,5
+addi x31,x8,1280
+add x31,x31,x6
+sd x31,1560(x8)
+addi x10,x26,1
+sd x10,24(x31)
 addi x21,x24,20
 jal x1,resolve_variable
-sd x7,576(x8)
+ld x31,1560(x8)
+sd x7,0(x31)
 lbu x5,0(x21)
 addi x7,x0,61
 bne x5,x7,error_line
 addi x21,x21,1
 addi x22,x0,0
 jal x1,parse_atom
-ld x31,576(x8)
-fsd f1,0(x31)
+ld x31,1560(x8)
+ld x7,0(x31)
+fsd f1,0(x7)
 for_to_skip_spaces:
 lbu x5,0(x21)
 addi x6,x0,32
@@ -1069,10 +1083,11 @@ bne x5,x6,error_line
 addi x21,x21,1
 addi x22,x0,1
 jal x1,parse_atom
-fsd f2,552(x8)
+ld x31,1560(x8)
+fsd f2,8(x31)
 addi x6,x0,1
 fcvt.d.l f6,x6,0
-fsd f6,560(x8)
+fsd f6,16(x31)
 for_step_skip_spaces:
 lbu x5,0(x21)
 addi x6,x0,32
@@ -1085,19 +1100,29 @@ bne x5,x7,for_step_done
 addi x21,x21,5
 addi x22,x0,1
 jal x1,parse_atom
-fsd f2,560(x8)
+ld x31,1560(x8)
+fsd f2,16(x31)
 for_step_done:
+addi x27,x27,1
+sd x27,1240(x8)
 sd x0,568(x8)
 jal x0,if_false
 next_statement:
-ld x31,576(x8)
-fld f1,0(x31)
-fld f2,560(x8)
+ld x27,1240(x8)
+beq x27,x0,error_line
+addi x27,x27,-1
+slli x6,x27,5
+addi x31,x8,1280
+add x31,x31,x6
+ld x7,0(x31)
+addi x30,x7,0
+fld f1,0(x7)
+fld f2,16(x31)
 fmv.x.d x10,f1
 fmv.d.x f3,x10
 fadd.d f4,f1,f2
-fsd f4,0(x31)
-fld f5,552(x8)
+fsd f4,0(x30)
+fld f5,8(x31)
 fcvt.d.l f7,x0,0
 feq.d x10,f2,f7
 bne x10,x0,error_line
@@ -1112,8 +1137,31 @@ fle.d x10,f5,f4
 bne x10,x0,next_loop_flag
 addi x10,x0,2
 next_loop_flag:
+addi x7,x0,1
+bne x10,x7,next_loop_done
 sd x10,568(x8)
-sd x0,536(x8)
+ld x10,24(x31)
+sd x10,1248(x8)
+addi x6,x27,1
+sd x6,1240(x8)
+jal x0,print_result
+next_loop_done:
+sd x0,568(x8)
+addi x27,x27,0
+sd x27,1240(x8)
+addi x10,x26,1
+sd x10,1248(x8)
+addi x7,x0,1
+sll x7,x7,x10
+ld x6,512(x8)
+and x7,x6,x7
+beq x7,x0,next_loop_stop
+addi x10,x0,1
+sd x10,568(x8)
+jal x0,print_result
+next_loop_stop:
+addi x10,x0,2
+sd x10,568(x8)
 jal x0,print_result
 if_statement:
 addi x21,x24,19
@@ -1460,6 +1508,8 @@ addi x10,x0,3
 beq x11,x10,print_more
 jal x0,run_stop
 print_loop_continue:
+ld x10,1248(x8)
+addi x26,x10,0
 sd x10,536(x8)
 jal x0,run_line
 print_more:
