@@ -241,7 +241,9 @@ présente. La non-régression, qui conserve aussi les cas historiques 10/20/30/4
 est `scripts/test-guest-runtime-asm-repl-four-lines.sh` et vérifie également
 les bornes 50 et 630/640. Les sauts vers une ligne arbitraire et la suppression
 d’un numéro sont la prochaine sous-tranche ; ils ne doivent pas être confondus
-avec la capacité de stockage déjà généralisée.
+avec la capacité de stockage déjà généralisée. `GOTO` et les branches vraies
+de `IF ... THEN` résolvent désormais ces mêmes numéros ; les expressions
+composées dans la condition restent à généraliser.
 
 `END` est également dispatché target-side, émet `END\n` puis arrête la séance
 sur un breakpoint contrôlable. Sa non-régression est :

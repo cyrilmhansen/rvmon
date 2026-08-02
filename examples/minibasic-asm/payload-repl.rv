@@ -1058,6 +1058,47 @@ addi x6,x0,32
 bne x5,x6,error_line
 addi x21,x21,5
 beq x10,x0,if_false
+jal x0,if_target_generic
+if_target_generic:
+addi x26,x0,0
+addi x27,x0,0
+if_target_number_loop:
+lbu x5,0(x21)
+addi x6,x0,48
+sltu x28,x5,x6
+bne x28,x0,if_target_number_done
+addi x6,x0,58
+sltu x28,x5,x6
+beq x28,x0,if_target_number_done
+addi x6,x0,48
+sub x5,x5,x6
+addi x6,x0,10
+mul x26,x26,x6
+add x26,x26,x5
+addi x21,x21,1
+addi x27,x27,1
+jal x0,if_target_number_loop
+if_target_number_done:
+beq x27,x0,error_line
+addi x6,x0,10
+remu x5,x26,x6
+bne x5,x0,error_line
+sltiu x6,x26,10
+bne x6,x0,error_line
+sltiu x6,x26,641
+beq x6,x0,error_line
+addi x26,x26,-10
+addi x6,x0,10
+divu x26,x26,x6
+addi x6,x0,1
+sll x6,x6,x26
+ld x7,512(x8)
+and x7,x7,x6
+beq x7,x0,error_line
+sd x26,536(x8)
+jal x0,run_line
+
+if_target_legacy:
 lbu x5,0(x21)
 addi x6,x0,49
 beq x5,x6,if_true_ten

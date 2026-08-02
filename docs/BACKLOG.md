@@ -3481,6 +3481,27 @@ release. Elles n’ajoutent aucune extension ISA.
   dix jusqu’à 640; cette décision locale doit être levée avant Hammurabi.
 - **Taille :** 5 points / 2,5 journées-agent, incertitude moyenne.
 
+#### BASIC-LOAD-005AQ — Cibles GOTO/IF génériques — TERMINÉE
+
+- **Priorité :** P0, contrôle de flot nécessaire à Hammurabi.
+- **But :** résoudre sur la cible les numéros de `GOTO` et de `IF ... THEN`
+  dans le même index 64 lignes que `RUN`.
+- **Non-but :** modifier encore la grammaire des expressions conditionnelles;
+  les formes composées telles que `Q*10>G` restent une tâche distincte.
+- **Entrées/sources :** BASIC-LOAD-005AP, `payload-repl.rv`, sémantique IF/GOTO
+  du langage BASIC documentée dans `BASIC_LANGUAGE.md`.
+- **Étapes réalisées :** parser les numéros décimaux target-side, valider la
+  plage et le pas de dix, vérifier le bit de présence, positionner l’index
+  courant et reprendre `run_line` sans utiliser l’ancien layout des slots.
+- **Tests :** `scripts/test-guest-runtime-asm-repl-goto-30.sh`,
+  `scripts/test-guest-runtime-asm-repl-if.sh` et
+  `scripts/test-guest-runtime-asm-repl-if-false.sh`.
+- **Critères de sortie :** GOTO 30 et IF vrai/faux passent sous QEMU, avec les
+  résultats calculés par la cible et retour propre sur `END`/breakpoint.
+- **Limites restantes :** numéro non multiple de dix et condition composée
+  refusés explicitement; ils ne sont pas normalisés silencieusement.
+- **Taille :** 3 points / 1,5 journée-agent, incertitude faible.
+
 ### BASIC-LOAD-004 — Porter le magasin de lignes et le contrôle de flot
 
 - **Priorité :** P0.

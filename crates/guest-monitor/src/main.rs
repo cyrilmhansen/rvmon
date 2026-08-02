@@ -33,7 +33,7 @@ const MAX_EDIT_BYTES: usize = 32;
 const MAX_SNAPSHOT_DUMP: u64 = 4096;
 const MAX_METADATA_BYTES: usize = 64 * 1024;
 const MAX_METADATA_SOURCE_BYTES: usize = MAX_SOURCE_LINES * COMMAND_CAPACITY;
-const MAX_SOURCE_LINES: usize = 1536;
+const MAX_SOURCE_LINES: usize = 2048;
 const MAX_SYMBOLS: usize = 256;
 const SYMBOL_NAME_CAPACITY: usize = 32;
 // Target service ABI: a7 selects the service; a0/a1 carry arguments/results.
@@ -1364,7 +1364,7 @@ fn assemble_program_command(context: *mut TargetContext, argument: &[u8]) {
     }
 
     if overflow {
-        guest_error(b"GUEST-ASM-001", b"source program exceeds 1536 source lines");
+        guest_error(b"GUEST-ASM-001", b"source program exceeds 2048 source lines");
         return;
     }
     if count == 0 {
