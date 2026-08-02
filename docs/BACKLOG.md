@@ -3161,6 +3161,28 @@ release. Elles n’ajoutent aucune extension ISA.
 - **Paquet de contexte :** BASIC-LOAD-005AA, payload REPL, test two-lines et
   `BASIC_LANGUAGE.md`.
 
+#### BASIC-LOAD-005AC — RUN séquentiel de deux slots — TERMINÉE
+
+- **Priorité :** P0, première exécution multi-lignes entièrement target-side.
+- **But :** sélectionner le slot 10, exécuter son expression, puis sélectionner
+  le slot 20 et s’arrêter après son résultat, avec un breakpoint final unique.
+- **Non-but :** `GOTO`, `IF`, `FOR/NEXT`, lignes arbitraires et reprise après
+  breakpoint intermédiaire.
+- **Entrées :** `BASIC_LANGUAGE.md`, layout des slots et contrat debugger.
+- **Fichiers/modules :** `payload-repl.rv`, test two-lines, capacité assembleur
+  et documentation BASIC.
+- **Dépendances :** BASIC-LOAD-005AB, 768 lignes source, formatter target-side.
+- **Tests :** saisie hors ordre, `LIST`, `RUN`, sorties `9.000000` et
+  `5.000000`, registres finaux et breakpoint après la ligne 20.
+- **Critères de sortie :** les deux évaluations et la sélection de slot sont
+  exécutées dans la cible ; le harnais ne simule aucune étape.
+- **Cas limites :** slot 20 seul, ligne vide, erreur au premier slot, pause
+  intermédiaire et boucles restent à traiter.
+- **Taille :** 3 points / 1,5 journée-agent, incertitude moyenne.
+- **Compétences/outils :** assembleur RV64, contrôle d’exécution et QEMU.
+- **Parallélisable :** oui avec les comparaisons ; non avec le format de slot.
+- **Paquet de contexte :** BASIC-LOAD-005AB, payload REPL et test two-lines.
+
 ### BASIC-LOAD-004 — Porter le magasin de lignes et le contrôle de flot
 
 - **Priorité :** P0.

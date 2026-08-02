@@ -160,7 +160,7 @@
   breakpoint et l’octetage exact en RAM.
 - `scripts/test-guest-runtime-asm-repl-two-lines.sh` vérifie l’insertion hors
   ordre de `20` puis `10`, le tri observable de `LIST`, les deux slots mémoire
-  et l’exécution target-side de la ligne `10`.
+  et l’exécution séquentielle target-side des lignes `10` puis `20`.
 - Le breakpoint `minibasic_divide` et `disasm` permettent d’observer la
   correspondance adresse → `fdiv.d`; les registres f et `fcsr` sont affichés
   avant/après le pas.

@@ -138,8 +138,10 @@ saisie `20` puis `10` :
 bash scripts/test-guest-runtime-asm-repl-two-lines.sh
 ```
 
-`RUN` sélectionne encore le premier slot (`10`) ; l’enchaînement séquentiel et
-les sauts entre lignes appartiennent à la prochaine tranche de contrôle de flot.
+`RUN` sélectionne la ligne 10 puis enchaîne la ligne 20 si elle existe, avec un
+seul arrêt au breakpoint après la dernière. Les sauts entre lignes appartiennent
+encore à la prochaine tranche de contrôle de flot. La capacité assembleur du
+moniteur est passée à 768 lignes pour absorber ce payload pédagogique.
 
 Le scanner reconnaît maintenant les signes `+`/`-` et une parenthèse autour
 d’un atome, par exemple `PRINT (-2.5) + (+3.5)`. La négation est exécutée par

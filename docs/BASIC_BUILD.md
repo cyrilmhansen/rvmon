@@ -484,8 +484,11 @@ et les liste triées :
 bash scripts/test-guest-runtime-asm-repl-two-lines.sh
 ```
 
-Cette étape prouve le stockage et l’inspection ; `RUN` n’enchaîne pas encore
-les deux lignes.
+Cette étape prouve d’abord le stockage et l’inspection des deux lignes.
+
+Le payload exécute désormais aussi les deux slots séquentiellement : la séance
+termine sur les résultats `9.000000` puis `5.000000` et s’arrête après la ligne
+20. Les sauts conditionnels restent à implémenter.
 
 Le mode direct `PRINT 2+3` est également pris en charge par le payload
 assembleur et passe par le même évaluateur :
