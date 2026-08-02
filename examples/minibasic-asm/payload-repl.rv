@@ -100,6 +100,10 @@ sd x0,0(x29)
 addi x29,x8,2047
 addi x29,x29,81
 sd x0,0(x29)
+; Pile de contrôle unifiée : profondeur à 2200, cadres de 16 octets à 2208.
+addi x29,x8,2047
+addi x29,x29,153
+sd x0,0(x29)
 command_loop:
 addi x10,x8,0
 addi x11,x0,7
@@ -579,10 +583,14 @@ jal x0,command_loop
 store_line:
 lbu x10,1(x18)
 addi x7,x0,48
-bne x10,x7,error_line_near
+beq x10,x7,store_line_digit
+jal x0,error_line_near
+store_line_digit:
 lbu x10,2(x18)
 addi x7,x0,32
-bne x10,x7,error_line_near
+beq x10,x7,store_line_space
+jal x0,error_line_near
+store_line_space:
 addi x7,x0,1
 beq x26,x7,store_line_ten
 addi x24,x19,1024
@@ -610,10 +618,14 @@ jal x0,command_loop
 store_line_extended:
 lbu x10,1(x18)
 addi x7,x0,48
-bne x10,x7,error_line_near
+beq x10,x7,store_line_extended_digit
+jal x0,error_line_near
+store_line_extended_digit:
 lbu x10,2(x18)
 addi x7,x0,32
-bne x10,x7,error_line_near
+beq x10,x7,store_line_extended_space
+jal x0,error_line_near
+store_line_extended_space:
 addi x7,x26,-1
 slli x6,x7,10
 add x24,x19,x6
@@ -825,6 +837,9 @@ sd x10,0(x29)
 addi x29,x8,2047
 addi x29,x29,81
 sd x0,0(x29)
+addi x29,x8,2047
+addi x29,x29,153
+sd x0,0(x29)
 addi x10,x8,32
 addi x11,x0,4
 addi x17,x0,4
@@ -841,6 +856,9 @@ addi x29,x29,1
 sd x0,0(x29)
 addi x29,x8,2047
 addi x29,x29,81
+sd x0,0(x29)
+addi x29,x8,2047
+addi x29,x29,153
 sd x0,0(x29)
 addi x26,x0,0
 run_find_first_generic:
@@ -973,7 +991,9 @@ beq x10,x7,goto_dispatch
 addi x7,x0,87
 beq x10,x7,while_dispatch
 addi x7,x0,85
-beq x10,x7,until_statement
+bne x10,x7,dispatch_not_until
+jal x0,until_statement
+dispatch_not_until:
 addi x7,x0,69
 beq x10,x7,end_statement
 addi x7,x0,70
@@ -1402,9 +1422,103 @@ print_dispatch:
 lbu x5,17(x24)
 addi x7,x0,82
 beq x5,x7,print_statement
+addi x7,x0,79
+beq x5,x7,pop_statement
 addi x7,x0,61
 beq x5,x7,assignment_statement
 jal x0,error_line
+pop_statement:
+lbu x5,18(x24)
+addi x7,x0,80
+bne x5,x7,error_line_near
+lbu x5,19(x24)
+beq x5,x0,pop_statement_valid
+addi x7,x0,58
+bne x5,x7,error_line_near
+pop_statement_valid:
+addi x21,x24,19
+jal x1,control_pop_any
+addi x7,x0,1
+beq x10,x7,pop_for
+addi x7,x0,2
+beq x10,x7,pop_gosub
+addi x7,x0,3
+beq x10,x7,pop_while
+addi x7,x0,4
+beq x10,x7,pop_repeat
+jal x0,error_line_near
+pop_for:
+ld x27,1240(x8)
+beq x27,x0,error_line_near
+addi x27,x27,-1
+sd x27,1240(x8)
+jal x0,if_false
+pop_gosub:
+ld x27,1616(x8)
+beq x27,x0,error_line_near
+addi x27,x27,-1
+sd x27,1616(x8)
+jal x0,if_false
+pop_while:
+addi x29,x8,2047
+addi x29,x29,1
+ld x27,0(x29)
+beq x27,x0,error_line_near
+addi x27,x27,-1
+sd x27,0(x29)
+jal x0,if_false
+pop_repeat:
+addi x29,x8,2047
+addi x29,x29,81
+ld x27,0(x29)
+beq x27,x0,error_line_near
+addi x27,x27,-1
+sd x27,0(x29)
+jal x0,if_false
+; x10 = kind (1 FOR, 2 GOSUB, 3 WHILE, 4 REPEAT).
+; The unified frame stores the originating line for future EXIT support.
+control_push:
+addi x29,x8,2047
+addi x29,x29,153
+ld x27,0(x29)
+sltiu x7,x27,8
+beq x7,x0,error_line_near
+slli x7,x27,4
+addi x30,x8,2047
+addi x30,x30,161
+add x30,x30,x7
+sd x10,0(x30)
+sd x26,8(x30)
+addi x27,x27,1
+sd x27,0(x29)
+jalr x0,0(x1)
+control_pop_expected:
+addi x29,x8,2047
+addi x29,x29,153
+ld x27,0(x29)
+beq x27,x0,error_line_near
+addi x27,x27,-1
+slli x7,x27,4
+addi x30,x8,2047
+addi x30,x30,161
+add x30,x30,x7
+ld x6,0(x30)
+bne x6,x10,error_line_near
+sd x27,0(x29)
+jalr x0,0(x1)
+control_pop_any:
+addi x29,x8,2047
+addi x29,x29,153
+ld x27,0(x29)
+beq x27,x0,error_line_near
+addi x27,x27,-1
+slli x7,x27,4
+addi x30,x8,2047
+addi x30,x30,161
+add x30,x30,x7
+ld x10,0(x30)
+sd x27,0(x29)
+jalr x0,0(x1)
 string_statement:
  lbu x5,17(x24)
  addi x7,x0,61
@@ -1524,6 +1638,8 @@ add x30,x30,x7
 sd x6,0(x30)
 addi x27,x27,1
 sd x27,1616(x8)
+addi x10,x0,2
+jal x1,control_push
 sd x0,1608(x8)
 goto_save_target:
 sd x26,536(x8)
@@ -1595,6 +1711,8 @@ addi x7,x0,78
 bne x5,x7,error_line_near
 ld x27,1616(x8)
 beq x27,x0,error_line_near
+addi x10,x0,2
+jal x1,control_pop_expected
 addi x27,x27,-1
 slli x7,x27,3
 addi x30,x8,1624
@@ -1743,6 +1861,8 @@ fsd f2,16(x31)
 for_step_done:
 addi x27,x27,1
 sd x27,1240(x8)
+addi x10,x0,1
+jal x1,control_push
 sd x0,568(x8)
 jal x0,if_false
 next_statement:
@@ -1788,6 +1908,8 @@ sd x6,1240(x8)
 jal x0,print_result
 next_loop_done:
 sd x0,568(x8)
+addi x10,x0,1
+jal x1,control_pop_expected
 addi x27,x27,0
 sd x27,1240(x8)
 addi x10,x26,1
@@ -1942,6 +2064,8 @@ addi x27,x27,1
 addi x29,x8,2047
 addi x29,x29,1
 sd x27,0(x29)
+addi x10,x0,3
+jal x1,control_push
 while_continue:
 jal x0,if_false
 while_condition_false:
@@ -1960,6 +2084,8 @@ addi x27,x27,-1
 addi x29,x8,2047
 addi x29,x29,1
 sd x27,0(x29)
+addi x10,x0,3
+jal x1,control_pop_expected
 while_skip_scan:
 addi x27,x0,1
 addi x28,x26,1
@@ -2035,6 +2161,8 @@ addi x27,x27,1
 addi x29,x8,2047
 addi x29,x29,81
 sd x27,0(x29)
+addi x10,x0,4
+jal x1,control_push
 repeat_continue:
 jal x0,if_false
 until_statement:
@@ -2162,6 +2290,8 @@ addi x27,x27,-1
 addi x29,x8,2047
 addi x29,x29,81
 sd x27,0(x29)
+addi x10,x0,4
+jal x1,control_pop_expected
 jal x0,if_false
 wend_statement:
 lbu x5,17(x24)

@@ -38,20 +38,28 @@ MENU Structure`, `@D`, `@H`, `@N`, `G`, `K`, `M`, `N`, `S`, `F`, `C`, `Q` et
 - Le débogueur utilise des budgets explicites, des watchpoints et un historique
   borné afin de rester déterministe et isolé de l’hôte.
 
-## Écart de contrôle de flot BASIC à traiter
+## Contrôle de flot BASIC et écart restant
 
 La documentation Turbo-BASIC XL 1.5 décrit `POP` comme le moyen d’abandonner
 proprement un `GOSUB` ou une boucle structurée lorsqu’un `GOTO` sort de son
 corps. Le payload assembleur MiniBASIC-RV dispose actuellement de piles
-séparées pour `FOR`, `WHILE`, `REPEAT` et `GOSUB`; ajouter un `POP` qui vide une
-pile arbitraire serait incorrect. La prochaine tranche BASIC doit donc soit :
+spécialisées pour `FOR`, `WHILE`, `REPEAT` et `GOSUB`, ainsi que d’une petite
+pile unifiée `{kind, line}`. `POP` est maintenant implémenté côté cible et
+retire le cadre le plus récent avant de poursuivre une instruction séparée
+par `:`. Le test QEMU est
+`scripts/test-guest-runtime-asm-repl-pop.sh`.
 
-1. introduire une pile de contrôle cible unifiée `{kind, line, payload}` puis
-   implémenter `POP` et `EXIT` dessus ;
-2. soit consigner explicitement `POP/EXIT` comme différés, sans accepter une
+`EXIT` reste différé : il doit retirer le bon cadre et scanner jusqu’au
+`NEXT`, `WEND`, `UNTIL` ou `LOOP` correspondant. Une implémentation qui viderait
+une pile arbitraire serait incorrecte. La prochaine tranche de contrôle de
+flot doit donc soit :
+
+1. étendre la pile unifiée avec les informations de structure nécessaires puis
+   implémenter `EXIT` ;
+2. soit consigner explicitement `EXIT` comme différé, sans accepter une
    implémentation qui masque les cadres actifs.
 
-Le choix recommandé est la pile unifiée, car elle rend aussi vérifiables les
+La pile unifiée reste le choix recommandé, car elle rend vérifiables les
 erreurs de nesting et la sortie anticipée de `WHILE/WEND`, `REPEAT/UNTIL` et
 des futures structures `DO/LOOP`. Cette évolution reste target-side et ne
 réintroduit pas l’interpréteur Rust comme oracle.

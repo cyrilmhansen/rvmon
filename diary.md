@@ -100,3 +100,17 @@
   BASIC design gap: TBXL's `POP`/`EXIT` semantics require a unified target
   control stack; clearing one of the current independent stacks would be
   incorrect, so I am not implementing that shortcut.
+- I then implemented the first part of that design: a target-side unified
+  control stack now records `FOR`, `GOSUB`, `WHILE`, and `REPEAT` frames, and
+  `POP` removes the newest matching frame before a colon continuation. The
+  first POP test exposed a stale `x21` statement pointer in the colon path;
+  setting it explicitly to the character after `POP` fixed the failure. The
+  resulting QEMU test covers both a GOSUB escape and a nested loop escape.
+  `EXIT` remains intentionally unimplemented until its matching terminator
+  scan can be made type-safe.
+- At the user's request I added `docs/MINIBASIC_PARITY.md`. It records the
+  observed TBXL-inspired surface, the 59 current QEMU assembly tests, the
+  target-side proof for each implemented family, and the intentionally rejected
+  Atari/DOS/graphics scope. The document explicitly labels `EXIT`, `DO/LOOP`,
+  `IF/ELSE/ENDIF`, and `ON GOTO/GOSUB` as remaining decisions or work rather
+  than implying full Turbo BASIC XL compatibility.

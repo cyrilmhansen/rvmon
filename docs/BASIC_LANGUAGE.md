@@ -22,6 +22,7 @@ statement     = "REM" , text
               | "GOTO" , number
               | "GOSUB" , number
               | "RETURN"
+              | "POP"
               | "WHILE" , expression
               | "WEND"
               | "REPEAT"
@@ -101,6 +102,13 @@ même sémantique que `IF` et `WHILE`. Un `UNTIL` sans `REPEAT` actif et une
 imbrication dépassant huit niveaux produisent une erreur de flot. Comme pour
 `WHILE`, la résolution structurée porte sur le premier statement de la ligne ;
 les formes imbriquées dans une même ligne séparée par `:` ne sont pas admises.
+
+`POP` retire le cadre de contrôle le plus récent d’une pile cible unifiée. Il
+est valide pour `GOSUB`, `FOR`, `WHILE` et `REPEAT` et permet notamment la forme
+`POP:GOTO numéro` pour sortir explicitement d’une structure. Un `POP` sans
+cadre actif produit une erreur de flot. Le payload conserve également les
+métadonnées spécialisées de chaque mécanisme afin que `NEXT`, `RETURN`,
+`WEND` et `UNTIL` continuent à valider leur type de cadre.
 
 `DATA` et `READ` utilisent un curseur séquentiel conservé dans la mémoire
 cible. La tranche actuelle accepte des valeurs numériques binary64 et des
