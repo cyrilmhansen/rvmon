@@ -1373,10 +1373,10 @@ fn assemble_program_command(context: *mut TargetContext, argument: &[u8]) {
     }
     let mut instruction_count = 0usize;
     for index in 0..count {
-        let line = unsafe {
+        let line = strip_assembler_comment(unsafe {
             &(&(*core::ptr::addr_of!(ASSEMBLY_LINES))[index])
                 [..(*core::ptr::addr_of!(ASSEMBLY_LENGTHS))[index]]
-        };
+        });
         if let Some(label) = line.strip_suffix(b":") {
             let line_address = address + (instruction_count as u64) * 4;
             let Some(symbol) = make_symbol(label, line_address) else {
@@ -1437,10 +1437,10 @@ fn assemble_program_command(context: *mut TargetContext, argument: &[u8]) {
 
     let mut word_count = 0usize;
     for index in 0..count {
-        let line = unsafe {
+        let line = strip_assembler_comment(unsafe {
             &(&(*core::ptr::addr_of!(ASSEMBLY_LINES))[index])
                 [..(*core::ptr::addr_of!(ASSEMBLY_LENGTHS))[index]]
-        };
+        });
         if line.ends_with(b":") {
             continue;
         }

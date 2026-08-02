@@ -50,6 +50,12 @@ data 0x82000092 .byte 0x45
 data 0x82000093 .byte 0x41
 data 0x82000094 .byte 0x4b
 data 0x82000095 .byte 0x0a
+data 0x820000a0 .byte 0x33
+data 0x820000a1 .byte 0x30
+data 0x820000a2 .byte 0x20
+data 0x820000b0 .byte 0x34
+data 0x820000b1 .byte 0x30
+data 0x820000b2 .byte 0x20
 data 0x82000300 .dword 0x4014000000000000
 data 0x82000308 .dword 0x4008000000000000
 data 0x82000200 .dword 0x0000000000000000
@@ -102,6 +108,10 @@ addi x7,x0,49
 beq x10,x7,store_line_ten_command
 addi x7,x0,50
 beq x10,x7,store_line_twenty_command
+addi x7,x0,51
+beq x10,x7,store_line_thirty_command
+addi x7,x0,52
+beq x10,x7,store_line_forty_command
 addi x7,x0,76
 beq x10,x7,list_line
 addi x7,x0,84
@@ -154,6 +164,12 @@ jal x0,store_line
 store_line_twenty_command:
 addi x26,x0,2
 jal x0,store_line
+store_line_thirty_command:
+addi x26,x0,3
+jal x0,store_line_extended
+store_line_forty_command:
+addi x26,x0,4
+jal x0,store_line_extended
 assign_x:
 lbu x5,1(x18)
 addi x7,x0,61
@@ -284,6 +300,41 @@ ld x10,512(x8)
 or x10,x10,x26
 sd x10,512(x8)
 jal x0,command_loop
+store_line_extended:
+lbu x10,1(x18)
+addi x7,x0,48
+bne x10,x7,error_line
+lbu x10,2(x18)
+addi x7,x0,32
+bne x10,x7,error_line
+addi x7,x26,-1
+slli x6,x7,10
+add x24,x19,x6
+slli x6,x7,3
+addi x25,x8,1800
+add x25,x25,x6
+addi x10,x26,-1
+addi x6,x0,10
+mul x10,x10,x6
+sd x10,0(x24)
+addi x10,x9,-3
+sd x10,0(x25)
+addi x9,x0,0
+copy_extended_body:
+add x6,x18,x9
+lbu x10,3(x6)
+add x6,x24,x9
+sb x10,16(x6)
+addi x9,x9,1
+ld x7,0(x25)
+bne x9,x7,copy_extended_body
+addi x7,x26,-1
+addi x6,x0,1
+sll x6,x6,x7
+ld x10,512(x8)
+or x10,x10,x6
+sd x10,512(x8)
+jal x0,command_loop
 list_line:
 ld x12,512(x8)
 andi x13,x12,1
@@ -302,13 +353,50 @@ addi x17,x0,4
 ecall
 list_line_twenty:
 andi x13,x12,2
-beq x13,x0,command_loop
+beq x13,x0,list_line_thirty
 addi x10,x8,20
 addi x11,x0,3
 addi x17,x0,4
 ecall
 addi x10,x19,1040
 ld x11,528(x8)
+addi x17,x0,4
+ecall
+addi x10,x8,32
+addi x11,x0,1
+addi x17,x0,4
+ecall
+list_line_thirty:
+andi x13,x12,4
+beq x13,x0,list_line_forty
+addi x10,x8,128
+addi x10,x10,32
+addi x11,x0,3
+addi x17,x0,4
+ecall
+addi x10,x19,1024
+addi x10,x10,1024
+addi x10,x10,16
+ld x11,1816(x8)
+addi x17,x0,4
+ecall
+addi x10,x8,32
+addi x11,x0,1
+addi x17,x0,4
+ecall
+list_line_forty:
+andi x13,x12,8
+beq x13,x0,command_loop
+addi x10,x8,128
+addi x10,x10,48
+addi x11,x0,3
+addi x17,x0,4
+ecall
+addi x10,x19,1024
+addi x10,x10,1024
+addi x10,x10,1024
+addi x10,x10,16
+ld x11,1824(x8)
 addi x17,x0,4
 ecall
 addi x10,x8,32
@@ -332,8 +420,20 @@ ld x10,512(x8)
 andi x11,x10,1
 bne x11,x0,run_command_ten
 andi x11,x10,2
-beq x11,x0,error_line
+beq x11,x0,run_check_thirty
 addi x10,x0,1
+sd x10,536(x8)
+jal x0,run_line
+run_check_thirty:
+andi x11,x10,4
+beq x11,x0,run_check_forty
+addi x10,x0,2
+sd x10,536(x8)
+jal x0,run_line
+run_check_forty:
+andi x11,x10,8
+beq x11,x0,error_line
+addi x10,x0,3
 sd x10,536(x8)
 jal x0,run_line
 run_command_ten:
@@ -349,10 +449,30 @@ ld x10,512(x8)
 beq x10,x0,error_line
 ld x10,536(x8)
 beq x10,x0,run_line_ten
+addi x7,x0,1
+beq x10,x7,run_line_twenty
+addi x7,x0,2
+beq x10,x7,run_line_thirty
+addi x7,x0,3
+beq x10,x7,run_line_forty
+jal x0,error_line
+run_line_twenty:
+addi x24,x19,1024
+jal x0,dispatch_statement
+run_line_thirty:
 ld x11,512(x8)
-andi x11,x11,2
+andi x11,x11,4
 beq x11,x0,error_line
 addi x24,x19,1024
+addi x24,x24,1024
+jal x0,dispatch_statement
+run_line_forty:
+ld x11,512(x8)
+andi x11,x11,8
+beq x11,x0,error_line
+addi x24,x19,1024
+addi x24,x24,1024
+addi x24,x24,1024
 jal x0,dispatch_statement
 run_line_ten:
 ld x11,512(x8)
@@ -452,6 +572,10 @@ addi x7,x0,49
 beq x10,x7,goto_ten
 addi x7,x0,50
 beq x10,x7,goto_twenty
+addi x7,x0,51
+beq x10,x7,goto_thirty
+addi x7,x0,52
+beq x10,x7,goto_forty
 jal x0,error_line
 goto_ten:
 lbu x10,22(x24)
@@ -465,6 +589,20 @@ lbu x10,22(x24)
 addi x7,x0,48
 bne x10,x7,error_line
 addi x10,x0,1
+sd x10,536(x8)
+jal x0,run_line
+goto_thirty:
+lbu x10,22(x24)
+addi x7,x0,48
+bne x10,x7,error_line
+addi x10,x0,2
+sd x10,536(x8)
+jal x0,run_line
+goto_forty:
+lbu x10,22(x24)
+addi x7,x0,48
+bne x10,x7,error_line
+addi x10,x0,3
 sd x10,536(x8)
 jal x0,run_line
 end_statement:
@@ -713,13 +851,51 @@ sd x10,536(x8)
 jal x0,run_line
 if_false:
 ld x10,536(x8)
-bne x10,x0,run_stop
-ld x11,512(x8)
-andi x11,x11,2
-beq x11,x0,run_stop
+beq x10,x0,after_line_ten
+addi x7,x0,1
+beq x10,x7,after_line_twenty
+addi x7,x0,2
+beq x10,x7,after_line_thirty
+jal x0,run_stop
+after_line_ten:
+ld x12,512(x8)
+andi x11,x12,2
+bne x11,x0,set_next_twenty
+andi x11,x12,4
+bne x11,x0,set_next_thirty
+andi x11,x12,8
+bne x11,x0,set_next_forty
+jal x0,run_stop
+set_next_twenty:
 addi x10,x0,1
 sd x10,536(x8)
 jal x0,run_line
+set_next_thirty:
+addi x10,x0,2
+sd x10,536(x8)
+jal x0,run_line
+set_next_forty:
+addi x10,x0,3
+sd x10,536(x8)
+jal x0,run_line
+after_line_twenty:
+ld x12,512(x8)
+andi x11,x12,4
+bne x11,x0,set_next_thirty
+andi x11,x12,8
+bne x11,x0,set_next_forty
+jal x0,run_stop
+after_line_thirty:
+ld x12,512(x8)
+andi x11,x12,8
+bne x11,x0,set_next_forty
+jal x0,run_stop
+error_line:
+addi x10,x8,48
+addi x11,x0,4
+addi x17,x0,4
+ecall
+jal x0,command_loop
 run_save:
 fsd f3,1024(x8)
 jal x0,print_result
@@ -807,14 +983,7 @@ print_loop_continue:
 sd x10,536(x8)
 jal x0,run_line
 print_normal_continuation:
-ld x10,536(x8)
-bne x10,x0,run_stop
-ld x11,512(x8)
-andi x11,x11,2
-beq x11,x0,run_stop
-addi x10,x0,1
-sd x10,536(x8)
-jal x0,run_line
+jal x0,if_false
 run_stop:
 ebreak
 eval_expression:
@@ -1190,12 +1359,6 @@ add x7,x7,x9
 sb x0,0(x7)
 sd x9,1160(x8)
 jalr x0,0(x1)
-error_line:
-addi x10,x8,48
-addi x11,x0,4
-addi x17,x0,4
-ecall
-jal x0,command_loop
 end
 symbols
 run-at 0x81000100
