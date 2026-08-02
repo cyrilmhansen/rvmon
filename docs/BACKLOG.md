@@ -2529,6 +2529,34 @@ release. Elles n’ajoutent aucune extension ISA.
 - **Paquet de contexte :** BASIC-LOAD-005A/B, `BASIC_LANGUAGE.md`,
   `GUEST_PAYLOAD_ABI.md`, fixture de table `variable.rv` et contrat `fld`/`fsd`.
 
+#### BASIC-LOAD-005D — RUN expression variable avec fadd.d — TERMINÉE
+
+- **Priorité :** P0, premier opérateur binaire combinant une variable et un
+  littéral dans le payload.
+- **But :** évaluer le corps `PRINT X+3`, lire `X` depuis la table cible,
+  convertir `3` en binary64, exécuter `fadd.d` et exposer `8.0`.
+- **Non-but :** parser général, parenthèses, précédence complète, autres
+  opérateurs, affectations, formatage décimal et contrôle de flot.
+- **Entrées :** `BASIC_LANGUAGE.md`, R1 F/D, R2 généré, `GUEST_PAYLOAD_ABI.md`
+  et le layout target-side des lignes/variables.
+- **Fichiers/modules :** `examples/minibasic-runtime-command-run-variable-add.rv`,
+  `scripts/test-guest-runtime-command-run-variable-add.sh`, documentation BASIC.
+- **Dépendances :** BASIC-LOAD-005C, `fcvt.d.l`, `fadd.d`, `fld`/`fsd` et
+  breakpoint guest.
+- **Tests :** QEMU réel, `f3=0x4020000000000000`, dump exact de `8.0`, arrêt
+  `ebreak` et statut 0.
+- **Critères de sortie :** ni `X`, ni `8.0` ne sont fournis par le script hôte ;
+  le calcul est réalisé par les instructions du payload.
+- **Cas limites :** soustraction, multiplication, division, variables A/Z,
+  espaces, parenthèses, comparaison et erreurs restent à intégrer.
+- **Taille :** 3 points / 1,5 journée-agent, incertitude faible.
+- **Compétences/outils :** assembleur RV64, extension D, QEMU et inspection
+  des registres flottants.
+- **Parallélisable :** oui avec le lexer d’expressions ; non avec un changement
+  du contrat de table numérique.
+- **Paquet de contexte :** BASIC-LOAD-005B/C, fixtures `run-fadd-d` et
+  `run-variable`, `BASIC_LANGUAGE.md` et `GUEST_PAYLOAD_ABI.md`.
+
 ### BASIC-LOAD-004 — Porter le magasin de lignes et le contrôle de flot
 
 - **Priorité :** P0.

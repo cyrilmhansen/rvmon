@@ -388,3 +388,16 @@ Cette preuve établit la lecture cible d’une variable et le lien
 ligne → table → registre flottant ; les affectations, expressions composées,
 le formatage décimal et le contrôle de flot restent à intégrer dans le
 payload général.
+
+La fixture [`minibasic-runtime-command-run-variable-add.rv`](../examples/minibasic-runtime-command-run-variable-add.rv)
+étend ce chemin à l’expression `10 PRINT X+3`. La cible charge `X=5.0`,
+convertit le littéral `3` en `binary64`, exécute `fadd.d` et expose `8.0` dans
+`f3` :
+
+```text
+bash scripts/test-guest-runtime-command-run-variable-add.sh
+```
+
+Le parser général n’est pas encore remplacé par cette fixture ; elle fixe
+cependant le contrat d’évaluation target-side d’un opérande variable et d’un
+opérateur binaire.
