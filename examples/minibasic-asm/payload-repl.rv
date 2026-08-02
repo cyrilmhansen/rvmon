@@ -83,7 +83,11 @@ addi x20,x8,768
 addi x21,x8,2047
 addi x21,x21,2047
 addi x21,x21,2
-sd x21,600(x8)
+; x8+480 : pointeur vers la table des longueurs de lignes.
+; x8+584 : descripteurs des tableaux numériques courts.
+; x8+800 : descripteurs des tableaux de chaînes courts.
+; x8+1024 : buffer de saisie ; ces zones ne doivent pas être confondues.
+sd x21,480(x8)
 sd x0,1160(x8)
 sd x0,1616(x8)
 sd x0,1704(x8)
@@ -315,7 +319,7 @@ divu x26,x26,x7
 slli x7,x26,7
 add x24,x19,x7
 slli x7,x26,3
-ld x25,600(x8)
+ld x25,480(x8)
 add x25,x25,x7
 add x7,x18,x6
 lbu x5,0(x7)
@@ -606,7 +610,7 @@ addi x7,x26,-1
 slli x6,x7,10
 add x24,x19,x6
 slli x6,x7,3
-ld x25,600(x8)
+ld x25,480(x8)
 add x25,x25,x6
 addi x10,x26,-1
 addi x6,x0,10
@@ -636,7 +640,7 @@ list_line_generic:
 addi x26,x0,0
 list_scan_generic:
  slli x7,x26,3
-ld x12,600(x8)
+ld x12,480(x8)
  add x12,x12,x7
  ld x13,0(x12)
  beq x13,x0,list_next_generic
@@ -707,7 +711,7 @@ addi x17,x0,4
 ecall
 addi x10,x24,16
 slli x7,x26,3
-ld x11,600(x8)
+ld x11,480(x8)
 add x11,x11,x7
 ld x11,0(x11)
 addi x17,x0,4
@@ -799,7 +803,7 @@ sd x10,528(x8)
 addi x26,x0,0
 new_clear_lengths:
 slli x7,x26,3
-ld x12,600(x8)
+ld x12,480(x8)
 add x12,x12,x7
 sd x0,0(x12)
 addi x26,x26,1
@@ -821,7 +825,7 @@ sd x0,1712(x8)
 addi x26,x0,0
 run_find_first_generic:
 slli x7,x26,3
-ld x10,600(x8)
+ld x10,480(x8)
 add x10,x10,x7
 ld x11,0(x10)
 bne x11,x0,run_first_found_generic
@@ -866,7 +870,7 @@ ecall
 addi x7,x0,3
 beq x10,x7,break_statement
 slli x7,x26,3
-ld x10,600(x8)
+ld x10,480(x8)
 add x10,x10,x7
 ld x11,0(x10)
 beq x11,x0,run_line_check_direct
@@ -1040,7 +1044,7 @@ read_find_line:
  sltiu x7,x26,256
  beq x7,x0,error_line_near
  slli x7,x26,3
-ld x6,600(x8)
+ld x6,480(x8)
  add x6,x6,x7
  ld x7,0(x6)
 beq x7,x0,read_next_line
@@ -1111,7 +1115,7 @@ read_string_find_line:
  sltiu x7,x26,256
  beq x7,x0,read_string_error
  slli x7,x26,3
-ld x6,600(x8)
+ld x6,480(x8)
  add x6,x6,x7
  ld x7,0(x6)
 beq x7,x0,read_string_next_line
@@ -1471,7 +1475,7 @@ addi x26,x26,-10
 addi x6,x0,10
 divu x26,x26,x6
 slli x7,x26,3
-ld x6,600(x8)
+ld x6,480(x8)
 add x6,x6,x7
 ld x7,0(x6)
 beq x7,x0,error_line_near
@@ -1757,7 +1761,7 @@ sd x27,1240(x8)
 addi x10,x26,1
 sd x10,1248(x8)
 slli x7,x10,3
-ld x6,600(x8)
+ld x6,480(x8)
 add x6,x6,x7
 ld x7,0(x6)
 beq x7,x0,next_loop_stop
@@ -1927,7 +1931,7 @@ addi x26,x26,-10
 addi x6,x0,10
 divu x26,x26,x6
 slli x7,x26,3
-ld x6,600(x8)
+ld x6,480(x8)
 add x6,x6,x7
 ld x7,0(x6)
 beq x7,x0,error_line_near
@@ -1962,7 +1966,7 @@ addi x7,x8,1900
 beq x31,x7,colon_scratch_bound
 ld x10,1872(x8)
 slli x6,x10,3
-ld x7,600(x8)
+ld x7,480(x8)
 add x7,x7,x6
 ld x6,0(x7)
 addi x7,x31,16
@@ -1988,7 +1992,7 @@ if_find_next_generic:
 sltiu x7,x26,256
 beq x7,x0,run_stop
  slli x7,x26,3
-ld x12,600(x8)
+ld x12,480(x8)
  add x12,x12,x7
  ld x11,0(x12)
 bne x11,x0,set_next_generic
@@ -2067,6 +2071,7 @@ addi x17,x0,4
 ecall
 jal x0,command_loop
 run_save:
+ld x24,1864(x8)
 fsd f3,1024(x8)
 sd x21,1176(x8)
 lbu x5,0(x21)
@@ -2619,6 +2624,7 @@ sd x22,1776(x8)
 sd x30,1752(x8)
 sd x28,1760(x8)
 sd x29,1768(x8)
+sd x24,1800(x8)
 addi x22,x21,2
 array_open_probe:
 lbu x5,0(x22)
@@ -2670,6 +2676,7 @@ add x7,x7,x6
 slli x6,x23,3
 add x7,x7,x6
 fld f4,0(x7)
+ld x24,1800(x8)
 jal x0,store_atom
 atom_open_paren:
 addi x29,x0,1
@@ -3345,6 +3352,7 @@ addi x22,x22,1
 jal x0,assign_array_scan
 assign_array_short:
 sd x1,1600(x8)
+sd x24,1800(x8)
 jal x1,resolve_array_name
 addi x21,x21,2
 addi x24,x0,3
@@ -3377,6 +3385,7 @@ add x7,x7,x6
 slli x6,x23,3
 add x7,x7,x6
 sd x7,1112(x8)
+ld x24,1800(x8)
 addi x21,x21,1
 addi x22,x0,0
 jal x1,parse_atom
@@ -3955,6 +3964,7 @@ resolve_string_array_short:
 sd x1,1152(x8)
 sd x22,1776(x8)
 sd x30,1752(x8)
+sd x24,1800(x8)
 lbu x5,0(x21)
 addi x6,x5,-97
 sltiu x7,x6,26
@@ -4002,6 +4012,7 @@ slli x6,x23,7
 add x7,x7,x6
 addi x7,x7,8
 ld x11,-8(x7)
+ld x24,1800(x8)
 ld x1,1152(x8)
 jalr x0,0(x1)
 ; Résolution de NAME$(I) pour les tableaux de chaînes nommés longs.

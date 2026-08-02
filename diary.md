@@ -1,0 +1,45 @@
+# MiniBASIC-RV assembly port diary
+
+## 2026-08-02 — capacity, long names, and the first full regression pass
+
+- Extended the target-side numbered-line store to 256 records (`10..2560`) and
+  separated the monitor's editable source capacity from its larger assembly
+  scratch capacity. The boundary tests for 2560 BASIC lines and 8192 assembly
+  instructions passed under QEMU.
+- Adapted the Hammurabi demonstration to descriptive long variable names. The
+  first failures were not resolver corruption: names beginning with dispatcher
+  keywords (`G`, `E`, `F`, and the historical short-variable paths such as `Y`)
+  were being classified before generic assignment. The tutorial now uses
+  `CORNSTOCK` and `REGNALYEAR`, and the complete five-year run reaches the
+  expected binary64 result.
+- Generated the optimized Rust payload assembly and documented it as a
+  semantic/porting oracle. Rust remains a reference path; BASIC parsing and
+  arithmetic are still executed by the target assembly payload.
+- The first broad QEMU matrix exposed a regression in `array-table`. Moving the
+  line-length pointer from offset 584 to 600 collided with the short-array
+  descriptor for variable `C`. The length pointer was moved again to the free
+  offset 800. The array-table test then passed.
+- The array investigation also showed that expression evaluation can reuse
+  `x24`, which normally carries the current line record. The payload now saves
+  and restores that context around short-array paths and before numeric print
+  result handling.
+- The same broad pass then exposed a second map collision: offset 800 was the
+  short string-array descriptor table. The line-length pointer now lives at
+  offset 480; numeric descriptors remain at 584 and string descriptors at
+  800. Both string-array bounds and short string-array 2D tests pass again.
+- The first matrix invocation also attempted two existing non-executable test
+  scripts directly; those failures were harness permissions, not runtime
+  failures. Re-running the affected string, GOSUB, and DATA/READ tests through
+  `bash` produced 8/8 passes. The remaining global matrix is still required.
+- After relocating the length table to 480, the previously failing long string
+  array path also passes. The broad matrix had reached 53/54 before this final
+  targeted rerun; the only failure was from the now-fixed descriptor collision.
+- A parallel full run through `bash` completed with 54/54
+  `test-guest-runtime-asm-repl-*.sh` tests passing under QEMU. This includes
+  the previously sensitive short/long string arrays, Hammurabi, GOSUB,
+  DATA/READ, interrupts, long identifiers, and calculated indices.
+- The final verification also passed the 2560-line BASIC boundary test, the
+  host source-capacity test, the `basic` command assembly-payload test, a
+  target `cargo check`, and `git diff --check`. The assembly payload changes
+  are therefore ready for an isolated fine-grained commit; unrelated dirty
+  worktree changes remain deliberately unstaged.
