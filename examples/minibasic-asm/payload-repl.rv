@@ -262,14 +262,52 @@ ld x10,512(x8)
 beq x10,x0,error_line
 ld x10,536(x8)
 beq x10,x0,run_line_ten
+ld x11,512(x8)
+andi x11,x11,2
+beq x11,x0,error_line
 addi x24,x19,1024
+jal x0,dispatch_statement
+run_line_ten:
+ld x11,512(x8)
+andi x11,x11,1
+beq x11,x0,error_line
+addi x24,x19,0
+dispatch_statement:
+lbu x10,16(x24)
+addi x7,x0,71
+beq x10,x7,goto_statement
+addi x7,x0,69
+beq x10,x7,end_statement
 addi x21,x24,22
 jal x1,eval_expression
 jal x0,run_save
-run_line_ten:
-addi x24,x19,0
-addi x21,x24,22
-jal x1,eval_expression
+goto_statement:
+lbu x10,21(x24)
+addi x7,x0,49
+beq x10,x7,goto_ten
+addi x7,x0,50
+beq x10,x7,goto_twenty
+jal x0,error_line
+goto_ten:
+lbu x10,22(x24)
+addi x7,x0,48
+bne x10,x7,error_line
+addi x10,x0,0
+sd x10,536(x8)
+jal x0,run_line
+goto_twenty:
+lbu x10,22(x24)
+addi x7,x0,48
+bne x10,x7,error_line
+addi x10,x0,1
+sd x10,536(x8)
+jal x0,run_line
+end_statement:
+addi x10,x8,32
+addi x11,x0,4
+addi x17,x0,4
+ecall
+ebreak
 run_save:
 fsd f3,1024(x8)
 jal x0,print_result
