@@ -57,6 +57,10 @@ line_done:
 lbu x10,0(x18)
 addi x7,x0,63
 beq x10,x7,question_print
+addi x7,x0,88
+beq x10,x7,assign_x
+addi x7,x0,89
+beq x10,x7,assign_y
 addi x7,x0,80
 beq x10,x7,direct_print
 addi x7,x0,49
@@ -68,6 +72,34 @@ beq x10,x7,run_line
 addi x7,x0,78
 beq x10,x7,new_program
 jal x0,error_line
+assign_x:
+lbu x5,1(x18)
+addi x7,x0,61
+bne x5,x7,error_line
+lbu x5,2(x18)
+sltiu x6,x5,48
+bne x6,x0,error_line
+sltiu x6,x5,58
+beq x6,x0,error_line
+addi x6,x0,48
+sub x10,x5,x6
+fcvt.d.l f1,x10,0
+fsd f1,0(x20)
+jal x0,command_loop
+assign_y:
+lbu x5,1(x18)
+addi x7,x0,61
+bne x5,x7,error_line
+lbu x5,2(x18)
+sltiu x6,x5,48
+bne x6,x0,error_line
+sltiu x6,x5,58
+beq x6,x0,error_line
+addi x6,x0,48
+sub x10,x5,x6
+fcvt.d.l f1,x10,0
+fsd f1,8(x20)
+jal x0,command_loop
 question_print:
 addi x5,x9,-1
 addi x10,x9,5
