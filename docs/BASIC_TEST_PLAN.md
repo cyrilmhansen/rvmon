@@ -77,6 +77,9 @@
 - `scripts/test-guest-runtime-command-new.sh` vérifie la réception de `NEW`,
   l’effacement target-side du compteur et des records, la réponse `NEW OK` et
   les dumps mémoire nuls après la commande.
+- `scripts/test-guest-runtime-command-loop.sh` vérifie qu’une commande inconnue
+  produit `ERR UNKNOWN` sans tuer le payload, puis que `NEW` est reçu et exécuté
+  dans le tour suivant.
 - Le breakpoint `minibasic_divide` et `disasm` permettent d’observer la
   correspondance adresse → `fdiv.d`; les registres f et `fcsr` sont affichés
   avant/après le pas.

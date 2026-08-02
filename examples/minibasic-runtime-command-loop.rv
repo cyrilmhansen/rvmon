@@ -1,0 +1,83 @@
+info payload
+data 0x82000200 .dword 0x0000000000000002
+data 0x82000400 .byte 0x45
+data 0x82000401 .byte 0x52
+data 0x82000402 .byte 0x52
+data 0x82000403 .byte 0x20
+data 0x82000404 .byte 0x55
+data 0x82000405 .byte 0x4e
+data 0x82000406 .byte 0x4b
+data 0x82000407 .byte 0x4e
+data 0x82000408 .byte 0x4f
+data 0x82000409 .byte 0x57
+data 0x8200040a .byte 0x4e
+data 0x8200040b .byte 0x0a
+data 0x82000420 .byte 0x4e
+data 0x82000421 .byte 0x45
+data 0x82000422 .byte 0x57
+data 0x82000423 .byte 0x20
+data 0x82000424 .byte 0x4f
+data 0x82000425 .byte 0x4b
+data 0x82000426 .byte 0x0a
+assemble-program 0x81000100
+; La boucle reste en cible après une commande inconnue.
+entry:
+auipc x8,0x1000
+addi x8,x8,-256
+addi x18,x8,768
+command_loop:
+addi x9,x0,0
+read_command:
+addi x17,x0,2
+ecall
+addi x7,x0,10
+beq x10,x7,command_done
+add x6,x18,x9
+sb x10,0(x6)
+addi x9,x9,1
+jal x0,read_command
+command_done:
+addi x6,x18,0
+lbu x10,0(x6)
+addi x7,x0,78
+bne x10,x7,unknown
+lbu x10,1(x6)
+addi x7,x0,69
+bne x10,x7,unknown
+lbu x10,2(x6)
+addi x7,x0,87
+bne x10,x7,unknown
+; NEW : efface le compteur et le magasin borné.
+addi x6,x8,256
+addi x9,x0,64
+addi x10,x0,0
+clear_loop:
+beq x9,x0,new_ack
+sd x10,0(x6)
+addi x6,x6,8
+addi x9,x9,-8
+jal x0,clear_loop
+new_ack:
+sd x10,512(x8)
+addi x10,x8,1056
+addi x11,x0,7
+addi x17,x0,4
+ecall
+addi x10,x0,0
+addi x17,x0,3
+ecall
+unknown:
+; Une commande inconnue est signalée puis la boucle continue.
+addi x10,x8,1024
+addi x11,x0,12
+addi x17,x0,4
+ecall
+jal x0,command_loop
+fail:
+addi x10,x0,1
+addi x17,x0,3
+ecall
+end
+symbols
+run-at 0x81000100
+q

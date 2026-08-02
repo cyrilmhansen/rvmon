@@ -326,3 +326,15 @@ bash scripts/test-guest-runtime-command-new.sh
 La commande ne persiste encore qu’un état borné à deux records ; la capacité
 finale, les erreurs structurées et le retour à une invite persistante restent à
 intégrer.
+
+La fixture [`minibasic-runtime-command-loop.rv`](../examples/minibasic-runtime-command-loop.rv)
+vérifie ensuite la persistance minimale de la boucle de commandes : `BOGUS`
+produit `ERR UNKNOWN`, puis `NEW` est encore lu et exécuté, avec `NEW OK` et
+compteur nul :
+
+```text
+bash scripts/test-guest-runtime-command-loop.sh
+```
+
+La boucle est encore bornée par le scénario de test ; l’invite `READY>`, le
+dispatch de `RUN` et la reprise après erreur complète restent à intégrer.

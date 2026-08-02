@@ -2410,6 +2410,28 @@ release. Elles n’ajoutent aucune extension ISA.
 - **Parallélisable :** oui avec commandes invalides ; non avec une modification
   du layout de métadonnées.
 
+#### BASIC-LOAD-004K — Boucle de commandes et erreur inconnue target-side — TERMINÉE
+
+- **Priorité :** P0, robustesse minimale du REPL.
+- **But :** maintenir la boucle après une commande inconnue, produire
+  `ERR UNKNOWN`, puis accepter et exécuter `NEW` au tour suivant.
+- **Non-but :** invite persistante finale, historique, `RUN`, `TRACE`, parsing
+  général et interruption interactive.
+- **Entrées :** `BASIC_LANGUAGE.md`, `GUEST_PAYLOAD_ABI.md`, contrats ecall 2/3/4,
+  dispatch `LIST`/`NEW`.
+- **Fichiers/modules :** `examples/minibasic-runtime-command-loop.rv`,
+  `scripts/test-guest-runtime-command-loop.sh`, documentation BASIC.
+- **Dépendances :** BASIC-LOAD-004I/J et UART target.
+- **Tests :** séquence UART `BOGUS`, puis `NEW`, erreur target-side, accusé
+  `NEW OK`, compteur nul et terminaison propre.
+- **Critères de sortie :** l’erreur ne provoque ni sortie du payload ni
+  consommation définitive de la session ; le second command est exécuté.
+- **Cas limites :** commande vide, CRLF, erreurs répétées, Ctrl-C, EOF et
+  buffer saturé restent à traiter.
+- **Taille :** 3 points / 1,5 journée-agent, incertitude faible.
+- **Parallélisable :** oui avec le prompt `READY>` ; non avec une modification
+  du protocole de boucle.
+
 ### BASIC-LOAD-004 — Porter le magasin de lignes et le contrôle de flot
 
 - **Priorité :** P0.
