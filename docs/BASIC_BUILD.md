@@ -473,3 +473,11 @@ motif `0x8000000000000000`, sans modifier `fflags` :
 ```text
 bash scripts/test-guest-runtime-command-run-variable-negative-zero-div.sh
 ```
+
+La fixture [`minibasic-runtime-command-run-variable-negative-zero-denominator.rv`](../examples/minibasic-runtime-command-run-variable-negative-zero-denominator.rv)
+teste le signe du diviseur : `+5.0 / -0.0` produit `-inf` et positionne
+`fflags.DZ` :
+
+```text
+bash scripts/test-guest-runtime-command-run-variable-negative-zero-denominator.sh
+```

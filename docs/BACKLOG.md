@@ -2760,6 +2760,31 @@ release. Elles n’ajoutent aucune extension ISA.
 - **Paquet de contexte :** BASIC-LOAD-005K, fixtures `negative-div` et
   `zerozero`, `BASIC_LANGUAGE.md` et R1 chapitre F.
 
+#### BASIC-LOAD-005M — Signe du zéro dénominateur dans RUN — TERMINÉE
+
+- **Priorité :** P0, couverture du signe des résultats infinis IEEE.
+- **But :** exécuter `+5.0/-0.0`, vérifier `-inf` et `fflags.DZ` dans la cible.
+- **Non-but :** syntaxe des littéraux spéciaux, diagnostic BASIC, parser
+  général, payloads NaN et traitement utilisateur du zéro signé.
+- **Entrées :** R1 F/D, `BASIC_LANGUAGE.md`, représentation raw bits et
+  affichage `fcsr` du moniteur.
+- **Fichiers/modules :** fixture et test QEMU dédiés ; documentation dans
+  `BASIC_BUILD.md` et `BASIC_TEST_PLAN.md`.
+- **Dépendances :** BASIC-LOAD-005L, `fld`, `fdiv.d`, table binary64 et
+  inspection des registres flottants.
+- **Tests :** breakpoint QEMU, `f3=0xfff0000000000000`, `fcsr=0x8`, dump
+  exact de `-inf` et statut d’exécution vérifié.
+- **Critères de sortie :** le signe du dénominateur est fourni par la donnée
+  cible et le résultat est calculé par `fdiv.d`.
+- **Cas limites :** `-0/-0`, `+0/-0`, `0/0` et propagation des signes NaN
+  restent couverts par les scénarios IEEE dédiés.
+- **Taille :** 2 points / 1 journée-agent, incertitude faible.
+- **Compétences/outils :** IEEE 754 binary64, RISC-V D et QEMU.
+- **Parallélisable :** oui avec les tests de littéraux spéciaux ; non avec une
+  modification de la convention `fflags`.
+- **Paquet de contexte :** BASIC-LOAD-005J/L, fixtures `zerozero` et
+  `negative-zero-div`, `BASIC_LANGUAGE.md` et R1 chapitre F.
+
 ### BASIC-LOAD-004 — Porter le magasin de lignes et le contrôle de flot
 
 - **Priorité :** P0.

@@ -119,6 +119,9 @@
 - `scripts/test-guest-runtime-command-run-variable-negative-zero-div.sh`
   vérifie `X=-0.0`, `PRINT X/2`, le motif exact `0x8000000000000000` et
   l’absence de flag flottant (`fcsr=0`).
+- `scripts/test-guest-runtime-command-run-variable-negative-zero-denominator.sh`
+  vérifie `+5.0/-0.0`, `-inf` (`0xfff0000000000000`) et `fcsr=0x8`
+  (`fflags.DZ`).
 - Le breakpoint `minibasic_divide` et `disasm` permettent d’observer la
   correspondance adresse → `fdiv.d`; les registres f et `fcsr` sont affichés
   avant/après le pas.
