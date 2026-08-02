@@ -2162,6 +2162,30 @@ release. Elles n’ajoutent aucune extension ISA.
 - **Parallélisable :** oui avec la conception AST ; non avec une modification
   concurrente de la convention des registres flottants.
 
+#### BASIC-LOAD-003J — Première table de variables numériques target-side — TERMINÉE
+
+- **Priorité :** P0, prérequis du magasin BASIC cible.
+- **But :** lire `X=12.5`, valider un nom `A..Z`, calculer son offset dans une
+  table contiguë de 26 `binary64`, écrire puis relire la valeur en cible.
+- **Non-but :** noms longs, affectations générales, magasin de lignes,
+  contrôle de flot ou dispatch complet.
+- **Entrées :** `BASIC_LANGUAGE.md`, D-005/D-013, R1 chapitres I et D/F, D-018,
+  `GUEST_PAYLOAD_ABI.md`.
+- **Fichiers/modules :** `examples/minibasic-runtime-variable.rv`,
+  `scripts/test-guest-runtime-variable.sh`, documentation BASIC.
+- **Dépendances :** BASIC-LOAD-003I, `BASIC-LOAD-003A-ISA` et ABI `RVMPAY01`.
+- **Tests :** validation ASCII `A..Z`, index `X=23`, offset `184` octets,
+  `fdiv.d`/`fadd.d`, relecture dans `f2`, dump little-endian sous QEMU et rejet
+  d’un nom hors plage dans le chemin d’échec.
+- **Critères de sortie :** le script passe avec `target exit status=0`; la
+  table et le résultat proviennent exclusivement de la RAM et des instructions
+  du payload cible.
+- **Cas limites :** `A`, `Z`, nom vide, minuscule, nom de 16 caractères,
+  table pleine et variable non initialisée restent à intégrer au parser général.
+- **Taille :** 3 points / 1,5 journée-agent, incertitude faible.
+- **Parallélisable :** oui avec le magasin de lignes ; non avec une modification
+  concurrente du layout de la table numérique.
+
 ### BASIC-LOAD-004 — Porter le magasin de lignes et le contrôle de flot
 
 - **Priorité :** P0.

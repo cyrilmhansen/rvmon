@@ -188,3 +188,16 @@ bash scripts/test-guest-runtime-number.sh
 Le test reste volontairement limité à un nombre décimal borné ; les exposants,
 les débordements d’accumulateur, les parenthèses et les variables appartiennent
 au lexer/parser général.
+
+La fixture [`minibasic-runtime-variable.rv`](../examples/minibasic-runtime-variable.rv)
+ajoute la première table de variables numériques en RAM cible. Elle lit
+`X=12.5`, valide `X` dans `A..Z`, calcule l’offset `23 * 8`, écrit le
+`binary64` dans la table de 26 cases puis le relit dans `f2` :
+
+```text
+bash scripts/test-guest-runtime-variable.sh
+```
+
+Cette preuve couvre la représentation mémoire et l’accès indexé d’une
+variable ; elle ne fournit pas encore le magasin de lignes, les noms longs,
+`LET` général ni le dispatch des instructions BASIC.

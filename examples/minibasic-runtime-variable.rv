@@ -1,0 +1,89 @@
+info payload
+data 0x82000000 .byte 0x58
+data 0x82000001 .byte 0x3d
+data 0x82000002 .byte 0x31
+data 0x82000003 .byte 0x32
+data 0x82000004 .byte 0x2e
+data 0x82000005 .byte 0x35
+data 0x82000006 .byte 0x00
+data 0x82000100 .fill 208,0
+assemble-program 0x81000100
+; x8 = texte, x9 = offset variable, x10 = accumulateur entier.
+; La table A..Z commence à 0x100 et contient 26 binary64 contigus.
+entry:
+auipc x8,0x1000
+addi x8,x8,-256
+lbu x14,0(x8)
+addi x15,x0,65
+sub x9,x14,x15
+sltiu x10,x9,26
+beq x10,x0,fail
+slli x9,x9,3
+lbu x14,1(x8)
+addi x15,x0,61
+bne x14,x15,fail
+addi x11,x0,2
+addi x10,x0,0
+; Lecture de la partie entière de la valeur affectée.
+integer_loop:
+add x6,x8,x11
+lbu x14,0(x6)
+addi x15,x0,46
+beq x14,x15,fraction_start
+beq x14,x0,fail
+addi x15,x0,48
+sub x14,x14,x15
+sltiu x15,x14,10
+beq x15,x0,fail
+slli x6,x10,3
+slli x7,x10,1
+add x10,x6,x7
+add x10,x10,x14
+addi x11,x11,1
+jal x0,integer_loop
+; Fraction et conversion D, comme dans le lexer numérique précédent.
+fraction_start:
+addi x11,x11,1
+addi x12,x0,0
+addi x13,x0,1
+addi x18,x0,0
+fraction_loop:
+add x6,x8,x11
+lbu x14,0(x6)
+beq x14,x0,fraction_end
+addi x15,x0,48
+sub x14,x14,x15
+sltiu x15,x14,10
+beq x15,x0,fail
+slli x6,x12,3
+slli x7,x12,1
+add x12,x6,x7
+add x12,x12,x14
+slli x6,x13,3
+slli x7,x13,1
+add x13,x6,x7
+addi x18,x18,1
+addi x11,x11,1
+jal x0,fraction_loop
+fraction_end:
+beq x18,x0,fail
+fcvt.d.l f1,x10,0
+fcvt.d.l f2,x12,0
+fcvt.d.l f3,x13,0
+fdiv.d f2,f2,f3
+fadd.d f1,f1,f2
+addi x6,x8,256
+add x6,x6,x9
+fsd f1,0(x6)
+fld f2,0(x6)
+ebreak
+fail:
+addi x10,x0,1
+addi x17,x0,3
+ecall
+end
+symbols
+run-at 0x81000100
+regs
+memory 0x820001b8 8
+q

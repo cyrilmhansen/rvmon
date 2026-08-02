@@ -44,6 +44,9 @@
 - `scripts/test-guest-runtime-number.sh` vérifie un littéral décimal signé
   (`-12.5`) : signe, partie entière, fraction, diviseur puissance de dix,
   `fdiv.d`, `fadd.d`, `fsub.d` et motif `binary64` exact dans la cible.
+- `scripts/test-guest-runtime-variable.sh` vérifie une affectation numérique
+  target-side `X=12.5`, la validation `A..Z`, l’offset `23*8` dans une table de
+  26 `binary64`, l’écriture/relecture et le motif mémoire exact.
 - Le breakpoint `minibasic_divide` et `disasm` permettent d’observer la
   correspondance adresse → `fdiv.d`; les registres f et `fcsr` sont affichés
   avant/après le pas.
