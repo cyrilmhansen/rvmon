@@ -188,6 +188,9 @@
 - `scripts/test-guest-runtime-asm-repl-for-y.sh` vérifie le même chemin avec
   `Y`, afin de prouver que l'emplacement de la variable de contrôle n'est pas
   implicite dans le dispatcher.
+- `scripts/test-guest-runtime-asm-repl-for-step.sh` vérifie `STEP 2`, un pas
+  négatif (`STEP -1`) et le refus de `STEP 0`; les trois cas sont exécutés dans
+  la cible et le dernier doit produire `ERR`.
 - Le breakpoint `minibasic_divide` et `disasm` permettent d’observer la
   correspondance adresse → `fdiv.d`; les registres f et `fcsr` sont affichés
   avant/après le pas.

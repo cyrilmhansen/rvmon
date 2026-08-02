@@ -3362,7 +3362,7 @@ release. Elles n’ajoutent aucune extension ISA.
 - **But :** exécuter `FOR X/Y=1 TO 3` et `NEXT X/Y` dans la cible, conserver la
   variable et la borne en binary64, incrémenter par `fadd.d` et décider la
   reprise par `fle.d`.
-- **Non-but :** `STEP`, variables de boucle arbitraires, boucles imbriquées,
+- **Non-but :** variables de boucle longues, boucles imbriquées,
   pile FOR générale et diagnostics de profondeur.
 - **Entrées :** ISA D, layout de la table variable et dispatcher target-side
   existant.
@@ -3370,8 +3370,9 @@ release. Elles n’ajoutent aucune extension ISA.
   FOR/NEXT et documentation pédagogique.
 - **Dépendances :** BASIC-LOAD-005AK, affectation, comparaison FP et dispatch
   `GOTO`.
-- **Tests :** `scripts/test-guest-runtime-asm-repl-for.sh` et
-  `scripts/test-guest-runtime-asm-repl-for-y.sh`, sorties
+- **Tests :** `scripts/test-guest-runtime-asm-repl-for.sh`,
+  `scripts/test-guest-runtime-asm-repl-for-y.sh` et
+  `scripts/test-guest-runtime-asm-repl-for-step.sh`, sorties
   `1.000000`, `2.000000`, `3.000000`, motif `f3=0x4008000000000000` et arrêt
   contrôlé.
 - **Critères de sortie :** la boucle, l’arithmétique, la comparaison et la

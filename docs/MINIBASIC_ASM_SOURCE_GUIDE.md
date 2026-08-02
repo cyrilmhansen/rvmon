@@ -195,9 +195,12 @@ nouvelle valeur avec `fle.d`, puis redispatche vers la ligne 20 ou termine
 `scripts/test-guest-runtime-asm-repl-for.sh` et
 `scripts/test-guest-runtime-asm-repl-for-y.sh`.
 
-Cette tranche est volontairement bornée à `FOR X/Y=1 TO 3` et `NEXT X/Y` :
-`STEP`, les variables de boucle longues, les boucles imbriquées et les
-diagnostics de pile restent des extensions distinctes.
+Le sous-ensemble accepte maintenant `STEP` avec un littéral : le signe choisit
+la comparaison de sortie (`new <= limit` ou `limit <= new`) et `STEP 0` est
+refusé avant la reprise. La preuve paramétrable est
+`scripts/test-guest-runtime-asm-repl-for-step.sh`, qui couvre `STEP 2`,
+`STEP -1` et `STEP 0`. Les variables de boucle longues, les boucles imbriquées
+et les diagnostics de pile restent des extensions distinctes.
 
 `END` est également dispatché target-side, émet `END\n` puis arrête la séance
 sur un breakpoint contrôlable. Sa non-régression est :

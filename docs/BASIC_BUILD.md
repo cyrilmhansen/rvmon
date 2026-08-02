@@ -690,5 +690,15 @@ registre observé. La variante `Y` est couverte par :
 bash scripts/test-guest-runtime-asm-repl-for-y.sh
 ```
 
-`STEP`, les boucles imbriquées et une pile `FOR` générale ne sont pas encore
-inclus dans ce sous-ensemble.
+Les boucles imbriquées et une pile `FOR` générale ne sont pas encore incluses
+dans ce sous-ensemble. Le test paramétrable couvre déjà les pas positif,
+négatif et nul :
+
+```text
+bash scripts/test-guest-runtime-asm-repl-for-step.sh
+FOR_PROGRAM='10 FOR X=3 TO 1 STEP -1' \
+FOR_EXPECTED='3.000000 2.000000 1.000000' \
+bash scripts/test-guest-runtime-asm-repl-for-step.sh
+FOR_PROGRAM='10 FOR X=1 TO 3 STEP 0' FOR_EXPECTED='ERR' \
+bash scripts/test-guest-runtime-asm-repl-for-step.sh
+```
