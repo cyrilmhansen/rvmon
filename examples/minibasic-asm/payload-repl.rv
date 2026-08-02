@@ -76,6 +76,7 @@ addi x19,x19,2047
 addi x19,x19,2
 addi x20,x8,768
 sd x0,1160(x8)
+sd x0,1616(x8)
 command_loop:
 addi x10,x8,0
 addi x11,x0,7
@@ -726,6 +727,7 @@ jal x0,command_loop
 run_command:
 jal x0,run_command_generic
 run_command_generic:
+sd x0,1616(x8)
 addi x26,x0,0
 run_find_first_generic:
 addi x7,x0,1
@@ -888,7 +890,11 @@ addi x7,x0,69
 bne x5,x7,assignment_statement
 lbu x5,18(x24)
 addi x7,x0,77
-bne x5,x7,assignment_statement
+beq x5,x7,rem_statement
+addi x7,x0,84
+beq x5,x7,return_statement
+jal x0,assignment_statement
+rem_statement:
 jal x0,if_false
 let_or_assignment:
 lbu x5,17(x24)
@@ -1078,11 +1084,33 @@ goto_dispatch:
 lbu x5,17(x24)
 addi x7,x0,61
 beq x5,x7,assignment_statement
+lbu x5,18(x24)
+addi x7,x0,83
+beq x5,x7,gosub_statement
 jal x0,goto_statement
 goto_statement:
+addi x21,x24,21
+sd x0,1608(x8)
+jal x0,goto_generic
+gosub_statement:
+sd x26,1640(x8)
+lbu x5,17(x24)
+addi x7,x0,79
+bne x5,x7,error_line_near
+lbu x5,19(x24)
+addi x7,x0,85
+bne x5,x7,error_line_near
+lbu x5,20(x24)
+addi x7,x0,66
+bne x5,x7,error_line_near
+lbu x5,21(x24)
+addi x7,x0,32
+bne x5,x7,error_line_near
+addi x21,x24,22
+addi x30,x0,1
+sd x30,1608(x8)
 jal x0,goto_generic
 goto_generic:
-addi x21,x24,21
 addi x26,x0,0
 addi x27,x0,0
 goto_number_loop:
@@ -1118,6 +1146,21 @@ sll x6,x6,x26
 ld x7,512(x8)
 and x7,x7,x6
 beq x7,x0,error_line_near
+ld x30,1608(x8)
+beq x30,x0,goto_save_target
+ld x27,1616(x8)
+sltiu x7,x27,8
+beq x7,x0,error_line_near
+ld x6,1640(x8)
+addi x6,x6,1
+slli x7,x27,3
+addi x30,x8,1624
+add x30,x30,x7
+sd x6,0(x30)
+addi x27,x27,1
+sd x27,1616(x8)
+sd x0,1608(x8)
+goto_save_target:
 sd x26,536(x8)
 jal x0,run_line
 
@@ -1169,6 +1212,32 @@ addi x11,x0,4
 addi x17,x0,4
 ecall
 ebreak
+return_statement:
+lbu x5,17(x24)
+addi x7,x0,69
+bne x5,x7,error_line_near
+lbu x5,18(x24)
+addi x7,x0,84
+bne x5,x7,error_line_near
+lbu x5,19(x24)
+addi x7,x0,85
+bne x5,x7,error_line_near
+lbu x5,20(x24)
+addi x7,x0,82
+bne x5,x7,error_line_near
+lbu x5,21(x24)
+addi x7,x0,78
+bne x5,x7,error_line_near
+ld x27,1616(x8)
+beq x27,x0,error_line_near
+addi x27,x27,-1
+slli x7,x27,3
+addi x30,x8,1624
+add x30,x30,x7
+ld x26,0(x30)
+sd x27,1616(x8)
+sd x26,536(x8)
+jal x0,run_line
 break_statement:
 addi x10,x8,144
 addi x11,x0,6
