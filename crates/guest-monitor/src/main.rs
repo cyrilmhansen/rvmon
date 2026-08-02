@@ -11,16 +11,11 @@ use luna_target_api::TargetCapabilities;
 use luna_target_api::TargetContext;
 
 mod minibasic;
+mod plic;
+mod uart16550;
 
-const UART_BASE: usize = 0x1000_0000;
-const UART_FCR: usize = 2;
-const UART_LSR: usize = 5;
-const UART_FCR_ENABLE_FIFO: u8 = 1 << 0;
-const UART_FCR_TRIGGER_1: u8 = 0;
-const UART_LSR_DATA_READY: u8 = 1 << 0;
-const UART_LSR_EMPTY: u8 = 1 << 5;
-const UART_RX_BUFFER_CAPACITY: usize = 64;
-const COMMAND_CAPACITY: usize = 96;
+use uart16550::{get as uart_get, init as uart_init, put as uart_put};
+const COMMAND_CAPACITY: usize = 128;
 const TARGET_RAM_START: u64 = 0x8000_0000;
 const TARGET_RAM_END: u64 = 0x8400_0000;
 const TARGET_WORKSPACE_BYTES: usize = 0x1_0000;
@@ -38,8 +33,8 @@ const MAX_EDIT_BYTES: usize = 32;
 const MAX_SNAPSHOT_DUMP: u64 = 4096;
 const MAX_METADATA_BYTES: usize = 64 * 1024;
 const MAX_METADATA_SOURCE_BYTES: usize = MAX_SOURCE_LINES * COMMAND_CAPACITY;
-const MAX_SOURCE_LINES: usize = 1024;
-const MAX_SYMBOLS: usize = 128;
+const MAX_SOURCE_LINES: usize = 1536;
+const MAX_SYMBOLS: usize = 256;
 const SYMBOL_NAME_CAPACITY: usize = 32;
 // Target service ABI: a7 selects the service; a0/a1 carry arguments/results.
 const ECALL_WRITE_CHAR: u64 = 1;
@@ -64,6 +59,16 @@ static mut SOURCE_LINES: [[u8; COMMAND_CAPACITY]; MAX_SOURCE_LINES] =
 static mut SOURCE_LENGTHS: [usize; MAX_SOURCE_LINES] = [0; MAX_SOURCE_LINES];
 static mut SOURCE_COUNT: usize = 0;
 static mut SOURCE_ADDRESS: u64 = 0;
+// Assembly scratch is deliberately static.  The guest monitor has a bounded
+// M-mode stack; growing the source document must not grow transient stack
+// frames by tens of kilobytes.
+static mut ASSEMBLY_LINES: [[u8; COMMAND_CAPACITY]; MAX_SOURCE_LINES] =
+    [[0; COMMAND_CAPACITY]; MAX_SOURCE_LINES];
+static mut ASSEMBLY_LENGTHS: [usize; MAX_SOURCE_LINES] = [0; MAX_SOURCE_LINES];
+static mut ASSEMBLY_INPUT: [u8; COMMAND_CAPACITY] = [0; COMMAND_CAPACITY];
+static mut ASSEMBLY_SYMBOLS: [GuestSymbol; MAX_SYMBOLS] = [GuestSymbol::empty(); MAX_SYMBOLS];
+static mut ASSEMBLY_WORDS: [u32; MAX_SOURCE_LINES] = [0; MAX_SOURCE_LINES];
+static mut ASSEMBLY_WORD_ADDRESSES: [u64; MAX_SOURCE_LINES] = [0; MAX_SOURCE_LINES];
 static mut MEMORY_UNDO: MemoryUndo = MemoryUndo::empty();
 static mut GUEST_SNAPSHOT: GuestSnapshot = GuestSnapshot::empty();
 static mut SNAPSHOT_BINARY_PATCH: [u8; MAX_SNAPSHOT_DUMP as usize] =
@@ -71,9 +76,6 @@ static mut SNAPSHOT_BINARY_PATCH: [u8; MAX_SNAPSHOT_DUMP as usize] =
 static mut SNAPSHOT_BINARY_COMPRESSED: [u8; MAX_SNAPSHOT_DUMP as usize] =
     [0; MAX_SNAPSHOT_DUMP as usize];
 static mut SNAPSHOT_METADATA: [u8; MAX_METADATA_BYTES] = [0; MAX_METADATA_BYTES];
-static mut UART_RX_BUFFER: [u8; UART_RX_BUFFER_CAPACITY] = [0; UART_RX_BUFFER_CAPACITY];
-static mut UART_RX_LENGTH: usize = 0;
-static mut UART_RX_INDEX: usize = 0;
 static TARGET_STACK: [u8; 8192] = [0; 8192];
 static BASIC_STACK: [u8; 8192] = [0; 8192];
 
@@ -194,6 +196,7 @@ fn panic(_info: &PanicInfo<'_>) -> ! {
 #[unsafe(no_mangle)]
 pub extern "C" fn rust_main() -> ! {
     uart_init();
+    plic::init();
     let context = core::ptr::addr_of_mut!(CONTEXT) as usize;
     let trap = trap_entry as *const () as usize;
     unsafe {
@@ -217,6 +220,8 @@ pub extern "C" fn rust_main() -> ! {
     uart_write("\r\n");
     uart_write("target: entering U-mode\r\n");
     let target_stack = TARGET_STACK.as_ptr() as usize + TARGET_STACK.len();
+    uart16550::enable_receive_interrupts();
+    enable_machine_external_interrupts();
     unsafe {
         enter_user(target_entry as *const () as usize, target_stack);
     }
@@ -225,6 +230,9 @@ pub extern "C" fn rust_main() -> ! {
 #[unsafe(no_mangle)]
 pub extern "C" fn rust_trap(context: *mut TargetContext) -> ! {
     let context = unsafe { &mut *context };
+    if is_machine_external_interrupt(context.mcause) {
+        handle_machine_external_interrupt(context);
+    }
     if context.mcause == StopReason::EnvironmentCall as u64 {
         handle_environment_call(context);
     }
@@ -276,11 +284,11 @@ fn handle_environment_call(context: &mut TargetContext) -> ! {
             resume_after_environment_call(context);
         }
         ECALL_READ_CHAR => {
-            context.x[10] = u64::from(uart_get());
+            context.x[10] = u64::from(target_read_char());
             resume_after_environment_call(context);
         }
         ECALL_POLL_CHAR => {
-            context.x[10] = u64::from(uart_try_get().unwrap_or(0));
+            context.x[10] = u64::from(target_poll_char().unwrap_or(0));
             resume_after_environment_call(context);
         }
         ECALL_WRITE_BUFFER => {
@@ -315,6 +323,64 @@ fn handle_environment_call(context: &mut TargetContext) -> ! {
     }
 }
 
+const MCAUSE_INTERRUPT_BIT: u64 = 1 << 63;
+const MACHINE_EXTERNAL_INTERRUPT: u64 = 11;
+
+fn is_machine_external_interrupt(mcause: u64) -> bool {
+    mcause & MCAUSE_INTERRUPT_BIT != 0
+        && (mcause & !MCAUSE_INTERRUPT_BIT) == MACHINE_EXTERNAL_INTERRUPT
+}
+
+fn enable_machine_external_interrupts() {
+    unsafe {
+        let external_interrupt = 1u64 << 11;
+        let machine_interrupt_enable = 1u64 << 3;
+        asm!("csrs mie, {mask}", mask = in(reg) external_interrupt);
+        asm!("csrs mstatus, {mask}", mask = in(reg) machine_interrupt_enable);
+    }
+}
+
+fn resume_target(context: *mut TargetContext) -> ! {
+    uart16550::enable_receive_interrupts();
+    unsafe { resume_user(context) }
+}
+
+fn handle_machine_external_interrupt(context: &mut TargetContext) -> ! {
+    let irq = plic::claim();
+    if irq == 10 {
+        uart16550::service_interrupt();
+    }
+    plic::complete(irq);
+    resume_target(context as *mut TargetContext)
+}
+
+fn target_read_char() -> u8 {
+    if uart16550::take_break_request() {
+        return 3;
+    }
+    let byte = uart_get();
+    if uart16550::take_break_request() {
+        3
+    } else {
+        byte
+    }
+}
+
+fn target_poll_char() -> Option<u8> {
+    if uart16550::take_break_request() {
+        return Some(3);
+    }
+    if uart16550::peek().is_some() {
+        // Polling is used only for the guest's Ctrl-C escape hatch.  Ordinary
+        // input must remain queued for a later ECALL_READ_CHAR/INPUT call.
+        Some(0)
+    } else if uart16550::take_break_request() {
+        Some(3)
+    } else {
+        None
+    }
+}
+
 fn resume_after_environment_call(context: &mut TargetContext) -> ! {
     let Some(next_pc) = context.mepc.checked_add(4) else {
         guest_error(b"GUEST-IO-003", b"environment call PC overflow");
@@ -323,10 +389,11 @@ fn resume_after_environment_call(context: &mut TargetContext) -> ! {
     context.mepc = next_pc;
     context.pc = next_pc;
     context.mcause = StopReason::Breakpoint as u64;
-    unsafe { resume_user(context as *mut TargetContext) }
+    resume_target(context as *mut TargetContext)
 }
 
 fn monitor_loop(context: *mut TargetContext) -> ! {
+    uart16550::disable_receive_interrupts();
     let mut line = [0u8; COMMAND_CAPACITY];
     loop {
         uart_write("rvmonitor> ");
@@ -334,6 +401,7 @@ fn monitor_loop(context: *mut TargetContext) -> ! {
         match &line[..length] {
             b"help" | b"?" => print_help(),
             b"regs" | b"registers" => print_registers(context),
+            b"info uart" => print_uart_info(),
             command if command.starts_with(b"setf ") => set_float_register(context, &command[5..]),
             command if command.starts_with(b"set ") => set_integer_register(context, &command[4..]),
             command if command.starts_with(b"memory ") => print_memory(&command[7..]),
@@ -349,6 +417,9 @@ fn monitor_loop(context: *mut TargetContext) -> ! {
             b"source" => print_source(None),
             command if command.starts_with(b"source ") => source_command(&command[7..]),
             b"assemble-source" => assemble_saved_source(context),
+            command if command.starts_with(b"payload-load ") => {
+                load_payload_binary(context, &command[13..])
+            }
             b"snapshot save" | b"project-save" => save_guest_snapshot(context),
             b"snapshot restore" | b"project-load" => restore_guest_snapshot(context),
             b"basic" => launch_minibasic(context),
@@ -405,6 +476,7 @@ fn print_help() {
           help/?                         this help\r\n\
           basic                          launch resident MiniBASIC-RV\r\n\
           info payload|p                 show loaded-payload ABI and memory map\r\n\
+          info uart                       show UART queue and error counters\r\n\
           regs|registers                 show integer/floating registers\r\n\
           set <xreg> <hex64>             edit an integer register\r\n\
           setf <freg> <hex64>            edit raw floating bits\r\n\
@@ -414,7 +486,9 @@ fn print_help() {
           assemble <addr> <instruction> assemble one instruction\r\n\
           assemble-program <addr> ... end  assemble a bounded source buffer\r\n\
           assemble-source                 reassemble the edited source buffer\r\n\
+          payload-load <addr> <hex-bytes> load a payload chunk into workspace\r\n\
           source [line]|replace ...       inspect or edit source buffer\r\n\
+          assembler comments: ';' starts a comment to end of line\r\n\
           symbols                         list source symbols\r\n\
           disasm <addr|label> <count>    disassemble target words\r\n\
           step|s, run <count>             execute with a bounded budget\r\n\
@@ -456,6 +530,96 @@ fn print_payload_info() {
     uart_decimal(M_MODE_STACK_BYTES as u64);
     uart_write("\r\n");
     uart_write("  ecall: 1=write-char 2=read-char 3=exit 4=write-buffer 5=poll-char\r\n");
+    uart_write(
+        "  payload-load: hexadecimal chunks are limited to 32 bytes and are not undoable\r\n",
+    );
+}
+
+fn print_uart_info() {
+    let stats = uart16550::stats();
+    uart_write("uart 16550A base=0x0000000010000000 mode=interrupt+polling-fallback\r\n");
+    uart_write("  rx-queued=");
+    uart_decimal(stats.queued as u64);
+    uart_write(" interrupt-services=");
+    uart_decimal(stats.interrupt_services);
+    uart_write(" hardware-overruns=");
+    uart_decimal(stats.hardware_overruns);
+    uart_write(" software-drops=");
+    uart_decimal(stats.software_drops);
+    uart_write(" parity-errors=");
+    uart_decimal(stats.parity_errors);
+    uart_write(" framing-errors=");
+    uart_decimal(stats.framing_errors);
+    uart_write(" breaks=");
+    uart_decimal(stats.breaks);
+    uart_write(" ctrl-c=");
+    uart_decimal(stats.ctrl_c_requests);
+    uart_write("\r\n");
+}
+
+fn load_payload_binary(context: *mut TargetContext, argument: &[u8]) {
+    if unsafe { (*context).mcause } != StopReason::Breakpoint as u64 {
+        uart_write("error: target is not stopped at a breakpoint\r\n");
+        return;
+    }
+    let Some((address_bytes, hex_bytes)) = split_token_space(argument) else {
+        guest_error(
+            b"GUEST-PAYLOAD-001",
+            b"payload-load expects <hex-address> <hex-bytes>",
+        );
+        return;
+    };
+    let Some(address) = parse_hex(address_bytes) else {
+        guest_error(b"GUEST-PAYLOAD-002", b"payload address must be hexadecimal");
+        return;
+    };
+    let mut bytes = [0u8; MAX_EDIT_BYTES];
+    let Some(length) = parse_hex_bytes(hex_bytes, &mut bytes) else {
+        guest_error(
+            b"GUEST-PAYLOAD-003",
+            b"payload bytes must contain 1..32 hexadecimal bytes",
+        );
+        return;
+    };
+    let Some(end) = address.checked_add(length as u64) else {
+        guest_error(b"GUEST-PAYLOAD-004", b"payload range overflows");
+        return;
+    };
+    if address < target_workspace_start() || end > target_workspace_end() {
+        guest_error(
+            b"GUEST-PAYLOAD-005",
+            b"payload range is outside target workspace",
+        );
+        return;
+    }
+    let first_word = address & !3;
+    let last_word = (end - 1) & !3;
+    let mut word = first_word;
+    while word <= last_word {
+        if permanent_breakpoint_at(word).is_some() || temporary_breakpoint_at(word) {
+            guest_error(
+                b"GUEST-PAYLOAD-006",
+                b"payload range overlaps an active breakpoint",
+            );
+            return;
+        }
+        let Some(next) = word.checked_add(4) else {
+            break;
+        };
+        word = next;
+    }
+
+    for offset in 0..length {
+        unsafe {
+            core::ptr::write_volatile((address + offset as u64) as *mut u8, bytes[offset]);
+        }
+    }
+    flush_icache();
+    uart_write("payload loaded address=0x");
+    uart_hex(address);
+    uart_write(" length=");
+    uart_decimal(length as u64);
+    uart_write("\r\n");
 }
 
 fn launch_minibasic(context: *mut TargetContext) -> ! {
@@ -470,7 +634,7 @@ fn launch_minibasic(context: *mut TargetContext) -> ! {
     context.mepc = entry;
     context.mcause = StopReason::Breakpoint as u64;
     context.mtval = 0;
-    unsafe { resume_user(context as *mut TargetContext) }
+    resume_target(context as *mut TargetContext)
 }
 
 fn run_target_at(context: *mut TargetContext, argument: &[u8]) -> ! {
@@ -495,7 +659,7 @@ fn run_target_at(context: *mut TargetContext, argument: &[u8]) -> ! {
     context.mepc = address;
     context.mcause = StopReason::Breakpoint as u64;
     context.mtval = 0;
-    unsafe { resume_user(context as *mut TargetContext) }
+    resume_target(context as *mut TargetContext)
 }
 
 fn guest_error(code: &[u8], message: &[u8]) {
@@ -1166,18 +1330,21 @@ fn assemble_program_command(context: *mut TargetContext, argument: &[u8]) {
         return;
     }
 
-    uart_write(
-        "source mode: enter integer/control, ld/sd/fld/fsd, f arithmetic or fmv lines, finish with end\r\n",
-    );
-    let mut lines = [[0u8; COMMAND_CAPACITY]; MAX_SOURCE_LINES];
-    let mut lengths = [0usize; MAX_SOURCE_LINES];
+    uart_write("source mode: enter instructions, labels or ';' comments; finish with end\r\n");
+    unsafe {
+        ASSEMBLY_LINES = [[0; COMMAND_CAPACITY]; MAX_SOURCE_LINES];
+        ASSEMBLY_LENGTHS = [0; MAX_SOURCE_LINES];
+        ASSEMBLY_SYMBOLS = [GuestSymbol::empty(); MAX_SYMBOLS];
+        ASSEMBLY_WORDS = [0; MAX_SOURCE_LINES];
+        ASSEMBLY_WORD_ADDRESSES = [0; MAX_SOURCE_LINES];
+    }
     let mut count = 0usize;
     let mut overflow = false;
-    let mut input = [0u8; COMMAND_CAPACITY];
     loop {
         uart_write("source> ");
-        let length = uart_read_line(&mut input);
-        let line = &input[..length];
+        let length = unsafe { uart_read_line(&mut *core::ptr::addr_of_mut!(ASSEMBLY_INPUT)) };
+        let line =
+            strip_assembler_comment(unsafe { &(&*core::ptr::addr_of!(ASSEMBLY_INPUT))[..length] });
         if line == b"end" {
             break;
         }
@@ -1188,26 +1355,28 @@ fn assemble_program_command(context: *mut TargetContext, argument: &[u8]) {
             overflow = true;
             continue;
         }
-        lines[count][..length].copy_from_slice(line);
-        lengths[count] = length;
+        let source_length = line.len();
+        unsafe {
+            ASSEMBLY_LINES[count][..source_length].copy_from_slice(line);
+            ASSEMBLY_LENGTHS[count] = source_length;
+        }
         count += 1;
     }
 
     if overflow {
-        guest_error(
-            b"GUEST-ASM-001",
-            b"source program exceeds 16 instruction lines",
-        );
+        guest_error(b"GUEST-ASM-001", b"source program exceeds 1536 source lines");
         return;
     }
     if count == 0 {
         guest_error(b"GUEST-ASM-002", b"source program is empty");
         return;
     }
-    let mut staged_symbols = [GuestSymbol::empty(); MAX_SYMBOLS];
     let mut instruction_count = 0usize;
     for index in 0..count {
-        let line = &lines[index][..lengths[index]];
+        let line = unsafe {
+            &(&(*core::ptr::addr_of!(ASSEMBLY_LINES))[index])
+                [..(*core::ptr::addr_of!(ASSEMBLY_LENGTHS))[index]]
+        };
         if let Some(label) = line.strip_suffix(b":") {
             let line_address = address + (instruction_count as u64) * 4;
             let Some(symbol) = make_symbol(label, line_address) else {
@@ -1218,10 +1387,11 @@ fn assemble_program_command(context: *mut TargetContext, argument: &[u8]) {
                 );
                 return;
             };
-            if staged_symbols
-                .iter()
-                .any(|slot| slot.enabled && &slot.name[..slot.length] == label)
-            {
+            if unsafe {
+                (*core::ptr::addr_of!(ASSEMBLY_SYMBOLS))
+                    .iter()
+                    .any(|slot| slot.enabled && &slot.name[..slot.length] == label)
+            } {
                 guest_source_error(
                     index + 1,
                     b"GUEST-ASM-003",
@@ -1229,7 +1399,12 @@ fn assemble_program_command(context: *mut TargetContext, argument: &[u8]) {
                 );
                 return;
             }
-            if let Some(slot) = staged_symbols.iter_mut().find(|slot| !slot.enabled) {
+            let slot = unsafe {
+                (*core::ptr::addr_of_mut!(ASSEMBLY_SYMBOLS))
+                    .iter_mut()
+                    .find(|slot| !slot.enabled)
+            };
+            if let Some(slot) = slot {
                 *slot = symbol;
             } else {
                 guest_source_error(
@@ -1260,11 +1435,12 @@ fn assemble_program_command(context: *mut TargetContext, argument: &[u8]) {
         return;
     }
 
-    let mut words = [0u32; MAX_SOURCE_LINES];
-    let mut word_addresses = [0u64; MAX_SOURCE_LINES];
     let mut word_count = 0usize;
     for index in 0..count {
-        let line = &lines[index][..lengths[index]];
+        let line = unsafe {
+            &(&(*core::ptr::addr_of!(ASSEMBLY_LINES))[index])
+                [..(*core::ptr::addr_of!(ASSEMBLY_LENGTHS))[index]]
+        };
         if line.ends_with(b":") {
             continue;
         }
@@ -1277,11 +1453,13 @@ fn assemble_program_command(context: *mut TargetContext, argument: &[u8]) {
             );
             return;
         }
-        let Some(word) = parse_source_instruction(line, line_address, &staged_symbols) else {
+        let Some(word) = (unsafe {
+            parse_source_instruction(line, line_address, &*core::ptr::addr_of!(ASSEMBLY_SYMBOLS))
+        }) else {
             guest_source_error(
                 index + 1,
                 b"GUEST-ASM-008",
-                b"supports integer/control, ld/sd/fld/fsd, f arithmetic or fmv syntax",
+                b"supports integer/control, byte/word loads-stores, ld/sd/fld/fsd, f arithmetic or fmv syntax",
             );
             return;
         };
@@ -1294,14 +1472,18 @@ fn assemble_program_command(context: *mut TargetContext, argument: &[u8]) {
             );
             return;
         }
-        words[word_count] = word;
-        word_addresses[word_count] = line_address;
+        unsafe {
+            ASSEMBLY_WORDS[word_count] = word;
+            ASSEMBLY_WORD_ADDRESSES[word_count] = line_address;
+        }
         word_count += 1;
     }
 
     clear_memory_undo();
     for index in 0..word_count {
-        if !target_store32(word_addresses[index], words[index]) {
+        let (word_address, word) =
+            unsafe { (ASSEMBLY_WORD_ADDRESSES[index], ASSEMBLY_WORDS[index]) };
+        if !target_store32(word_address, word) {
             guest_error(b"GUEST-ASM-010", b"cannot write assembled source program");
             return;
         }
@@ -1313,11 +1495,18 @@ fn assemble_program_command(context: *mut TargetContext, argument: &[u8]) {
     context.mcause = StopReason::Breakpoint as u64;
     context.mtval = 0;
     unsafe {
-        for (index, symbol) in staged_symbols.iter().enumerate() {
+        for (index, symbol) in (*core::ptr::addr_of!(ASSEMBLY_SYMBOLS)).iter().enumerate() {
             core::ptr::write_volatile(core::ptr::addr_of_mut!(SYMBOLS[index]), *symbol);
         }
     }
-    store_source(&lines, &lengths, count, address);
+    unsafe {
+        store_source(
+            &*core::ptr::addr_of!(ASSEMBLY_LINES),
+            &*core::ptr::addr_of!(ASSEMBLY_LENGTHS),
+            count,
+            address,
+        );
+    }
     uart_write("assembled program: ");
     uart_decimal(word_count as u64);
     uart_write(" instruction(s) at 0x");
@@ -1396,10 +1585,12 @@ fn source_command(argument: &[u8]) {
             );
             return;
         }
-        let replacement = replacement
-            .strip_prefix(b"\"")
-            .and_then(|value| value.strip_suffix(b"\""))
-            .unwrap_or(replacement);
+        let replacement = strip_assembler_comment(
+            &replacement
+                .strip_prefix(b"\"")
+                .and_then(|value| value.strip_suffix(b"\""))
+                .unwrap_or(replacement),
+        );
         if replacement.len() > COMMAND_CAPACITY {
             guest_error(b"GUEST-SOURCE-004", b"replacement line is too long");
             return;
@@ -1436,15 +1627,23 @@ fn assemble_saved_source(context: *mut TargetContext) {
         monitor_loop(context);
     }
     let address = unsafe { core::ptr::read_volatile(core::ptr::addr_of!(SOURCE_ADDRESS)) };
-    let mut lines = [[0u8; COMMAND_CAPACITY]; MAX_SOURCE_LINES];
-    let mut lengths = [0usize; MAX_SOURCE_LINES];
     unsafe {
         for index in 0..count {
-            lines[index] = core::ptr::read_volatile(core::ptr::addr_of!(SOURCE_LINES[index]));
-            lengths[index] = core::ptr::read_volatile(core::ptr::addr_of!(SOURCE_LENGTHS[index]));
+            ASSEMBLY_LINES[index] =
+                core::ptr::read_volatile(core::ptr::addr_of!(SOURCE_LINES[index]));
+            ASSEMBLY_LENGTHS[index] =
+                core::ptr::read_volatile(core::ptr::addr_of!(SOURCE_LENGTHS[index]));
         }
     }
-    assemble_source_buffer(context, address, &lines, &lengths, count);
+    unsafe {
+        assemble_source_buffer(
+            context,
+            address,
+            &*core::ptr::addr_of!(ASSEMBLY_LINES),
+            &*core::ptr::addr_of!(ASSEMBLY_LENGTHS),
+            count,
+        );
+    }
 }
 
 fn snapshot_region(address: u64, length: usize) -> Option<(bool, usize)> {
@@ -2288,10 +2487,14 @@ fn assemble_source_buffer(
     lengths: &[usize; MAX_SOURCE_LINES],
     count: usize,
 ) -> ! {
-    let mut staged_symbols = [GuestSymbol::empty(); MAX_SYMBOLS];
+    unsafe {
+        ASSEMBLY_SYMBOLS = [GuestSymbol::empty(); MAX_SYMBOLS];
+        ASSEMBLY_WORDS = [0; MAX_SOURCE_LINES];
+        ASSEMBLY_WORD_ADDRESSES = [0; MAX_SOURCE_LINES];
+    }
     let mut instruction_count = 0usize;
     for index in 0..count {
-        let line = &lines[index][..lengths[index]];
+        let line = strip_assembler_comment(&lines[index][..lengths[index]]);
         if let Some(label) = line.strip_suffix(b":") {
             let line_address = address + (instruction_count as u64) * 4;
             let Some(symbol) = make_symbol(label, line_address) else {
@@ -2302,10 +2505,11 @@ fn assemble_source_buffer(
                 );
                 monitor_loop(context);
             };
-            if staged_symbols
-                .iter()
-                .any(|slot| slot.enabled && &slot.name[..slot.length] == label)
-            {
+            if unsafe {
+                (*core::ptr::addr_of!(ASSEMBLY_SYMBOLS))
+                    .iter()
+                    .any(|slot| slot.enabled && &slot.name[..slot.length] == label)
+            } {
                 guest_source_error(
                     index + 1,
                     b"GUEST-ASM-003",
@@ -2313,7 +2517,11 @@ fn assemble_source_buffer(
                 );
                 monitor_loop(context);
             }
-            let Some(slot) = staged_symbols.iter_mut().find(|slot| !slot.enabled) else {
+            let Some(slot) = (unsafe {
+                (*core::ptr::addr_of_mut!(ASSEMBLY_SYMBOLS))
+                    .iter_mut()
+                    .find(|slot| !slot.enabled)
+            }) else {
                 guest_source_error(
                     index + 1,
                     b"GUEST-ASM-003",
@@ -2341,11 +2549,9 @@ fn assemble_source_buffer(
         );
         monitor_loop(context);
     }
-    let mut words = [0u32; MAX_SOURCE_LINES];
-    let mut word_addresses = [0u64; MAX_SOURCE_LINES];
     let mut word_count = 0usize;
     for index in 0..count {
-        let line = &lines[index][..lengths[index]];
+        let line = strip_assembler_comment(&lines[index][..lengths[index]]);
         if line.ends_with(b":") {
             continue;
         }
@@ -2358,11 +2564,13 @@ fn assemble_source_buffer(
             );
             monitor_loop(context);
         }
-        let Some(word) = parse_source_instruction(line, line_address, &staged_symbols) else {
+        let Some(word) = (unsafe {
+            parse_source_instruction(line, line_address, &*core::ptr::addr_of!(ASSEMBLY_SYMBOLS))
+        }) else {
             guest_source_error(
                 index + 1,
                 b"GUEST-ASM-008",
-                b"supports integer/control, ld/sd/fld/fsd, f arithmetic or fmv syntax",
+                b"supports integer/control, byte/word loads-stores, ld/sd/fld/fsd, f arithmetic or fmv syntax",
             );
             monitor_loop(context);
         };
@@ -2375,13 +2583,17 @@ fn assemble_source_buffer(
             );
             monitor_loop(context);
         }
-        words[word_count] = word;
-        word_addresses[word_count] = line_address;
+        unsafe {
+            ASSEMBLY_WORDS[word_count] = word;
+            ASSEMBLY_WORD_ADDRESSES[word_count] = line_address;
+        }
         word_count += 1;
     }
     clear_memory_undo();
     for index in 0..word_count {
-        if !target_store32(word_addresses[index], words[index]) {
+        let (word_address, word) =
+            unsafe { (ASSEMBLY_WORD_ADDRESSES[index], ASSEMBLY_WORDS[index]) };
+        if !target_store32(word_address, word) {
             guest_error(b"GUEST-ASM-010", b"cannot write assembled source program");
             monitor_loop(context);
         }
@@ -2393,7 +2605,7 @@ fn assemble_source_buffer(
     context.mcause = StopReason::Breakpoint as u64;
     context.mtval = 0;
     unsafe {
-        for (index, symbol) in staged_symbols.iter().enumerate() {
+        for (index, symbol) in (*core::ptr::addr_of!(ASSEMBLY_SYMBOLS)).iter().enumerate() {
             core::ptr::write_volatile(core::ptr::addr_of_mut!(SYMBOLS[index]), *symbol);
         }
     }
@@ -2440,6 +2652,20 @@ fn parse_source_instruction(
     if let Some(operands) = source.strip_prefix(b"sd ") {
         return parse_load_store_operands("sd", operands, symbols);
     }
+    for mnemonic in ["lb", "lh", "lw", "ld", "lbu", "lhu", "lwu"] {
+        if let Some(operands) = source.strip_prefix(mnemonic.as_bytes()) {
+            if let Some(operands) = operands.strip_prefix(b" ") {
+                return parse_load_store_operands(mnemonic, operands, symbols);
+            }
+        }
+    }
+    for mnemonic in ["sb", "sh", "sw", "sd"] {
+        if let Some(operands) = source.strip_prefix(mnemonic.as_bytes()) {
+            if let Some(operands) = operands.strip_prefix(b" ") {
+                return parse_load_store_operands(mnemonic, operands, symbols);
+            }
+        }
+    }
     if let Some(operands) = source.strip_prefix(b"sb ") {
         return parse_load_store_operands("sb", operands, symbols);
     }
@@ -2484,10 +2710,22 @@ fn parse_source_instruction(
             return parse_float_conversion(mnemonic, operands);
         }
     }
-    for mnemonic in ["add", "sub", "mul", "div"] {
+    for mnemonic in [
+        "add", "sub", "sll", "slt", "sltu", "xor", "srl", "sra", "or", "and", "mul", "mulh",
+        "mulhsu", "mulhu", "div", "divu", "rem", "remu",
+    ] {
         if let Some(operands) = source.strip_prefix(mnemonic.as_bytes()) {
             if let Some(operands) = operands.strip_prefix(b" ") {
                 return parse_r_operands(mnemonic, operands);
+            }
+        }
+    }
+    for mnemonic in [
+        "andi", "ori", "xori", "slti", "sltiu", "slli", "srli", "srai",
+    ] {
+        if let Some(operands) = source.strip_prefix(mnemonic.as_bytes()) {
+            if let Some(operands) = operands.strip_prefix(b" ") {
+                return parse_i_operands(mnemonic, operands);
             }
         }
     }
@@ -2515,6 +2753,21 @@ fn parse_source_instruction(
     None
 }
 
+/// ASM-One-style source comment handling for the guest assembler.
+///
+/// The guest source language deliberately has one lexical rule: the first
+/// semicolon starts a comment and the remainder of the line is discarded.
+/// Trimming here, before labels are collected and before the source is saved,
+/// makes `label: ; explanation` and `addi ... ; explanation` behave alike in
+/// both `assemble-program` and the persistent source buffer.
+fn strip_assembler_comment(line: &[u8]) -> &[u8] {
+    let without_comment = line
+        .iter()
+        .position(|byte| *byte == b';')
+        .map_or(line, |position| &line[..position]);
+    without_comment.trim_ascii()
+}
+
 fn parse_r_operands(mnemonic: &str, operands: &[u8]) -> Option<u32> {
     let (rd_bytes, rest) = split_once_comma(operands)?;
     let (rs1_bytes, rs2_bytes) = split_once_comma(rest)?;
@@ -2533,6 +2786,23 @@ fn parse_addi_operands(operands: &[u8], symbols: &[GuestSymbol; MAX_SYMBOLS]) ->
     let rs1 = parse_register(rs1_bytes.trim_ascii())?;
     let imm = parse_signed_decimal_or_symbol(imm_bytes.trim_ascii(), symbols)?;
     luna_isa_core::encode_addi(rd, rs1, imm)
+}
+
+fn parse_i_operands(mnemonic: &str, operands: &[u8]) -> Option<u32> {
+    let (rd_bytes, rest) = split_once_comma(operands)?;
+    let (rs1_bytes, immediate_bytes) = split_once_comma(rest)?;
+    let rd = parse_register(rd_bytes.trim_ascii())?;
+    let rs1 = parse_register(rs1_bytes.trim_ascii())?;
+    let immediate = if matches!(mnemonic, "slli" | "srli" | "srai") {
+        let value = parse_decimal(immediate_bytes.trim_ascii())?;
+        (value <= 63).then_some(value as u32)?
+    } else {
+        (parse_signed_decimal(immediate_bytes.trim_ascii())? as i32 as u32) & 0xfff
+    };
+    let opcode = GENERATED_OPCODES
+        .iter()
+        .find(|opcode| opcode.mnemonic == mnemonic)?;
+    Some(opcode.match_value | (immediate << 20) | ((rs1 as u32) << 15) | ((rd as u32) << 7))
 }
 
 fn parse_u_operands(mnemonic: &str, operands: &[u8]) -> Option<u32> {
@@ -2582,7 +2852,7 @@ fn parse_load_store_operands(
     let (offset_bytes, base_bytes) = split_once_left_paren(rest)?;
     let offset = parse_signed_decimal_or_symbol(offset_bytes.trim_ascii(), symbols)?;
     let base = parse_register(base_bytes.trim_ascii())?;
-    if mnemonic == "ld" {
+    if matches!(mnemonic, "lb" | "lh" | "lw" | "ld" | "lbu" | "lhu" | "lwu") {
         luna_isa_core::encode_load(
             mnemonic,
             parse_register(register_bytes.trim_ascii())?,
@@ -2875,7 +3145,7 @@ fn resume_single_step(context: *mut TargetContext) -> ! {
                 uart_write("error: cannot step over permanent breakpoint\r\n");
                 monitor_loop(context);
             }
-            unsafe { resume_user(context as *mut TargetContext) }
+            resume_target(context as *mut TargetContext)
         }
         match current_pc.checked_add(4) {
             Some(address) => address,
@@ -2897,7 +3167,7 @@ fn resume_single_step(context: *mut TargetContext) -> ! {
     if instruction_word == EBREAK_WORD {
         context.pc = instruction_pc;
         context.mepc = instruction_pc;
-        unsafe { resume_user(context as *mut TargetContext) }
+        resume_target(context as *mut TargetContext)
     }
     if let Some((slot, address, width)) =
         watchpoint_for_instruction(context, instruction_pc, instruction_word)
@@ -2929,7 +3199,7 @@ fn resume_single_step(context: *mut TargetContext) -> ! {
     }
     context.pc = instruction_pc;
     context.mepc = instruction_pc;
-    unsafe { resume_user(context as *mut TargetContext) }
+    resume_target(context as *mut TargetContext)
 }
 
 fn watchpoint_for_instruction(
@@ -2990,7 +3260,7 @@ fn continue_target(context: *mut TargetContext) -> ! {
                 uart_write("error: cannot continue over permanent breakpoint\r\n");
                 monitor_loop(context);
             }
-            unsafe { resume_user(context as *mut TargetContext) }
+            resume_target(context as *mut TargetContext)
         }
     }
     let resume_pc = match target_load32(context.pc) {
@@ -3009,7 +3279,7 @@ fn continue_target(context: *mut TargetContext) -> ! {
     };
     context.pc = resume_pc;
     context.mepc = resume_pc;
-    unsafe { resume_user(context as *mut TargetContext) }
+    resume_target(context as *mut TargetContext)
 }
 
 fn add_watchpoint(argument: &[u8], kind: GuestWatchKind) {
@@ -3612,75 +3882,8 @@ fn uart_write(text: &str) {
     }
 }
 
-fn uart_init() {
-    unsafe {
-        core::ptr::write_volatile(
-            (UART_BASE + UART_FCR) as *mut u8,
-            UART_FCR_ENABLE_FIFO | UART_FCR_TRIGGER_1,
-        );
-    }
-}
-
 fn uart_bytes(bytes: &[u8]) {
     for byte in bytes {
         uart_put(*byte);
-    }
-}
-
-fn uart_put(byte: u8) {
-    while unsafe { core::ptr::read_volatile((UART_BASE + UART_LSR) as *const u8) } & UART_LSR_EMPTY
-        == 0
-    {}
-    unsafe {
-        core::ptr::write_volatile(UART_BASE as *mut u8, byte);
-    }
-}
-
-fn uart_get() -> u8 {
-    unsafe {
-        if UART_RX_INDEX == UART_RX_LENGTH {
-            UART_RX_INDEX = 0;
-            UART_RX_LENGTH = 0;
-            while core::ptr::read_volatile((UART_BASE + UART_LSR) as *const u8)
-                & UART_LSR_DATA_READY
-                == 0
-            {}
-            while UART_RX_LENGTH < UART_RX_BUFFER_CAPACITY
-                && core::ptr::read_volatile((UART_BASE + UART_LSR) as *const u8)
-                    & UART_LSR_DATA_READY
-                    != 0
-            {
-                UART_RX_BUFFER[UART_RX_LENGTH] = core::ptr::read_volatile(UART_BASE as *const u8);
-                UART_RX_LENGTH += 1;
-            }
-        }
-        let byte = UART_RX_BUFFER[UART_RX_INDEX];
-        UART_RX_INDEX += 1;
-        byte
-    }
-}
-
-fn uart_try_get() -> Option<u8> {
-    unsafe {
-        if UART_RX_INDEX == UART_RX_LENGTH {
-            UART_RX_INDEX = 0;
-            UART_RX_LENGTH = 0;
-            if core::ptr::read_volatile((UART_BASE + UART_LSR) as *const u8) & UART_LSR_DATA_READY
-                == 0
-            {
-                return None;
-            }
-            while UART_RX_LENGTH < UART_RX_BUFFER_CAPACITY
-                && core::ptr::read_volatile((UART_BASE + UART_LSR) as *const u8)
-                    & UART_LSR_DATA_READY
-                    != 0
-            {
-                UART_RX_BUFFER[UART_RX_LENGTH] = core::ptr::read_volatile(UART_BASE as *const u8);
-                UART_RX_LENGTH += 1;
-            }
-        }
-        let byte = UART_RX_BUFFER[UART_RX_INDEX];
-        UART_RX_INDEX += 1;
-        Some(byte)
     }
 }
