@@ -3387,6 +3387,30 @@ release. Elles n’ajoutent aucune extension ISA.
 - **Paquet de contexte :** BASIC-LOAD-005AK, `payload-repl.rv`, tests IF/GOTO et
   contrat de table des variables.
 
+#### BASIC-LOAD-005AM — Premier tableau numérique target-side — TERMINÉE
+
+- **Priorité :** P0, preuve d'intégration du stockage indexé dans le payload.
+- **But :** exécuter `DIM A(10)`, écrire `A(10)=42` et relire la valeur avec
+  `PRINT A(10)` dans la cible RV64.
+- **Non-but :** dimensions variables, indices expressions, tableaux de chaînes,
+  partage d'un nom entre scalaire et tableau et compatibilité binaire Atari.
+- **Entrées :** contrat D-018 du layout de tableau, ISA D et parseur target-side.
+- **Fichiers/modules :** `examples/minibasic-asm/payload-repl.rv`, test QEMU
+  array et documentation.
+- **Dépendances :** BASIC-LOAD-005AL, `parse_atom`, `DIM` et formatage numérique.
+- **Tests :** `scripts/test-guest-runtime-asm-repl-array.sh`, résultat
+  `42.000000`, exécution des lignes et arrêt contrôlé.
+- **Critères de sortie :** les onze cellules et les opérations vivent en RAM
+  cible; aucune valeur n'est injectée dans la sortie par le script.
+- **Cas limites :** index 0, index 10, index 11, DIM répétée et diagnostics
+  d'index restent à généraliser.
+- **Taille :** 5 points / 2,5 journées-agent, incertitude élevée.
+- **Compétences/outils :** assembleur RV64D, layout mémoire, QEMU et DUMP.
+- **Parallélisable :** oui avec le pool de chaînes; non avec une refonte du
+  parseur d'atomes.
+- **Paquet de contexte :** BASIC-LOAD-005AL, test array et section D-018 de
+  `BASIC_LANGUAGE.md`.
+
 ### BASIC-LOAD-004 — Porter le magasin de lignes et le contrôle de flot
 
 - **Priorité :** P0.

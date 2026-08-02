@@ -202,6 +202,21 @@ refusé avant la reprise. La preuve paramétrable est
 `STEP -1` et `STEP 0`. Les variables de boucle longues, les boucles imbriquées
 et les diagnostics de pile restent des extensions distinctes.
 
+Un premier tableau numérique est désormais relié au même chemin target-side :
+
+```text
+DIM A(10)
+10 A(10)=42
+20 PRINT A(10)
+RUN
+```
+
+La tranche réserve onze cellules `binary64` à partir de `data+720`, initialise
+la zone dans le guest et vérifie l'index littéral `10` avant lecture ou écriture.
+Le test d'intégration est `scripts/test-guest-runtime-asm-repl-array.sh`.
+Il s'agit d'une étape de portage, pas encore du support complet des dimensions,
+des indices expressions ou des tableaux de chaînes.
+
 `END` est également dispatché target-side, émet `END\n` puis arrête la séance
 sur un breakpoint contrôlable. Sa non-régression est :
 

@@ -702,3 +702,20 @@ bash scripts/test-guest-runtime-asm-repl-for-step.sh
 FOR_PROGRAM='10 FOR X=1 TO 3 STEP 0' FOR_EXPECTED='ERR' \
 bash scripts/test-guest-runtime-asm-repl-for-step.sh
 ```
+
+Le premier tableau numérique intégré au payload est vérifiable avec :
+
+```text
+DIM A(10)
+10 A(10)=42
+20 PRINT A(10)
+RUN
+```
+
+```text
+bash scripts/test-guest-runtime-asm-repl-array.sh
+```
+
+Cette étape couvre volontairement l'indice littéral `10` et onze cellules
+`binary64`; les dimensions dynamiques, les indices variables et les tableaux de
+chaînes restent à implémenter.

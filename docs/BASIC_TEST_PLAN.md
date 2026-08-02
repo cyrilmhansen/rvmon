@@ -191,6 +191,10 @@
 - `scripts/test-guest-runtime-asm-repl-for-step.sh` vérifie `STEP 2`, un pas
   négatif (`STEP -1`) et le refus de `STEP 0`; les trois cas sont exécutés dans
   la cible et le dernier doit produire `ERR`.
+- `scripts/test-guest-runtime-asm-repl-array.sh` vérifie une première tranche
+  de tableau numérique intégrée au REPL assembleur : `DIM A(10)`, affectation
+  target-side dans une ligne, lecture par `PRINT A(10)` et résultat
+  `42.000000`.
 - Le breakpoint `minibasic_divide` et `disasm` permettent d’observer la
   correspondance adresse → `fdiv.d`; les registres f et `fcsr` sont affichés
   avant/après le pas.
