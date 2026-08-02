@@ -1578,7 +1578,7 @@ lbu x5,0(x23)
 beq x5,x0,input_string_done
 addi x6,x0,120
 sltu x7,x9,x6
-beq x7,x0,error_line
+beq x7,x0,error_line_near
 add x6,x27,x9
 sb x5,0(x6)
 addi x9,x9,1
@@ -1860,7 +1860,7 @@ addi x21,x21,1
 addi x27,x27,1
 jal x0,if_target_number_loop
 if_target_number_done:
-beq x27,x0,error_line
+beq x27,x0,error_line_near
 addi x6,x0,10
 remu x5,x26,x6
 bne x5,x0,error_line_near
@@ -1889,7 +1889,7 @@ jal x0,error_line
 if_true_ten:
 lbu x5,1(x21)
 addi x6,x0,48
-bne x5,x6,error_line
+bne x5,x6,error_line_near
 sd x0,536(x8)
 jal x0,run_line
 if_true_twenty:
@@ -2368,6 +2368,41 @@ beq x7,x0,atom_numeric
 lbu x6,1(x21)
 addi x7,x0,40
 beq x6,x7,array_open_generic
+addi x27,x21,0
+atom_array_name_scan:
+lbu x6,0(x27)
+addi x7,x0,40
+beq x6,x7,long_num_atom
+beq x6,x0,atom_scalar_variable
+addi x7,x0,32
+beq x6,x7,atom_scalar_variable
+addi x7,x0,43
+beq x6,x7,atom_scalar_variable
+addi x7,x0,45
+beq x6,x7,atom_scalar_variable
+addi x7,x0,42
+beq x6,x7,atom_scalar_variable
+addi x7,x0,47
+beq x6,x7,atom_scalar_variable
+addi x7,x0,41
+beq x6,x7,atom_scalar_variable
+addi x7,x0,44
+beq x6,x7,atom_scalar_variable
+addi x27,x27,1
+jal x0,atom_array_name_scan
+long_num_atom:
+sd x1,1152(x8)
+sd x30,1752(x8)
+sd x28,1760(x8)
+sd x29,1768(x8)
+jal x1,resolve_long_num_array
+ld x30,1752(x8)
+ld x28,1760(x8)
+ld x29,1768(x8)
+ld x1,1152(x8)
+fld f4,0(x7)
+jal x0,store_atom
+atom_scalar_variable:
 sd x1,1152(x8)
 jal x1,resolve_variable
 fld f4,0(x7)
@@ -2521,7 +2556,7 @@ slli x7,x26,3
 add x6,x6,x7
 ld x6,0(x6)
 sltu x7,x23,x6
-beq x7,x0,error_line
+beq x7,x0,error_line_near
 addi x21,x21,1
 slli x6,x26,8
 addi x7,x8,2047
@@ -2559,10 +2594,146 @@ beq x7,x0,error_line
 addi x26,x6,0
 lbu x5,1(x21)
 addi x7,x0,40
-bne x5,x7,error_line
+bne x5,x7,error_line_near
+jalr x0,0(x1)
+; Résolution de LONGNAME(I), élément binary64 retourné dans x7.
+resolve_long_num_array:
+sd x22,1168(x8)
+sd x24,1120(x8)
+sd x25,1128(x8)
+sd x26,1136(x8)
+sd x27,1144(x8)
+addi x30,x21,0
+addi x25,x21,0
+addi x24,x0,0
+lbu x5,0(x25)
+addi x6,x5,-97
+sltiu x7,x6,26
+beq x7,x0,lna_first_upper
+addi x5,x5,-32
+sb x5,0(x25)
+lna_first_upper:
+addi x6,x5,-65
+sltiu x7,x6,26
+beq x7,x0,long_num_error
+lna_scan:
+lbu x5,0(x25)
+addi x6,x0,40
+beq x5,x6,lna_name_done
+beq x5,x0,long_num_error
+addi x6,x5,-97
+sltiu x7,x6,26
+beq x7,x0,lna_scan_upper
+addi x5,x5,-32
+sb x5,0(x25)
+lna_scan_upper:
+addi x6,x5,-65
+sltiu x7,x6,26
+bne x7,x0,lna_scan_char
+addi x6,x5,-48
+sltiu x7,x6,10
+bne x7,x0,lna_scan_char
+addi x6,x5,-95
+beq x6,x0,lna_scan_char
+jal x0,long_num_error
+lna_scan_char:
+addi x24,x24,1
+sltiu x7,x24,16
+beq x7,x0,long_num_error
+addi x25,x25,1
+jal x0,lna_scan
+lna_name_done:
+sltiu x7,x24,2
+bne x7,x0,long_num_error
+addi x28,x24,0
+addi x21,x25,1
+lui x26,0x82011
+slli x26,x26,32
+srli x26,x26,32
+addi x29,x0,0
+addi x27,x0,32
+lna_slot_loop:
+lbu x5,0(x26)
+beq x5,x0,long_num_error
+addi x22,x0,0
+lna_cmp_loop:
+sltiu x7,x22,16
+beq x7,x0,lna_slot_match
+sltu x7,x22,x28
+beq x7,x0,lna_src_zero
+add x6,x30,x22
+lbu x5,0(x6)
+jal x0,lna_cmp_table
+lna_src_zero:
+addi x5,x0,0
+lna_cmp_table:
+add x6,x26,x22
+lbu x6,0(x6)
+bne x5,x6,lna_slot_next
+addi x22,x22,1
+jal x0,lna_cmp_loop
+lna_slot_next:
+addi x26,x26,32
+addi x29,x29,1
+addi x27,x27,-1
+bne x27,x0,lna_slot_loop
+jal x0,long_num_error
+lna_slot_match:
+addi x22,x0,0
+addi x27,x0,0
+lna_index:
+lbu x5,0(x21)
+addi x6,x5,-65
+sltiu x7,x6,26
+beq x7,x0,lna_index_digits
+sd x1,1576(x8)
+jal x1,resolve_variable
+ld x1,1576(x8)
+fld f4,0(x7)
+fcvt.l.d x22,f4
+addi x27,x0,1
+lbu x5,0(x21)
+jal x0,lna_index_done
+lna_index_digits:
+addi x6,x0,48
+sltu x7,x5,x6
+bne x7,x0,lna_index_done
+addi x6,x0,58
+sltu x7,x5,x6
+beq x7,x0,lna_index_done
+addi x6,x0,48
+sub x5,x5,x6
+slli x6,x22,3
+slli x7,x22,1
+add x22,x6,x7
+add x22,x22,x5
+addi x27,x0,1
+addi x21,x21,1
+jal x0,lna_index
+lna_index_done:
+beq x27,x0,long_num_error
+addi x6,x0,41
+bne x5,x6,long_num_error
+ld x6,16(x26)
+sltu x7,x22,x6
+beq x7,x0,long_num_error
+addi x21,x21,1
+lui x7,0x82040
+slli x7,x7,32
+srli x7,x7,32
+slli x6,x29,9
+add x7,x7,x6
+slli x6,x22,3
+add x7,x7,x6
+ld x22,1168(x8)
+ld x24,1120(x8)
+ld x25,1128(x8)
+ld x26,1136(x8)
+ld x27,1144(x8)
 jalr x0,0(x1)
 dim_array:
 addi x30,x1,0
+sd x1,1744(x8)
 lbu x5,0(x21)
 addi x6,x0,68
 bne x5,x6,error_line
@@ -2591,6 +2762,11 @@ jal x0,error_line
 dim_string_dispatch:
 jal x0,string_dim_array
 dim_numeric_header:
+lbu x5,1(x21)
+addi x7,x0,40
+beq x5,x7,dim_numeric_short
+jal x0,dim_long_numeric
+dim_numeric_short:
 jal x1,resolve_array_name
 addi x21,x21,2
 addi x23,x0,0
@@ -2607,6 +2783,146 @@ fcvt.l.d x23,f4
 addi x27,x0,1
 lbu x5,0(x21)
 jal x0,dim_index_done
+; DIM LONGNAME(N): numeric long-array descriptors at 0x82011000.
+; Elements are binary64 at 0x82040000 + slot*512 + index*8.
+long_num_error:
+jal x0,error_line
+dim_long_numeric:
+addi x23,x21,0
+addi x25,x21,0
+addi x24,x0,0
+lbu x5,0(x25)
+addi x6,x5,-97
+sltiu x7,x6,26
+beq x7,x0,long_num_first_upper
+addi x5,x5,-32
+sb x5,0(x25)
+long_num_first_upper:
+addi x6,x5,-65
+sltiu x7,x6,26
+beq x7,x0,long_num_error
+long_num_scan:
+lbu x5,0(x25)
+addi x6,x0,40
+beq x5,x6,long_num_name_done
+beq x5,x0,long_num_error
+addi x6,x5,-97
+sltiu x7,x6,26
+beq x7,x0,long_num_scan_upper
+addi x5,x5,-32
+sb x5,0(x25)
+long_num_scan_upper:
+addi x6,x5,-65
+sltiu x7,x6,26
+bne x7,x0,long_num_scan_char
+addi x6,x5,-48
+sltiu x7,x6,10
+bne x7,x0,long_num_scan_char
+addi x6,x5,-95
+beq x6,x0,long_num_scan_char
+jal x0,long_num_error
+long_num_scan_char:
+addi x24,x24,1
+sltiu x7,x24,16
+beq x7,x0,long_num_error
+addi x25,x25,1
+jal x0,long_num_scan
+long_num_name_done:
+sltiu x7,x24,2
+bne x7,x0,long_num_error
+addi x31,x23,0
+addi x28,x24,0
+addi x21,x25,1
+addi x23,x0,0
+addi x27,x0,0
+long_num_dim_digits:
+lbu x5,0(x21)
+addi x6,x0,48
+sltu x7,x5,x6
+bne x7,x0,long_num_dim_done
+addi x6,x0,58
+sltu x7,x5,x6
+beq x7,x0,long_num_dim_done
+addi x6,x0,48
+sub x5,x5,x6
+slli x6,x23,3
+slli x7,x23,1
+add x23,x6,x7
+add x23,x23,x5
+addi x27,x0,1
+addi x21,x21,1
+jal x0,long_num_dim_digits
+long_num_dim_done:
+beq x27,x0,long_num_error
+addi x6,x0,41
+bne x5,x6,long_num_error
+addi x24,x23,1
+lui x26,0x82011
+slli x26,x26,32
+srli x26,x26,32
+addi x29,x0,0
+addi x27,x0,32
+long_num_slot_loop:
+lbu x5,0(x26)
+beq x5,x0,long_num_slot_new
+addi x22,x0,0
+long_num_compare_loop:
+sltiu x7,x22,16
+beq x7,x0,long_num_slot_match
+sltu x7,x22,x28
+beq x7,x0,long_num_source_zero
+add x6,x31,x22
+jal x0,long_num_compare_table
+long_num_source_zero:
+addi x5,x0,0
+long_num_compare_table:
+add x6,x26,x22
+lbu x6,0(x6)
+bne x5,x6,long_num_slot_next
+addi x22,x22,1
+jal x0,long_num_compare_loop
+long_num_slot_match:
+sd x24,16(x26)
+jal x0,long_num_zero
+long_num_slot_next:
+addi x26,x26,32
+addi x29,x29,1
+addi x27,x27,-1
+bne x27,x0,long_num_slot_loop
+jal x0,long_num_error
+long_num_slot_new:
+addi x22,x0,0
+long_num_copy_loop:
+sltu x7,x22,x28
+beq x7,x0,long_num_copy_zero
+add x6,x31,x22
+lbu x5,0(x6)
+jal x0,long_num_copy_store
+long_num_copy_zero:
+addi x5,x0,0
+long_num_copy_store:
+add x6,x26,x22
+sb x5,0(x6)
+addi x22,x22,1
+sltiu x7,x22,16
+bne x7,x0,long_num_copy_loop
+sd x24,16(x26)
+long_num_zero:
+lui x7,0x82040
+slli x7,x7,32
+srli x7,x7,32
+slli x6,x29,9
+add x7,x7,x6
+addi x9,x0,0
+long_num_zero_loop:
+slli x6,x9,3
+add x6,x7,x6
+sd x0,0(x6)
+addi x9,x9,1
+ld x6,16(x26)
+bne x9,x6,long_num_zero_loop
+ld x1,1744(x8)
+jalr x0,0(x1)
 dim_index_digits:
 lbu x5,0(x21)
 addi x6,x0,48
@@ -2625,11 +2941,11 @@ addi x27,x0,1
 addi x21,x21,1
 jal x0,dim_index_digits
 dim_index_done:
-beq x27,x0,error_line
+beq x27,x0,long_num_error
 addi x6,x0,41
-bne x5,x6,error_line
+bne x5,x6,long_num_error
 sltiu x7,x23,32
-beq x7,x0,error_line
+beq x7,x0,long_num_error
 addi x6,x23,1
 addi x7,x8,584
 slli x5,x26,3
@@ -2652,7 +2968,26 @@ addi x9,x9,1
 ld x6,0(x31)
 bne x9,x6,dim_array_loop
 jalr x0,0(x30)
+long_num_assign:
+sd x1,1600(x8)
+jal x1,resolve_long_num_array
+sd x7,1608(x8)
+lbu x5,0(x21)
+addi x6,x0,61
+bne x5,x6,long_num_error
+addi x21,x21,1
+addi x22,x0,0
+jal x1,eval_expression
+ld x6,1608(x8)
+fsd f3,0(x6)
+ld x1,1600(x8)
+jalr x0,0(x1)
 assign_array:
+ lbu x5,1(x21)
+ addi x7,x0,40
+ beq x5,x7,assign_array_short
+ jal x0,long_num_assign
+assign_array_short:
 sd x1,1600(x8)
 jal x1,resolve_array_name
 addi x21,x21,2
@@ -2688,19 +3023,19 @@ addi x27,x0,1
 addi x21,x21,1
 jal x0,assign_index_digits
 assign_index_done:
-beq x27,x0,error_line
+beq x27,x0,long_num_error
 addi x6,x0,41
-bne x5,x6,error_line
+bne x5,x6,long_num_error
 addi x21,x21,1
 lbu x5,0(x21)
 addi x6,x0,61
-bne x5,x6,error_line
+bne x5,x6,long_num_error
 addi x6,x8,584
 slli x7,x26,3
 add x6,x6,x7
 ld x6,0(x6)
 sltu x7,x23,x6
-beq x7,x0,error_line
+beq x7,x0,long_num_error
 addi x7,x8,2047
 addi x7,x7,2047
 addi x7,x7,2047
@@ -2725,11 +3060,11 @@ ld x1,1152(x8)
 addi x27,x7,0
 lbu x5,0(x21)
 addi x6,x0,61
-bne x5,x6,error_line
+bne x5,x6,string_long_error
 addi x21,x21,1
 lbu x5,0(x21)
 addi x6,x0,34
-bne x5,x6,error_line
+bne x5,x6,string_long_error
 addi x21,x21,1
 addi x9,x0,0
 string_copy:
@@ -2738,7 +3073,7 @@ addi x6,x0,34
 beq x5,x6,string_done
 addi x6,x0,120
 sltu x7,x9,x6
-beq x7,x0,error_line
+beq x7,x0,string_long_error
 add x6,x27,x9
 sb x5,0(x6)
 addi x9,x9,1
@@ -2755,11 +3090,11 @@ ld x1,1584(x8)
 addi x27,x7,0
 lbu x5,0(x21)
 addi x6,x0,61
-bne x5,x6,error_line
+bne x5,x6,string_long_error
 addi x21,x21,1
 lbu x5,0(x21)
 addi x6,x0,34
-bne x5,x6,error_line
+bne x5,x6,string_long_error
 addi x21,x21,1
 addi x9,x0,0
 string_array_copy:
@@ -2768,7 +3103,7 @@ addi x6,x0,34
 beq x5,x6,string_array_done
 addi x6,x0,120
 sltu x7,x9,x6
-beq x7,x0,error_line
+beq x7,x0,string_long_error
 add x6,x27,x9
 sb x5,0(x6)
 addi x9,x9,1
@@ -2788,7 +3123,7 @@ sb x5,0(x21)
 string_name_upper:
 addi x6,x5,-65
 sltiu x7,x6,26
-beq x7,x0,error_line
+beq x7,x0,string_long_error
 lbu x5,1(x21)
 addi x7,x0,36
 beq x5,x7,string_short_variable
@@ -2805,7 +3140,7 @@ string_long_scan:
 lbu x5,0(x25)
 addi x6,x0,36
 beq x5,x6,string_long_scan_done
-beq x5,x0,error_line
+beq x5,x0,string_long_error
 addi x6,x5,-97
 sltiu x7,x6,26
 beq x7,x0,string_long_scan_upper
@@ -2820,16 +3155,16 @@ sltiu x7,x6,10
 bne x7,x0,string_long_scan_char
 addi x6,x5,-95
 sltiu x7,x6,1
-beq x7,x0,error_line
+beq x7,x0,string_long_error
 string_long_scan_char:
 addi x24,x24,1
 sltiu x7,x24,16
-beq x7,x0,error_line
+beq x7,x0,string_long_error
 addi x25,x25,1
 jal x0,string_long_scan
 string_long_scan_done:
 sltiu x7,x24,2
-bne x7,x0,error_line
+bne x7,x0,string_long_error
 addi x21,x25,1
 addi x26,x8,2047
 addi x26,x26,2047
@@ -2929,14 +3264,14 @@ sb x5,0(x21)
 string_dim_upper:
 addi x6,x5,-65
 sltiu x7,x6,26
-beq x7,x0,error_line
+beq x7,x0,string_long_error
 addi x26,x6,0
 lbu x5,1(x21)
 addi x7,x0,36
-bne x5,x7,error_line
+bne x5,x7,string_long_error
 lbu x5,2(x21)
 addi x7,x0,40
-bne x5,x7,error_line
+bne x5,x7,string_long_error
 addi x21,x21,3
 addi x23,x0,0
 addi x27,x0,0
@@ -2958,11 +3293,11 @@ addi x27,x0,1
 addi x21,x21,1
 jal x0,string_dim_digits
 string_dim_done:
-beq x27,x0,error_line
+beq x27,x0,string_long_error
 addi x6,x0,41
-bne x5,x6,error_line
+bne x5,x6,string_long_error
 sltiu x7,x23,32
-beq x7,x0,error_line
+beq x7,x0,string_long_error
 addi x6,x23,1
 addi x7,x8,800
 slli x5,x26,3

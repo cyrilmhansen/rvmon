@@ -105,7 +105,8 @@ service 4 `write_buffer` est documenté dans `docs/TUTORIAL-GUEST.md`.
 ## Limites du jalon courant et extensions conservées
 
 Le jalon actuellement exécuté fournit les variables chaînes courtes et longues,
-tableaux numériques, les tableaux de chaînes unidimensionnels et `DATA/READ`
+tableaux numériques courts et nommés longs, les tableaux de chaînes
+unidimensionnels et `DATA/READ`
 numérique et chaîne. Il ne fournit pas encore les fichiers, les fonctions
 utilisateur, les exposants, les tableaux multidimensionnels ou les instructions séparées par
 `:`. Cette absence est une limite d’implémentation intermédiaire, pas un rejet
@@ -127,8 +128,9 @@ dans le pool cible après contrôle de capacité et ne partage aucune adresse
 hôte. La chaîne vide a length=0 et peut avoir data_addr=0.
 
 La syntaxe actuellement disponible est S$="TEXT", PRINT S$, DIM A(10),
-A(I), DIM A$(10), A$(I), DIM LONGARRAY$(2) et LONGARRAY$(I). DIM réserve les
-indices 0 à N inclus. Les tableaux numériques contiennent des binary64 ; les
+A(I), DIM LONGNUM(10), LONGNUM(I), DIM A$(10), A$(I), DIM LONGARRAY$(2) et
+LONGARRAY$(I). DIM réserve les indices 0 à N inclus. Les tableaux numériques
+contiennent des binary64 ; les
 tableaux de chaînes contiennent des cellules ASCII de capacité fixe. Les
 tableaux de chaînes nommés longs utilisent 32 descripteurs dans la RAM cible à
 `0x82010000` et leurs cellules sont à `0x82020000 + slot*4096 + index*128`.
@@ -136,3 +138,13 @@ Le stockage est unidimensionnel, les dimensions sont fixes après DIM, et tout
 index hors bornes produit une erreur cible avant mutation. Les variantes `LET`
 de ces affectations sont prises en charge dans les lignes de programme et en
 mode direct.
+
+Les tableaux numériques à nom long (2 à 16 caractères ASCII alphanumériques ou
+`_`) utilisent 32 descripteurs de 32 octets à `0x82011000`. Chaque descripteur
+contient `name[16]`, puis `dimension:u64` (le nombre d’éléments est donc
+`N+1`). Les éléments binary64 sont à
+`0x82040000 + slot*512 + index*8`, avec une capacité maximale de 64 éléments
+par tableau dans cette tranche. Les zones sont exclusivement dans la mémoire
+cible ; une résolution absente ou un index hors limites produit une erreur
+avant écriture. Les noms sont normalisés en majuscules comme les variables
+courtes.
