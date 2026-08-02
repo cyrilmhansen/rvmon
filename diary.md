@@ -114,3 +114,12 @@
   Atari/DOS/graphics scope. The document explicitly labels `EXIT`, `DO/LOOP`,
   `IF/ELSE/ENDIF`, and `ON GOTO/GOSUB` as remaining decisions or work rather
   than implying full Turbo BASIC XL compatibility.
+- I started the next parity tranche by implementing target-side `EXIT` for
+  `FOR/NEXT`, `WHILE/WEND`, and `REPEAT/UNTIL`. The implementation validates the
+  top typed frame, updates the specialized stack, pops the unified stack, and
+  scans bounded source records for the matching terminator. The first QEMU
+  attempt exposed a real RV branch-range regression: adding the handler made
+  the existing conditional branch to `repeat_statement` exceed the 12-bit
+  branch range. Replacing it with inverse-branch plus `jal` restored assembly;
+  the dedicated EXIT test now reaches `EXIT-OK`. `DO/LOOP` remains explicitly
+  deferred, and the parity document now reports 60 assembly QEMU tests.

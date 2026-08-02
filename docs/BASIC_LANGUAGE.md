@@ -23,6 +23,7 @@ statement     = "REM" , text
               | "GOSUB" , number
               | "RETURN"
               | "POP"
+              | "EXIT"
               | "WHILE" , expression
               | "WEND"
               | "REPEAT"
@@ -110,6 +111,16 @@ cadre actif produit une erreur de flot. Le payload conserve également les
 métadonnées spécialisées de chaque mécanisme afin que `NEXT`, `RETURN`,
 `WEND` et `UNTIL` continuent à valider leur type de cadre.
 
+`EXIT` quitte la boucle la plus récente lorsque son cadre est de type `FOR`,
+`WHILE` ou `REPEAT`. Le guest retire le cadre typé, puis effectue une recherche
+bornée du `NEXT`, `WEND` ou `UNTIL` correspondant en comptant les ouvertures et
+fermetures du même type. L’exécution reprend à la ligne suivant le terminateur.
+Un `EXIT` sans boucle, dans un `GOSUB` actif au sommet de la pile, ou sans
+terminateur correspondant produit une erreur de flot. Comme les autres
+recherches structurées de cette tranche, le scan inspecte le premier statement
+de chaque ligne ; les structures imbriquées dans une même ligne séparée par `:`
+ne sont pas admises.
+
 `DATA` et `READ` utilisent un curseur séquentiel conservé dans la mémoire
 cible. La tranche actuelle accepte des valeurs numériques binary64 et des
 chaînes littérales séparées par des virgules ; les espaces autour des virgules
@@ -121,8 +132,9 @@ de flot. `RESTORE` remet ce curseur au début des lignes `DATA`.
 
 ## Commandes directes
 
-`NEW`, `LIST`, `RUN`, `TRACE ON`, `TRACE OFF`, `DUMP`, `PRINT`/`?`, `BYE` et
-`EXIT` sont disponibles. Une ligne numérotée est insérée ou remplacée ; un
+`NEW`, `LIST`, `RUN`, `TRACE ON`, `TRACE OFF`, `DUMP`, `PRINT`/`?` et `BYE` sont
+disponibles ; `EXIT` est une instruction du programme. Une ligne numérotée est
+insérée ou remplacée ; un
 numéro seul la supprime. `TRACE ON` affiche `[numéro]` avant chaque ligne.
 Ctrl-C est capturé par le pilote UART interrupt-driven puis consommé par
 polling coopératif pendant `RUN`.
