@@ -44,7 +44,8 @@ for expected in \
     '20 PRINT 2+3' \
     'trap: breakpoint' \
     '9.000000' \
-    'f3=0x4022000000000000'; do
+    '5.000000' \
+    'f3=0x4014000000000000'; do
     if ! grep -aFq -- "$expected" "$output_file"; then
         cat "$output_file"
         printf 'missing integrated assembly two-line output: %s\n' "$expected" >&2

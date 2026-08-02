@@ -31,6 +31,7 @@ data 0x82000055 .byte 0x20
 data 0x82000300 .dword 0x4014000000000000
 data 0x82000308 .dword 0x4008000000000000
 data 0x82000200 .dword 0x0000000000000000
+data 0x82000218 .dword 0x0000000000000000
 assemble-program 0x81000100
 ; MiniBASIC-RV payload assembleur : noyau REPL target-side.
 ; Contrat de cette tranche : une ligne 10 PRINT X+Y, LIST, NEW, RUN.
@@ -73,7 +74,7 @@ beq x10,x7,store_line_twenty_command
 addi x7,x0,76
 beq x10,x7,list_line
 addi x7,x0,82
-beq x10,x7,run_line
+beq x10,x7,run_command
 addi x7,x0,78
 beq x10,x7,new_program
 jal x0,error_line
@@ -138,6 +139,7 @@ addi x9,x9,1
 bne x9,x5,copy_question_body
 addi x10,x0,1
 sd x10,512(x8)
+sd x10,536(x8)
 jal x0,run_line
 direct_print:
 lbu x10,1(x18)
@@ -167,6 +169,7 @@ ld x7,520(x8)
 bne x9,x7,copy_direct
 addi x10,x0,1
 sd x10,512(x8)
+sd x10,536(x8)
 jal x0,run_line
 store_line:
 lbu x10,1(x18)
@@ -241,10 +244,31 @@ addi x11,x0,4
 addi x17,x0,4
 ecall
 jal x0,command_loop
+run_command:
+ld x10,512(x8)
+andi x11,x10,1
+bne x11,x0,run_command_ten
+andi x11,x10,2
+beq x11,x0,error_line
+addi x10,x0,1
+sd x10,536(x8)
+jal x0,run_line
+run_command_ten:
+addi x10,x0,0
+sd x10,536(x8)
+jal x0,run_line
 run_line:
 ld x10,512(x8)
 beq x10,x0,error_line
-addi x21,x19,22
+ld x10,536(x8)
+beq x10,x0,run_line_ten
+addi x24,x19,1024
+addi x21,x24,22
+jal x1,eval_expression
+jal x0,run_save
+run_line_ten:
+addi x24,x19,0
+addi x21,x24,22
 jal x1,eval_expression
 run_save:
 fsd f3,1024(x8)
@@ -323,6 +347,15 @@ addi x10,x12,0
 addi x17,x0,4
 ecall
 fld f3,1048(x8)
+ld x10,536(x8)
+bne x10,x0,run_stop
+ld x11,512(x8)
+andi x11,x11,2
+beq x11,x0,run_stop
+addi x10,x0,1
+sd x10,536(x8)
+jal x0,run_line
+run_stop:
 ebreak
 eval_expression:
 addi x31,x1,0
