@@ -3067,6 +3067,29 @@ release. Elles n’ajoutent aucune extension ISA.
 - **Paquet de contexte :** BASIC-LOAD-005V/W, payload REPL, test multidigit,
   règles D et ABI cible.
 
+#### BASIC-LOAD-005Y — Précédence target-side produit/somme — TERMINÉE
+
+- **Priorité :** P0, passage du dispatch binaire à une expression utile.
+- **But :** évaluer les produits avant les sommes dans le payload assembleur,
+  tout en conservant les opérandes visibles et le résultat en `f3`.
+- **Non-but :** AST général, comparaisons, fonctions, opérateurs logiques et
+  diagnostics structurés.
+- **Entrées :** `BASIC_LANGUAGE.md`, R1 D et contrat de registre du payload.
+- **Fichiers/modules :** `payload-repl.rv`, test QEMU de précédence et docs.
+- **Dépendances :** BASIC-LOAD-005X/W, `fadd.d`, `fsub.d`, `fmul.d`, `fdiv.d`.
+- **Tests :** `PRINT 2+3*4` sous QEMU, breakpoint, `f1=2.0`, `f2=4.0`,
+  `f3=14.0` et dump exact de `14.0` en RAM.
+- **Critères de sortie :** le produit est exécuté avant la somme dans la cible,
+  sans calcul ou résultat de référence fourni par le harnais.
+- **Cas limites :** expression vide, opérateur manquant, chaîne d’opérateurs,
+  division par zéro et parenthèses imbriquées restent à traiter.
+- **Taille :** 4 points / 2 journées-agent, incertitude moyenne.
+- **Compétences/outils :** assembleur RV64, registres FP, QEMU et debugger.
+- **Parallélisable :** oui avec les diagnostics ; non avec un changement de
+  convention des registres ou du layout du record.
+- **Paquet de contexte :** BASIC-LOAD-005X, payload REPL, tests opérateurs et
+  `BASIC_LANGUAGE.md`.
+
 ### BASIC-LOAD-004 — Porter le magasin de lignes et le contrôle de flot
 
 - **Priorité :** P0.

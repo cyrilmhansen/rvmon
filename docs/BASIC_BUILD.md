@@ -455,8 +455,15 @@ de `f1`, `f2`, `f3` ainsi que le stockage :
 bash scripts/test-guest-runtime-asm-repl-unary-paren.sh
 ```
 
-Les parenthèses imbriquées et la précédence d’une expression de plus de deux
-atomes restent hors de cette tranche.
+La descente target-side respecte désormais la précédence entre produits et
+sommes. `PRINT 2+3*4` produit `14.0`, avec `fmul.d` exécuté avant `fadd.d` :
+
+```text
+bash scripts/test-guest-runtime-asm-repl-precedence.sh
+```
+
+Les parenthèses imbriquées, comparaisons et diagnostics structurés restent
+hors de cette tranche.
 
 Le mode direct `PRINT 2+3` est également pris en charge par le payload
 assembleur et passe par le même évaluateur :

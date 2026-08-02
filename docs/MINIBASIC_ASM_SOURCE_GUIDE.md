@@ -106,8 +106,16 @@ Le cas `12.5+3.5` est vérifié par :
 bash scripts/test-guest-runtime-asm-repl-multidigit.sh
 ```
 
-La précédence générale et les diagnostics de syntaxe restent des étapes
-ultérieures.
+La descente target-side possède maintenant deux niveaux : produit (`*`/`/`)
+puis somme (`+`/`-`). La séance `PRINT 2+3*4` produit `14.0` et est vérifiée
+par :
+
+```text
+bash scripts/test-guest-runtime-asm-repl-precedence.sh
+```
+
+Les diagnostics de syntaxe, les comparaisons et les fonctions BASIC restent
+des étapes ultérieures.
 
 Le scanner reconnaît maintenant les signes `+`/`-` et une parenthèse autour
 d’un atome, par exemple `PRINT (-2.5) + (+3.5)`. La négation est exécutée par

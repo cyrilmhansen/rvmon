@@ -149,6 +149,9 @@
 - `scripts/test-guest-runtime-asm-repl-unary-paren.sh` vérifie les signes
   unaires et les parenthèses simples avec `PRINT (-2.5) + (+3.5)`, dont les
   motifs exacts `f1=-2.5`, `f2=3.5` et `f3=1.0` sont produits dans la cible.
+- `scripts/test-guest-runtime-asm-repl-precedence.sh` vérifie les deux niveaux
+  target-side avec `PRINT 2+3*4`, `fmul.d` avant `fadd.d`, `f1=2.0`, `f2=4.0`
+  et `f3=14.0` dans la cible.
 - Le breakpoint `minibasic_divide` et `disasm` permettent d’observer la
   correspondance adresse → `fdiv.d`; les registres f et `fcsr` sont affichés
   avant/après le pas.
