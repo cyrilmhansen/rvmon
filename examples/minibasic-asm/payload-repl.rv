@@ -5103,13 +5103,35 @@ sd x1,1584(x8)
 jal x1,resolve_string_array
 ld x1,1584(x8)
 addi x27,x7,0
+sd x27,1976(x8)
 lbu x5,0(x21)
 addi x6,x0,61
 bne x5,x6,string_long_error
 addi x21,x21,1
 lbu x5,0(x21)
 addi x6,x0,34
+beq x5,x6,string_array_literal_open
+addi x6,x0,76
+beq x5,x6,string_array_assign_left
+addi x6,x0,82
+beq x5,x6,string_array_assign_right
+addi x6,x0,77
 bne x5,x6,string_long_error
+sd x1,2000(x8)
+jal x1,string_mid_assign
+ld x1,2000(x8)
+jalr x0,0(x1)
+string_array_assign_left:
+sd x1,2000(x8)
+jal x1,string_left_assign
+ld x1,2000(x8)
+jalr x0,0(x1)
+string_array_assign_right:
+sd x1,2000(x8)
+jal x1,string_right_assign
+ld x1,2000(x8)
+jalr x0,0(x1)
+string_array_literal_open:
 addi x21,x21,1
 addi x9,x0,0
 string_array_copy:
