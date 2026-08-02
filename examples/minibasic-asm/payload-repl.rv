@@ -142,40 +142,42 @@ jal x0,check_generic_assignment
 trace_command:
 lbu x5,1(x18)
 addi x7,x0,82
-bne x5,x7,error_line
+bne x5,x7,trace_error
 lbu x5,2(x18)
 addi x7,x0,65
-bne x5,x7,error_line
+bne x5,x7,trace_error
 lbu x5,3(x18)
 addi x7,x0,67
-bne x5,x7,error_line
+bne x5,x7,trace_error
 lbu x5,4(x18)
 addi x7,x0,69
-bne x5,x7,error_line
+bne x5,x7,trace_error
 lbu x5,5(x18)
 addi x7,x0,32
-bne x5,x7,error_line
+bne x5,x7,trace_error
 lbu x5,6(x18)
 addi x7,x0,79
 beq x5,x7,trace_on
 addi x7,x0,79
-bne x5,x7,error_line
+bne x5,x7,trace_error
 trace_on:
 lbu x5,7(x18)
 addi x7,x0,78
 beq x5,x7,trace_enable
 lbu x5,7(x18)
 addi x7,x0,70
-bne x5,x7,error_line
+bne x5,x7,trace_error
 lbu x5,8(x18)
 addi x7,x0,70
-bne x5,x7,error_line
+bne x5,x7,trace_error
 sd x0,544(x8)
 jal x0,command_loop
 trace_enable:
 addi x10,x0,1
 sd x10,544(x8)
 jal x0,command_loop
+trace_error:
+jal x0,error_line
 ; Compatibilité des anciens labels conservée pour les symboles historiques.
 store_line_generic:
 ; Parse un numéro décimal, puis le convertit en index de ligne (N/10)-1.
@@ -375,27 +377,75 @@ sd x0,536(x8)
 jal x0,run_line
 ; Affectation directe des autres variables scalaires A..Z.
 check_generic_assignment:
+addi x7,x0,76
+bne x10,x7,check_generic_name
+lbu x5,1(x18)
+addi x7,x0,73
+bne x5,x7,check_generic_name
+lbu x5,2(x18)
+addi x7,x0,83
+bne x5,x7,check_generic_name
+lbu x5,3(x18)
+addi x7,x0,84
+bne x5,x7,check_generic_name
+jal x0,command_number_check
+check_generic_name:
+addi x7,x0,82
+bne x10,x7,check_generic_new
+lbu x5,1(x18)
+addi x7,x0,85
+bne x5,x7,check_generic_new
+lbu x5,2(x18)
+addi x7,x0,78
+bne x5,x7,check_generic_new
+lbu x5,3(x18)
+addi x7,x0,61
+beq x5,x7,assign_generic_direct
+jal x0,command_number_check
+check_generic_new:
+addi x7,x0,78
+bne x10,x7,check_generic_trace
+lbu x5,1(x18)
+addi x7,x0,69
+bne x5,x7,check_generic_trace
+lbu x5,2(x18)
+addi x7,x0,87
+bne x5,x7,check_generic_trace
+lbu x5,3(x18)
+addi x7,x0,61
+beq x5,x7,assign_generic_direct
+jal x0,command_number_check
+check_generic_trace:
+addi x7,x0,84
+bne x10,x7,check_generic_name_range
+lbu x5,1(x18)
+addi x7,x0,82
+bne x5,x7,check_generic_name_range
+lbu x5,2(x18)
+addi x7,x0,61
+beq x5,x7,assign_generic_direct
+jal x0,command_number_check
+check_generic_name_range:
 addi x7,x0,65
 sltu x6,x10,x7
 bne x6,x0,command_number_check
 addi x7,x0,91
 sltu x6,x10,x7
 beq x6,x0,command_number_check
-lbu x5,1(x18)
-addi x7,x0,61
-beq x5,x7,assign_generic_direct
-jal x0,command_number_check
+jal x0,assign_generic_direct
 assign_generic_direct:
-addi x7,x0,65
-sub x6,x10,x7
-slli x6,x6,3
-sd x6,1112(x8)
-addi x21,x18,2
+addi x21,x18,0
+jal x1,resolve_variable
+sd x7,1112(x8)
+addi x6,x21,0
+lbu x5,0(x6)
+addi x7,x0,61
+bne x5,x7,error_line
+addi x21,x21,1
 addi x22,x0,0
 jal x1,eval_expression
 ld x6,1112(x8)
-add x7,x20,x6
-fsd f3,0(x7)
+fsd f3,0(x6)
 jal x0,command_loop
 store_line:
 lbu x10,1(x18)
@@ -745,6 +795,14 @@ beq x10,x7,print_dispatch
 lbu x5,17(x24)
 addi x7,x0,61
 beq x5,x7,assignment_statement
+lbu x5,16(x24)
+addi x7,x0,65
+sltu x6,x5,x7
+bne x6,x0,statement_expression
+addi x7,x0,91
+sltu x6,x5,x7
+bne x6,x0,assignment_statement
+statement_expression:
 addi x21,x24,22
 jal x1,eval_expression
 jal x0,run_save
@@ -804,17 +862,17 @@ addi x7,x0,61
 beq x5,x7,assignment_statement
 jal x0,array_statement
 assignment_statement:
-lbu x5,16(x24)
-addi x7,x0,65
-sub x6,x5,x7
-slli x6,x6,3
-sd x6,1112(x8)
-addi x21,x24,18
+addi x21,x24,16
+jal x1,resolve_variable
+sd x7,1112(x8)
+lbu x5,0(x21)
+addi x7,x0,61
+bne x5,x7,error_line
+addi x21,x21,1
 addi x22,x0,0
 jal x1,eval_expression
 ld x6,1112(x8)
-add x7,x20,x6
-fsd f3,0(x7)
+fsd f3,0(x6)
 jal x0,if_false
 print_dispatch:
 lbu x5,17(x24)
@@ -1420,6 +1478,139 @@ print_normal_continuation:
 jal x0,if_false
 run_stop:
 ebreak
+; Résolution d'un identifiant target-side.
+; Entrée : x21 pointe sur le premier caractère du nom.
+; Sorties : x7 pointe sur la valeur binary64, x21 sur le caractère suivant.
+; Les noms de 1 caractère restent dans la table A..Z historique ; les autres
+; sont conservés dans 32 entrées de 32 octets à data+3000 (nom[16], valeur).
+resolve_variable:
+sd x22,1168(x8)
+sd x24,1120(x8)
+sd x25,1128(x8)
+sd x26,1136(x8)
+sd x27,1144(x8)
+addi x23,x21,0
+addi x25,x21,0
+addi x24,x0,0
+resolve_first:
+lbu x5,0(x25)
+addi x6,x5,-97
+sltiu x7,x6,26
+beq x7,x0,resolve_first_upper
+addi x5,x5,-32
+sb x5,0(x25)
+resolve_first_upper:
+sltiu x6,x5,65
+bne x6,x0,error_line
+sltiu x6,x5,91
+beq x6,x0,error_line
+addi x25,x25,1
+addi x24,x24,1
+resolve_name_loop:
+sltiu x7,x24,16
+beq x7,x0,resolve_name_limit
+lbu x5,0(x25)
+addi x6,x5,-97
+sltiu x7,x6,26
+beq x7,x0,resolve_name_upper
+addi x5,x5,-32
+sb x5,0(x25)
+resolve_name_upper:
+addi x6,x5,-65
+sltiu x7,x6,26
+bne x7,x0,resolve_name_char
+addi x6,x5,-48
+sltiu x7,x6,10
+bne x7,x0,resolve_name_char
+addi x6,x5,-95
+sltiu x7,x6,1
+bne x7,x0,resolve_name_char
+jal x0,resolve_name_done
+resolve_name_char:
+addi x25,x25,1
+addi x24,x24,1
+jal x0,resolve_name_loop
+resolve_name_limit:
+lbu x5,0(x25)
+addi x6,x5,-97
+sltiu x7,x6,26
+bne x7,x0,error_line
+addi x6,x5,-65
+sltiu x7,x6,26
+bne x7,x0,error_line
+addi x6,x5,-48
+sltiu x7,x6,10
+bne x7,x0,error_line
+addi x6,x5,-95
+sltiu x7,x6,1
+beq x7,x0,resolve_name_done
+jal x0,error_line
+resolve_name_done:
+addi x21,x25,0
+addi x7,x0,1
+beq x24,x7,resolve_one_char
+addi x26,x19,-1096
+addi x27,x0,32
+resolve_slot_loop:
+lbu x5,0(x26)
+beq x5,x0,resolve_slot_new
+addi x22,x0,0
+resolve_compare_loop:
+sltiu x7,x22,16
+beq x7,x0,resolve_slot_match
+sltu x7,x22,x24
+beq x7,x0,resolve_source_zero
+add x6,x23,x22
+lbu x5,0(x6)
+jal x0,resolve_compare_table
+resolve_source_zero:
+addi x5,x0,0
+resolve_compare_table:
+add x6,x26,x22
+lbu x6,0(x6)
+bne x5,x6,resolve_slot_next
+addi x22,x22,1
+jal x0,resolve_compare_loop
+resolve_slot_match:
+addi x7,x26,16
+jal x0,resolve_return
+resolve_slot_next:
+addi x26,x26,32
+addi x27,x27,-1
+bne x27,x0,resolve_slot_loop
+jal x0,error_line
+resolve_slot_new:
+addi x22,x0,0
+resolve_copy_loop:
+sltu x7,x22,x24
+beq x7,x0,resolve_copy_zero
+add x6,x23,x22
+lbu x5,0(x6)
+jal x0,resolve_copy_store
+resolve_copy_zero:
+addi x5,x0,0
+resolve_copy_store:
+add x6,x26,x22
+sb x5,0(x6)
+addi x22,x22,1
+sltiu x7,x22,16
+bne x7,x0,resolve_copy_loop
+addi x7,x26,16
+jal x0,resolve_return
+resolve_one_char:
+lbu x5,0(x23)
+addi x6,x0,65
+sub x6,x5,x6
+slli x6,x6,3
+add x7,x20,x6
+jal x0,resolve_return
+resolve_return:
+ld x22,1168(x8)
+ld x24,1120(x8)
+ld x25,1128(x8)
+ld x26,1136(x8)
+ld x27,1144(x8)
+jalr x0,0(x1)
 eval_expression:
 addi x31,x1,0
 addi x22,x0,0
@@ -1510,6 +1701,11 @@ addi x6,x0,43
 beq x5,x6,atom_plus
 addi x6,x0,45
 beq x5,x6,atom_minus
+addi x6,x5,-97
+sltiu x7,x6,26
+beq x7,x0,atom_dispatch
+addi x5,x5,-32
+sb x5,0(x21)
 atom_dispatch:
 addi x6,x0,88
 beq x5,x6,atom_x
@@ -1523,12 +1719,10 @@ bne x7,x0,atom_numeric
 addi x6,x0,91
 sltu x7,x5,x6
 beq x7,x0,atom_numeric
-addi x6,x0,65
-sub x6,x5,x6
-slli x6,x6,3
-add x7,x20,x6
+sd x1,1152(x8)
+jal x1,resolve_variable
 fld f4,0(x7)
-addi x21,x21,1
+ld x1,1152(x8)
 jal x0,store_atom
 atom_numeric:
 addi x23,x0,0
