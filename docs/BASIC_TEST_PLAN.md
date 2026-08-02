@@ -47,6 +47,9 @@
 - `scripts/test-guest-runtime-variable.sh` vérifie une affectation numérique
   target-side `X=12.5`, la validation `A..Z`, l’offset `23*8` dans une table de
   26 `binary64`, l’écriture/relecture et le motif mémoire exact.
+- `scripts/test-guest-runtime-lines.sh` vérifie l’insertion target-side de deux
+  enregistrements fixes saisis hors ordre (`20` puis `10`), le déplacement du
+  premier enregistrement, le compteur et les corps ASCII dans la RAM cible.
 - Le breakpoint `minibasic_divide` et `disasm` permettent d’observer la
   correspondance adresse → `fdiv.d`; les registres f et `fcsr` sont affichés
   avant/après le pas.

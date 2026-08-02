@@ -2186,6 +2186,28 @@ release. Elles n’ajoutent aucune extension ISA.
 - **Parallélisable :** oui avec le magasin de lignes ; non avec une modification
   concurrente du layout de la table numérique.
 
+#### BASIC-LOAD-004A — Insertion ordonnée dans le magasin de lignes target-side — TERMINÉE
+
+- **Priorité :** P0, première sous-tranche de BASIC-LOAD-004.
+- **But :** définir des enregistrements fixes `{line, length, body}` en RAM
+  cible et insérer `20` puis `10` en conservant l’ordre croissant.
+- **Non-but :** lexer complet des lignes, `LIST`, suppression, remplacement,
+  exécution, variables longues et contrôle de flot.
+- **Entrées :** `BASIC_LANGUAGE.md`, D-018, `GUEST_PAYLOAD_ABI.md`, R1 I et
+  R2 pour `ld/sd/lbu/sb`, comparaisons et branches.
+- **Fichiers/modules :** `examples/minibasic-runtime-lines.rv`,
+  `scripts/test-guest-runtime-lines.sh`, documentation BASIC.
+- **Dépendances :** BASIC-LOAD-003J, `BASIC-LOAD-002A` et ABI `RVMPAY01`.
+- **Tests :** insertion hors ordre `20`/`10`, déplacement des champs, compteur
+  égal à 2, corps `A`/`B`, dump des 64 octets et erreur de montage du payload.
+- **Critères de sortie :** QEMU atteint `ebreak`; la RAM contient ligne 10 à
+  l’offset 0, ligne 20 à l’offset 32 et le compteur 2 dans la cible.
+- **Cas limites :** égalité, table pleine, suppression, remplacement, ligne
+  zéro et numéro négatif sont réservés au magasin complet.
+- **Taille :** 3 points / 1,5 journée-agent, incertitude faible.
+- **Parallélisable :** oui avec le lexer de ligne ; non avec une modification
+  concurrente du layout des enregistrements.
+
 ### BASIC-LOAD-004 — Porter le magasin de lignes et le contrôle de flot
 
 - **Priorité :** P0.

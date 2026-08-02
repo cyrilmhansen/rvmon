@@ -1,0 +1,53 @@
+info payload
+assemble-program 0x81000100
+; Chaque enregistrement fait 32 octets : line:u64, length:u64, body[16].
+; Le premier enregistrement est inséré hors ordre : 20 puis 10.
+entry:
+auipc x8,0x1000
+addi x8,x8,-256
+addi x6,x8,256
+addi x5,x0,20
+sd x5,0(x6)
+addi x5,x0,1
+sd x5,8(x6)
+addi x5,x0,66
+sb x5,16(x6)
+; Insertion de la ligne 10 avant la ligne 20.
+addi x10,x0,10
+addi x11,x0,1
+addi x12,x0,65
+ld x13,0(x6)
+slt x15,x10,x13
+bne x15,x0,insert_before
+jal x0,append
+insert_before:
+ld x14,0(x6)
+sd x14,32(x6)
+ld x14,8(x6)
+sd x14,40(x6)
+lbu x14,16(x6)
+sb x14,48(x6)
+sd x10,0(x6)
+sd x11,8(x6)
+sb x12,16(x6)
+addi x5,x0,2
+sd x5,512(x8)
+ebreak
+append:
+sd x10,32(x6)
+sd x11,40(x6)
+sb x12,48(x6)
+addi x5,x0,2
+sd x5,512(x8)
+ebreak
+fail:
+addi x10,x0,1
+addi x17,x0,3
+ecall
+end
+symbols
+run-at 0x81000100
+regs
+memory 0x82000100 64
+memory 0x82000200 8
+q

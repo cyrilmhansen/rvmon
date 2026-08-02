@@ -201,3 +201,16 @@ bash scripts/test-guest-runtime-variable.sh
 Cette preuve couvre la représentation mémoire et l’accès indexé d’une
 variable ; elle ne fournit pas encore le magasin de lignes, les noms longs,
 `LET` général ni le dispatch des instructions BASIC.
+
+La fixture [`minibasic-runtime-lines.rv`](../examples/minibasic-runtime-lines.rv)
+ouvre le magasin de lignes target-side. Elle utilise des enregistrements fixes
+de 32 octets, insère d’abord la ligne 20 puis la ligne 10, déplace la première
+et laisse la table dans l’ordre `10, 20` :
+
+```text
+bash scripts/test-guest-runtime-lines.sh
+```
+
+Le compteur et les corps ASCII sont observés directement dans la RAM cible.
+`LIST`, suppression, remplacement et exécution séquentielle seront ajoutés
+sur ce layout lors de la tranche de contrôle de flot.
