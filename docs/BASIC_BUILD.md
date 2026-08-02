@@ -416,6 +416,13 @@ cette RAM ; `RUN` charge X/Y et atteint réellement `fadd.d`. Ce payload est le
 premier noyau assembleur intégré, mais le payload Rust de
 `crates/minibasic-payload` reste encore le chemin de build chargé automatisé.
 
+Le dispatch target-side reconnaît aussi les quatre opérateurs binaires de la
+ligne stockée. La séance `X*Y` vérifie le chemin `fmul.d` :
+
+```text
+bash scripts/test-guest-runtime-asm-repl-mul.sh
+```
+
 La variante [`minibasic-runtime-command-run-variable-sub.rv`](../examples/minibasic-runtime-command-run-variable-sub.rv)
 applique le même contrat à `PRINT X-3` et vérifie `2.0` après `fsub.d` :
 

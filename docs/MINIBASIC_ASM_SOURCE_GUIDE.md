@@ -79,6 +79,15 @@ payload → UART → mémoire/registres. Elle ne remplace pas encore
 build ; le parseur général, les affectations, le formatage décimal et le
 contrôle de flot restent les prochaines étapes du portage assembleur.
 
+Le noyau sélectionne désormais l’opérateur stocké dans `PRINT X<op>Y` et
+dispatch réellement vers `fadd.d`, `fsub.d`, `fmul.d` ou `fdiv.d`. Les séances
+`X+Y` et `X*Y` sont couvertes par :
+
+```text
+bash scripts/test-guest-runtime-asm-repl.sh
+bash scripts/test-guest-runtime-asm-repl-mul.sh
+```
+
 ## Références historiques
 
 Le découpage suit le principe historique de tables de syntaxe, pile

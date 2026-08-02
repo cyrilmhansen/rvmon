@@ -128,6 +128,8 @@
 - `scripts/test-guest-runtime-asm-repl.sh` vérifie la première tranche intégrée
   assemblée par le moniteur : invite, saisie target-side de `10 PRINT X+Y`,
   `LIST`, `RUN`, deux variables dans `f1/f2`, `fadd.d` et résultat en RAM.
+- `scripts/test-guest-runtime-asm-repl-mul.sh` vérifie le dispatch de l’opérateur
+  stocké vers `fmul.d`, avec `X=5.0`, `Y=3.0` et `15.0` dans `f3`/RAM.
 - Le breakpoint `minibasic_divide` et `disasm` permettent d’observer la
   correspondance adresse → `fdiv.d`; les registres f et `fcsr` sont affichés
   avant/après le pas.

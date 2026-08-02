@@ -2837,6 +2837,33 @@ release. Elles n’ajoutent aucune extension ISA.
 - **Paquet de contexte :** `payload-repl.rv`, guide assembleur, fixtures
   `run-variable` et contrat `RVMPAY01`.
 
+#### BASIC-LOAD-005P — Dispatch des quatre opérateurs dans le payload REPL — TERMINÉE
+
+- **Priorité :** P0, première sélection d’opérateur depuis une ligne stockée.
+- **But :** lire l’octet opérateur de `PRINT X<op>Y` dans la RAM cible et
+  exécuter `fadd.d`, `fsub.d`, `fmul.d` ou `fdiv.d` selon sa valeur.
+- **Non-but :** lexer général, précédence, parenthèses, variables arbitraires,
+  diagnostics, formatage décimal et contrôle de flot.
+- **Entrées :** R1 F/D, `BASIC_LANGUAGE.md`, source `payload-repl.rv` et ABI
+  `RVMPAY01`.
+- **Fichiers/modules :** `examples/minibasic-asm/payload-repl.rv`,
+  `scripts/test-guest-runtime-asm-repl-mul.sh` et documentation BASIC.
+- **Dépendances :** BASIC-LOAD-005O, encodages R2 des quatre instructions D et
+  chargement target-side de la ligne.
+- **Tests :** `X+Y` (`8.0`) et `X*Y` (`15.0`) sous QEMU, registres `f1/f2/f3`,
+  breakpoint et dumps exacts.
+- **Critères de sortie :** l’opérateur vient de la ligne en RAM ; il n’est pas
+  choisi par le script hôte et le calcul est exécuté par le payload.
+- **Cas limites :** `-` et `/` possèdent encore seulement le chemin de calcul
+  brut ; division par zéro, syntaxe invalide et opérateur inconnu restent à
+  raccorder aux diagnostics.
+- **Taille :** 3 points / 1,5 journée-agent, incertitude faible.
+- **Compétences/outils :** assembleur RV64, extension D, QEMU et débogueur.
+- **Parallélisable :** oui avec le lexer ; non avec une modification du layout
+  de la ligne stockée.
+- **Paquet de contexte :** BASIC-LOAD-005O, `payload-repl.rv`, tests `X+Y` et
+  fixtures opérateurs précédentes.
+
 ### BASIC-LOAD-004 — Porter le magasin de lignes et le contrôle de flot
 
 - **Priorité :** P0.
