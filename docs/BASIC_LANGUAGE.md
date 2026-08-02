@@ -51,6 +51,14 @@ caractères, l’instruction est rejetée par `BASIC-SYNTAX-001`. `LIST` montre 
 texte ; `DUMP` montre slot, adresse, longueur et octets du record, puis les
 variables utilisées avec leur motif binary64 et leur affichage fixe.
 
+Les variables chaînes portent le suffixe `$` : `S$` et les noms de 2 à 16
+caractères suivis de `$` sont distincts des variables numériques. Le payload
+assembleur réserve 26 cellules courtes et 32 cellules nommées longues ; chaque
+cellule longue contient un nom canonique de 16 octets, une longueur `u64` et
+120 octets ASCII. Les opérations `LET`, `PRINT` et `INPUT` qui ciblent un nom
+chaîne long sont exécutées dans la cible. Les chaînes dépassant 120 octets
+produisent une erreur cible sans écriture partielle.
+
 ## Sémantique numérique
 
 Les identifiants sont 64 variables binary64 au maximum dans le langage ; la
@@ -96,7 +104,7 @@ service 4 `write_buffer` est documenté dans `docs/TUTORIAL-GUEST.md`.
 
 ## Limites du jalon courant et extensions conservées
 
-Le jalon actuellement exécuté fournit les variables chaînes courtes, les
+Le jalon actuellement exécuté fournit les variables chaînes courtes et longues,
 tableaux numériques, les tableaux de chaînes unidimensionnels et `DATA/READ`
 numérique et chaîne. Il ne fournit pas encore les fichiers, les fonctions
 utilisateur, les exposants, les tableaux multidimensionnels ou les instructions séparées par
