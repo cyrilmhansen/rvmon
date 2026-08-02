@@ -42,7 +42,8 @@ statement     = "REM" , text
 print-item    = string | expression | string-function ;
 string-function = ( "LEFT$" | "RIGHT$" ) , "(" , string-variable , "," , expression , ")"
                 | "MID$" , "(" , string-variable , "," , expression , "," , expression , ")" ;
-string-assignment-function = "LEFT$" , "(" , string-variable , "," , expression , ")" ;
+string-assignment-function = ( "LEFT$" | "RIGHT$" ) , "(" , string-variable , "," , expression , ")"
+                           | "MID$" , "(" , string-variable , "," , expression , "," , expression , ")" ;
 expression    = comparison ;
 comparison    = sum , [ ( "=" | "<>" | "<" | "<=" | ">" | ">=" ) , sum ] ;
 sum           = product , { ( "+" | "-" ) , product } ;
@@ -143,14 +144,16 @@ RAM cible. Comme `LEFT$` et `RIGHT$`, `MID$` n’est pas encore disponible dans
 une affectation, sur un tableau chaîne ou avec une chaîne littérale.
 
 La tranche assembleur accepte également
-`LET destination$=LEFT$(source$,n)` (avec `LET` facultatif). La source et la
-destination sont des variables chaînes scalaires, `n` est évalué dans le guest,
-doit être entier et compris entre 0 et 120 ; une valeur supérieure à la source
-est ramenée à sa longueur. La copie passe par un scratch de la RAM cible afin
-que l’auto-affectation et les recouvrements restent sûrs, puis écrit la longueur
-et les octets de destination sans intervention de l’hôte. Les affectations
-`RIGHT$`, `MID$`, de tableaux chaîne, de littéraux ou d’expressions chaîne
-générales restent différées.
+`LET destination$=LEFT$(source$,n)`, `RIGHT$` et `MID$` (avec `LET` facultatif).
+La source et la destination sont des variables chaînes scalaires. Pour
+`LEFT$`/`RIGHT$`, `n` est évalué dans le guest, doit être entier et compris entre
+0 et 120 ; une valeur supérieure à la source est ramenée à sa longueur. Pour
+`MID$`, la position est 1-based, strictement positive, et la longueur suit les
+mêmes bornes ; une position au-delà de la source produit une chaîne vide. La
+copie passe par un scratch de la RAM cible afin que l’auto-affectation et les
+recouvrements restent sûrs, puis écrit la longueur et les octets de destination
+sans intervention de l’hôte. Les affectations sur tableaux chaîne, littéraux ou
+expressions chaîne générales restent différées.
 
 `RND` et `RND()` renvoient un nombre pseudo-aléatoire binary64 dans `[0,1)`.
 Le générateur est un LCG 32 bits target-side de paramètres `1664525` et
