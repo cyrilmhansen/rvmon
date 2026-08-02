@@ -205,52 +205,14 @@ jal x0,command_loop
 run_line:
 ld x10,512(x8)
 beq x10,x0,error_line
-; Une forme décimale bornée d.d est reconnue avant les facteurs simples.
-lbu x5,23(x19)
-addi x6,x0,46
-beq x5,x6,decimal_expression
-; Facteur gauche : X/Y sont des variables, les chiffres sont des littéraux.
-lbu x5,22(x19)
-addi x6,x0,88
-beq x5,x6,left_x
-addi x6,x0,89
-beq x5,x6,left_y
-sltiu x6,x5,48
-bne x6,x0,error_line
-sltiu x6,x5,58
-beq x6,x0,error_line
-addi x6,x0,48
-sub x10,x5,x6
-fcvt.d.l f1,x10,0
-jal x0,right_factor
-left_x:
-fld f1,0(x20)
-jal x0,right_factor
-left_y:
-fld f1,8(x20)
-right_factor:
-; Facteur droit : même règle, à l’octet 24 du record.
-lbu x5,24(x19)
-addi x6,x0,88
-beq x5,x6,right_x
-addi x6,x0,89
-beq x5,x6,right_y
-sltiu x6,x5,48
-bne x6,x0,error_line
-sltiu x6,x5,58
-beq x6,x0,error_line
-addi x6,x0,48
-sub x10,x5,x6
-fcvt.d.l f2,x10,0
-jal x0,dispatch_operator
-right_x:
-fld f2,0(x20)
-jal x0,dispatch_operator
-right_y:
-fld f2,8(x20)
-; L’opérateur est le huitième octet de PRINT X<op>Y.
-dispatch_operator:
-lbu x5,23(x19)
+addi x21,x19,22
+    addi x22,x0,0
+    jal x1,parse_atom
+    lbu x27,0(x21)
+    addi x21,x21,1
+    addi x22,x0,1
+    jal x1,parse_atom
+    add x5,x27,x0
 addi x6,x0,43
 beq x5,x6,run_add
 addi x6,x0,45
@@ -274,51 +236,80 @@ fdiv.d f3,f1,f2
 run_save:
 fsd f3,1024(x8)
 ebreak
-decimal_expression:
-; 2.5+3.5 : positions body[0], body[2], body[3], body[4], body[6].
-lbu x5,22(x19)
+parse_atom:
+lbu x5,0(x21)
+addi x6,x0,88
+beq x5,x6,atom_x
+addi x6,x0,89
+beq x5,x6,atom_y
+addi x23,x0,0
+addi x24,x0,0
+addi x25,x0,1
+addi x26,x0,0
+parse_integer:
+lbu x5,0(x21)
 addi x6,x0,48
-sub x10,x5,x6
-fcvt.d.l f1,x10,0
-lbu x5,24(x19)
-sub x10,x5,x6
-fcvt.d.l f2,x10,0
-addi x10,x0,10
-fcvt.d.l f4,x10,0
-fdiv.d f2,f2,f4
-fadd.d f1,f1,f2
-lbu x5,26(x19)
-sub x10,x5,x6
-fcvt.d.l f2,x10,0
-lbu x5,28(x19)
-sub x10,x5,x6
-fcvt.d.l f4,x10,0
-addi x10,x0,10
-fcvt.d.l f5,x10,0
-fdiv.d f4,f4,f5
-fadd.d f2,f2,f4
-lbu x5,25(x19)
-addi x6,x0,43
-beq x5,x6,decimal_add
-addi x6,x0,45
-beq x5,x6,decimal_sub
-addi x6,x0,42
-beq x5,x6,decimal_mul
-addi x6,x0,47
-beq x5,x6,decimal_div
-jal x0,error_line
-decimal_add:
-fadd.d f3,f1,f2
-jal x0,run_save
-decimal_sub:
-fsub.d f3,f1,f2
-jal x0,run_save
-decimal_mul:
-fmul.d f3,f1,f2
-jal x0,run_save
-decimal_div:
-fdiv.d f3,f1,f2
-jal x0,run_save
+sltu x7,x5,x6
+bne x7,x0,integer_done
+addi x6,x0,58
+sltu x7,x5,x6
+beq x7,x0,integer_done
+addi x6,x0,48
+sub x5,x5,x6
+slli x6,x23,3
+slli x7,x23,1
+add x23,x6,x7
+add x23,x23,x5
+addi x21,x21,1
+jal x0,parse_integer
+integer_done:
+lbu x5,0(x21)
+addi x6,x0,46
+bne x5,x6,form_atom
+addi x26,x0,1
+addi x21,x21,1
+parse_fraction:
+lbu x5,0(x21)
+addi x6,x0,48
+sltu x7,x5,x6
+bne x7,x0,form_atom
+addi x6,x0,58
+sltu x7,x5,x6
+beq x7,x0,form_atom
+addi x6,x0,48
+sub x5,x5,x6
+slli x6,x24,3
+slli x7,x24,1
+add x24,x6,x7
+add x24,x24,x5
+slli x6,x25,3
+slli x7,x25,1
+add x25,x6,x7
+addi x21,x21,1
+jal x0,parse_fraction
+form_atom:
+fcvt.d.l f4,x23,0
+beq x26,x0,store_atom
+fcvt.d.l f5,x24,0
+fcvt.d.l f6,x25,0
+fdiv.d f5,f5,f6
+fadd.d f4,f4,f5
+store_atom:
+fsd f4,1032(x8)
+beq x22,x0,store_left_atom
+fld f2,1032(x8)
+jalr x0,0(x1)
+store_left_atom:
+fld f1,1032(x8)
+jalr x0,0(x1)
+atom_x:
+fld f4,0(x20)
+addi x21,x21,1
+jal x0,store_atom
+atom_y:
+fld f4,8(x20)
+addi x21,x21,1
+jal x0,store_atom
 error_line:
 addi x10,x8,48
 addi x11,x0,4
