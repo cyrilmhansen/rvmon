@@ -2208,6 +2208,29 @@ release. Elles n’ajoutent aucune extension ISA.
 - **Parallélisable :** oui avec le lexer de ligne ; non avec une modification
   concurrente du layout des enregistrements.
 
+#### BASIC-LOAD-004B — Lexer d’une ligne numérotée vers un record cible — TERMINÉE
+
+- **Priorité :** P0, raccord lexer → magasin.
+- **But :** parcourir `20 PRINT B` en RAM cible, accumuler le numéro décimal,
+  copier le corps ASCII borné et écrire sa longueur dans un record.
+- **Non-but :** lecture UART, plusieurs lignes, `LIST`, suppression,
+  remplacement et exécution.
+- **Entrées :** `BASIC_LANGUAGE.md`, `GUEST_PAYLOAD_ABI.md`, R1 I et R2 pour
+  branches, `lbu`, `sb`, `ld` et `sd`.
+- **Fichiers/modules :** `examples/minibasic-runtime-line-lexer.rv`,
+  `scripts/test-guest-runtime-line-lexer.sh`, documentation BASIC.
+- **Dépendances :** BASIC-LOAD-004A, BASIC-LOAD-003I et ABI `RVMPAY01`.
+- **Tests :** source ASCII, numéro 20, longueur 7, corps `PRINT B`, dump du
+  record et compteur target-side.
+- **Critères de sortie :** QEMU atteint `ebreak`; le record cible contient les
+  champs attendus et aucun parsing n’est réalisé par l’hôte.
+- **Cas limites :** ligne vide, séparateur absent, numéro non numérique,
+  longueur maximale, caractère nul dans le corps et ligne sans numéro sont
+  réservés au lexer complet.
+- **Taille :** 3 points / 1,5 journée-agent, incertitude faible.
+- **Parallélisable :** oui avec le test UART ; non avec une modification du
+  layout `{line,length,body}`.
+
 ### BASIC-LOAD-004 — Porter le magasin de lignes et le contrôle de flot
 
 - **Priorité :** P0.

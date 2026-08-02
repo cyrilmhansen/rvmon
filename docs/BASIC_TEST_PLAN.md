@@ -50,6 +50,9 @@
 - `scripts/test-guest-runtime-lines.sh` vérifie l’insertion target-side de deux
   enregistrements fixes saisis hors ordre (`20` puis `10`), le déplacement du
   premier enregistrement, le compteur et les corps ASCII dans la RAM cible.
+- `scripts/test-guest-runtime-line-lexer.sh` vérifie le parcours target-side de
+  `20 PRINT B`, l’accumulation du numéro, la copie du corps ASCII et la longueur
+  produite dans l’enregistrement cible.
 - Le breakpoint `minibasic_divide` et `disasm` permettent d’observer la
   correspondance adresse → `fdiv.d`; les registres f et `fcsr` sont affichés
   avant/après le pas.

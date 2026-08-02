@@ -214,3 +214,15 @@ bash scripts/test-guest-runtime-lines.sh
 Le compteur et les corps ASCII sont observés directement dans la RAM cible.
 `LIST`, suppression, remplacement et exécution séquentielle seront ajoutés
 sur ce layout lors de la tranche de contrôle de flot.
+
+La fixture [`minibasic-runtime-line-lexer.rv`](../examples/minibasic-runtime-line-lexer.rv)
+relie maintenant le texte source au magasin : le payload parcourt les octets de
+`20 PRINT B`, accumule le numéro 20, copie `PRINT B` dans le corps et renseigne
+la longueur 7 dans le même enregistrement cible :
+
+```text
+bash scripts/test-guest-runtime-line-lexer.sh
+```
+
+Cette étape ne lit pas encore l’UART et ne gère qu’une ligne bornée ; elle isole
+le contrat lexer → record avant l’insertion de plusieurs lignes.
