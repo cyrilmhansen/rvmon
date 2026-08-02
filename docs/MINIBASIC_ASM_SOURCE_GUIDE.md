@@ -232,11 +232,16 @@ dans `data+1160`; `PRINT S$` passe ensuite par `ecall 4`. La preuve QEMU est
 `scripts/test-guest-runtime-asm-repl-string-var.sh`. Les échappements,
 concaténations et plusieurs variables chaîne restent à généraliser.
 
-Le magasin de lignes target-side comporte maintenant quatre slots numérotés
-10, 20, 30 et 40. Les slots 30/40 sont stockés dans des enregistrements dédiés,
-apparaissent dans `LIST` et sont parcourus par `RUN`; le test reproductible est
-`scripts/test-guest-runtime-asm-repl-four-lines.sh`. Cette étape conserve
-encore un format de transition à pas fixe, avant le magasin indexé général.
+Le magasin de lignes target-side comporte maintenant 64 enregistrements indexés
+par le numéro de ligne : `10` à `640`, par pas de dix, avec un corps maximal de
+111 octets. Chaque enregistrement occupe 128 octets dans la RAM cible ; un
+masque de 64 bits indique les lignes présentes. `LIST` parcourt ce masque dans
+l’ordre croissant et `RUN` sélectionne la première puis la suivante ligne
+présente. La non-régression, qui conserve aussi les cas historiques 10/20/30/40,
+est `scripts/test-guest-runtime-asm-repl-four-lines.sh` et vérifie également
+les bornes 50 et 630/640. Les sauts vers une ligne arbitraire et la suppression
+d’un numéro sont la prochaine sous-tranche ; ils ne doivent pas être confondus
+avec la capacité de stockage déjà généralisée.
 
 `END` est également dispatché target-side, émet `END\n` puis arrête la séance
 sur un breakpoint contrôlable. Sa non-régression est :

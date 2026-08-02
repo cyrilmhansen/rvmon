@@ -198,9 +198,9 @@
 - `scripts/test-guest-runtime-asm-repl-string-var.sh` vérifie une variable
   chaîne target-side `S$`, son affectation ASCII en direct et dans une ligne,
   puis sa restitution par `PRINT S$` lors d'un `RUN`.
-- `scripts/test-guest-runtime-asm-repl-four-lines.sh` vérifie les slots 30 et
-  40 du magasin assembleur : insertion hors ordre, LIST trié, RUN séquentiel,
-  calcul de `3+4` et arrêt sur `END`.
+- `scripts/test-guest-runtime-asm-repl-four-lines.sh` vérifie le magasin
+  assembleur indexé de 64 lignes : insertion hors ordre, LIST trié, RUN
+  séquentiel, calcul de `3+4`, bornes 50 et 630/640, puis arrêt sur `END`.
 - `scripts/test-guest-runtime-asm-repl-goto-30.sh` vérifie le saut target-side
   depuis la ligne 10 vers le slot 30.
 - Le breakpoint `minibasic_divide` et `disasm` permettent d’observer la

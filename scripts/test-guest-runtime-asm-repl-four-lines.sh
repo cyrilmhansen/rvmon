@@ -28,7 +28,7 @@ awk '/^symbols$/{print; found=1; next} found && /^run-at /{print; exit} !found{p
     examples/minibasic-asm/payload-repl.rv |
     while IFS= read -r line; do printf '%s\n' "$line" >&3; sleep 0.002; done
 sleep 0.2
-printf '30 PRINT 3+4\n10 PRINT 1\n40 END\n20 PRINT 2\nLIST\nRUN\n' >&3
+printf '30 PRINT 3+4\n630 PRINT 64\n10 PRINT 1\n640 END\n50 PRINT 5\n20 PRINT 2\nLIST\nRUN\n' >&3
 sleep 0.6
 printf 'regs\nmemory 0x82000200 8\nq\n' >&3
 exec 3>&-
@@ -37,8 +37,8 @@ kill "$qemu_pid" 2>/dev/null || true
 wait "$qemu_pid" 2>/dev/null || true
 qemu_pid=""
 
-for expected in '10 PRINT 1' '20 PRINT 2' '30 PRINT 3+4' '40 END' \
-    '1.000000' '2.000000' '7.000000' 'END' 'trap: breakpoint'; do
+for expected in '10 PRINT 1' '20 PRINT 2' '30 PRINT 3+4' '50 PRINT 5' '630 PRINT 64' '640 END' \
+    '1.000000' '2.000000' '7.000000' '5.000000' '64.000000' 'END' 'trap: breakpoint'; do
     if ! grep -aFq -- "$expected" "$output_file"; then
         cat "$output_file"
         printf 'missing integrated four-line output: %s\n' "$expected" >&2

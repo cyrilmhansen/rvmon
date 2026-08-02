@@ -69,7 +69,11 @@ entry:
 auipc x8,0x1000
 addi x8,x8,-256
 addi x18,x8,1024
-addi x19,x8,256
+; 64 enregistrements de 128 octets, lignes 10..640 par pas de 10.
+; Le magasin est séparé de la table des variables et des tableaux.
+addi x19,x8,2047
+addi x19,x19,2047
+addi x19,x19,2
 addi x20,x8,768
 sd x0,1160(x8)
 command_loop:
@@ -105,14 +109,14 @@ addi x7,x0,83
 beq x10,x7,string_assign_direct
 addi x7,x0,80
 beq x10,x7,direct_print
-addi x7,x0,49
-beq x10,x7,store_line_ten_command
-addi x7,x0,50
-beq x10,x7,store_line_twenty_command
-addi x7,x0,51
-beq x10,x7,store_line_thirty_command
-addi x7,x0,52
-beq x10,x7,store_line_forty_command
+addi x7,x0,48
+sltu x6,x10,x7
+bne x6,x0,command_after_number_check
+addi x7,x0,58
+sltu x6,x10,x7
+beq x6,x0,command_after_number_check
+jal x0,store_line_generic
+command_after_number_check:
 addi x7,x0,76
 beq x10,x7,list_line
 addi x7,x0,84
@@ -121,6 +125,7 @@ addi x7,x0,82
 beq x10,x7,run_command
 addi x7,x0,78
 beq x10,x7,new_program
+command_not_numbered:
 jal x0,error_line
 trace_command:
 lbu x5,1(x18)
@@ -159,6 +164,86 @@ trace_enable:
 addi x10,x0,1
 sd x10,544(x8)
 jal x0,command_loop
+; Compatibilité des anciens labels conservée pour les symboles historiques.
+store_line_generic:
+; Parse un numéro décimal, puis le convertit en index de ligne (N/10)-1.
+; V1 de cette tranche : numéros 10..640 multiples de dix, corps <=111 octets.
+addi x6,x0,0
+addi x26,x0,0
+addi x27,x0,0
+store_number_loop:
+add x7,x18,x6
+lbu x5,0(x7)
+addi x7,x0,48
+sltu x28,x5,x7
+bne x28,x0,store_number_done
+addi x7,x0,58
+sltu x28,x5,x7
+beq x28,x0,store_number_done
+addi x7,x0,48
+sub x5,x5,x7
+addi x7,x0,10
+mul x26,x26,x7
+add x26,x26,x5
+addi x6,x6,1
+addi x27,x27,1
+jal x0,store_number_loop
+store_number_done:
+beq x27,x0,error_line
+addi x7,x0,10
+remu x5,x26,x7
+bne x5,x0,error_line
+sltiu x7,x26,10
+bne x7,x0,error_line
+sltiu x7,x26,641
+beq x7,x0,error_line
+addi x29,x26,0
+addi x26,x26,-10
+addi x7,x0,10
+divu x26,x26,x7
+; x26 est maintenant l'index, x24 le record et x25 sa longueur.
+slli x7,x26,7
+add x24,x19,x7
+slli x7,x26,3
+addi x25,x8,1800
+add x25,x25,x7
+add x7,x18,x6
+lbu x5,0(x7)
+beq x5,x0,delete_line_generic
+addi x7,x0,32
+bne x5,x7,error_line
+addi x6,x6,1
+sub x28,x9,x6
+sltiu x7,x28,112
+beq x7,x0,error_line
+sd x29,0(x24)
+sd x28,0(x25)
+addi x27,x0,0
+store_body_generic:
+add x7,x18,x6
+add x7,x7,x27
+lbu x5,0(x7)
+addi x7,x24,16
+add x7,x7,x27
+sb x5,0(x7)
+addi x27,x27,1
+bne x27,x28,store_body_generic
+addi x7,x0,1
+sll x7,x7,x26
+ld x10,512(x8)
+or x10,x10,x7
+sd x10,512(x8)
+jal x0,command_loop
+delete_line_generic:
+addi x7,x0,1
+sll x7,x7,x26
+xori x7,x7,-1
+ld x10,512(x8)
+and x10,x10,x7
+sd x10,512(x8)
+sd x0,0(x25)
+jal x0,command_loop
+
 store_line_ten_command:
 addi x26,x0,1
 jal x0,store_line
@@ -337,6 +422,72 @@ or x10,x10,x6
 sd x10,512(x8)
 jal x0,command_loop
 list_line:
+jal x0,list_line_generic
+list_line_generic:
+addi x26,x0,0
+list_scan_generic:
+addi x7,x0,1
+sll x7,x7,x26
+ld x12,512(x8)
+and x13,x12,x7
+beq x13,x0,list_next_generic
+slli x7,x26,7
+add x24,x19,x7
+ld x10,0(x24)
+sltiu x7,x10,100
+beq x7,x0,list_three_digits
+addi x13,x8,208
+addi x6,x0,10
+divu x7,x10,x6
+addi x7,x7,48
+sb x7,0(x13)
+addi x13,x13,1
+addi x7,x0,48
+sb x7,0(x13)
+addi x13,x13,1
+jal x0,list_number_done
+list_three_digits:
+addi x13,x8,208
+addi x6,x0,100
+divu x7,x10,x6
+addi x7,x7,48
+sb x7,0(x13)
+addi x13,x13,1
+remu x10,x10,x6
+addi x6,x0,10
+divu x7,x10,x6
+addi x7,x7,48
+sb x7,0(x13)
+addi x13,x13,1
+addi x7,x0,48
+sb x7,0(x13)
+addi x13,x13,1
+list_number_done:
+addi x7,x0,32
+sb x7,0(x13)
+addi x13,x13,1
+addi x10,x8,208
+sub x11,x13,x10
+addi x17,x0,4
+ecall
+addi x10,x24,16
+slli x7,x26,3
+addi x11,x8,1800
+add x11,x11,x7
+ld x11,0(x11)
+addi x17,x0,4
+ecall
+addi x10,x8,192
+addi x11,x0,1
+addi x17,x0,4
+ecall
+list_next_generic:
+addi x26,x26,1
+sltiu x7,x26,64
+bne x7,x0,list_scan_generic
+jal x0,command_loop
+
+list_line_legacy:
 ld x12,512(x8)
 andi x13,x12,1
 beq x13,x0,list_line_twenty
@@ -417,6 +568,24 @@ addi x17,x0,4
 ecall
 jal x0,command_loop
 run_command:
+jal x0,run_command_generic
+run_command_generic:
+addi x26,x0,0
+run_find_first_generic:
+addi x7,x0,1
+sll x7,x7,x26
+ld x10,512(x8)
+and x11,x10,x7
+bne x11,x0,run_first_found_generic
+addi x26,x26,1
+sltiu x7,x26,64
+bne x7,x0,run_find_first_generic
+jal x0,error_line
+run_first_found_generic:
+sd x26,536(x8)
+jal x0,run_line
+
+run_command_legacy:
 ld x10,512(x8)
 andi x11,x10,1
 bne x11,x0,run_command_ten
@@ -442,6 +611,22 @@ addi x10,x0,0
 sd x10,536(x8)
 jal x0,run_line
 run_line:
+jal x0,run_line_generic
+run_line_generic:
+addi x17,x0,5
+ecall
+addi x7,x0,3
+beq x10,x7,break_statement
+addi x7,x0,1
+sll x7,x7,x26
+ld x10,512(x8)
+and x11,x10,x7
+beq x11,x0,error_line
+slli x7,x26,7
+add x24,x19,x7
+jal x0,dispatch_statement
+
+run_line_legacy:
 addi x17,x0,5
 ecall
 addi x7,x0,3
@@ -568,6 +753,48 @@ addi x17,x0,1
 ecall
 jal x0,if_false
 goto_statement:
+jal x0,goto_generic
+goto_generic:
+addi x21,x24,21
+addi x26,x0,0
+addi x27,x0,0
+goto_number_loop:
+lbu x5,0(x21)
+addi x6,x0,48
+sltu x28,x5,x6
+bne x28,x0,goto_number_done
+addi x6,x0,58
+sltu x28,x5,x6
+beq x28,x0,goto_number_done
+addi x6,x0,48
+sub x5,x5,x6
+addi x6,x0,10
+mul x26,x26,x6
+add x26,x26,x5
+addi x21,x21,1
+addi x27,x27,1
+jal x0,goto_number_loop
+goto_number_done:
+beq x27,x0,error_line
+addi x6,x0,10
+remu x5,x26,x6
+bne x5,x0,error_line
+sltiu x6,x26,10
+bne x6,x0,error_line
+sltiu x6,x26,641
+beq x6,x0,error_line
+addi x26,x26,-10
+addi x6,x0,10
+divu x26,x26,x6
+addi x6,x0,1
+sll x6,x6,x26
+ld x7,512(x8)
+and x7,x7,x6
+beq x7,x0,error_line
+sd x26,536(x8)
+jal x0,run_line
+
+goto_statement_legacy:
 lbu x10,21(x24)
 addi x7,x0,49
 beq x10,x7,goto_ten
@@ -851,6 +1078,25 @@ addi x10,x0,1
 sd x10,536(x8)
 jal x0,run_line
 if_false:
+jal x0,if_false_generic
+if_false_generic:
+ld x10,536(x8)
+addi x26,x10,1
+if_find_next_generic:
+sltiu x7,x26,64
+beq x7,x0,run_stop
+addi x7,x0,1
+sll x7,x7,x26
+ld x12,512(x8)
+and x11,x12,x7
+bne x11,x0,set_next_generic
+addi x26,x26,1
+jal x0,if_find_next_generic
+set_next_generic:
+sd x26,536(x8)
+jal x0,run_line
+
+if_false_legacy:
 ld x10,536(x8)
 beq x10,x0,after_line_ten
 addi x7,x0,1

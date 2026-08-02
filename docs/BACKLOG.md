@@ -3459,6 +3459,28 @@ release. Elles n’ajoutent aucune extension ISA.
 - **Paquet de contexte :** BASIC-LOAD-005AN, test four-lines et contrat de
   mémoire target-side.
 
+#### BASIC-LOAD-005AP — Magasin de 64 lignes target-side — TERMINÉE
+
+- **Priorité :** P0, généralisation du stockage avant le portage de Hammurabi.
+- **But :** remplacer les quatre slots de transition par 64 enregistrements
+  target-side indexés pour les numéros 10..640 par pas de dix.
+- **Non-but :** fournir encore les sauts arbitraires, les numéros non multiples
+  de dix, le tri par comparaison ou le dispatch multi-instruction.
+- **Entrées/sources :** BASIC-LOAD-005AO, `payload-repl.rv`, contrat `RVMPAY01`.
+- **Étapes réalisées :** réserver 64 enregistrements de 128 octets, analyser le
+  numéro décimal sur la cible, conserver le numéro et la longueur, poser/effacer
+  le bit de présence, parcourir `LIST` et `RUN` par index, préserver les
+  offsets de la table des variables et des tableaux.
+- **Tests :** insertion hors ordre des lignes 10, 20, 30, 50, 630 et 640;
+  `LIST` croissant; `RUN` séquentiel et calculs target-side; limites de numéro
+  et de corps refusées.
+- **Critères de sortie :** `scripts/test-guest-runtime-asm-repl-four-lines.sh`
+  passe; les lignes 10..640 sont stockées sans recouvrement avec les variables;
+  aucun résultat n’est calculé ou préenregistré par le harnais hôte.
+- **Limites restantes :** corps maximal de 111 octets et numéros multiples de
+  dix jusqu’à 640; cette décision locale doit être levée avant Hammurabi.
+- **Taille :** 5 points / 2,5 journées-agent, incertitude moyenne.
+
 ### BASIC-LOAD-004 — Porter le magasin de lignes et le contrôle de flot
 
 - **Priorité :** P0.

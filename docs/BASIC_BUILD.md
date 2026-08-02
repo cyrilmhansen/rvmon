@@ -738,8 +738,8 @@ Le pool et la longueur sont en RAM cible; la conversion ou le contenu ne sont
 pas fournis par l'hôte. Les échappements, concaténations et tableaux de chaînes
 restent hors de cette tranche.
 
-Le payload assembleur accepte également quatre lignes numérotées (`10`, `20`,
-`30`, `40`) :
+Le payload assembleur accepte 64 lignes numérotées, de `10` à `640` par pas de
+dix. L’exemple minimal conserve les quatre lignes historiques :
 
 ```text
 30 PRINT 3+4
@@ -754,6 +754,7 @@ RUN
 bash scripts/test-guest-runtime-asm-repl-four-lines.sh
 ```
 
-Le test vérifie le tri, le parcours et le calcul `7.000000` dans la cible.
-Le transfert direct vers le nouveau slot est couvert par
+Le test vérifie le tri, le parcours et le calcul `7.000000` dans la cible,
+ainsi que les bornes 50 et 630/640. Le transfert direct vers le nouveau slot
+est couvert par
 `bash scripts/test-guest-runtime-asm-repl-goto-30.sh`.
