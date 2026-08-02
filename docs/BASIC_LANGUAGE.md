@@ -127,10 +127,12 @@ dans le pool cible après contrôle de capacité et ne partage aucune adresse
 hôte. La chaîne vide a length=0 et peut avoir data_addr=0.
 
 La syntaxe actuellement disponible est S$="TEXT", PRINT S$, DIM A(10),
-A(I), DIM A$(10) et A$(I). DIM réserve les indices 0 à N inclus. Les tableaux
-numériques contiennent des binary64 ; les tableaux de chaînes contiennent des
-cellules ASCII de capacité fixe. Le stockage est unidimensionnel, les
-dimensions sont fixes après DIM, et tout index hors bornes produit une erreur
-cible avant mutation. Les variantes `LET` de ces affectations sont prises en
-charge dans les lignes de programme ; l’affectation directe sans `LET` reste
-la forme recommandée pour les tableaux dans la REPL actuelle.
+A(I), DIM A$(10), A$(I), DIM LONGARRAY$(2) et LONGARRAY$(I). DIM réserve les
+indices 0 à N inclus. Les tableaux numériques contiennent des binary64 ; les
+tableaux de chaînes contiennent des cellules ASCII de capacité fixe. Les
+tableaux de chaînes nommés longs utilisent 32 descripteurs dans la RAM cible à
+`0x82010000` et leurs cellules sont à `0x82020000 + slot*4096 + index*128`.
+Le stockage est unidimensionnel, les dimensions sont fixes après DIM, et tout
+index hors bornes produit une erreur cible avant mutation. Les variantes `LET`
+de ces affectations sont prises en charge dans les lignes de programme et en
+mode direct.
