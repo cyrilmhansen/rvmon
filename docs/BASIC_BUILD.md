@@ -291,3 +291,15 @@ bash scripts/test-guest-runtime-repl-line.sh
 
 La boucle REPL ne traite encore qu’une ligne par lancement ; la répétition,
 `LIST` interactif et les commandes `NEW`/`RUN` restent à construire.
+
+La fixture [`minibasic-runtime-repl-two-lines.rv`](../examples/minibasic-runtime-repl-two-lines.rv)
+effectue deux tours UART dans le même payload : `20 PRINT B`, puis `10 PRINT A`.
+Le compteur est conservé dans un registre dédié, la seconde ligne est insérée
+avant la première et les deux records restent inspectables :
+
+```text
+bash scripts/test-guest-runtime-repl-two-lines.sh
+```
+
+La borne de deux tours est volontaire pour cette preuve ; la boucle persistante
+et le dispatch des commandes seront ajoutés ensuite.

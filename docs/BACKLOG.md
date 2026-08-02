@@ -2342,6 +2342,29 @@ release. Elles n’ajoutent aucune extension ISA.
 - **Parallélisable :** oui avec `LIST` ; non avec une modification du protocole
   de séance UART.
 
+#### BASIC-LOAD-004H — Deux tours REPL UART et insertion ordonnée — TERMINÉE
+
+- **Priorité :** P0, première session multi-lignes target-side.
+- **But :** recevoir deux lignes dans le même payload, conserver un compteur
+  indépendant des temporaires lexer et insérer `20 PRINT B` puis `10 PRINT A`
+  dans l’ordre cible.
+- **Non-but :** boucle infinie, commandes textuelles, `LIST` interactif,
+  `NEW`, `RUN`, historique et capacité non bornée.
+- **Entrées :** `BASIC_LANGUAGE.md`, `GUEST_PAYLOAD_ABI.md`, layout record,
+  contrats UART `read-char` et interruptions de ligne.
+- **Fichiers/modules :** `examples/minibasic-runtime-repl-two-lines.rv`,
+  `scripts/test-guest-runtime-repl-two-lines.sh`, documentation BASIC.
+- **Dépendances :** BASIC-LOAD-004C/G et registre de compteur réservé.
+- **Tests :** deux entrées UART, compteur 2, ligne 10 au slot 0, ligne 20 au
+  slot 1, longueurs 7 et corps ASCII intacts.
+- **Critères de sortie :** le payload ne consomme pas les commandes de
+  diagnostic comme données et rend deux records corrects après `ebreak`.
+- **Cas limites :** troisième ligne, ligne vide, erreur intermédiaire, Ctrl-C,
+  table pleine et EOF restent dans la boucle REPL complète.
+- **Taille :** 4 points / 2 journées-agent, incertitude moyenne.
+- **Parallélisable :** oui avec le renderer `LIST`; non avec une modification du
+  protocole d’entrée UART.
+
 ### BASIC-LOAD-004 — Porter le magasin de lignes et le contrôle de flot
 
 - **Priorité :** P0.
