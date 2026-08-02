@@ -44,6 +44,7 @@ for expected in \
     'f1=0xc004000000000000' \
     'f2=0x400c000000000000' \
     'f3=0x3ff0000000000000' \
+    '1.000000' \
     '0x0000000082000400: 00 00 00 00 00 00 f0 3f'; do
     if ! grep -aFq "$expected" "$output_file"; then
         cat "$output_file"
