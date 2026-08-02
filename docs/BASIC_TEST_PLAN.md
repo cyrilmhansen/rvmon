@@ -104,6 +104,9 @@
 - `scripts/test-guest-runtime-command-run-variable-div.sh` vérifie `PRINT X/2`,
   le chargement de `X`, `fcvt.d.l`, l’exécution `fdiv.d` et le motif exact
   `2.5` dans `f3` et en mémoire.
+- `scripts/test-guest-runtime-command-run-variable-divzero.sh` vérifie
+  `PRINT X/0` dans la cible : `+inf`, `fcsr=0x8` (`fflags.DZ`) et le motif
+  binary64 exact en mémoire, avant l’ajout du diagnostic BASIC.
 - Le breakpoint `minibasic_divide` et `disasm` permettent d’observer la
   correspondance adresse → `fdiv.d`; les registres f et `fcsr` sont affichés
   avant/après le pas.

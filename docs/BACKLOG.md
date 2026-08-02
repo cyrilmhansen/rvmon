@@ -2632,6 +2632,32 @@ release. Elles n’ajoutent aucune extension ISA.
 - **Paquet de contexte :** BASIC-LOAD-005E/F, fixtures des trois opérateurs
   précédents, `BASIC_LANGUAGE.md` et `GUEST_PAYLOAD_ABI.md`.
 
+#### BASIC-LOAD-005H — RUN division binary64 par zéro et fflags.DZ — TERMINÉE
+
+- **Priorité :** P0, verrouillage du cas IEEE avant le diagnostic BASIC.
+- **But :** exécuter `PRINT X/0` dans la cible, observer `+inf` et vérifier que
+  `fdiv.d` positionne `fflags.DZ` dans `fcsr`.
+- **Non-but :** message utilisateur, récupération REPL, classification
+  complète des opérandes et politique générale de division par zéro.
+- **Entrées :** R1 F/D, politique flottante de `BASIC_LANGUAGE.md`, R2 généré
+  et `GUEST_PAYLOAD_ABI.md`.
+- **Fichiers/modules :** fixture et test QEMU dédiés ; documentation dans
+  `BASIC_BUILD.md` et `BASIC_TEST_PLAN.md`.
+- **Dépendances :** BASIC-LOAD-005G, `fdiv.d`, registres `fcsr`/`fflags` et
+  inspection des registres flottants.
+- **Tests :** breakpoint QEMU, `f3=0x7ff0000000000000`, `fcsr=0x8`, dump
+  exact `+inf` et statut 0.
+- **Critères de sortie :** le résultat et le flag viennent de l’exécution RV,
+  sans calcul ou injection par le test hôte.
+- **Cas limites :** `0/0`, signe du zéro, infini, NaN et message BASIC restent
+  à traiter par l’évaluateur général.
+- **Taille :** 2 points / 1 journée-agent, incertitude faible.
+- **Compétences/outils :** IEEE 754, extension D, QEMU et débogueur guest.
+- **Parallélisable :** oui avec le diagnostic parser ; non avec une modification
+  de la politique `fflags`.
+- **Paquet de contexte :** BASIC-LOAD-005F/G, fixture `run-variable-div`,
+  `BASIC_LANGUAGE.md` et règles R1 F/D sur `DZ`.
+
 ### BASIC-LOAD-004 — Porter le magasin de lignes et le contrôle de flot
 
 - **Priorité :** P0.

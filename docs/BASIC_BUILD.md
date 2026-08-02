@@ -422,3 +422,16 @@ complète la série avec `PRINT X/2` et vérifie `2.5` après `fdiv.d` :
 ```text
 bash scripts/test-guest-runtime-command-run-variable-div.sh
 ```
+
+Le cas [`minibasic-runtime-command-run-variable-divzero.rv`](../examples/minibasic-runtime-command-run-variable-divzero.rv)
+vérifie séparément le comportement IEEE de `PRINT X/0` : `fdiv.d` produit
+`+inf`, positionne `fflags.DZ` (`fcsr=0x8`) et laisse le motif exact observable
+dans la cible :
+
+```text
+bash scripts/test-guest-runtime-command-run-variable-divzero.sh
+```
+
+Cette fixture ne constitue pas encore le diagnostic utilisateur BASIC ; elle
+fixe d’abord le comportement flottant sous-jacent sur lequel ce diagnostic
+devra s’appuyer.
