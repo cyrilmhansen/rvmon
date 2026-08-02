@@ -96,6 +96,10 @@ sd x0,1712(x8)
 addi x29,x8,2047
 addi x29,x29,1
 sd x0,0(x29)
+; Pile REPEAT/UNTIL : profondeur à 2128, huit indices de lignes à 2136.
+addi x29,x8,2047
+addi x29,x29,81
+sd x0,0(x29)
 command_loop:
 addi x10,x8,0
 addi x11,x0,7
@@ -818,6 +822,9 @@ sd x10,1240(x8)
 addi x29,x8,2047
 addi x29,x29,1
 sd x10,0(x29)
+addi x29,x8,2047
+addi x29,x29,81
+sd x0,0(x29)
 addi x10,x8,32
 addi x11,x0,4
 addi x17,x0,4
@@ -831,6 +838,9 @@ sd x0,1704(x8)
 sd x0,1712(x8)
 addi x29,x8,2047
 addi x29,x29,1
+sd x0,0(x29)
+addi x29,x8,2047
+addi x29,x29,81
 sd x0,0(x29)
 addi x26,x0,0
 run_find_first_generic:
@@ -962,6 +972,8 @@ addi x7,x0,71
 beq x10,x7,goto_dispatch
 addi x7,x0,87
 beq x10,x7,while_dispatch
+addi x7,x0,85
+beq x10,x7,until_statement
 addi x7,x0,69
 beq x10,x7,end_statement
 addi x7,x0,70
@@ -1011,6 +1023,8 @@ bne x5,x7,assignment_statement
 lbu x5,18(x24)
 addi x7,x0,77
 beq x5,x7,rem_statement
+addi x7,x0,80
+beq x5,x7,repeat_statement
 addi x7,x0,84
 beq x5,x7,return_statement
 addi x7,x0,65
@@ -1223,7 +1237,9 @@ let_target_common:
 addi x30,x21,0
 let_target_scan:
 lbu x5,0(x21)
-beq x5,x0,error_line
+bne x5,x0,let_target_scan_continue
+jal x0,error_line
+let_target_scan_continue:
 addi x7,x0,36
 beq x5,x7,let_string_target
 addi x7,x0,40
@@ -1238,7 +1254,9 @@ jal x1,resolve_variable
 sd x7,1112(x8)
  lbu x5,0(x21)
 addi x7,x0,61
-bne x5,x7,error_line
+beq x5,x7,let_numeric_target_continue
+jal x0,error_line
+let_numeric_target_continue:
 addi x21,x21,1
 addi x22,x0,0
 jal x1,eval_expression
@@ -1978,6 +1996,173 @@ sltiu x7,x26,256
 beq x7,x0,run_stop
 sd x26,536(x8)
 jal x0,run_line
+repeat_statement:
+; REPEAT marque la ligne courante. Une réentrée depuis UNTIL ne repousse
+; pas le même indice, ce qui permet huit niveaux d'imbrication réels.
+lbu x5,19(x24)
+addi x7,x0,69
+bne x5,x7,error_line_near
+lbu x5,20(x24)
+addi x7,x0,65
+bne x5,x7,error_line_near
+lbu x5,21(x24)
+addi x7,x0,84
+bne x5,x7,error_line_near
+lbu x5,22(x24)
+addi x7,x0,0
+bne x5,x7,error_line_near
+ld x26,1872(x8)
+addi x29,x8,2047
+addi x29,x29,81
+ld x27,0(x29)
+sltiu x7,x27,8
+beq x7,x0,error_line_near
+beq x27,x0,repeat_push
+addi x7,x27,-1
+slli x7,x7,3
+addi x30,x8,2047
+addi x30,x30,89
+add x30,x30,x7
+ld x31,0(x30)
+beq x31,x26,repeat_continue
+repeat_push:
+slli x7,x27,3
+addi x30,x8,2047
+addi x30,x30,89
+add x30,x30,x7
+sd x26,0(x30)
+addi x27,x27,1
+addi x29,x8,2047
+addi x29,x29,81
+sd x27,0(x29)
+repeat_continue:
+jal x0,if_false
+until_statement:
+lbu x5,17(x24)
+addi x7,x0,78
+bne x5,x7,error_line_near
+lbu x5,18(x24)
+addi x7,x0,84
+bne x5,x7,error_line_near
+lbu x5,19(x24)
+addi x7,x0,73
+bne x5,x7,error_line_near
+lbu x5,20(x24)
+addi x7,x0,76
+bne x5,x7,error_line_near
+lbu x5,21(x24)
+addi x7,x0,32
+bne x5,x7,error_line_near
+addi x21,x24,22
+addi x22,x0,0
+jal x1,eval_expression
+fmv.x.d x10,f3
+fmv.d.x f1,x10
+fsd f1,1016(x8)
+until_operator_spaces:
+lbu x27,0(x21)
+addi x6,x0,32
+bne x27,x6,until_operator
+addi x21,x21,1
+jal x0,until_operator_spaces
+until_operator:
+beq x27,x0,until_truth_value
+addi x6,x0,60
+beq x27,x6,until_less
+addi x6,x0,61
+beq x27,x6,until_equal
+addi x6,x0,62
+beq x27,x6,until_greater
+jal x0,error_line
+until_less:
+addi x21,x21,1
+lbu x5,0(x21)
+addi x6,x0,61
+beq x5,x6,until_less_equal
+addi x6,x0,62
+beq x5,x6,until_not_equal
+addi x22,x0,1
+jal x1,eval_expression
+fld f1,1016(x8)
+fmv.x.d x10,f3
+fmv.d.x f2,x10
+flt.d x10,f1,f2
+jal x0,until_condition_result
+until_less_equal:
+addi x21,x21,1
+addi x22,x0,1
+jal x1,eval_expression
+fld f1,1016(x8)
+fmv.x.d x10,f3
+fmv.d.x f2,x10
+fle.d x10,f1,f2
+jal x0,until_condition_result
+until_not_equal:
+addi x21,x21,1
+addi x22,x0,1
+jal x1,eval_expression
+fld f1,1016(x8)
+fmv.x.d x10,f3
+fmv.d.x f2,x10
+feq.d x10,f1,f2
+xori x10,x10,1
+jal x0,until_condition_result
+until_equal:
+addi x21,x21,1
+addi x22,x0,1
+jal x1,eval_expression
+fld f1,1016(x8)
+fmv.x.d x10,f3
+fmv.d.x f2,x10
+feq.d x10,f1,f2
+jal x0,until_condition_result
+until_greater:
+addi x21,x21,1
+lbu x5,0(x21)
+addi x6,x0,61
+beq x5,x6,until_greater_equal
+addi x22,x0,1
+jal x1,eval_expression
+fld f1,1016(x8)
+fmv.x.d x10,f3
+fmv.d.x f2,x10
+flt.d x10,f2,f1
+jal x0,until_condition_result
+until_greater_equal:
+addi x21,x21,1
+addi x22,x0,1
+jal x1,eval_expression
+fld f1,1016(x8)
+fmv.x.d x10,f3
+fmv.d.x f2,x10
+fle.d x10,f2,f1
+jal x0,until_condition_result
+until_truth_value:
+fcvt.d.l f2,x0,0
+fld f1,1016(x8)
+feq.d x10,f1,f2
+xori x10,x10,1
+until_condition_result:
+ld x26,1872(x8)
+addi x29,x8,2047
+addi x29,x29,81
+ld x27,0(x29)
+beq x27,x0,error_line_near
+bne x10,x0,until_done
+addi x7,x27,-1
+slli x7,x7,3
+addi x30,x8,2047
+addi x30,x30,89
+add x30,x30,x7
+ld x26,0(x30)
+sd x26,536(x8)
+jal x0,run_line
+until_done:
+addi x27,x27,-1
+addi x29,x8,2047
+addi x29,x29,81
+sd x27,0(x29)
+jal x0,if_false
 wend_statement:
 lbu x5,17(x24)
 addi x7,x0,69

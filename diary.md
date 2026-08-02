@@ -70,3 +70,11 @@
   under repeated runs; an isolated traced run passes, so this remains a test
   infrastructure issue to harden separately rather than a hidden runtime
   failure.
+- The next parity tranche adds target-side `REPEAT/UNTIL`, including nested
+  loops, numeric truth values, binary64 comparisons, and an orphan-UNTIL
+  diagnostic. The first version deliberately exposed two useful failures:
+  comparator text was initially ignored after the left-hand expression, and
+  the larger payload pushed two existing branches beyond the RISC-V ±4 KiB
+  conditional-branch range. The focused QEMU test caught the first behavior;
+  a static branch-distance audit caught the second. Both were corrected before
+  the repeat tests were accepted.

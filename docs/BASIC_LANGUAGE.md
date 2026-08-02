@@ -24,6 +24,8 @@ statement     = "REM" , text
               | "RETURN"
               | "WHILE" , expression
               | "WEND"
+              | "REPEAT"
+              | "UNTIL" , expression
               | "DATA" , expression , { "," , expression }
               | "READ" , variable
               | "RESTORE"
@@ -90,6 +92,15 @@ sans boucle active et une imbrication dépassant huit niveaux sont des erreurs
 de flot. La résolution structurelle porte sur le premier statement de chaque
 ligne ; les formes imbriquées dans une même ligne séparée par `:` restent
 exclues de cette tranche.
+
+`REPEAT` et `UNTIL expression` utilisent une seconde pile cible fixe de huit
+niveaux. `REPEAT` exécute toujours son corps au moins une fois ; `UNTIL` quitte
+la boucle si son expression numérique est différente de `0.0`, sinon revient à
+la ligne `REPEAT`. Les comparaisons (`=`, `<>`, `<`, `<=`, `>`, `>=`) suivent la
+même sémantique que `IF` et `WHILE`. Un `UNTIL` sans `REPEAT` actif et une
+imbrication dépassant huit niveaux produisent une erreur de flot. Comme pour
+`WHILE`, la résolution structurée porte sur le premier statement de la ligne ;
+les formes imbriquées dans une même ligne séparée par `:` ne sont pas admises.
 
 `DATA` et `READ` utilisent un curseur séquentiel conservé dans la mémoire
 cible. La tranche actuelle accepte des valeurs numériques binary64 et des
