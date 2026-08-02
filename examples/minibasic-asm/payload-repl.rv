@@ -211,6 +211,7 @@ run_save:
 fsd f3,1024(x8)
 jal x0,print_result
 print_result:
+fsd f3,1048(x8)
 addi x12,x18,32
 addi x13,x12,0
 fmv.x.d x10,f3
@@ -228,7 +229,7 @@ addi x14,x13,0
 fcvt.l.d x10,f3,1
 fcvt.d.l f4,x10,0
 fsub.d f5,f3,f4
-lui x6,244
+lui x6,0xf4
 addi x6,x6,576
 fcvt.d.l f6,x6,0
 fmul.d f5,f5,f6
@@ -262,9 +263,9 @@ format_integer_done:
 addi x6,x0,46
 sb x6,0(x13)
 addi x13,x13,1
-lui x6,24
+lui x6,0x18
 addi x6,x6,1696
-addi x5,x0,6
+addi x9,x0,6
 format_fraction:
 divu x7,x11,x6
 addi x7,x7,48
@@ -273,8 +274,8 @@ addi x13,x13,1
 remu x11,x11,x6
 addi x7,x0,10
 divu x6,x6,x7
-addi x5,x5,-1
-bne x5,x0,format_fraction
+addi x9,x9,-1
+bne x9,x0,format_fraction
 addi x6,x0,10
 sb x6,0(x13)
 addi x13,x13,1
@@ -282,6 +283,7 @@ sub x11,x13,x12
 addi x10,x12,0
 addi x17,x0,4
 ecall
+fld f3,1048(x8)
 ebreak
 eval_expression:
 addi x31,x1,0
