@@ -170,3 +170,11 @@
   zero result path uses the explicit `fmv.x.d`/`fmv.d.x` pair. QEMU proves
   positive, negative, zero, nested and syntax-error cases; the assembly test
   inventory now contains 72 scripts.
+- I added target-side `LEN` for short/long string variables and string-array
+  elements. The first functional test exposed that the `PRINT` pre-scanner
+  classified any expression containing `$` as a string before reaching the
+  numeric evaluator; recognizing the exact `LEN(` prefix fixes that dispatch
+  boundary. A second test initially used invalid line number 45, which the
+  MiniBASIC store correctly rejected; changing it to the required multiple of
+  ten produced stable QEMU coverage for scalar, long-name, array and composed
+  expressions. The documented assembly inventory now contains 74 scripts.

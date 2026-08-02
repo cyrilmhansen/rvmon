@@ -44,6 +44,7 @@ comparison    = sum , [ ( "=" | "<>" | "<" | "<=" | ">" | ">=" ) , sum ] ;
 sum           = product , { ( "+" | "-" ) , product } ;
 product       = factor , { ( "*" | "/" ) , factor } ;
 factor        = number | variable | "(" , expression , ")"
+              | "LEN" , "(" , string-reference , ")"
               | "ABS" , "(" , expression , ")"
               | "SGN" , "(" , expression , ")"
               | "INT" , "(" , expression , ")"
@@ -53,6 +54,9 @@ factor        = number | variable | "(" , expression , ")"
               | "RND" | "RND" , "(" , ")"
               | ( "+" | "-" ) , factor ;
 variable      = identifier ;
+string-reference = identifier , "$" , [ "(" , index , [ "," , index ] , ")" ] ;
+index         = number | variable | number , ( "+" | "-" ) , number
+              | variable , ( "+" | "-" ) , number ;
 identifier    = letter , { letter | digit | "_" } ;
 letter        = "A" .. "Z" | "a" .. "z" ;
 digit         = "0" .. "9" ;
@@ -108,6 +112,13 @@ la politique RISC-V de conversion implémentée par le moteur et restent une
 limite V1. Le format décimal fixe peut afficher `FRAC(-3.9)` comme `-0.899999`
 après l’arrondi binary64 et le formateur à six chiffres ; ce résultat est
 déterministe et n’est pas une valeur décimale exacte.
+
+`LEN(string-variable)` renvoie dans le guest la longueur de la variable chaîne
+ou de l’élément de tableau chaîne fourni. La résolution accepte les noms
+courts/longs et les tableaux 1D/2D déjà disponibles ; le résultat est converti
+en binary64 pour rester utilisable dans une expression numérique. Les chaînes
+littérales et les expressions chaîne générales ne sont pas encore des
+arguments de fonction en V1.
 
 `RND` et `RND()` renvoient un nombre pseudo-aléatoire binary64 dans `[0,1)`.
 Le générateur est un LCG 32 bits target-side de paramètres `1664525` et
