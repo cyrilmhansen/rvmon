@@ -322,6 +322,26 @@ confondre code présent et exigence formellement auditée.
 - **Critères de sortie :** une erreur multi-ligne expose code + ligne; aucune écriture de mot avant validation complète; `bash scripts/test-guest-monitor.sh` passe.
 - **Cas limites et échecs :** programme vide, trop long, label invalide, dépassement workspace, collision breakpoint et écriture impossible ont des codes distincts.
 - **Taille :** 3 points / 1,5 journée-agent, incertitude faible.
+
+#### BASIC-LOAD-005AR — Variables scalaires A..Z target-side — TERMINÉE
+
+- **Priorité :** P0, état numérique minimal de Hammurabi.
+- **But :** rendre les 26 emplacements binary64 adressables par lettre dans les
+  affectations et les atomes d’expression du payload.
+- **Non-but :** noms longs, chaînes dans les expressions, tableaux associatifs
+  et conversion décimale hors du format V1.
+- **Entrées/sources :** BASIC-LOAD-003B, BASIC-LOAD-005AQ, table binary64 du
+  payload et sémantique `BASIC_LANGUAGE.md`.
+- **Étapes réalisées :** calculer l’index `(A..Z)-A`, partager le scratch de
+  pointeur avec les affectations directes et numérotées, distinguer `P=` de
+  `PRINT`, et charger les variables génériques dans `parse_atom`.
+- **Tests :** `scripts/test-guest-runtime-asm-repl-scalars.sh`, avec deux
+  affectations directes, une affectation numérotée et une lecture par `PRINT`.
+- **Critères de sortie :** la cible produit `97.000000` et le motif
+  `0x4058400000000000`; le harnais ne calcule ni ne fournit cette valeur.
+- **Limites restantes :** la condition composée de Hammurabi (`Q*10>G`) et
+  l’affichage multi-éléments restent à implémenter.
+- **Taille :** 4 points / 2 journées-agent, incertitude moyenne.
 - **Compétences/outils :** Rust `no_std`, UART, assemblage en deux passes, QEMU.
 - **Parallélisable :** oui avec la spécification de l’éditeur source; non avec une modification concurrente du protocole d’erreur UART.
 - **Paquet de contexte minimal :** `crates/guest-monitor/src/main.rs`, `scripts/test-guest-monitor.sh`, `docs/TUTORIAL-GUEST.md`, SPEC §§11/17–19.

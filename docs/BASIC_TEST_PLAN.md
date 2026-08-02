@@ -203,6 +203,9 @@
   séquentiel, calcul de `3+4`, bornes 50 et 630/640, puis arrêt sur `END`.
 - `scripts/test-guest-runtime-asm-repl-goto-30.sh` vérifie le saut target-side
   depuis la ligne 10 vers le slot 30.
+- `scripts/test-guest-runtime-asm-repl-scalars.sh` vérifie les variables
+  scalaires target-side hors X/Y : `P=95`, `Q=2`, `P=P+Q`, puis le motif
+  binary64 et l’affichage de `97.000000`.
 - Le breakpoint `minibasic_divide` et `disasm` permettent d’observer la
   correspondance adresse → `fdiv.d`; les registres f et `fcsr` sont affichés
   avant/après le pas.

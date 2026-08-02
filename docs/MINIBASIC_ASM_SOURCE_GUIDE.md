@@ -245,6 +245,14 @@ avec la capacité de stockage déjà généralisée. `GOTO` et les branches vrai
 de `IF ... THEN` résolvent désormais ces mêmes numéros ; les expressions
 composées dans la condition restent à généraliser.
 
+La table scalaire binary64 est maintenant adressable par toutes les lettres
+ASCII `A` à `Z`, avec l’index `(lettre - 'A') * 8` dans la RAM cible. Les
+affectations directes et les affectations dans une ligne suivent le même
+parseur d’expressions ; par exemple `P=95`, `Q=2`, puis `10 P=P+Q` produit
+`97.000000` sans calcul hôte. La preuve est
+`scripts/test-guest-runtime-asm-repl-scalars.sh`. Les noms longs et les
+variables chaîne restent des représentations distinctes.
+
 `END` est également dispatché target-side, émet `END\n` puis arrête la séance
 sur un breakpoint contrôlable. Sa non-régression est :
 

@@ -108,7 +108,9 @@ beq x10,x7,assign_array_direct
 addi x7,x0,83
 beq x10,x7,string_assign_direct
 addi x7,x0,80
-beq x10,x7,direct_print
+beq x10,x7,check_p_command
+jal x0,check_generic_assignment
+command_number_check:
 addi x7,x0,48
 sltu x6,x10,x7
 bne x6,x0,command_after_number_check
@@ -127,6 +129,11 @@ addi x7,x0,78
 beq x10,x7,new_program
 command_not_numbered:
 jal x0,error_line
+check_p_command:
+lbu x5,1(x18)
+addi x7,x0,82
+beq x5,x7,direct_print
+jal x0,check_generic_assignment
 trace_command:
 lbu x5,1(x18)
 addi x7,x0,82
@@ -355,6 +362,30 @@ addi x10,x0,1
 sd x10,512(x8)
 sd x0,536(x8)
 jal x0,run_line
+; Affectation directe des autres variables scalaires A..Z.
+check_generic_assignment:
+addi x7,x0,65
+sltu x6,x10,x7
+bne x6,x0,command_number_check
+addi x7,x0,91
+sltu x6,x10,x7
+beq x6,x0,command_number_check
+lbu x5,1(x18)
+addi x7,x0,61
+beq x5,x7,assign_generic_direct
+jal x0,command_number_check
+assign_generic_direct:
+addi x7,x0,65
+sub x6,x10,x7
+slli x6,x6,3
+sd x6,1112(x8)
+addi x21,x18,2
+addi x22,x0,0
+jal x1,eval_expression
+ld x6,1112(x8)
+add x7,x20,x6
+fsd f3,0(x7)
+jal x0,command_loop
 store_line:
 lbu x10,1(x18)
 addi x7,x0,48
@@ -693,13 +724,16 @@ beq x10,x7,next_statement
 addi x7,x0,68
 beq x10,x7,dim_statement
 addi x7,x0,65
-beq x10,x7,array_statement
+beq x10,x7,array_dispatch
 addi x7,x0,83
 beq x10,x7,string_statement
 addi x7,x0,73
 beq x10,x7,statement_i
 addi x7,x0,80
-beq x10,x7,print_statement
+beq x10,x7,print_dispatch
+lbu x5,17(x24)
+addi x7,x0,61
+beq x5,x7,assignment_statement
 addi x21,x24,22
 jal x1,eval_expression
 jal x0,run_save
@@ -739,6 +773,31 @@ array_statement:
 addi x21,x24,16
 jal x1,assign_array
 jal x0,if_false
+array_dispatch:
+lbu x5,17(x24)
+addi x7,x0,61
+beq x5,x7,assignment_statement
+jal x0,array_statement
+assignment_statement:
+lbu x5,16(x24)
+addi x7,x0,65
+sub x6,x5,x7
+slli x6,x6,3
+sd x6,1112(x8)
+addi x21,x24,18
+addi x22,x0,0
+jal x1,eval_expression
+ld x6,1112(x8)
+add x7,x20,x6
+fsd f3,0(x7)
+jal x0,if_false
+print_dispatch:
+lbu x5,17(x24)
+addi x7,x0,82
+beq x5,x7,print_statement
+addi x7,x0,61
+beq x5,x7,assignment_statement
+jal x0,error_line
 string_statement:
 addi x21,x24,16
 jal x1,string_assign
@@ -1371,6 +1430,20 @@ addi x6,x0,89
 beq x5,x6,atom_y
 addi x6,x0,65
 beq x5,x6,atom_a
+addi x6,x0,65
+sltu x7,x5,x6
+bne x7,x0,atom_numeric
+addi x6,x0,91
+sltu x7,x5,x6
+beq x7,x0,atom_numeric
+addi x6,x0,65
+sub x6,x5,x6
+slli x6,x6,3
+add x7,x20,x6
+fld f4,0(x7)
+addi x21,x21,1
+jal x0,store_atom
+atom_numeric:
 addi x23,x0,0
 addi x24,x0,0
 addi x25,x0,1
