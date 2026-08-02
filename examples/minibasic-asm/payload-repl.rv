@@ -3560,12 +3560,19 @@ beq x7,x0,atom_dispatch
 addi x5,x5,-32
 sb x5,0(x21)
 atom_dispatch:
+addi x27,x21,0
 addi x6,x0,88
 beq x5,x6,atom_x
 addi x6,x0,89
 beq x5,x6,atom_y
 addi x6,x0,65
 beq x5,x6,atom_a
+addi x6,x0,84
+beq x5,x6,atom_trunc_dispatch
+addi x6,x0,70
+beq x5,x6,atom_frac_dispatch
+addi x6,x0,77
+beq x5,x6,atom_mod_dispatch
 addi x6,x0,65
 sltu x7,x5,x6
 bne x7,x0,atom_numeric
@@ -3576,6 +3583,51 @@ lbu x6,1(x21)
 addi x7,x0,40
 beq x6,x7,array_open_generic
 addi x27,x21,0
+atom_trunc_dispatch:
+lbu x6,0(x21)
+addi x7,x0,84
+bne x6,x7,atom_array_name_scan
+lbu x6,1(x21)
+addi x7,x0,82
+bne x6,x7,atom_array_name_scan
+lbu x6,2(x21)
+addi x7,x0,85
+bne x6,x7,atom_array_name_scan
+lbu x6,3(x21)
+addi x7,x0,78
+bne x6,x7,atom_array_name_scan
+lbu x6,4(x21)
+addi x7,x0,67
+bne x6,x7,atom_array_name_scan
+lbu x6,5(x21)
+addi x7,x0,40
+bne x6,x7,atom_array_name_scan
+jal x0,atom_trunc_function
+atom_frac_dispatch:
+lbu x6,1(x21)
+addi x7,x0,82
+bne x6,x7,atom_array_name_scan
+lbu x6,2(x21)
+addi x7,x0,65
+bne x6,x7,atom_array_name_scan
+lbu x6,3(x21)
+addi x7,x0,67
+bne x6,x7,atom_array_name_scan
+lbu x6,4(x21)
+addi x7,x0,40
+bne x6,x7,atom_array_name_scan
+jal x0,atom_frac_function
+atom_mod_dispatch:
+lbu x6,1(x21)
+addi x7,x0,79
+bne x6,x7,atom_array_name_scan
+lbu x6,2(x21)
+addi x7,x0,68
+bne x6,x7,atom_array_name_scan
+lbu x6,3(x21)
+addi x7,x0,40
+bne x6,x7,atom_array_name_scan
+jal x0,atom_mod_function
 atom_array_name_scan:
 lbu x6,0(x27)
 addi x7,x0,40
@@ -3692,6 +3744,128 @@ fsd f4,1032(x8)
 beq x22,x0,store_left_atom
 fld f2,1032(x8)
 jalr x0,0(x1)
+; Fonctions numériques target-side. Les zones 1184..1352 sont des scratch
+; distincts par fonction afin de permettre MOD(TRUNC(...),...).
+atom_trunc_function:
+sd x1,1184(x8)
+sd x22,1192(x8)
+sd x28,1200(x8)
+sd x29,1208(x8)
+sd x30,1216(x8)
+sd x31,1224(x8)
+addi x21,x21,6
+addi x22,x0,0
+jal x1,eval_expression
+lbu x5,0(x21)
+addi x6,x0,41
+beq x5,x6,atom_trunc_close_present
+beq x5,x0,atom_trunc_close_consumed
+jal x0,atom_function_error
+atom_trunc_close_present:
+addi x21,x21,1
+jal x0,atom_trunc_close_done
+atom_trunc_close_consumed:
+addi x6,x21,-1
+lbu x5,0(x6)
+addi x6,x0,41
+bne x5,x6,atom_function_error
+atom_trunc_close_done:
+fcvt.l.d x10,f3,1
+fcvt.d.l f4,x10,0
+ld x22,1192(x8)
+ld x28,1200(x8)
+ld x29,1208(x8)
+ld x30,1216(x8)
+ld x31,1224(x8)
+ld x1,1184(x8)
+jal x0,store_atom
+atom_frac_function:
+sd x1,1256(x8)
+sd x22,1264(x8)
+sd x28,1272(x8)
+sd x29,1280(x8)
+sd x30,1288(x8)
+sd x31,1296(x8)
+addi x21,x21,5
+addi x22,x0,0
+jal x1,eval_expression
+lbu x5,0(x21)
+addi x6,x0,41
+beq x5,x6,atom_frac_close_present
+beq x5,x0,atom_frac_close_consumed
+jal x0,atom_function_error
+atom_frac_close_present:
+addi x21,x21,1
+jal x0,atom_frac_close_done
+atom_frac_close_consumed:
+addi x6,x21,-1
+lbu x5,0(x6)
+addi x6,x0,41
+bne x5,x6,atom_function_error
+atom_frac_close_done:
+fmv.x.d x10,f3
+fmv.d.x f5,x10
+fcvt.l.d x10,f3,1
+fcvt.d.l f4,x10,0
+fsub.d f4,f5,f4
+ld x22,1264(x8)
+ld x28,1272(x8)
+ld x29,1280(x8)
+ld x30,1288(x8)
+ld x31,1296(x8)
+ld x1,1256(x8)
+jal x0,store_atom
+atom_mod_function:
+sd x1,1304(x8)
+sd x22,1312(x8)
+sd x28,1320(x8)
+sd x29,1328(x8)
+sd x30,1336(x8)
+sd x31,1344(x8)
+addi x21,x21,4
+addi x22,x0,0
+jal x1,eval_expression
+fsd f3,1352(x8)
+lbu x5,0(x21)
+addi x6,x0,44
+bne x5,x6,atom_function_error
+addi x21,x21,1
+addi x22,x0,0
+jal x1,eval_expression
+lbu x5,0(x21)
+addi x6,x0,41
+beq x5,x6,atom_mod_close_present
+beq x5,x0,atom_mod_close_consumed
+jal x0,atom_function_error
+atom_mod_close_present:
+addi x21,x21,1
+jal x0,atom_mod_close_done
+atom_mod_close_consumed:
+addi x6,x21,-1
+lbu x5,0(x6)
+addi x6,x0,41
+bne x5,x6,atom_function_error
+atom_mod_close_done:
+fcvt.d.l f6,x0,0
+feq.d x7,f3,f6
+beq x7,x0,atom_mod_nonzero
+jal x0,atom_function_error
+atom_mod_nonzero:
+fld f5,1352(x8)
+fdiv.d f4,f5,f3
+fcvt.l.d x10,f4,1
+fcvt.d.l f4,x10,0
+fmul.d f4,f4,f3
+fsub.d f4,f5,f4
+ld x22,1312(x8)
+ld x28,1320(x8)
+ld x29,1328(x8)
+ld x30,1336(x8)
+ld x31,1344(x8)
+ld x1,1304(x8)
+jal x0,store_atom
+atom_function_error:
+jal x0,error_line
 store_left_atom:
 fld f1,1032(x8)
 jalr x0,0(x1)

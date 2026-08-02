@@ -43,7 +43,11 @@ expression    = comparison ;
 comparison    = sum , [ ( "=" | "<>" | "<" | "<=" | ">" | ">=" ) , sum ] ;
 sum           = product , { ( "+" | "-" ) , product } ;
 product       = factor , { ( "*" | "/" ) , factor } ;
-factor        = number | variable | "(" , expression , ")" | ( "+" | "-" ) , factor ;
+factor        = number | variable | "(" , expression , ")"
+              | "TRUNC" , "(" , expression , ")"
+              | "FRAC" , "(" , expression , ")"
+              | "MOD" , "(" , expression , "," , expression , ")"
+              | ( "+" | "-" ) , factor ;
 variable      = identifier ;
 identifier    = letter , { letter | digit | "_" } ;
 letter        = "A" .. "Z" | "a" .. "z" ;
@@ -82,6 +86,17 @@ effectuées dans le guest ; le chemin `/` contient réellement une instruction
 `1.0`. L’affichage V1 est fixe à six décimales, arrondi au plus proche ; les
 valeurs infinies et NaN sont affichées `INF`, `-INF` et `NAN`. Une division par
 zéro produit `BASIC-ARITH-001`.
+
+Les fonctions numériques `TRUNC(expr)`, `FRAC(expr)` et `MOD(a,b)` sont
+évaluées dans le guest. `TRUNC` convertit vers l’entier signé en arrondissant
+vers zéro puis reconvertit en binary64 ; `FRAC(x)` vaut `x-TRUNC(x)` ;
+`MOD(a,b)` vaut `a-TRUNC(a/b)*b` et refuse `b=0`. Les scratchs target-side sont
+distincts par fonction, ce qui permet un appel imbriqué comme
+`MOD(TRUNC(17.9),5)`. Les valeurs hors domaine de conversion entière suivent
+la politique RISC-V de conversion implémentée par le moteur et restent une
+limite V1. Le format décimal fixe peut afficher `FRAC(-3.9)` comme `-0.899999`
+après l’arrondi binary64 et le formateur à six chiffres ; ce résultat est
+déterministe et n’est pas une valeur décimale exacte.
 
 `FOR` et `GOSUB` utilisent chacun une pile cible fixe de huit frames. Un STEP
 nul, une pile pleine, une cible GOTO/THEN/GOSUB absente et une boucle

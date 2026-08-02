@@ -143,3 +143,11 @@
   line index. Restoring that index from the dispatch scratch before block
   control fixes both true and false branches. The normal and orphan-terminator
   QEMU tests now pass; the parity matrix reports 65 assembly QEMU tests.
+- I added target-side numeric functions `TRUNC`, `FRAC`, and `MOD`. The first
+  implementation exposed two register-lifetime hazards in the recursive
+  evaluator: inner calls clobbered the outer `x30`/`x31` return state, and
+  shared scratch slots broke `MOD(TRUNC(...),5)`. Saving the parser return
+  registers and assigning distinct scratch ranges fixed both. QEMU now proves
+  positive, negative, nested, and division-by-zero cases; `FRAC(-3.9)` is
+  observed as the deterministic fixed-format `-0.899999`. The parity matrix
+  reports 67 assembly QEMU tests.
