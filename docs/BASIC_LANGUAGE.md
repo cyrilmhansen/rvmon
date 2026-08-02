@@ -17,6 +17,7 @@ statement-list = statement , { space , ":" , space , statement } ;
 statement     = "REM" , text
               | "PRINT" , print-item , { "," , print-item }
               | "INPUT" , variable
+              | [ "LET" , space ] , string-variable , "=" , string-assignment-function
               | [ "LET" , space ] , variable , "=" , expression
               | "IF" , expression , "THEN" , number
               | "IF" , expression , "THEN" , end-of-line , block-body , "ENDIF"
@@ -41,6 +42,7 @@ statement     = "REM" , text
 print-item    = string | expression | string-function ;
 string-function = ( "LEFT$" | "RIGHT$" ) , "(" , string-variable , "," , expression , ")"
                 | "MID$" , "(" , string-variable , "," , expression , "," , expression , ")" ;
+string-assignment-function = "LEFT$" , "(" , string-variable , "," , expression , ")" ;
 expression    = comparison ;
 comparison    = sum , [ ( "=" | "<>" | "<" | "<=" | ">" | ">=" ) , sum ] ;
 sum           = product , { ( "+" | "-" ) , product } ;
@@ -139,6 +141,16 @@ nulle produit également une chaîne vide, et une longueur supérieure au restan
 disponible est ramenée à ce restant. Le résultat est copié et affiché dans la
 RAM cible. Comme `LEFT$` et `RIGHT$`, `MID$` n’est pas encore disponible dans
 une affectation, sur un tableau chaîne ou avec une chaîne littérale.
+
+La tranche assembleur accepte également
+`LET destination$=LEFT$(source$,n)` (avec `LET` facultatif). La source et la
+destination sont des variables chaînes scalaires, `n` est évalué dans le guest,
+doit être entier et compris entre 0 et 120 ; une valeur supérieure à la source
+est ramenée à sa longueur. La copie passe par un scratch de la RAM cible afin
+que l’auto-affectation et les recouvrements restent sûrs, puis écrit la longueur
+et les octets de destination sans intervention de l’hôte. Les affectations
+`RIGHT$`, `MID$`, de tableaux chaîne, de littéraux ou d’expressions chaîne
+générales restent différées.
 
 `RND` et `RND()` renvoient un nombre pseudo-aléatoire binary64 dans `[0,1)`.
 Le générateur est un LCG 32 bits target-side de paramètres `1664525` et

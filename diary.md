@@ -200,3 +200,4 @@
   QEMU proves prefix, middle, suffix, empty-out-of-range and error cases; the
   audit inventory reaches 80 scripts. String-valued assignment remains the
   next architectural boundary.
+- I updated the MiniBASIC/Turbo BASIC XL parity register after the first string-valued assignment tranche. The assembly payload now proves `LET destination$=LEFT$(source$,n)` entirely in the guest, including bounded counts, clamping, safe self-assignment through target scratch memory and clean diagnostics for invalid forms. The two new QEMU scenarios pass, bringing the reproducible assembly-test inventory to 82. The parity document now records this as PARTIEL rather than claiming general string-expression parity; `RIGHT$`, `MID$`, arrays, literals and general string expressions on the RHS remain explicit follow-up work.
