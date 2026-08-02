@@ -3572,9 +3572,13 @@ beq x5,x6,atom_x
 addi x6,x0,89
 beq x5,x6,atom_y
 addi x6,x0,65
-beq x5,x6,atom_a
+beq x5,x6,atom_a_dispatch
 addi x6,x0,82
 beq x5,x6,atom_rnd_dispatch
+addi x6,x0,73
+beq x5,x6,atom_int_dispatch
+addi x6,x0,83
+beq x5,x6,atom_sgn_dispatch
 addi x6,x0,84
 beq x5,x6,atom_trunc_dispatch
 addi x6,x0,70
@@ -3591,6 +3595,39 @@ lbu x6,1(x21)
 addi x7,x0,40
 beq x6,x7,array_open_generic
 addi x27,x21,0
+atom_a_dispatch:
+lbu x6,1(x21)
+addi x7,x0,66
+bne x6,x7,atom_a
+lbu x6,2(x21)
+addi x7,x0,83
+bne x6,x7,atom_a
+lbu x6,3(x21)
+addi x7,x0,40
+bne x6,x7,atom_a
+jal x0,atom_abs_function
+atom_int_dispatch:
+lbu x6,1(x21)
+addi x7,x0,78
+bne x6,x7,atom_array_name_scan
+lbu x6,2(x21)
+addi x7,x0,84
+bne x6,x7,atom_array_name_scan
+lbu x6,3(x21)
+addi x7,x0,40
+bne x6,x7,atom_array_name_scan
+jal x0,atom_int_function
+atom_sgn_dispatch:
+lbu x6,1(x21)
+addi x7,x0,71
+bne x6,x7,atom_array_name_scan
+lbu x6,2(x21)
+addi x7,x0,78
+bne x6,x7,atom_array_name_scan
+lbu x6,3(x21)
+addi x7,x0,40
+bne x6,x7,atom_array_name_scan
+jal x0,atom_sgn_function
 atom_trunc_dispatch:
 lbu x6,0(x21)
 addi x7,x0,84
@@ -3815,8 +3852,133 @@ fsd f4,1032(x8)
 beq x22,x0,store_left_atom
 fld f2,1032(x8)
 jalr x0,0(x1)
-; Fonctions numériques target-side. Les zones 1184..1352 sont des scratch
-; distincts par fonction afin de permettre MOD(TRUNC(...),...).
+; Fonctions numériques target-side. Les zones 1184..1536 sont des scratch
+; distincts par fonction afin de permettre des appels imbriqués.
+atom_abs_function:
+sd x1,1376(x8)
+sd x22,1384(x8)
+sd x28,1392(x8)
+sd x29,1400(x8)
+sd x30,1408(x8)
+sd x31,1416(x8)
+addi x21,x21,4
+addi x22,x0,0
+jal x1,eval_expression
+lbu x5,0(x21)
+addi x6,x0,41
+beq x5,x6,atom_abs_close_present
+beq x5,x0,atom_abs_close_consumed
+jal x0,atom_function_error
+atom_abs_close_present:
+addi x21,x21,1
+jal x0,atom_abs_close_done
+atom_abs_close_consumed:
+addi x6,x21,-1
+lbu x5,0(x6)
+addi x6,x0,41
+bne x5,x6,atom_function_error
+atom_abs_close_done:
+fmv.x.d x10,f3
+addi x6,x0,1
+slli x6,x6,63
+xor x10,x10,x6
+fmv.d.x f4,x10
+ld x22,1384(x8)
+ld x28,1392(x8)
+ld x29,1400(x8)
+ld x30,1408(x8)
+ld x31,1416(x8)
+ld x1,1376(x8)
+jal x0,store_atom
+atom_int_function:
+sd x1,1432(x8)
+sd x22,1440(x8)
+sd x28,1448(x8)
+sd x29,1456(x8)
+sd x30,1464(x8)
+sd x31,1472(x8)
+addi x21,x21,4
+addi x22,x0,0
+jal x1,eval_expression
+lbu x5,0(x21)
+addi x6,x0,41
+beq x5,x6,atom_int_close_present
+beq x5,x0,atom_int_close_consumed
+jal x0,atom_function_error
+atom_int_close_present:
+addi x21,x21,1
+jal x0,atom_int_close_done
+atom_int_close_consumed:
+addi x6,x21,-1
+lbu x5,0(x6)
+addi x6,x0,41
+bne x5,x6,atom_function_error
+atom_int_close_done:
+fcvt.l.d x10,f3,1
+fcvt.d.l f4,x10,0
+fcvt.d.l f5,x0,0
+flt.d x7,f3,f5
+beq x7,x0,atom_int_restore
+feq.d x7,f3,f4
+bne x7,x0,atom_int_restore
+addi x6,x0,1
+sub x10,x10,x6
+fcvt.d.l f4,x10,0
+atom_int_restore:
+ld x22,1440(x8)
+ld x28,1448(x8)
+ld x29,1456(x8)
+ld x30,1464(x8)
+ld x31,1472(x8)
+ld x1,1432(x8)
+jal x0,store_atom
+atom_sgn_function:
+sd x1,1488(x8)
+sd x22,1496(x8)
+sd x28,1504(x8)
+sd x29,1512(x8)
+sd x30,1520(x8)
+sd x31,1528(x8)
+addi x21,x21,4
+addi x22,x0,0
+jal x1,eval_expression
+lbu x5,0(x21)
+addi x6,x0,41
+beq x5,x6,atom_sgn_close_present
+beq x5,x0,atom_sgn_close_consumed
+jal x0,atom_function_error
+atom_sgn_close_present:
+addi x21,x21,1
+jal x0,atom_sgn_close_done
+atom_sgn_close_consumed:
+addi x6,x21,-1
+lbu x5,0(x6)
+addi x6,x0,41
+bne x5,x6,atom_function_error
+atom_sgn_close_done:
+fcvt.d.l f5,x0,0
+feq.d x7,f3,f5
+bne x7,x0,atom_sgn_zero
+flt.d x7,f3,f5
+beq x7,x0,atom_sgn_positive
+addi x6,x0,-1
+fcvt.d.l f4,x6,0
+jal x0,atom_sgn_restore
+atom_sgn_positive:
+addi x6,x0,1
+fcvt.d.l f4,x6,0
+jal x0,atom_sgn_restore
+atom_sgn_zero:
+fmv.x.d x10,f5
+fmv.d.x f4,x10
+atom_sgn_restore:
+ld x22,1496(x8)
+ld x28,1504(x8)
+ld x29,1512(x8)
+ld x30,1520(x8)
+ld x31,1528(x8)
+ld x1,1488(x8)
+jal x0,store_atom
 atom_trunc_function:
 sd x1,1184(x8)
 sd x22,1192(x8)
