@@ -56,9 +56,11 @@ plus 32 octets hexadécimaux par bloc.
 
 ## Statut du chargement
 
-Dans cette version, MiniBASIC est lié dans l’ELF guest et `basic` saute vers
-`minibasic_entry`. Il s’exécute bien en U-mode, mais n’est pas encore chargé
-depuis le workspace par l’assembleur du moniteur.
+La commande historique `basic` reste liée dans l’ELF guest et saute vers
+`minibasic_entry` pour conserver un démarrage de compatibilité. Le chemin
+recommandé pour le démonstrateur assembleur est désormais le payload autonome
+ci-dessus : son code et ses données sont chargés dans les régions cible puis
+lancé par `run-at`.
 
 La première brique du futur chemin utilisateur est maintenant disponible :
 
