@@ -206,42 +206,84 @@ run_line:
 ld x10,512(x8)
 beq x10,x0,error_line
 addi x21,x19,22
-    addi x22,x0,0
-    jal x1,parse_atom
-skip_operator_spaces:
-    lbu x27,0(x21)
-    addi x6,x0,32
-    bne x27,x6,operator_saved
-    addi x21,x21,1
-    jal x0,skip_operator_spaces
-operator_saved:
-    addi x21,x21,1
-    addi x22,x0,1
-    jal x1,parse_atom
-    add x5,x27,x0
-addi x6,x0,43
-beq x5,x6,run_add
-addi x6,x0,45
-beq x5,x6,run_sub
-addi x6,x0,42
-beq x5,x6,run_mul
-addi x6,x0,47
-beq x5,x6,run_div
-jal x0,error_line
-run_add:
-fadd.d f3,f1,f2
-jal x0,run_save
-run_sub:
-fsub.d f3,f1,f2
-jal x0,run_save
-run_mul:
-fmul.d f3,f1,f2
-jal x0,run_save
-run_div:
-fdiv.d f3,f1,f2
+jal x1,eval_expression
 run_save:
 fsd f3,1024(x8)
 ebreak
+eval_expression:
+addi x31,x1,0
+addi x22,x0,0
+jal x1,parse_product
+fmv.x.d x10,f1
+fmv.d.x f7,x10
+sum_loop:
+sum_skip_spaces:
+lbu x27,0(x21)
+addi x6,x0,32
+bne x27,x6,sum_operator
+addi x21,x21,1
+jal x0,sum_skip_spaces
+sum_operator:
+addi x6,x0,43
+beq x27,x6,sum_add
+addi x6,x0,45
+beq x27,x6,sum_sub
+fmv.x.d x10,f7
+fmv.d.x f3,x10
+fld f1,1040(x8)
+jalr x0,0(x31)
+sum_add:
+addi x21,x21,1
+addi x22,x0,1
+jal x1,parse_product
+fadd.d f3,f7,f1
+fmv.x.d x10,f3
+fmv.d.x f7,x10
+jal x0,sum_loop
+sum_sub:
+addi x21,x21,1
+addi x22,x0,1
+jal x1,parse_product
+fsub.d f3,f7,f1
+fmv.x.d x10,f3
+fmv.d.x f7,x10
+jal x0,sum_loop
+parse_product:
+addi x30,x1,0
+jal x1,parse_atom
+beq x22,x0,save_first_operand
+jal x0,product_first_ready
+save_first_operand:
+fsd f1,1040(x8)
+product_first_ready:
+beq x22,x0,product_loop
+fmv.x.d x10,f2
+fmv.d.x f1,x10
+product_loop:
+product_skip_spaces:
+lbu x27,0(x21)
+addi x6,x0,32
+bne x27,x6,product_operator
+addi x21,x21,1
+jal x0,product_skip_spaces
+product_operator:
+addi x6,x0,42
+beq x27,x6,product_mul
+addi x6,x0,47
+beq x27,x6,product_div
+jalr x0,0(x30)
+product_mul:
+addi x21,x21,1
+addi x22,x0,1
+jal x1,parse_atom
+fmul.d f1,f1,f2
+jal x0,product_loop
+product_div:
+addi x21,x21,1
+addi x22,x0,1
+jal x1,parse_atom
+fdiv.d f1,f1,f2
+jal x0,product_loop
 parse_atom:
 addi x28,x0,0
 addi x29,x0,0
