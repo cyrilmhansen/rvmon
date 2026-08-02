@@ -486,20 +486,46 @@ addi x21,x30,27
 addi x22,x0,1
 jal x1,parse_atom
 fsd f2,552(x8)
+addi x6,x0,1
+fcvt.d.l f6,x6,0
+fsd f6,560(x8)
+for_step_skip_spaces:
+lbu x5,0(x21)
+addi x6,x0,32
+bne x5,x6,for_step_check
+addi x21,x21,1
+jal x0,for_step_skip_spaces
+for_step_check:
+addi x7,x0,83
+bne x5,x7,for_step_done
+addi x21,x21,5
+addi x22,x0,1
+jal x1,parse_atom
+fsd f2,560(x8)
+for_step_done:
 sd x0,568(x8)
 jal x0,if_false
 next_statement:
 ld x6,576(x8)
 add x31,x20,x6
 fld f1,0(x31)
-addi x6,x0,1
-fcvt.d.l f2,x6,0
+fld f2,560(x8)
 fmv.x.d x10,f1
 fmv.d.x f3,x10
 fadd.d f4,f1,f2
 fsd f4,0(x31)
 fld f5,552(x8)
+fcvt.d.l f7,x0,0
+feq.d x10,f2,f7
+bne x10,x0,error_line
+flt.d x10,f2,f7
+bne x10,x0,next_negative
 fle.d x10,f4,f5
+bne x10,x0,next_loop_flag
+addi x10,x0,2
+jal x0,next_loop_flag
+next_negative:
+fle.d x10,f5,f4
 bne x10,x0,next_loop_flag
 addi x10,x0,2
 next_loop_flag:
