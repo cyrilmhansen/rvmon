@@ -135,8 +135,8 @@ bash scripts/test-guest-runtime-asm-repl-assignment.sh
 ```
 
 La source du noyau dépasse désormais 256 lignes ; la séance utilise la
-capacité assembleur étendue à 512 lignes du moniteur. Cette modification du
-moniteur doit encore être regroupée dans son propre commit d’intégration.
+capacité assembleur étendue à 512 lignes du moniteur, introduite dans le
+commit `54388af` sans mélanger les autres évolutions du moniteur.
 
 ## Références historiques
 
