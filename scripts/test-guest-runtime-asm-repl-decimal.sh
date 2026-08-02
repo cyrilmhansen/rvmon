@@ -30,7 +30,7 @@ awk '/^symbols$/{print; found=1; next} found && /^run-at /{print; exit} !found{p
     examples/minibasic-asm/payload-repl.rv |
     while IFS= read -r line; do printf '%s\n' "$line" >&3; sleep 0.003; done
 sleep 0.2
-printf '10 PRINT X*Y\nRUN\n' >&3
+printf '10 PRINT 2.5+3.5\nLIST\nRUN\n' >&3
 sleep 0.4
 printf 'regs\nmemory 0x82000400 8\nq\n' >&3
 exec 3>&-
@@ -40,16 +40,17 @@ wait "$qemu_pid" 2>/dev/null || true
 qemu_pid=""
 
 for expected in \
+    '10 PRINT 2.5+3.5' \
     'trap: breakpoint' \
-    'f1=0x4014000000000000' \
-    'f2=0x4008000000000000' \
-    'f3=0x402e000000000000' \
-    '0x0000000082000400: 00 00 00 00 00 00 2e 40'; do
+    'f1=0x4004000000000000' \
+    'f2=0x400c000000000000' \
+    'f3=0x4018000000000000' \
+    '0x0000000082000400: 00 00 00 00 00 00 18 40'; do
     if ! grep -aFq "$expected" "$output_file"; then
         cat "$output_file"
-        printf 'missing integrated assembly multiplication output: %s\n' "$expected" >&2
+        printf 'missing integrated assembly decimal output: %s\n' "$expected" >&2
         exit 1
     fi
 done
 
-printf 'guest assembly REPL multiplication QEMU test passed\n'
+printf 'guest assembly REPL decimal QEMU test passed\n'

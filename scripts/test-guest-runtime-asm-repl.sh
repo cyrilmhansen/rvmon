@@ -27,7 +27,8 @@ qemu_pid=$!
 exec 3>"$input_fifo"
 sleep 0.1
 awk '/^symbols$/{print; found=1; next} found && /^run-at /{print; exit} !found{print}' \
-    examples/minibasic-asm/payload-repl.rv >&3
+    examples/minibasic-asm/payload-repl.rv |
+    while IFS= read -r line; do printf '%s\n' "$line" >&3; sleep 0.003; done
 sleep 0.2
 printf '10 PRINT X+Y\nLIST\nRUN\n' >&3
 sleep 0.4

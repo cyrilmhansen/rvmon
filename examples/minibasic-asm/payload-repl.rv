@@ -65,6 +65,8 @@ bne x10,x7,error_line
 lbu x10,2(x18)
 addi x7,x0,32
 bne x10,x7,error_line
+addi x10,x9,-3
+sd x10,520(x8)
 addi x9,x0,0
 copy_body:
 lbu x10,3(x18)
@@ -73,7 +75,7 @@ lbu x10,3(x6)
 add x6,x19,x9
 sb x10,16(x6)
 addi x9,x9,1
-addi x7,x0,9
+ld x7,520(x8)
 bne x9,x7,copy_body
 addi x10,x0,1
 sd x10,512(x8)
@@ -84,7 +86,7 @@ addi x11,x0,3
 addi x17,x0,4
 ecall
 addi x10,x19,16
-addi x11,x0,9
+ld x11,520(x8)
 addi x17,x0,4
 ecall
 addi x10,x8,32
@@ -95,6 +97,7 @@ jal x0,command_loop
 new_program:
 addi x10,x0,0
 sd x10,512(x8)
+sd x10,520(x8)
 addi x10,x8,32
 addi x11,x0,4
 addi x17,x0,4
@@ -103,6 +106,10 @@ jal x0,command_loop
 run_line:
 ld x10,512(x8)
 beq x10,x0,error_line
+; Une forme décimale bornée d.d est reconnue avant les facteurs simples.
+lbu x5,23(x19)
+addi x6,x0,46
+beq x5,x6,decimal_expression
 ; Facteur gauche : X/Y sont des variables, les chiffres sont des littéraux.
 lbu x5,22(x19)
 addi x6,x0,88
@@ -168,6 +175,51 @@ fdiv.d f3,f1,f2
 run_save:
 fsd f3,1024(x8)
 ebreak
+decimal_expression:
+; 2.5+3.5 : positions body[0], body[2], body[3], body[4], body[6].
+lbu x5,22(x19)
+addi x6,x0,48
+sub x10,x5,x6
+fcvt.d.l f1,x10,0
+lbu x5,24(x19)
+sub x10,x5,x6
+fcvt.d.l f2,x10,0
+addi x10,x0,10
+fcvt.d.l f4,x10,0
+fdiv.d f2,f2,f4
+fadd.d f1,f1,f2
+lbu x5,26(x19)
+sub x10,x5,x6
+fcvt.d.l f2,x10,0
+lbu x5,28(x19)
+sub x10,x5,x6
+fcvt.d.l f4,x10,0
+addi x10,x0,10
+fcvt.d.l f5,x10,0
+fdiv.d f4,f4,f5
+fadd.d f2,f2,f4
+lbu x5,25(x19)
+addi x6,x0,43
+beq x5,x6,decimal_add
+addi x6,x0,45
+beq x5,x6,decimal_sub
+addi x6,x0,42
+beq x5,x6,decimal_mul
+addi x6,x0,47
+beq x5,x6,decimal_div
+jal x0,error_line
+decimal_add:
+fadd.d f3,f1,f2
+jal x0,run_save
+decimal_sub:
+fsub.d f3,f1,f2
+jal x0,run_save
+decimal_mul:
+fmul.d f3,f1,f2
+jal x0,run_save
+decimal_div:
+fdiv.d f3,f1,f2
+jal x0,run_save
 error_line:
 addi x10,x8,48
 addi x11,x0,4
