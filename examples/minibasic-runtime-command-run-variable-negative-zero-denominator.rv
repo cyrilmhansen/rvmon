@@ -1,0 +1,72 @@
+info payload
+data 0x82000100 .dword 0x000000000000000a
+data 0x82000108 .dword 0x0000000000000009
+data 0x82000110 .byte 0x50
+data 0x82000111 .byte 0x52
+data 0x82000112 .byte 0x49
+data 0x82000113 .byte 0x4e
+data 0x82000114 .byte 0x54
+data 0x82000115 .byte 0x20
+data 0x82000116 .byte 0x58
+data 0x82000117 .byte 0x2f
+data 0x82000118 .byte 0x30
+data 0x82000200 .dword 0x0000000000000001
+data 0x820003b8 .dword 0x4014000000000000
+data 0x820003c0 .dword 0x8000000000000000
+assemble-program 0x81000100
+; Diviseur signé : +5.0 / -0.0 doit produire -inf et fflags.DZ.
+entry:
+auipc x8,0x1000
+addi x8,x8,-256
+addi x18,x8,768
+addi x9,x0,0
+read_command:
+addi x17,x0,2
+ecall
+addi x7,x0,10
+beq x10,x7,command_done
+add x6,x18,x9
+sb x10,0(x6)
+addi x9,x9,1
+jal x0,read_command
+command_done:
+addi x6,x18,0
+lbu x10,0(x6)
+addi x7,x0,82
+bne x10,x7,fail
+lbu x10,1(x6)
+addi x7,x0,85
+bne x10,x7,fail
+lbu x10,2(x6)
+addi x7,x0,78
+bne x10,x7,fail
+addi x6,x8,272
+lbu x10,0(x6)
+addi x7,x0,80
+bne x10,x7,fail
+lbu x10,6(x6)
+addi x7,x0,88
+bne x10,x7,fail
+lbu x10,7(x6)
+addi x7,x0,47
+bne x10,x7,fail
+lbu x10,8(x6)
+addi x7,x0,48
+bne x10,x7,fail
+addi x6,x8,952
+fld f1,0(x6)
+addi x6,x8,960
+fld f2,0(x6)
+fdiv.d f3,f1,f2
+fsd f3,1024(x8)
+ebreak
+fail:
+addi x10,x0,1
+addi x17,x0,3
+ecall
+end
+symbols
+run-at 0x81000100
+regs
+memory 0x82000400 8
+q
