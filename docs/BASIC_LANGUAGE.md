@@ -45,7 +45,8 @@ string-function = ( "LEFT$" | "RIGHT$" ) , "(" , string-source , "," , expressio
 string-assignment-function = ( "LEFT$" | "RIGHT$" ) , "(" , string-source , "," , expression , ")"
                            | "MID$" , "(" , string-source , "," , expression , "," , expression , ")" ;
 string-assignment-rhs = string-assignment-function | string-expression ;
-string-expression = string-source , { "+" , string-source } ;
+string-expression = string-term , { "+" , string-term } ;
+string-term = string-source | string-assignment-function ;
 expression    = comparison ;
 comparison    = sum , [ ( "=" | "<>" | "<" | "<=" | ">" | ">=" ) , sum ] ;
 sum           = product , { ( "+" | "-" ) , product } ;
@@ -135,9 +136,9 @@ disponibles dans la tranche target-side actuelle pour une variable chaîne
 scalaire courte ou longue. `n` doit être entier, compris entre 0 et 120 ; une
 valeur supérieure à la longueur source est ramenée à cette longueur. Le
 résultat est copié dans un buffer temporaire de la RAM cible puis émis par
-`write_buffer`. Elles peuvent aussi être utilisées dans les affectations
-target-side décrites ci-dessous, mais ne forment pas encore des termes d’une
-concaténation générale.
+`write_buffer`. Elles peuvent aussi être utilisées dans les affectations et
+comme termes d’une concaténation target-side, selon les limites décrites
+ci-dessous.
 
 `PRINT MID$(string-variable,start,n)` utilise une position `start` 1-based,
 comme le BASIC traditionnel. `start=0` et les valeurs négatives sont rejetés ;
@@ -145,7 +146,8 @@ un début supérieur à la longueur source produit une chaîne vide. Une longueu
 nulle produit également une chaîne vide, et une longueur supérieure au restant
 disponible est ramenée à ce restant. Le résultat est copié et affiché dans la
 RAM cible. Comme `LEFT$` et `RIGHT$`, `MID$` n’est pas encore disponible dans
-une affectation, sur un tableau chaîne ou avec une chaîne littérale.
+une concaténation avec d’autres termes chaîne ; son affectation directe accepte
+les sources littérales, scalaires et tableaux décrites ci-dessous.
 
 La tranche assembleur accepte également
 `LET destination$=LEFT$(source$,n)`, `RIGHT$` et `MID$` (avec `LET` facultatif).
@@ -161,12 +163,12 @@ recouvrements restent sûrs, puis écrit la longueur et les octets de destinatio
 sans intervention de l’hôte.
 
 Une affectation peut également concaténer plusieurs termes chaîne avec `+` :
-chaque terme est un littéral ASCII, une variable ou un élément de tableau
-chaîne, par exemple `LET TITLE$="RV "+TEXT$+"!"`. Le résultat est assemblé
-dans un buffer cible borné à 120 octets avant d’être copié vers la destination.
-Les fonctions `LEFT$`, `RIGHT$` et `MID$` ne sont pas encore des termes de cette
-concaténation ; les conversions implicites numériques et les opérateurs chaîne
-autres que `+` restent rejetés.
+chaque terme est un littéral ASCII, une variable, un élément de tableau chaîne
+ou une fonction `LEFT$`/`RIGHT$`/`MID$`, par exemple
+`LET TITLE$="RV "+LEFT$(TEXT$,4)+"!"`. Le résultat est assemblé dans un buffer
+cible borné à 120 octets avant d’être copié vers la destination. Les
+conversions implicites numériques et les opérateurs chaîne autres que `+`
+restent rejetés.
 
 `RND` et `RND()` renvoient un nombre pseudo-aléatoire binary64 dans `[0,1)`.
 Le générateur est un LCG 32 bits target-side de paramètres `1664525` et
