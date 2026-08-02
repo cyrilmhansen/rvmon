@@ -481,3 +481,11 @@ teste le signe du diviseur : `+5.0 / -0.0` produit `-inf` et positionne
 ```text
 bash scripts/test-guest-runtime-command-run-variable-negative-zero-denominator.sh
 ```
+
+La fixture [`minibasic-runtime-command-run-two-variables-add.rv`](../examples/minibasic-runtime-command-run-two-variables-add.rv)
+fait évoluer l’évaluation vers deux opérandes de la table : `X=5.0`, `Y=3.0`,
+`PRINT X+Y`, puis `fadd.d` produit `8.0` :
+
+```text
+bash scripts/test-guest-runtime-command-run-two-variables-add.sh
+```

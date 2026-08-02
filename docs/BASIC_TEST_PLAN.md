@@ -122,6 +122,9 @@
 - `scripts/test-guest-runtime-command-run-variable-negative-zero-denominator.sh`
   vérifie `+5.0/-0.0`, `-inf` (`0xfff0000000000000`) et `fcsr=0x8`
   (`fflags.DZ`).
+- `scripts/test-guest-runtime-command-run-two-variables-add.sh` vérifie deux
+  lectures de table (`X` dans `f1`, `Y` dans `f2`), `fadd.d` et le résultat
+  exact `8.0` (`f3=0x4020000000000000`) dans la cible.
 - Le breakpoint `minibasic_divide` et `disasm` permettent d’observer la
   correspondance adresse → `fdiv.d`; les registres f et `fcsr` sont affichés
   avant/après le pas.

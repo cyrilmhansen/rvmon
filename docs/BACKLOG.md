@@ -2785,6 +2785,31 @@ release. Elles n’ajoutent aucune extension ISA.
 - **Paquet de contexte :** BASIC-LOAD-005J/L, fixtures `zerozero` et
   `negative-zero-div`, `BASIC_LANGUAGE.md` et R1 chapitre F.
 
+#### BASIC-LOAD-005N — RUN addition de deux variables target-side — TERMINÉE
+
+- **Priorité :** P0, premier calcul avec deux opérandes de la table numérique.
+- **But :** charger `X=5.0` et `Y=3.0`, évaluer `PRINT X+Y` avec `fadd.d` et
+  rendre les deux opérandes ainsi que `8.0` observables au débogueur.
+- **Non-but :** parser général, précédence, parenthèses, variables longues,
+  affectation et formatage décimal.
+- **Entrées :** R1 F/D, `BASIC_LANGUAGE.md`, layout de table A..Z et
+  convention d’affichage raw bits.
+- **Fichiers/modules :** fixture et test QEMU dédiés ; documentation dans
+  `BASIC_BUILD.md` et `BASIC_TEST_PLAN.md`.
+- **Dépendances :** BASIC-LOAD-005C/D, `fld`, `fadd.d` et table
+  target-side des variables.
+- **Tests :** `f1=5.0`, `f2=3.0`, `f3=8.0`, dump exact et breakpoint QEMU.
+- **Critères de sortie :** les deux valeurs et le résultat proviennent du
+  payload RV, sans calcul de l’hôte.
+- **Cas limites :** A/Z, opérandes identiques, valeurs non initialisées,
+  addition de signes et expressions de longueur générale restent à intégrer.
+- **Taille :** 2 points / 1 journée-agent, incertitude faible.
+- **Compétences/outils :** assembleur RV64, table binary64, extension D et QEMU.
+- **Parallélisable :** oui avec le lexer d’identifiants ; non avec une
+  modification du layout variable.
+- **Paquet de contexte :** BASIC-LOAD-005C/D, fixtures `run-variable-add` et
+  `run-variable-negative-div`, `BASIC_LANGUAGE.md` et R1 chapitre F.
+
 ### BASIC-LOAD-004 — Porter le magasin de lignes et le contrôle de flot
 
 - **Priorité :** P0.
