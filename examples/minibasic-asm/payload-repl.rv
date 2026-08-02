@@ -208,7 +208,13 @@ beq x10,x0,error_line
 addi x21,x19,22
     addi x22,x0,0
     jal x1,parse_atom
+skip_operator_spaces:
     lbu x27,0(x21)
+    addi x6,x0,32
+    bne x27,x6,operator_saved
+    addi x21,x21,1
+    jal x0,skip_operator_spaces
+operator_saved:
     addi x21,x21,1
     addi x22,x0,1
     jal x1,parse_atom
@@ -237,7 +243,13 @@ run_save:
 fsd f3,1024(x8)
 ebreak
 parse_atom:
+skip_atom_spaces:
 lbu x5,0(x21)
+addi x6,x0,32
+bne x5,x6,atom_dispatch
+addi x21,x21,1
+jal x0,skip_atom_spaces
+atom_dispatch:
 addi x6,x0,88
 beq x5,x6,atom_x
 addi x6,x0,89
