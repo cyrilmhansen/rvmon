@@ -5051,13 +5051,21 @@ sd x1,1152(x8)
 jal x1,resolve_string_variable
 ld x1,1152(x8)
 addi x27,x7,0
+sd x27,1976(x8)
 lbu x5,0(x21)
 addi x6,x0,61
 bne x5,x6,string_long_error
 addi x21,x21,1
 lbu x5,0(x21)
 addi x6,x0,34
+beq x5,x6,string_literal_open
+addi x6,x0,76
 bne x5,x6,string_long_error
+sd x1,2000(x8)
+jal x1,string_left_assign
+ld x1,2000(x8)
+jalr x0,0(x1)
+string_literal_open:
 addi x21,x21,1
 addi x9,x0,0
 string_copy:
@@ -6055,6 +6063,67 @@ addi x17,x0,1
 ecall
 jal x0,if_false
 print_mid_error:
+jal x0,error_line
+string_left_assign:
+sd x1,2016(x8)
+addi x21,x21,6
+jal x1,resolve_string_variable
+sd x7,1944(x8)
+sd x11,1952(x8)
+lbu x5,0(x21)
+addi x6,x0,44
+bne x5,x6,string_left_assign_error
+addi x21,x21,1
+addi x22,x0,0
+jal x1,eval_expression
+lbu x5,0(x21)
+addi x6,x0,41
+bne x5,x6,string_left_assign_error
+addi x21,x21,1
+fcvt.l.d x10,f3,1
+srai x6,x10,63
+bne x6,x0,string_left_assign_error
+sltiu x7,x10,121
+beq x7,x0,string_left_assign_error
+ld x7,1952(x8)
+sltu x6,x7,x10
+beq x6,x0,string_left_assign_count_ready
+addi x10,x7,0
+string_left_assign_count_ready:
+ld x7,1944(x8)
+lui x27,0x82060
+slli x27,x27,32
+srli x27,x27,32
+addi x9,x0,0
+string_left_assign_to_scratch:
+sltu x6,x9,x10
+beq x6,x0,string_left_assign_copy_back
+lbu x5,0(x7)
+sb x5,0(x27)
+addi x7,x7,1
+addi x27,x27,1
+addi x9,x9,1
+jal x0,string_left_assign_to_scratch
+string_left_assign_copy_back:
+lui x27,0x82060
+slli x27,x27,32
+srli x27,x27,32
+ld x6,1976(x8)
+sd x10,-8(x6)
+addi x9,x0,0
+string_left_assign_store:
+sltu x7,x9,x10
+beq x7,x0,string_left_assign_done
+lbu x5,0(x27)
+sb x5,0(x6)
+addi x27,x27,1
+addi x6,x6,1
+addi x9,x9,1
+jal x0,string_left_assign_store
+string_left_assign_done:
+ld x1,2016(x8)
+jalr x0,0(x1)
+string_left_assign_error:
 jal x0,error_line
 end
 symbols
