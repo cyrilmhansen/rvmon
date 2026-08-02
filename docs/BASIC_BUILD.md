@@ -684,5 +684,11 @@ bash scripts/test-guest-runtime-asm-repl-for.sh
 
 Le test attend les trois valeurs produites par le guest (`1.000000`,
 `2.000000`, `3.000000`) et le motif binary64 de la dernière valeur dans le
-registre observé. `STEP`, les boucles imbriquées et une pile `FOR` générale ne
-sont pas encore inclus dans ce sous-ensemble.
+registre observé. La variante `Y` est couverte par :
+
+```text
+bash scripts/test-guest-runtime-asm-repl-for-y.sh
+```
+
+`STEP`, les boucles imbriquées et une pile `FOR` générale ne sont pas encore
+inclus dans ce sous-ensemble.

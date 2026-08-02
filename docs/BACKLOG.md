@@ -3359,7 +3359,7 @@ release. Elles n’ajoutent aucune extension ISA.
 
 - **Priorité :** P0, première boucle réellement exécutée dans le payload
   assembleur.
-- **But :** exécuter `FOR X=1 TO 3` et `NEXT X` dans la cible, conserver la
+- **But :** exécuter `FOR X/Y=1 TO 3` et `NEXT X/Y` dans la cible, conserver la
   variable et la borne en binary64, incrémenter par `fadd.d` et décider la
   reprise par `fle.d`.
 - **Non-but :** `STEP`, variables de boucle arbitraires, boucles imbriquées,
@@ -3370,7 +3370,8 @@ release. Elles n’ajoutent aucune extension ISA.
   FOR/NEXT et documentation pédagogique.
 - **Dépendances :** BASIC-LOAD-005AK, affectation, comparaison FP et dispatch
   `GOTO`.
-- **Tests :** `scripts/test-guest-runtime-asm-repl-for.sh`, sorties
+- **Tests :** `scripts/test-guest-runtime-asm-repl-for.sh` et
+  `scripts/test-guest-runtime-asm-repl-for-y.sh`, sorties
   `1.000000`, `2.000000`, `3.000000`, motif `f3=0x4008000000000000` et arrêt
   contrôlé.
 - **Critères de sortie :** la boucle, l’arithmétique, la comparaison et la

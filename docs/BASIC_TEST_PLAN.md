@@ -185,6 +185,9 @@
   contrôle itérative entièrement target-side : `FOR X=1 TO 3` initialise la
   variable, `NEXT X` incrémente par `fadd.d`, compare par `fle.d` et produit
   `1.000000`, `2.000000`, puis `3.000000` avant l'arrêt.
+- `scripts/test-guest-runtime-asm-repl-for-y.sh` vérifie le même chemin avec
+  `Y`, afin de prouver que l'emplacement de la variable de contrôle n'est pas
+  implicite dans le dispatcher.
 - Le breakpoint `minibasic_divide` et `disasm` permettent d’observer la
   correspondance adresse → `fdiv.d`; les registres f et `fcsr` sont affichés
   avant/après le pas.
