@@ -6102,6 +6102,9 @@ print_mid_error:
 jal x0,error_line
 resolve_string_source:
 sd x1,2024(x8)
+ lbu x5,0(x21)
+addi x6,x0,34
+beq x5,x6,resolve_string_literal_source
 addi x22,x21,0
 resolve_string_source_scan:
 lbu x5,0(x22)
@@ -6120,6 +6123,29 @@ jalr x0,0(x1)
 resolve_string_source_array:
 jal x1,resolve_string_array
 ld x1,2024(x8)
+jalr x0,0(x1)
+resolve_string_literal_source:
+addi x21,x21,1
+lui x7,0x82060
+slli x7,x7,32
+srli x7,x7,32
+addi x7,x7,256
+addi x9,x0,0
+resolve_string_literal_copy:
+lbu x5,0(x21)
+addi x6,x0,34
+beq x5,x6,resolve_string_literal_done
+beq x5,x0,string_long_error
+sltiu x6,x9,120
+beq x6,x0,string_long_error
+add x6,x7,x9
+sb x5,0(x6)
+addi x9,x9,1
+addi x21,x21,1
+jal x0,resolve_string_literal_copy
+resolve_string_literal_done:
+addi x21,x21,1
+addi x11,x9,0
 jalr x0,0(x1)
 string_left_assign:
 sd x1,2016(x8)
