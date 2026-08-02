@@ -105,7 +105,29 @@ ld x10,512(x8)
 beq x10,x0,error_line
 fld f1,0(x20)
 fld f2,8(x20)
+; L’opérateur est le huitième octet de PRINT X<op>Y.
+lbu x5,23(x19)
+addi x6,x0,43
+beq x5,x6,run_add
+addi x6,x0,45
+beq x5,x6,run_sub
+addi x6,x0,42
+beq x5,x6,run_mul
+addi x6,x0,47
+beq x5,x6,run_div
+jal x0,error_line
+run_add:
 fadd.d f3,f1,f2
+jal x0,run_save
+run_sub:
+fsub.d f3,f1,f2
+jal x0,run_save
+run_mul:
+fmul.d f3,f1,f2
+jal x0,run_save
+run_div:
+fdiv.d f3,f1,f2
+run_save:
 fsd f3,1024(x8)
 ebreak
 error_line:
