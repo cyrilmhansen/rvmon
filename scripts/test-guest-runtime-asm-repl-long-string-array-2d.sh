@@ -93,4 +93,9 @@ for expected in 'GRID-TARGET' 'trap: breakpoint'; do
         exit 1
     fi
 done
+if grep -aFq -- 'error: unknown command' "$output_file"; then
+    cat "$output_file"
+    printf 'unexpected monitor command error during long string-array 2d run\n' >&2
+    exit 1
+fi
 printf 'guest assembly REPL long-string-array-2d QEMU test passed\n'

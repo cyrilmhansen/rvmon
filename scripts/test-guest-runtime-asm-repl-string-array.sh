@@ -97,4 +97,9 @@ for expected in '9.000000' 'DIRECT' 'PROGRAM' 'trap: breakpoint'; do
         exit 1
     fi
 done
+if grep -aFq -- 'error: unknown command' "$output_file"; then
+    cat "$output_file"
+    printf 'unexpected monitor command error during string array run\n' >&2
+    exit 1
+fi
 printf 'guest assembly REPL string array QEMU test passed\n'

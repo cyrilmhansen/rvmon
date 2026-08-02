@@ -2801,7 +2801,11 @@ jal x0,lna_index_done
 lna_index_done:
 beq x27,x0,long_num_error
 addi x6,x0,44
-beq x5,x6,lna2_second
+bne x5,x6,lna_index_not_comma
+addi x6,x24,-4
+beq x6,x0,resolve_long_string_2d_second
+jal x0,lna2_second
+lna_index_not_comma:
 addi x6,x0,41
 bne x5,x6,long_num_error
 addi x6,x24,-4
@@ -2836,6 +2840,8 @@ sltu x7,x22,x6
 beq x7,x0,string_long_error
 addi x21,x21,1
 lui x7,0x82020
+slli x7,x7,32
+srli x7,x7,32
 slli x6,x29,12
 add x7,x7,x6
 slli x6,x22,7
@@ -2850,6 +2856,8 @@ ld x27,1144(x8)
 ld x1,1152(x8)
 jalr x0,0(x1)
 resolve_long_string_2d_jump:
+jal x0,resolve_long_array_2d
+resolve_long_string_2d_second:
 jal x0,resolve_long_array_2d
 lna_index_1d:
 ld x6,16(x26)
@@ -3694,6 +3702,8 @@ addi x6,x0,41
 bne x5,x6,string_long_error
 addi x24,x23,1
 lui x26,0x82010
+slli x26,x26,32
+srli x26,x26,32
 addi x29,x0,0
 addi x27,x0,32
 string_long_dim_slot_loop:
@@ -3744,6 +3754,8 @@ bne x7,x0,string_long_dim_copy_loop
 sd x24,16(x26)
 string_long_dim_zero:
 lui x7,0x82020
+slli x7,x7,32
+srli x7,x7,32
 slli x6,x29,12
 add x7,x7,x6
 addi x9,x0,0
@@ -3796,6 +3808,8 @@ sltiu x7,x9,33
 beq x7,x0,string_long_error
 sd x9,1792(x8)
 lui x26,0x82010
+slli x26,x26,32
+srli x26,x26,32
 addi x29,x0,0
 addi x27,x0,32
 string_long_2d_slot:
@@ -3995,6 +4009,8 @@ bne x5,x6,string_long_error
 addi x28,x24,0
 addi x21,x25,2
 lui x26,0x82010
+slli x26,x26,32
+srli x26,x26,32
 addi x29,x0,0
 addi x27,x0,32
 resolve_long_array_slot_loop:
@@ -4067,6 +4083,8 @@ sltu x7,x22,x6
 beq x7,x0,string_long_error
 addi x21,x21,1
 lui x7,0x82020
+slli x7,x7,32
+srli x7,x7,32
 slli x6,x29,12
 add x7,x7,x6
 slli x6,x22,7

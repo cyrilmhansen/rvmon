@@ -93,4 +93,9 @@ for expected in 'ARRAY-DIRECT-TARGET' 'ARRAY-PROGRAM-TARGET' 'VALUE' 'trap: brea
         exit 1
     fi
 done
+if grep -aFq -- 'error: unknown command' "$output_file"; then
+    cat "$output_file"
+    printf 'unexpected monitor command error during long string-array run\n' >&2
+    exit 1
+fi
 printf 'guest assembly REPL long-string-array QEMU test passed\n'
