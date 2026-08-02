@@ -136,6 +136,8 @@
 - `scripts/test-guest-runtime-asm-repl-decimal.sh` vérifie le stockage de la
   longueur réelle du corps, `2.5+3.5`, les conversions/fragments décimaux
   target-side et le résultat exact `6.0` dans `f3`/RAM.
+- `scripts/test-guest-runtime-asm-repl-direct.sh` vérifie `PRINT 2+3` sans
+  numéro de ligne et la réutilisation target-side du chemin d’évaluation.
 - Le breakpoint `minibasic_divide` et `disasm` permettent d’observer la
   correspondance adresse → `fdiv.d`; les registres f et `fcsr` sont affichés
   avant/après le pas.

@@ -2916,6 +2916,32 @@ release. Elles n’ajoutent aucune extension ISA.
 - **Paquet de contexte :** BASIC-LOAD-005Q, `payload-repl.rv`, tests literal et
   operators, `BASIC_LANGUAGE.md` et règles de représentation binary64.
 
+#### BASIC-LOAD-005S — Mode direct PRINT dans le payload assembleur — TERMINÉE
+
+- **Priorité :** P0, premier chemin d’exécution directe intégré.
+- **But :** reconnaître `PRINT ...` sans numéro, conserver la même
+  représentation de record et réutiliser l’évaluation target-side.
+- **Non-but :** `?`, chaînes, formatage décimal, expressions générales,
+  diagnostics complets et plusieurs instructions directes.
+- **Entrées :** `BASIC_LANGUAGE.md`, source `payload-repl.rv`, ABI UART et
+  layout du record avec longueur.
+- **Fichiers/modules :** payload assembleur, test QEMU direct et documentation
+  BASIC.
+- **Dépendances :** BASIC-LOAD-005R/Q, boucle de commande et évaluateur des
+  facteurs bornés.
+- **Tests :** `PRINT 2+3` sans numéro, breakpoint, `f1=2.0`, `f2=3.0`,
+  `f3=5.0` et dump exact sous QEMU.
+- **Critères de sortie :** la commande et le calcul sont consommés dans la
+  cible ; aucun résultat n’est injecté par l’hôte.
+- **Cas limites :** `?`, chaîne directe, ligne vide, erreur de syntaxe,
+  affichage décimal et retour prompt restent à intégrer.
+- **Taille :** 3 points / 1,5 journée-agent, incertitude faible.
+- **Compétences/outils :** assembleur RV64, UART target-side, QEMU et D.
+- **Parallélisable :** oui avec l’affichage binary64 ; non avec un changement
+  du format de record partagé.
+- **Paquet de contexte :** BASIC-LOAD-005O/R, payload REPL, tests literal et
+  règles de mode direct de `BASIC_LANGUAGE.md`.
+
 ### BASIC-LOAD-004 — Porter le magasin de lignes et le contrôle de flot
 
 - **Priorité :** P0.

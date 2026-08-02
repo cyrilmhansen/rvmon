@@ -110,6 +110,16 @@ bash scripts/test-guest-runtime-asm-repl-decimal.sh
 Le calcul et la conversion restent entièrement target-side ; la forme est
 encore volontairement limitée à un chiffre avant et après le point.
 
+Le même record est désormais alimenté par le mode direct `PRINT ...`, sans
+numéro de ligne. La preuve minimale est :
+
+```text
+bash scripts/test-guest-runtime-asm-repl-direct.sh
+```
+
+Cette réutilisation du record est intentionnelle : elle prépare un seul
+chemin d’évaluation pour le mode direct et le mode programme.
+
 ## Références historiques
 
 Le découpage suit le principe historique de tables de syntaxe, pile

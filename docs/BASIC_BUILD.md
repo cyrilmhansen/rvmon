@@ -437,6 +437,13 @@ la forme décimale bornée `PRINT 2.5+3.5` :
 bash scripts/test-guest-runtime-asm-repl-decimal.sh
 ```
 
+Le mode direct `PRINT 2+3` est également pris en charge par le payload
+assembleur et passe par le même évaluateur :
+
+```text
+bash scripts/test-guest-runtime-asm-repl-direct.sh
+```
+
 La variante [`minibasic-runtime-command-run-variable-sub.rv`](../examples/minibasic-runtime-command-run-variable-sub.rv)
 applique le même contrat à `PRINT X-3` et vérifie `2.0` après `fsub.d` :
 
