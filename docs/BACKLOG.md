@@ -3333,6 +3333,28 @@ release. Elles n’ajoutent aucune extension ISA.
 - **Parallélisable :** oui avec diagnostics ; non avec la politique d’arrêt.
 - **Paquet de contexte :** BASIC-LOAD-005AI, tests trace/break et `GUEST_UART_DRIVER.md`.
 
+#### BASIC-LOAD-005AK — PRINT de littéraux chaîne target-side — TERMINÉE
+
+- **Priorité :** P0, première sortie textuelle BASIC dans le payload assembleur.
+- **But :** détecter `PRINT "..."`, parcourir les octets du record cible et les
+  écrire par `ecall 1`, puis reprendre l’exécution séquentielle.
+- **Non-but :** variables chaîne, concaténation, échappements, tableaux,
+  Unicode et formatage mixte texte/nombre.
+- **Entrées :** `BASIC_LANGUAGE.md`, ABI `ecall 1`, layout des slots et règle
+  ASCII du langage.
+- **Fichiers/modules :** `payload-repl.rv`, test QEMU string et docs BASIC.
+- **Dépendances :** BASIC-LOAD-005AJ, dispatcher de statements et slots.
+- **Tests :** `20 PRINT "SECOND"`, `10 PRINT "FIRST"`, `RUN`, sorties ordonnées
+  et breakpoint final.
+- **Critères de sortie :** les caractères sont lus et émis par le guest, sans
+  transcription codée dans le test.
+- **Cas limites :** chaîne vide, guillemet interne, longueur maximale, espace
+  final et mélange avec expression restent à traiter.
+- **Taille :** 3 points / 1,5 journée-agent, incertitude faible.
+- **Compétences/outils :** assembleur, ABI console, mémoire cible et QEMU.
+- **Parallélisable :** oui avec le pool de chaînes ; non avec le layout record.
+- **Paquet de contexte :** BASIC-LOAD-005AJ, payload string et test QEMU.
+
 ### BASIC-LOAD-004 — Porter le magasin de lignes et le contrôle de flot
 
 - **Priorité :** P0.

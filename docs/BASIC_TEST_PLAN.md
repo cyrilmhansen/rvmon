@@ -179,6 +179,8 @@
 - `scripts/test-guest-runtime-asm-repl-trace.sh` vérifie `[10]` et `[20]` avant
   deux lignes exécutées ; `scripts/test-guest-runtime-asm-repl-break.sh`
   vérifie Ctrl-C sur `10 GOTO 10`, `BREAK` et le retour au moniteur.
+- `scripts/test-guest-runtime-asm-repl-string.sh` vérifie deux littéraux ASCII
+  `PRINT "FIRST"`/`PRINT "SECOND"`, lus en RAM cible et émis par `ecall 1`.
 - Le breakpoint `minibasic_divide` et `disasm` permettent d’observer la
   correspondance adresse → `fdiv.d`; les registres f et `fcsr` sont affichés
   avant/après le pas.

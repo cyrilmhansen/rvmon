@@ -540,6 +540,16 @@ bash scripts/test-guest-runtime-asm-repl-break.sh
 `TRACE ON` est target-side ; Ctrl-C passe par le polling UART du payload et ne
 termine pas QEMU.
 
+Les littéraux `PRINT "..."` sont également émis depuis la RAM cible, en
+conservant l’ordre des lignes 10/20 :
+
+```text
+bash scripts/test-guest-runtime-asm-repl-string.sh
+```
+
+Cette première tranche chaîne ne couvre pas encore les variables chaîne,
+concaténation, échappements ou tableaux de chaînes.
+
 La commande `END` est distincte de `NEW` et s’arrête proprement après avoir
 émis `END` depuis le guest :
 

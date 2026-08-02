@@ -174,6 +174,11 @@ guest et rend le contrôle au moniteur. Les preuves sont respectivement
 `scripts/test-guest-runtime-asm-repl-trace.sh` et
 `scripts/test-guest-runtime-asm-repl-break.sh`.
 
+`PRINT "..."` est maintenant séparé du chemin numérique : les octets de la
+chaîne sont lus depuis le record en RAM cible et envoyés par `ecall 1`. Les
+chaînes sont ASCII, sans échappement ni variable chaîne à ce stade ; la preuve
+est `scripts/test-guest-runtime-asm-repl-string.sh`.
+
 `END` est également dispatché target-side, émet `END\n` puis arrête la séance
 sur un breakpoint contrôlable. Sa non-régression est :
 
