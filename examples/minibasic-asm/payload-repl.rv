@@ -139,7 +139,7 @@ addi x9,x9,1
 bne x9,x5,copy_question_body
 addi x10,x0,1
 sd x10,512(x8)
-sd x10,536(x8)
+sd x0,536(x8)
 jal x0,run_line
 direct_print:
 lbu x10,1(x18)
@@ -169,7 +169,7 @@ ld x7,520(x8)
 bne x9,x7,copy_direct
 addi x10,x0,1
 sd x10,512(x8)
-sd x10,536(x8)
+sd x0,536(x8)
 jal x0,run_line
 store_line:
 lbu x10,1(x18)
