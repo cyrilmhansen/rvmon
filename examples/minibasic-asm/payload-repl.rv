@@ -2513,6 +2513,34 @@ fld f4,0(x7)
 jal x0,store_atom
 array_open_generic:
 sd x1,1152(x8)
+sd x22,1776(x8)
+sd x30,1752(x8)
+sd x28,1760(x8)
+sd x29,1768(x8)
+addi x22,x21,2
+array_open_probe:
+lbu x5,0(x22)
+addi x6,x0,44
+beq x5,x6,array_open_long
+addi x6,x0,41
+beq x5,x6,array_open_short
+beq x5,x0,error_line
+addi x22,x22,1
+jal x0,array_open_probe
+array_open_long:
+ld x22,1776(x8)
+sd x1,1152(x8)
+jal x1,resolve_long_num_array
+ld x30,1752(x8)
+ld x22,1776(x8)
+ld x28,1760(x8)
+ld x29,1768(x8)
+ld x1,1152(x8)
+fld f4,0(x7)
+jal x0,store_atom
+array_open_short:
+ld x22,1776(x8)
+ld x30,1752(x8)
 jal x1,resolve_array_name
 ld x1,1152(x8)
 addi x21,x21,2
@@ -2643,7 +2671,7 @@ beq x7,x0,long_num_error
 addi x25,x25,1
 jal x0,lna_scan
 lna_name_done:
-sltiu x7,x24,2
+sltiu x7,x24,1
 bne x7,x0,long_num_error
 addi x28,x24,0
 addi x21,x25,1
@@ -2823,8 +2851,19 @@ jal x0,string_dim_array
 dim_numeric_header:
 lbu x5,1(x21)
 addi x7,x0,40
-beq x5,x7,dim_numeric_short
+beq x5,x7,dim_numeric_short_probe
 jal x0,dim_long_numeric
+dim_numeric_short_probe:
+addi x22,x21,2
+dim_numeric_probe:
+lbu x5,0(x22)
+addi x6,x0,44
+beq x5,x6,dim_long_numeric
+addi x6,x0,41
+beq x5,x6,dim_numeric_short
+beq x5,x0,dim_error
+addi x22,x22,1
+jal x0,dim_numeric_probe
 dim_numeric_short:
 jal x1,resolve_array_name
 addi x21,x21,2
@@ -2887,7 +2926,7 @@ beq x7,x0,long_num_error
 addi x25,x25,1
 jal x0,long_num_scan
 long_num_name_done:
-sltiu x7,x24,2
+sltiu x7,x24,1
 bne x7,x0,long_num_error
 addi x31,x23,0
 addi x28,x24,0
@@ -3151,8 +3190,19 @@ jalr x0,0(x1)
 assign_array:
  lbu x5,1(x21)
  addi x7,x0,40
- beq x5,x7,assign_array_short
+ beq x5,x7,assign_array_probe
  jal x0,long_num_assign
+assign_array_probe:
+addi x22,x21,2
+assign_array_scan:
+lbu x5,0(x22)
+addi x6,x0,44
+beq x5,x6,long_num_assign
+addi x6,x0,41
+beq x5,x6,assign_array_short
+beq x5,x0,long_num_error
+addi x22,x22,1
+jal x0,assign_array_scan
 assign_array_short:
 sd x1,1600(x8)
 jal x1,resolve_array_name
@@ -3417,8 +3467,19 @@ jalr x0,0(x1)
 string_dim_array:
  lbu x5,1(x21)
  addi x7,x0,36
- beq x5,x7,string_dim_short
+ beq x5,x7,string_dim_short_probe
  jal x0,string_long_dim_array
+string_dim_short_probe:
+addi x22,x21,3
+string_dim_probe:
+lbu x5,0(x22)
+addi x6,x0,44
+beq x5,x6,string_long_dim_array
+addi x6,x0,41
+beq x5,x6,string_dim_short
+beq x5,x0,string_long_error
+addi x22,x22,1
+jal x0,string_dim_probe
 string_dim_short:
 ; DIM A$(N): fixed-size ASCII buffers, one 128-byte cell per element.
 lbu x5,0(x21)
@@ -3542,7 +3603,7 @@ beq x7,x0,string_long_error
 addi x25,x25,1
 jal x0,string_long_dim_scan
 string_long_dim_name_done:
-sltiu x7,x24,2
+sltiu x7,x24,1
 bne x7,x0,string_long_error
 lbu x5,1(x25)
 addi x6,x0,40
@@ -3753,8 +3814,22 @@ jalr x0,0(x1)
 resolve_string_array:
 lbu x5,1(x21)
 addi x7,x0,36
-beq x5,x7,resolve_string_array_short
+beq x5,x7,r_sarr_short_probe
 jal x0,resolve_long_string_array
+r_sarr_short_probe:
+lbu x5,2(x21)
+addi x7,x0,40
+bne x5,x7,resolve_string_array_short
+addi x22,x21,3
+resolve_string_array_probe:
+lbu x5,0(x22)
+addi x6,x0,44
+beq x5,x6,resolve_long_string_array
+addi x6,x0,41
+beq x5,x6,resolve_string_array_short
+beq x5,x0,string_long_error
+addi x22,x22,1
+jal x0,resolve_string_array_probe
 resolve_string_array_short:
 sd x1,1152(x8)
 lbu x5,0(x21)
@@ -3882,7 +3957,7 @@ beq x7,x0,string_long_error
 addi x25,x25,1
 jal x0,resolve_long_array_scan
 resolve_long_array_name_done:
-sltiu x7,x24,2
+sltiu x7,x24,1
 bne x7,x0,string_long_error
 lbu x5,1(x25)
 addi x6,x0,40
