@@ -160,6 +160,8 @@ Le dispatcher BASIC reconnaît maintenant une forme bornée
 `IF <atome><comparaison><atome> THEN <10|20>`. Le chemin vrai est démontré par
 `scripts/test-guest-runtime-asm-repl-if.sh`; la comparaison, la décision et le
 transfert de slot se déroulent dans le payload.
+Le chemin faux sans slot cible est couvert par
+`scripts/test-guest-runtime-asm-repl-if-false.sh`.
 
 `END` est également dispatché target-side, émet `END\n` puis arrête la séance
 sur un breakpoint contrôlable. Sa non-régression est :

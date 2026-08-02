@@ -3270,6 +3270,25 @@ release. Elles n’ajoutent aucune extension ISA.
   de booléens/slots.
 - **Paquet de contexte :** BASIC-LOAD-005AF, payload IF et test QEMU.
 
+#### BASIC-LOAD-005AH — Non-régression IF faux — TERMINÉE
+
+- **Priorité :** P0, preuve du chemin conditionnel négatif.
+- **But :** vérifier qu’une condition fausse n’exécute pas sa cible absente et
+  s’arrête sans résultat parasite.
+- **Non-but :** poursuite complexe, `ELSE`, boucles et diagnostics complets.
+- **Entrées :** BASIC-LOAD-005AG, état des slots et convention booléenne.
+- **Fichiers/modules :** test QEMU IF-false et documentation BASIC.
+- **Dépendances :** BASIC-LOAD-005AG et dispatcher `run_stop`.
+- **Tests :** `10 IF 2<1 THEN 20`, absence de `15.000000`, breakpoint réel.
+- **Critères de sortie :** le chemin faux est décidé dans la cible et aucune
+  sortie attendue n’est injectée par le harnais.
+- **Cas limites :** false avec ligne suivante, NaN, comparateur invalide et
+  `ELSE` restent à intégrer.
+- **Taille :** 2 points / 1 journée-agent, incertitude faible.
+- **Compétences/outils :** QEMU, assembleur et tests de contrôle de flot.
+- **Parallélisable :** oui avec `INPUT` ; non avec une refonte du dispatcher.
+- **Paquet de contexte :** BASIC-LOAD-005AG, tests IF vrai/faux et payload.
+
 ### BASIC-LOAD-004 — Porter le magasin de lignes et le contrôle de flot
 
 - **Priorité :** P0.

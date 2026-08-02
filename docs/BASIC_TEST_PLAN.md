@@ -171,6 +171,8 @@
 - `scripts/test-guest-runtime-asm-repl-if.sh` vérifie `10 IF 1<2 THEN 20`, la
   comparaison dans le guest, le saut vers le slot 20, `15.000000` et le
   breakpoint final.
+- `scripts/test-guest-runtime-asm-repl-if-false.sh` vérifie `2<1`, l’absence
+  de sortie du slot inexistant et l’arrêt target-side sans branche forcée.
 - Le breakpoint `minibasic_divide` et `disasm` permettent d’observer la
   correspondance adresse → `fdiv.d`; les registres f et `fcsr` sont affichés
   avant/après le pas.

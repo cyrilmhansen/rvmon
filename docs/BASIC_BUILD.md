@@ -512,6 +512,12 @@ ou 20. Le chemin vrai `IF 1<2 THEN 20` est vérifié par :
 bash scripts/test-guest-runtime-asm-repl-if.sh
 ```
 
+Le chemin faux sans slot cible (`10 IF 2<1 THEN 20`) est vérifié séparément :
+
+```text
+bash scripts/test-guest-runtime-asm-repl-if-false.sh
+```
+
 Les expressions de comparaison composées, `AND/OR`, parenthèses de condition
 et diagnostics détaillés restent à intégrer.
 
