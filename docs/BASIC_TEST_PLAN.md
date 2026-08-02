@@ -206,6 +206,10 @@
 - `scripts/test-guest-runtime-asm-repl-scalars.sh` vérifie les variables
   scalaires target-side hors X/Y : `P=95`, `Q=2`, `P=P+Q`, puis le motif
   binary64 et `PRINT "P",P`, affiché comme `P 97.000000`.
+- `scripts/test-guest-runtime-asm-repl-hammurabi.sh` exécute le programme
+  complet de démonstration pendant cinq années sous QEMU, avec `INPUT`,
+  conditions composées, `GOTO`, sorties multi-éléments et grain final
+  `1950.000000`.
 - Le breakpoint `minibasic_divide` et `disasm` permettent d’observer la
   correspondance adresse → `fdiv.d`; les registres f et `fcsr` sont affichés
   avant/après le pas.

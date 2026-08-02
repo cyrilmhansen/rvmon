@@ -253,6 +253,11 @@ parseur d’expressions ; par exemple `P=95`, `Q=2`, puis `10 P=P+Q` produit
 `scripts/test-guest-runtime-asm-repl-scalars.sh`. Les noms longs et les
 variables chaîne restent des représentations distinctes.
 
+Le caractère `A` est désambiguïsé sur la cible : `A=1000` accède à la variable
+scalaire A, tandis que `A(3)` conserve la syntaxe de tableau. De même, les
+formes `D=0` et `G=2800` sont distinguées de `DIM` et `GOTO` par le caractère
+suivant. Cette désambiguïsation est nécessaire au portage de Hammurabi.
+
 `PRINT` accepte désormais une suite courte d’éléments séparés par des virgules,
 avec un espace ajouté entre éléments : `PRINT "P",P` produit `P 97.000000`.
 La chaîne et la valeur sont émises par des ecalls distincts depuis la cible ;

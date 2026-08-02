@@ -102,7 +102,7 @@ beq x10,x7,assign_x
 addi x7,x0,89
 beq x10,x7,assign_y
 addi x7,x0,68
-beq x10,x7,dim_direct
+beq x10,x7,check_d_command
 addi x7,x0,65
 beq x10,x7,assign_array_direct
 addi x7,x0,83
@@ -133,6 +133,11 @@ check_p_command:
 lbu x5,1(x18)
 addi x7,x0,82
 beq x5,x7,direct_print
+jal x0,check_generic_assignment
+check_d_command:
+lbu x5,1(x18)
+addi x7,x0,73
+beq x5,x7,dim_direct
 jal x0,check_generic_assignment
 trace_command:
 lbu x5,1(x18)
@@ -720,7 +725,7 @@ ecall
 trace_done:
 lbu x10,16(x24)
 addi x7,x0,71
-beq x10,x7,goto_statement
+beq x10,x7,goto_dispatch
 addi x7,x0,69
 beq x10,x7,end_statement
 addi x7,x0,70
@@ -728,7 +733,7 @@ beq x10,x7,for_statement
 addi x7,x0,78
 beq x10,x7,next_statement
 addi x7,x0,68
-beq x10,x7,dim_statement
+beq x10,x7,dim_dispatch
 addi x7,x0,65
 beq x10,x7,array_dispatch
 addi x7,x0,83
@@ -784,6 +789,11 @@ dim_statement:
 addi x21,x24,16
 jal x1,dim_array
 jal x0,if_false
+dim_dispatch:
+lbu x5,17(x24)
+addi x7,x0,61
+beq x5,x7,assignment_statement
+jal x0,dim_statement
 array_statement:
 addi x21,x24,16
 jal x1,assign_array
@@ -826,6 +836,11 @@ addi x10,x0,10
 addi x17,x0,1
 ecall
 jal x0,if_false
+goto_dispatch:
+lbu x5,17(x24)
+addi x7,x0,61
+beq x5,x7,assignment_statement
+jal x0,goto_statement
 goto_statement:
 jal x0,goto_generic
 goto_generic:
@@ -1039,6 +1054,7 @@ addi x22,x0,0
 jal x1,eval_expression
 fmv.x.d x10,f3
 fmv.d.x f1,x10
+fsd f1,1016(x8)
 if_skip_operator_spaces:
 lbu x27,0(x21)
 addi x6,x0,32
@@ -1109,22 +1125,28 @@ fmv.x.d x10,f3
 fmv.d.x f2,x10
 jal x0,if_compare_greater_equal
 if_compare_less:
+fld f1,1016(x8)
 flt.d x10,f1,f2
 jal x0,if_parse_then
 if_compare_less_equal:
+fld f1,1016(x8)
 fle.d x10,f1,f2
 jal x0,if_parse_then
 if_compare_equal:
+fld f1,1016(x8)
 feq.d x10,f1,f2
 jal x0,if_parse_then
 if_compare_not_equal:
+fld f1,1016(x8)
 feq.d x10,f1,f2
 xori x10,x10,1
 jal x0,if_parse_then
 if_compare_greater:
+fld f1,1016(x8)
 flt.d x10,f2,f1
 jal x0,if_parse_then
 if_compare_greater_equal:
+fld f1,1016(x8)
 fle.d x10,f2,f1
 if_parse_then:
 if_then_spaces:
@@ -1606,7 +1628,12 @@ atom_a:
 addi x21,x21,1
 addi x6,x0,40
 lbu x5,0(x21)
-bne x5,x6,error_line
+beq x5,x6,atom_array_open
+addi x6,x0,0
+add x7,x20,x6
+fld f4,0(x7)
+jal x0,store_atom
+atom_array_open:
 addi x21,x21,1
 addi x23,x0,0
 addi x27,x0,0

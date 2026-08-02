@@ -404,6 +404,29 @@ confondre code présent et exigence formellement auditée.
 - **Limites restantes :** les diagnostics de saisie et les chaînes restent
   hors de cette tranche.
 - **Taille :** 3 points / 1,5 journée-agent, incertitude faible.
+
+#### BASIC-LOAD-005AV — Hammurabi-RV bout-en-bout — TERMINÉE
+
+- **Priorité :** P0, démonstrateur fonctionnel du port assembleur.
+- **But :** exécuter sous QEMU le programme Hammurabi complet, sans sortie
+  préenregistrée ni interprétation BASIC côté hôte.
+- **Non-but :** compatibilité totale Turbo BASIC XL, chaînes variables,
+  tableaux du jeu ou interface graphique.
+- **Entrées/sources :** programme pédagogique de `TUTORIAL-GUEST.md`,
+  BASIC-LOAD-005AP..005AU, IEEE binary64 et ABI `RVMPAY01`.
+- **Étapes réalisées :** désambiguïser A/D/G entre variable et mot-clé,
+  préserver la variable gauche lors des comparaisons flottantes, ajouter le
+  test reproductible avec 61 lignes, cinq cycles d’entrées et arrêt `END`.
+- **Tests :** `scripts/test-guest-runtime-asm-repl-hammurabi.sh` sous QEMU;
+  vérifie l’en-tête, les années, les invites, les récoltes, les états multi-
+  variables et `1950.000000` en sortie finale.
+- **Critères de sortie :** le moteur lexical, l’évaluateur, le contrôle de
+  flot, les conversions et les résultats sont exécutés dans la cible RV64;
+  le script ne fournit que les caractères UART et les sources assembleur.
+- **Limites restantes :** programme encore saisi ligne par ligne dans le
+  moniteur, lignes multiples limitées aux numéros par dix et affichage fixe à
+  six décimales.
+- **Taille :** 5 points / 2,5 journées-agent, incertitude moyenne.
 - **Compétences/outils :** Rust `no_std`, UART, assemblage en deux passes, QEMU.
 - **Parallélisable :** oui avec la spécification de l’éditeur source; non avec une modification concurrente du protocole d’erreur UART.
 - **Paquet de contexte minimal :** `crates/guest-monitor/src/main.rs`, `scripts/test-guest-monitor.sh`, `docs/TUTORIAL-GUEST.md`, SPEC §§11/17–19.
