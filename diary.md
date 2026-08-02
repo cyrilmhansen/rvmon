@@ -192,3 +192,11 @@
   zero-length and error paths, and the `LEFT$` regression remains green. The
   audit inventory reaches 78 scripts; `MID$` and string-valued assignments are
   still the next parity boundary.
+- I added `PRINT MID$(TEXT$,start,n)` with 1-based positions, target-side
+  clamping to the remaining source and explicit rejection of zero/negative
+  starts, negative lengths and arity errors. Growing the dispatcher once more
+  pushed an existing `read_find_line` conditional branch out of range; the
+  inverse-branch plus `jal` form fixed it without changing runtime semantics.
+  QEMU proves prefix, middle, suffix, empty-out-of-range and error cases; the
+  audit inventory reaches 80 scripts. String-valued assignment remains the
+  next architectural boundary.

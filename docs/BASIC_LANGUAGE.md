@@ -39,7 +39,8 @@ statement     = "REM" , text
               | "NEXT" , variable
               | "END" ;
 print-item    = string | expression | string-function ;
-string-function = ( "LEFT$" | "RIGHT$" ) , "(" , string-variable , "," , expression , ")" ;
+string-function = ( "LEFT$" | "RIGHT$" ) , "(" , string-variable , "," , expression , ")"
+                | "MID$" , "(" , string-variable , "," , expression , "," , expression , ")" ;
 expression    = comparison ;
 comparison    = sum , [ ( "=" | "<>" | "<" | "<=" | ">" | ">=" ) , sum ] ;
 sum           = product , { ( "+" | "-" ) , product } ;
@@ -130,6 +131,14 @@ résultat est copié dans un buffer temporaire de la RAM cible puis émis par
 `write_buffer`. Ces fonctions ne sont pas encore des expressions chaîne
 générales : leur usage en affectation, sur un tableau chaîne ou avec une chaîne
 littérale reste différé avec `MID$`.
+
+`PRINT MID$(string-variable,start,n)` utilise une position `start` 1-based,
+comme le BASIC traditionnel. `start=0` et les valeurs négatives sont rejetés ;
+un début supérieur à la longueur source produit une chaîne vide. Une longueur
+nulle produit également une chaîne vide, et une longueur supérieure au restant
+disponible est ramenée à ce restant. Le résultat est copié et affiché dans la
+RAM cible. Comme `LEFT$` et `RIGHT$`, `MID$` n’est pas encore disponible dans
+une affectation, sur un tableau chaîne ou avec une chaîne littérale.
 
 `RND` et `RND()` renvoient un nombre pseudo-aléatoire binary64 dans `[0,1)`.
 Le générateur est un LCG 32 bits target-side de paramètres `1664525` et

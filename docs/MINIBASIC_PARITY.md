@@ -17,7 +17,7 @@ expressions, données, chaînes, tableaux et diagnostics. Elle ne signifie ni
 compatibilité Atari, ni compatibilité binaire, ni compatibilité des tokens,
 des nombres historiques, des périphériques, du DOS ou des graphismes.
 
-État de l’audit : **78 scripts QEMU assembleur MiniBASIC recensés**. Le nombre
+État de l’audit : **80 scripts QEMU assembleur MiniBASIC recensés**. Le nombre
 est contrôlable par :
 
 ```text
@@ -71,7 +71,7 @@ entièrement dans le guest.
 | Comparaisons | `=`, `<>`, `<`, `<=`, `>`, `>=`, résultat `0.0` ou `1.0` | VERT | `if.sh`, `if-false.sh`, `precedence.sh` |
 | Fonctions numériques | `ABS`, `SGN`, `INT`, `TRUNC`, `FRAC`, `MOD`, appels target-side et imbrication documentée | VERT | `numeric-rounding.sh`, `numeric-rounding-error.sh`, `numeric-functions.sh` |
 | Aléatoire | `RND` et `RND()`, LCG target-side reproductible, graine à 1 | VERT | `rnd.sh`, `rnd-error.sh` |
-| Fonctions de chaînes | `LEN`, `PRINT LEFT$(variable,n)` et `PRINT RIGHT$(variable,n)` avec buffer target-side | PARTIEL | `string-len*.sh`, `string-left*.sh`, `string-right*.sh`; affectations, tableaux, littéraux et `MID$` différés |
+| Fonctions de chaînes | `LEN`, `PRINT LEFT$`, `PRINT RIGHT$` et `PRINT MID$` avec buffer target-side | PARTIEL | `string-len*.sh`, `string-left*.sh`, `string-right*.sh`, `string-mid*.sh`; affectations, tableaux et littéraux différés |
 | Variables numériques | variables courtes historiques et identifiants ASCII de 2 à 16 caractères | VERT | `scalars.sh`, `long-names.sh`, `keyword-vars.sh` |
 | Chaînes | littéraux, variables courtes/longues, affectation, affichage et entrée | VERT | `string-var.sh`, `long-string.sh` |
 | Tableaux numériques | 1D/2D, noms courts/longs, index calculés et contrôle des bornes | VERT | `array*.sh`, `long-numeric-array*.sh` |
@@ -167,10 +167,9 @@ Priorité suivante, après stabilisation du socle actuel :
 1. produire une démonstration Hammurabi complète et auditée, incluant les
    variables longues et les tableaux visibles dans le moniteur ;
 2. finaliser le tutoriel progressif et son scénario de démonstration ;
-3. étendre les fonctions chaîne target-side avec `MID$`, puis décider
-   l’activation dans les affectations, les tableaux et les littéraux ; `LEN`,
-   `PRINT LEFT$` et `PRINT RIGHT$` sont désormais implémentés avec les limites
-   documentées ;
+3. décider l’activation des fonctions chaîne dans les affectations, les
+   tableaux et les littéraux ; `LEN`, `PRINT LEFT$`, `PRINT RIGHT$` et
+   `PRINT MID$` sont désormais implémentés avec les limites documentées ;
 4. traiter les limites documentées des blocs structurés et des expressions
    d’index uniquement si une compatibilité supplémentaire est prioritaire ;
 5. conserver la compilation native BASIC comme chantier séparé et différé,
@@ -202,7 +201,7 @@ sortie BASIC préenregistrée.
 - **Décisions de parité figées :** mode direct, lignes, contrôle de flot,
   chaînes, tableaux, binary64 target-side, interruption et périmètre Atari
   rejeté ;
-- **Preuve automatisée :** 78 tests QEMU assembleur recensés au moment de cet
+- **Preuve automatisée :** 80 tests QEMU assembleur recensés au moment de cet
   audit ;
 - **Écart important restant :** `IF/ELSE/ENDIF` est non imbriqué ; certaines
   fonctions historiques TBXL ne sont pas encore retenues ;
