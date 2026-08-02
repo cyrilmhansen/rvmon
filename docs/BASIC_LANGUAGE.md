@@ -21,6 +21,8 @@ statement     = "REM" , text
               | "GOTO" , number
               | "GOSUB" , number
               | "RETURN"
+              | "DATA" , expression , { "," , expression }
+              | "READ" , variable
               | "FOR" , variable , "=" , expression , "TO" , expression , [ "STEP" , expression ]
               | "NEXT" , variable
               | "END" ;
@@ -67,6 +69,13 @@ de flot et rend la main à l’invite sans modifier le programme.
 Une réponse `INPUT` vide ou syntaxiquement invalide produit
 `BASIC-INPUT-001`.
 
+`DATA` et `READ` utilisent un curseur séquentiel conservé dans la mémoire
+cible. La tranche actuelle accepte des valeurs numériques binary64 séparées
+par des virgules ; les espaces autour des virgules sont ignorés. `DATA` ne
+produit aucune sortie et `READ` consomme la prochaine valeur dans l’ordre des
+lignes du programme. Une lecture au-delà des données disponibles est une
+erreur de flot.
+
 ## Commandes directes
 
 `NEW`, `LIST`, `RUN`, `TRACE ON`, `TRACE OFF`, `DUMP`, `PRINT`/`?`, `BYE` et
@@ -85,9 +94,9 @@ service 4 `write_buffer` est documenté dans `docs/TUTORIAL-GUEST.md`.
 ## Limites du jalon courant et extensions conservées
 
 Le jalon actuellement exécuté fournit les variables chaînes courtes, les
-tableaux numériques et les tableaux de chaînes unidimensionnels. Il ne fournit
-pas encore `DATA/READ`, les fichiers, les fonctions utilisateur, les exposants,
-les tableaux multidimensionnels ou les instructions séparées par
+tableaux numériques, les tableaux de chaînes unidimensionnels et `DATA/READ`
+numérique. Il ne fournit pas encore les fichiers, les fonctions utilisateur,
+les exposants, les chaînes dans `DATA`, les tableaux multidimensionnels ou les instructions séparées par
 `:`. Cette absence est une limite d’implémentation intermédiaire, pas un rejet
 du produit : les chaînes et les tableaux complets restent des fonctionnalités
 obligatoires de la trajectoire MiniBASIC-RV.
@@ -95,8 +104,9 @@ obligatoires de la trajectoire MiniBASIC-RV.
 La cible de conception conserve donc : chaînes littérales et variables,
 affectation et affichage de chaînes, tableaux numériques et tableaux de
 chaînes, avec stockage et opérations exécutés dans la machine RV64. Le layout
-est maintenant fixé par D-018 ; le portage assembleur reste à réaliser et
-aucune conversion ou évaluation ne sera déléguée à l’hôte.
+est maintenant fixé par D-018 ; le payload assembleur est chargé et assemblé
+par le moniteur dans les tests QEMU, et aucune conversion ou évaluation n’est
+déléguée à l’hôte.
 
 ## Contrat retenu pour les chaînes et tableaux
 
