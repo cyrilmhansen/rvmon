@@ -408,3 +408,10 @@ applique le même contrat à `PRINT X-3` et vérifie `2.0` après `fsub.d` :
 ```text
 bash scripts/test-guest-runtime-command-run-variable-sub.sh
 ```
+
+La fixture [`minibasic-runtime-command-run-variable-mul.rv`](../examples/minibasic-runtime-command-run-variable-mul.rv)
+ajoute `PRINT X*3` et vérifie `15.0` après `fmul.d` :
+
+```text
+bash scripts/test-guest-runtime-command-run-variable-mul.sh
+```
