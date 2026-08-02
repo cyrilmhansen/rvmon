@@ -165,6 +165,9 @@
   transfert target-side vers le slot 20, `5.000000` et le breakpoint final.
 - `scripts/test-guest-runtime-asm-repl-end.sh` vérifie le dispatch target-side
   de `10 END`, la sortie `END` et l’arrêt contrôlé au breakpoint.
+- `scripts/test-guest-runtime-fcmp-d.sh` vérifie l’assemblage généré et
+  l’exécution QEMU de `feq.d`, `flt.d` et `fle.d`, avec `rd=xN` et les résultats
+  booléens exacts en registres et en RAM.
 - Le breakpoint `minibasic_divide` et `disasm` permettent d’observer la
   correspondance adresse → `fdiv.d`; les registres f et `fcsr` sont affichés
   avant/après le pas.

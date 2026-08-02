@@ -3225,6 +3225,28 @@ release. Elles n’ajoutent aucune extension ISA.
 - **Parallélisable :** oui avec les comparaisons ; non avec le protocole d’arrêt.
 - **Paquet de contexte :** BASIC-LOAD-005AD, test END et `GUEST_PAYLOAD_ABI.md`.
 
+#### BASIC-LOAD-005AF — Comparaisons FP pour IF — TERMINÉE
+
+- **Priorité :** P0, oracle ISA préalable à `IF ... THEN`.
+- **But :** accepter et exécuter `feq.d`, `flt.d` et `fle.d` dans l’assembleur
+  guest, avec destination entière et résultats 0/1 target-side.
+- **Non-but :** syntaxe BASIC `IF`, chaînes, NaN policy spécifique au langage
+  et opérateurs logiques.
+- **Entrées :** R1 chapitre D, R2 généré, `BASIC_LANGUAGE.md` et encodeur ISA.
+- **Fichiers/modules :** parseur source du moniteur, fixture fcmp et test QEMU.
+- **Dépendances :** tables R2 générées et capacité assembleur existante.
+- **Tests :** comparaison 2.0/3.0 donnant `feq=0`, `flt=1`, `fle=1` en registres
+  et en mémoire, sous exécution QEMU réelle.
+- **Critères de sortie :** `rd` est traité comme registre entier et les bits
+  encodés correspondent à la table générée ; aucun oracle hôte n’évalue le FP.
+- **Cas limites :** NaN, ±0, égalité et `fcsr` de comparaison restent à ajouter
+  au corpus BASIC.
+- **Taille :** 3 points / 1,5 journée-agent, incertitude faible.
+- **Compétences/outils :** RISC-V D, génération R2, assembleur et QEMU.
+- **Parallélisable :** oui avec le lexer IF ; non avec une modification des
+  conventions de booléens.
+- **Paquet de contexte :** R1 D, `riscv-opcodes`, fixture fcmp et ABI guest.
+
 ### BASIC-LOAD-004 — Porter le magasin de lignes et le contrôle de flot
 
 - **Priorité :** P0.

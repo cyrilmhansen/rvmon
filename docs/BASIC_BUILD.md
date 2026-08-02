@@ -496,6 +496,14 @@ bash scripts/test-guest-runtime-asm-repl-goto.sh
 
 Les sauts conditionnels restent à implémenter.
 
+Le parseur assembleur accepte maintenant les comparaisons FP `feq.d`, `flt.d`
+et `fle.d`, avec destination entière, et leur encodage/exécution est vérifié
+indépendamment du payload BASIC :
+
+```text
+bash scripts/test-guest-runtime-fcmp-d.sh
+```
+
 La commande `END` est distincte de `NEW` et s’arrête proprement après avoir
 émis `END` depuis le guest :
 

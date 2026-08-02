@@ -151,6 +151,11 @@ bash scripts/test-guest-runtime-asm-repl-goto.sh
 La capacité assembleur du moniteur est passée à 768 lignes pour absorber ce
 payload pédagogique.
 
+Les comparaisons flottantes nécessaires au prochain dispatcher BASIC sont
+désormais disponibles dans le dialecte guest. `feq.d`, `flt.d` et `fle.d`
+utilisent une destination entière, conformément à l’ISA, et sont vérifiées par
+`scripts/test-guest-runtime-fcmp-d.sh`.
+
 `END` est également dispatché target-side, émet `END\n` puis arrête la séance
 sur un breakpoint contrôlable. Sa non-régression est :
 
