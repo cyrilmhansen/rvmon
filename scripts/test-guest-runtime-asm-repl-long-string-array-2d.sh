@@ -53,7 +53,9 @@ while IFS= read -r line; do
             in_source_mode=1
         else
             for _ in {1..500}; do
-                (( $(monitor_prompt_count) > before )) && break
+                if (( $(monitor_prompt_count) > before )); then
+                    break
+                fi
                 sleep 0.01
             done
         fi
@@ -65,14 +67,18 @@ while IFS= read -r line; do
         before=$(source_prompt_count)
         printf '%s\n' "$line" >&3
         for _ in {1..500}; do
-            (( $(source_prompt_count) > before )) && break
+            if (( $(source_prompt_count) > before )); then
+                break
+            fi
             sleep 0.01
         done
     else
         before=$(monitor_prompt_count)
         printf '%s\n' "$line" >&3
         for _ in {1..500}; do
-            (( $(monitor_prompt_count) > before )) && break
+            if (( $(monitor_prompt_count) > before )); then
+                break
+            fi
             sleep 0.01
         done
     fi

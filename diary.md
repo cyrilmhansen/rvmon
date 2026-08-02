@@ -89,3 +89,7 @@
   its CLI vocabulary (`@D`, `@H`, `@N`, `G`, `K`, `M`, `N`, `S`, `F`, `C`, `Q`)
   with the modern monitor command surface; it will be used as a compatibility
   reference, not copied as a product specification.
+- The intermittent matrix miss was isolated to the long string-array 2D test
+  harness. Replacing `((condition)) && break` with an explicit `if` block under
+  `set -e` made five consecutive QEMU runs pass. No runtime source changed in
+  this hardening step.
