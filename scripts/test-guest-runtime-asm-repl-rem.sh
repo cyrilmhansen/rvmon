@@ -29,7 +29,7 @@ awk '/^symbols$/{print; found=1; next} found && /^run-at /{print; exit} !found{p
     examples/minibasic-asm/payload-repl.rv |
     while IFS= read -r line; do printf '%s\n' "$line" >&3; sleep 0.002; done
 sleep 0.2
-printf '10 REM this text is ignored\n20 R=7\n30 PRINT R\n40 END\nRUN\n' >&3
+printf '10 REM this text is ignored\n20 R=6\n30 LET R=7\n40 PRINT R\n50 END\nRUN\n' >&3
 sleep 0.6
 printf 'q\n' >&3
 exec 3>&-

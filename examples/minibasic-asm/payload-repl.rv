@@ -825,6 +825,8 @@ addi x7,x0,80
 beq x10,x7,print_dispatch
 addi x7,x0,82
 beq x10,x7,rem_or_assignment
+addi x7,x0,76
+beq x10,x7,let_or_assignment
 lbu x5,17(x24)
 addi x7,x0,61
 beq x5,x7,assignment_statement
@@ -854,6 +856,28 @@ bne x5,x7,assignment_statement
 lbu x5,18(x24)
 addi x7,x0,77
 bne x5,x7,assignment_statement
+jal x0,if_false
+let_or_assignment:
+lbu x5,17(x24)
+addi x7,x0,69
+bne x5,x7,assignment_statement
+lbu x5,18(x24)
+addi x7,x0,84
+bne x5,x7,assignment_statement
+lbu x5,19(x24)
+addi x7,x0,32
+bne x5,x7,assignment_statement
+addi x21,x24,20
+jal x1,resolve_variable
+sd x7,1112(x8)
+lbu x5,0(x21)
+addi x7,x0,61
+bne x5,x7,error_line
+addi x21,x21,1
+addi x22,x0,0
+jal x1,eval_expression
+ld x6,1112(x8)
+fsd f3,0(x6)
 jal x0,if_false
 print_statement:
 lbu x5,22(x24)
