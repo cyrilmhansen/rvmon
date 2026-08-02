@@ -19,17 +19,17 @@ set +e
 output="$({
     sleep 0.1
     printf 'assemble-program %s\n' "$assembly_address"
-    for _ in $(seq 1 4096); do
+    for _ in $(seq 1 8192); do
         printf 'addi x1,x1,0\n'
         sleep 0.001
     done
     printf 'end\nassemble-program 0x%x\n' "$((assembly_address + 0x1000))"
-    for _ in $(seq 1 4097); do
+    for _ in $(seq 1 8193); do
         printf 'addi x1,x1,0\n'
         sleep 0.001
     done
     printf 'end\nquit\n'
-} | timeout 30s qemu-system-riscv64 \
+} | timeout 60s qemu-system-riscv64 \
     -M virt \
     -m 64M \
     -bios none \
@@ -45,8 +45,8 @@ if [[ "$status" -ne 124 ]]; then
 fi
 
 for expected in \
-    'assembled program: 4096 instruction(s)' \
-    'error [GUEST-ASM-001]: source program exceeds 4096 source lines'; do
+    'assembled program: 8192 instruction(s)' \
+    'error [GUEST-ASM-001]: source program exceeds 8192 assembly lines'; do
     if ! [[ "$output" == *"$expected"* ]]; then
         printf '%s\n' "$output"
         printf 'missing expected output: %s\n' "$expected" >&2

@@ -36,6 +36,10 @@ const MAX_SNAPSHOT_DUMP: u64 = 4096;
 const MAX_METADATA_BYTES: usize = 64 * 1024;
 const MAX_METADATA_SOURCE_BYTES: usize = MAX_SOURCE_LINES * COMMAND_CAPACITY;
 const MAX_SOURCE_LINES: usize = 4096;
+// A standalone payload may be larger than the interactive source document.
+// Keep the persistent editor/snapshot contract at 4096 lines while allowing
+// generated target programs such as MiniBASIC-RV to be assembled in one pass.
+const MAX_ASSEMBLY_LINES: usize = 8192;
 const MAX_SYMBOLS: usize = 512;
 const SYMBOL_NAME_CAPACITY: usize = 32;
 // Target service ABI: a7 selects the service; a0/a1 carry arguments/results.
@@ -64,13 +68,13 @@ static mut SOURCE_ADDRESS: u64 = 0;
 // Assembly scratch is deliberately static.  The guest monitor has a bounded
 // M-mode stack; growing the source document must not grow transient stack
 // frames by tens of kilobytes.
-static mut ASSEMBLY_LINES: [[u8; COMMAND_CAPACITY]; MAX_SOURCE_LINES] =
-    [[0; COMMAND_CAPACITY]; MAX_SOURCE_LINES];
-static mut ASSEMBLY_LENGTHS: [usize; MAX_SOURCE_LINES] = [0; MAX_SOURCE_LINES];
+static mut ASSEMBLY_LINES: [[u8; COMMAND_CAPACITY]; MAX_ASSEMBLY_LINES] =
+    [[0; COMMAND_CAPACITY]; MAX_ASSEMBLY_LINES];
+static mut ASSEMBLY_LENGTHS: [usize; MAX_ASSEMBLY_LINES] = [0; MAX_ASSEMBLY_LINES];
 static mut ASSEMBLY_INPUT: [u8; COMMAND_CAPACITY] = [0; COMMAND_CAPACITY];
 static mut ASSEMBLY_SYMBOLS: [GuestSymbol; MAX_SYMBOLS] = [GuestSymbol::empty(); MAX_SYMBOLS];
-static mut ASSEMBLY_WORDS: [u32; MAX_SOURCE_LINES] = [0; MAX_SOURCE_LINES];
-static mut ASSEMBLY_WORD_ADDRESSES: [u64; MAX_SOURCE_LINES] = [0; MAX_SOURCE_LINES];
+static mut ASSEMBLY_WORDS: [u32; MAX_ASSEMBLY_LINES] = [0; MAX_ASSEMBLY_LINES];
+static mut ASSEMBLY_WORD_ADDRESSES: [u64; MAX_ASSEMBLY_LINES] = [0; MAX_ASSEMBLY_LINES];
 static mut MEMORY_UNDO: MemoryUndo = MemoryUndo::empty();
 static mut GUEST_SNAPSHOT: GuestSnapshot = GuestSnapshot::empty();
 static mut SNAPSHOT_BINARY_PATCH: [u8; MAX_SNAPSHOT_DUMP as usize] =
@@ -1406,11 +1410,11 @@ fn assemble_program_command(context: *mut TargetContext, argument: &[u8]) {
 
     uart_write("source mode: enter instructions, labels or ';' comments; finish with end\r\n");
     unsafe {
-        ASSEMBLY_LINES = [[0; COMMAND_CAPACITY]; MAX_SOURCE_LINES];
-        ASSEMBLY_LENGTHS = [0; MAX_SOURCE_LINES];
+        ASSEMBLY_LINES = [[0; COMMAND_CAPACITY]; MAX_ASSEMBLY_LINES];
+        ASSEMBLY_LENGTHS = [0; MAX_ASSEMBLY_LINES];
         ASSEMBLY_SYMBOLS = [GuestSymbol::empty(); MAX_SYMBOLS];
-        ASSEMBLY_WORDS = [0; MAX_SOURCE_LINES];
-        ASSEMBLY_WORD_ADDRESSES = [0; MAX_SOURCE_LINES];
+        ASSEMBLY_WORDS = [0; MAX_ASSEMBLY_LINES];
+        ASSEMBLY_WORD_ADDRESSES = [0; MAX_ASSEMBLY_LINES];
     }
     let mut count = 0usize;
     let mut overflow = false;
@@ -1425,7 +1429,7 @@ fn assemble_program_command(context: *mut TargetContext, argument: &[u8]) {
         if line.is_empty() {
             continue;
         }
-        if count == MAX_SOURCE_LINES {
+        if count == MAX_ASSEMBLY_LINES {
             overflow = true;
             continue;
         }
@@ -1438,7 +1442,7 @@ fn assemble_program_command(context: *mut TargetContext, argument: &[u8]) {
     }
 
     if overflow {
-        guest_error(b"GUEST-ASM-001", b"source program exceeds 4096 source lines");
+        guest_error(b"GUEST-ASM-001", b"source program exceeds 8192 assembly lines");
         return;
     }
     if count == 0 {
@@ -1527,10 +1531,10 @@ fn assemble_program_command(context: *mut TargetContext, argument: &[u8]) {
             );
             return;
         }
-        let Some(word) = (unsafe {
-            parse_source_instruction(line, line_address, &*core::ptr::addr_of!(ASSEMBLY_SYMBOLS))
-        }) else {
-            guest_source_error(
+            let Some(word) = (unsafe {
+                parse_source_instruction(line, line_address, &*core::ptr::addr_of!(ASSEMBLY_SYMBOLS))
+            }) else {
+                guest_source_error(
                 index + 1,
                 b"GUEST-ASM-008",
                 b"supports integer/control, byte/word loads-stores, ld/sd/fld/fsd, f arithmetic or fmv syntax",
@@ -1573,13 +1577,16 @@ fn assemble_program_command(context: *mut TargetContext, argument: &[u8]) {
             core::ptr::write_volatile(core::ptr::addr_of_mut!(SYMBOLS[index]), *symbol);
         }
     }
-    unsafe {
+    let source_saved = unsafe {
         store_source(
             &*core::ptr::addr_of!(ASSEMBLY_LINES),
             &*core::ptr::addr_of!(ASSEMBLY_LENGTHS),
             count,
             address,
-        );
+        )
+    };
+    if !source_saved {
+        uart_write("source document not retained: assembled program exceeds 4096 editable lines\r\n");
     }
     uart_write("assembled program: ");
     uart_decimal(word_count as u64);
@@ -1589,11 +1596,20 @@ fn assemble_program_command(context: *mut TargetContext, argument: &[u8]) {
 }
 
 fn store_source(
-    lines: &[[u8; COMMAND_CAPACITY]; MAX_SOURCE_LINES],
-    lengths: &[usize; MAX_SOURCE_LINES],
+    lines: &[[u8; COMMAND_CAPACITY]; MAX_ASSEMBLY_LINES],
+    lengths: &[usize; MAX_ASSEMBLY_LINES],
     count: usize,
     address: u64,
-) {
+) -> bool {
+    if count > MAX_SOURCE_LINES {
+        unsafe {
+            SOURCE_LINES = [[0; COMMAND_CAPACITY]; MAX_SOURCE_LINES];
+            SOURCE_LENGTHS = [0; MAX_SOURCE_LINES];
+            core::ptr::write_volatile(core::ptr::addr_of_mut!(SOURCE_COUNT), 0);
+            core::ptr::write_volatile(core::ptr::addr_of_mut!(SOURCE_ADDRESS), 0);
+        }
+        return false;
+    }
     unsafe {
         for index in 0..MAX_SOURCE_LINES {
             core::ptr::write_volatile(core::ptr::addr_of_mut!(SOURCE_LINES[index]), lines[index]);
@@ -1605,6 +1621,7 @@ fn store_source(
         core::ptr::write_volatile(core::ptr::addr_of_mut!(SOURCE_COUNT), count);
         core::ptr::write_volatile(core::ptr::addr_of_mut!(SOURCE_ADDRESS), address);
     }
+    true
 }
 
 fn print_source(line: Option<usize>) {
@@ -2557,14 +2574,14 @@ fn snapshot_valid_chunk(workspace: bool, offset: u64, length: u64) -> bool {
 fn assemble_source_buffer(
     context: *mut TargetContext,
     address: u64,
-    lines: &[[u8; COMMAND_CAPACITY]; MAX_SOURCE_LINES],
-    lengths: &[usize; MAX_SOURCE_LINES],
+    lines: &[[u8; COMMAND_CAPACITY]; MAX_ASSEMBLY_LINES],
+    lengths: &[usize; MAX_ASSEMBLY_LINES],
     count: usize,
 ) -> ! {
     unsafe {
         ASSEMBLY_SYMBOLS = [GuestSymbol::empty(); MAX_SYMBOLS];
-        ASSEMBLY_WORDS = [0; MAX_SOURCE_LINES];
-        ASSEMBLY_WORD_ADDRESSES = [0; MAX_SOURCE_LINES];
+        ASSEMBLY_WORDS = [0; MAX_ASSEMBLY_LINES];
+        ASSEMBLY_WORD_ADDRESSES = [0; MAX_ASSEMBLY_LINES];
     }
     let mut instruction_count = 0usize;
     for index in 0..count {

@@ -204,11 +204,19 @@
 - `scripts/test-guest-runtime-asm-repl-four-lines.sh` vérifie le magasin
   assembleur indexé de 64 lignes : insertion hors ordre, LIST trié, RUN
   séquentiel, calcul de `3+4`, bornes 50 et 630/640, puis arrêt sur `END`.
+- `scripts/test-guest-minibasic-line-capacity.sh` vérifie le magasin BASIC
+  assembleur étendu : rejet explicite de la ligne 2570, conservation de la
+  ligne 2560, LIST à quatre chiffres et exécution target-side d’un saut vers
+  la frontière 2560.
 - `scripts/test-guest-runtime-asm-repl-goto-30.sh` vérifie le saut target-side
   depuis la ligne 10 vers le slot 30.
 - `scripts/test-guest-runtime-asm-repl-scalars.sh` vérifie les variables
   scalaires target-side hors X/Y : `P=95`, `Q=2`, `P=P+Q`, puis le motif
   binary64 et `PRINT "P",P`, affiché comme `P 97.000000`.
+- `scripts/test-guest-runtime-asm-repl-long-names.sh` vérifie un identifiant
+  target-side de 14 caractères, son affectation directe, sa réutilisation dans
+  une affectation de programme et une expression exécutée par le guest ; la
+  sortie attendue est `LONG 42.000000`.
 - `scripts/test-guest-runtime-asm-repl-hammurabi.sh` exécute le programme
   complet de démonstration pendant cinq années sous QEMU, avec `INPUT`,
   conditions composées, `GOTO`, sorties multi-éléments et grain final

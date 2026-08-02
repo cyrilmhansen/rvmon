@@ -69,12 +69,21 @@ entry:
 auipc x8,0x1000
 addi x8,x8,-256
 addi x18,x8,1024
-; 64 enregistrements de 128 octets, lignes 10..640 par pas de 10.
+; 256 enregistrements de 128 octets, lignes 10..2560 par pas de 10.
 ; Le magasin est séparé de la table des variables et des tableaux.
 addi x19,x8,2047
 addi x19,x19,2047
+addi x19,x19,2047
+addi x19,x19,2047
+addi x19,x19,4
+addi x19,x19,2047
+addi x19,x19,2047
 addi x19,x19,2
 addi x20,x8,768
+addi x21,x8,2047
+addi x21,x21,2047
+addi x21,x21,2
+sd x21,600(x8)
 sd x0,1160(x8)
 sd x0,1616(x8)
 sd x0,1704(x8)
@@ -294,7 +303,9 @@ remu x5,x26,x7
 bne x5,x0,store_line_error
 sltiu x7,x26,10
 bne x7,x0,store_line_error
-sltiu x7,x26,641
+lui x7,1
+addi x7,x7,-1535
+sltu x7,x26,x7
 beq x7,x0,store_line_error
 addi x29,x26,0
 addi x26,x26,-10
@@ -304,7 +315,7 @@ divu x26,x26,x7
 slli x7,x26,7
 add x24,x19,x7
 slli x7,x26,3
-addi x25,x8,1800
+ld x25,600(x8)
 add x25,x25,x7
 add x7,x18,x6
 lbu x5,0(x7)
@@ -327,19 +338,8 @@ add x7,x7,x27
 sb x5,0(x7)
 addi x27,x27,1
 bne x27,x28,store_body_generic
-addi x7,x0,1
-sll x7,x7,x26
-ld x10,512(x8)
-or x10,x10,x7
-sd x10,512(x8)
 jal x0,command_loop
 delete_line_generic:
-addi x7,x0,1
-sll x7,x7,x26
-xori x7,x7,-1
-ld x10,512(x8)
-and x10,x10,x7
-sd x10,512(x8)
 sd x0,0(x25)
 jal x0,command_loop
 store_line_error:
@@ -447,19 +447,19 @@ jal x0,run_line
 direct_print:
 lbu x10,1(x18)
 addi x7,x0,82
-bne x10,x7,error_line_near
+bne x10,x7,direct_print_error
 lbu x10,2(x18)
 addi x7,x0,73
-bne x10,x7,error_line_near
+bne x10,x7,direct_print_error
 lbu x10,3(x18)
 addi x7,x0,78
-bne x10,x7,error_line_near
+bne x10,x7,direct_print_error
 lbu x10,4(x18)
 addi x7,x0,84
-bne x10,x7,error_line_near
+bne x10,x7,direct_print_error
 lbu x10,5(x18)
 addi x7,x0,32
-bne x10,x7,error_line_near
+bne x10,x7,direct_print_error
 sd x9,520(x8)
 addi x9,x0,0
 copy_direct:
@@ -474,6 +474,8 @@ addi x10,x0,1
 sd x10,512(x8)
 sd x0,536(x8)
 jal x0,run_line
+direct_print_error:
+jal x0,error_line_near
 ; Affectation directe des autres variables scalaires A..Z.
 check_generic_assignment:
 addi x7,x0,40
@@ -604,7 +606,7 @@ addi x7,x26,-1
 slli x6,x7,10
 add x24,x19,x6
 slli x6,x7,3
-addi x25,x8,1800
+ld x25,600(x8)
 add x25,x25,x6
 addi x10,x26,-1
 addi x6,x0,10
@@ -633,11 +635,11 @@ jal x0,list_line_generic
 list_line_generic:
 addi x26,x0,0
 list_scan_generic:
-addi x7,x0,1
-sll x7,x7,x26
-ld x12,512(x8)
-and x13,x12,x7
-beq x13,x0,list_next_generic
+ slli x7,x26,3
+ld x12,600(x8)
+ add x12,x12,x7
+ ld x13,0(x12)
+ beq x13,x0,list_next_generic
 slli x7,x26,7
 add x24,x19,x7
 ld x10,0(x24)
@@ -654,6 +656,8 @@ sb x7,0(x13)
 addi x13,x13,1
 jal x0,list_number_done
 list_three_digits:
+sltiu x7,x10,1000
+beq x7,x0,list_four_digits
 addi x13,x8,208
 addi x6,x0,100
 divu x7,x10,x6
@@ -669,6 +673,30 @@ addi x13,x13,1
 addi x7,x0,48
 sb x7,0(x13)
 addi x13,x13,1
+jal x0,list_number_done
+list_four_digits:
+addi x13,x8,208
+addi x6,x0,1000
+divu x7,x10,x6
+addi x7,x7,48
+sb x7,0(x13)
+addi x13,x13,1
+remu x10,x10,x6
+addi x6,x0,100
+divu x7,x10,x6
+addi x7,x7,48
+sb x7,0(x13)
+addi x13,x13,1
+remu x10,x10,x6
+addi x6,x0,10
+divu x7,x10,x6
+addi x7,x7,48
+sb x7,0(x13)
+addi x13,x13,1
+remu x10,x10,x6
+addi x7,x10,48
+sb x7,0(x13)
+addi x13,x13,1
 list_number_done:
 addi x7,x0,32
 sb x7,0(x13)
@@ -679,7 +707,7 @@ addi x17,x0,4
 ecall
 addi x10,x24,16
 slli x7,x26,3
-addi x11,x8,1800
+ld x11,600(x8)
 add x11,x11,x7
 ld x11,0(x11)
 addi x17,x0,4
@@ -690,7 +718,7 @@ addi x17,x0,4
 ecall
 list_next_generic:
 addi x26,x26,1
-sltiu x7,x26,64
+sltiu x7,x26,256
 bne x7,x0,list_scan_generic
 jal x0,command_loop
 
@@ -768,6 +796,15 @@ addi x10,x0,0
 sd x10,512(x8)
 sd x10,520(x8)
 sd x10,528(x8)
+addi x26,x0,0
+new_clear_lengths:
+slli x7,x26,3
+ld x12,600(x8)
+add x12,x12,x7
+sd x0,0(x12)
+addi x26,x26,1
+sltiu x7,x26,256
+bne x7,x0,new_clear_lengths
 sd x10,1160(x8)
 sd x10,1240(x8)
 addi x10,x8,32
@@ -783,13 +820,13 @@ sd x0,1704(x8)
 sd x0,1712(x8)
 addi x26,x0,0
 run_find_first_generic:
-addi x7,x0,1
-sll x7,x7,x26
-ld x10,512(x8)
-and x11,x10,x7
+slli x7,x26,3
+ld x10,600(x8)
+add x10,x10,x7
+ld x11,0(x10)
 bne x11,x0,run_first_found_generic
 addi x26,x26,1
-sltiu x7,x26,64
+sltiu x7,x26,256
 bne x7,x0,run_find_first_generic
 jal x0,error_line
 run_first_found_generic:
@@ -828,6 +865,15 @@ addi x17,x0,5
 ecall
 addi x7,x0,3
 beq x10,x7,break_statement
+slli x7,x26,3
+ld x10,600(x8)
+add x10,x10,x7
+ld x11,0(x10)
+beq x11,x0,run_line_check_direct
+slli x7,x26,7
+add x24,x19,x7
+jal x0,dispatch_statement
+run_line_check_direct:
 addi x7,x0,1
 sll x7,x7,x26
 ld x10,512(x8)
@@ -991,12 +1037,12 @@ sd x7,1112(x8)
 ld x26,1704(x8)
 ld x27,1712(x8)
 read_find_line:
-sltiu x7,x26,64
-beq x7,x0,error_line_near
-addi x7,x0,1
-sll x7,x7,x26
-ld x6,512(x8)
-and x7,x6,x7
+ sltiu x7,x26,256
+ beq x7,x0,error_line_near
+ slli x7,x26,3
+ld x6,600(x8)
+ add x6,x6,x7
+ ld x7,0(x6)
 beq x7,x0,read_next_line
 slli x7,x26,7
 add x24,x19,x7
@@ -1062,12 +1108,12 @@ sd x7,1112(x8)
 ld x26,1704(x8)
 ld x27,1712(x8)
 read_string_find_line:
-sltiu x7,x26,64
-beq x7,x0,read_string_error
-addi x7,x0,1
-sll x7,x7,x26
-ld x6,512(x8)
-and x7,x6,x7
+ sltiu x7,x26,256
+ beq x7,x0,read_string_error
+ slli x7,x26,3
+ld x6,600(x8)
+ add x6,x6,x7
+ ld x7,0(x6)
 beq x7,x0,read_string_next_line
 slli x7,x26,7
 add x24,x19,x7
@@ -1417,15 +1463,17 @@ remu x5,x26,x6
 bne x5,x0,error_line_near
 sltiu x6,x26,10
 bne x6,x0,error_line_near
-sltiu x6,x26,641
+lui x6,1
+addi x6,x6,-1535
+sltu x6,x26,x6
 beq x6,x0,error_line_near
 addi x26,x26,-10
 addi x6,x0,10
 divu x26,x26,x6
-addi x6,x0,1
-sll x6,x6,x26
-ld x7,512(x8)
-and x7,x7,x6
+slli x7,x26,3
+ld x6,600(x8)
+add x6,x6,x7
+ld x7,0(x6)
 beq x7,x0,error_line_near
 ld x30,1608(x8)
 beq x30,x0,goto_save_target
@@ -1708,10 +1756,10 @@ addi x27,x27,0
 sd x27,1240(x8)
 addi x10,x26,1
 sd x10,1248(x8)
-addi x7,x0,1
-sll x7,x7,x10
-ld x6,512(x8)
-and x7,x6,x7
+slli x7,x10,3
+ld x6,600(x8)
+add x6,x6,x7
+ld x7,0(x6)
 beq x7,x0,next_loop_stop
 addi x10,x0,1
 sd x10,568(x8)
@@ -1871,15 +1919,17 @@ remu x5,x26,x6
 bne x5,x0,error_line_near
 sltiu x6,x26,10
 bne x6,x0,error_line_near
-sltiu x6,x26,641
+lui x6,1
+addi x6,x6,-1535
+sltu x6,x26,x6
 beq x6,x0,error_line_near
 addi x26,x26,-10
 addi x6,x0,10
 divu x26,x26,x6
-addi x6,x0,1
-sll x6,x6,x26
-ld x7,512(x8)
-and x7,x7,x6
+slli x7,x26,3
+ld x6,600(x8)
+add x6,x6,x7
+ld x7,0(x6)
 beq x7,x0,error_line_near
 sd x26,536(x8)
 jal x0,run_line
@@ -1912,7 +1962,7 @@ addi x7,x8,1900
 beq x31,x7,colon_scratch_bound
 ld x10,1872(x8)
 slli x6,x10,3
-addi x7,x8,1800
+ld x7,600(x8)
 add x7,x7,x6
 ld x6,0(x7)
 addi x7,x31,16
@@ -1935,12 +1985,12 @@ no_colon:
 ld x10,536(x8)
 addi x26,x10,1
 if_find_next_generic:
-sltiu x7,x26,64
+sltiu x7,x26,256
 beq x7,x0,run_stop
-addi x7,x0,1
-sll x7,x7,x26
-ld x12,512(x8)
-and x11,x12,x7
+ slli x7,x26,3
+ld x12,600(x8)
+ add x12,x12,x7
+ ld x11,0(x12)
 bne x11,x0,set_next_generic
 addi x26,x26,1
 jal x0,if_find_next_generic
@@ -2246,7 +2296,8 @@ resolve_name_done:
 addi x21,x25,0
 addi x7,x0,1
 beq x24,x7,resolve_one_char
-addi x26,x19,-1096
+addi x26,x8,2047
+addi x26,x26,953
 addi x27,x0,32
 resolve_slot_loop:
 lbu x5,0(x26)

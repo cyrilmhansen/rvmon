@@ -150,6 +150,12 @@ R1 reste l’autorité sémantique ; le contrôle R2 détecte une divergence mai
 | M11-BE | simulateur interne BE : loads/stores, pile, CSR, traps, flottants | BE-003 | exécution bit-exacte LE/BE sur le même corpus |
 | M12-BE | image guest BE, contexte de trap et toolchain/ELF qualifiés | BE-004 à BE-005 | boot bare-metal BE ou blocage toolchain documenté |
 | M13-BE | QEMU `big-endian=on`, smoke test et mode pédagogique final | BE-006 à BE-007 | démonstration QEMU BE reproductible, sinon waiver explicite |
+| C0 | étude Turbo-BASIC XL 1.5, provenance et architecture compiler/runtime/linker | COMP-001 | corpus et note historique licenciés |
+| C1 | AST/IR partagé interpréteur-compilateur | COMP-002 | même source analysée, diagnostics identiques |
+| C2 | backend RV64 des expressions binary64 | COMP-003 | payload compilé avec `fdiv.d` observable |
+| C3 | contrôle de flot, E/S et payload compilé chargeable | COMP-004 | `COMPILE`/`RUN-COMPILED` reproductibles |
+| C4 | chaînes, tableaux, debug source et artefacts | COMP-005 | sous-ensemble étendu compilable et inspectable |
+| C5 | optimisation mesurée et release compiler optionnelle | COMP-006 | équivalence et gains mesurés, sans régression |
 
 Chaque jalon conserve un build vert et une démonstration scriptée. M1–M4 sont prioritaires sur le polish UI.
 
@@ -161,14 +167,22 @@ Chaque jalon conserve un build vert et une démonstration scriptée. M1–M4 son
    assembleur maintenable, définir son ABI U-mode, l’assembler dans le
    workspace et le lancer avec `run-at`. Le MiniBASIC résident reste un mode
    de secours jusqu’à validation du payload chargé.
-2. **P1 — capacité source BASIC** : remplacer le tampon de 16 lignes par une
-   capacité supérieure, avec limites centralisées, diagnostic de saturation,
-   tests de consommation de pile M-mode et compatibilité snapshot/projet. Le
-   défaut de planification est 64 lignes ; aucune extension ISA n’est ajoutée.
+2. **P1 — capacité du magasin BASIC** : augmenter la capacité du programme
+   BASIC, avec limites centralisées, diagnostic de saturation, tests de
+   consommation de pile M-mode et compatibilité snapshot/projet. La capacité
+   du source assembleur guest distingue maintenant 4096 lignes persistantes
+   et 8192 lignes pour `assemble-program`, avec scratch statique ; elle ne
+   préjuge pas de la capacité du programme
+   BASIC. Aucune extension ISA n’est ajoutée.
 3. **P2 — interface graphique et historique arrière** : stabiliser d’abord les
    contrats de modèle et d’événements, puis ajouter un frontend graphique sans
    exposer directement la RAM cible. L’historique arrière doit rester borné,
    déterministe et indépendant de l’undo transactionnel existant.
+4. **P3 — compilateur MiniBASIC natif** : étudier d’abord les artefacts
+   Turbo-BASIC XL 1.5, puis construire un backend RV64 explicite partageant
+   l’analyse syntaxique avec l’interpréteur. Cette extension reste séparée du
+   jalon de chargement du payload interprété et ne doit pas retarder le support
+   des chaînes et tableaux dans `RUN`.
 
 Cette priorité repousse la clôture de release publique complète après P0–P2,
 mais ne modifie pas le profil ISA/ABI ni les preuves déjà acquises.
@@ -206,3 +220,8 @@ Parallélisables après M0 : générateur R2, diagnostics, FP oracle adapter, le
 * **Pas-à-pas** : machine synchrone et compteur d’instructions dès M2 ; UI n’est pas l’horloge.
 * **Fuzzing** : targets parser/decoder/command dès M3, budgets CI séparés.
 * **Reproductibilité** : manifests et hash de chaque entrée dès M0, snapshots sans horodatage.
+* **Compiler historique** : les sources originales n’étant pas garanties,
+  verrouiller d’abord provenance/licence et utiliser le désassemblage comme
+  référence de comportement, jamais comme code généré automatiquement.
+* **Divergence interprété/compilé** : commencer par un corpus différentiel
+  target-side et refuser toute optimisation avant l’équivalence bit/flags.

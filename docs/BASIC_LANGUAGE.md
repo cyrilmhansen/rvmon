@@ -40,8 +40,8 @@ letter        = "A" .. "Z" | "a" .. "z" ;
 digit         = "0" .. "9" ;
 ```
 
-Les lignes sont des octets ASCII, numérotées de 0 à 65535, stockées dans 256
-enregistrements fixes de 96 octets et triées par numéro. Une ligne vide après
+Les lignes sont des octets ASCII, numérotées de 10 à 2560 par pas de 10,
+stockées dans 256 enregistrements fixes de 128 octets et triées par numéro. Une ligne vide après
 son numéro la supprime. Un identifiant comporte de 1 à 16 caractères ASCII
 alphanumériques ou `_`, commence par une lettre et est insensible à la casse.
 MiniBASIC réserve 64 variables binary64 dans le dialecte général ; une
