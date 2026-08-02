@@ -40,10 +40,10 @@ statement     = "REM" , text
               | "NEXT" , variable
               | "END" ;
 print-item    = string | expression | string-function ;
-string-function = ( "LEFT$" | "RIGHT$" ) , "(" , string-reference , "," , expression , ")"
-                | "MID$" , "(" , string-reference , "," , expression , "," , expression , ")" ;
-string-assignment-function = ( "LEFT$" | "RIGHT$" ) , "(" , string-reference , "," , expression , ")"
-                           | "MID$" , "(" , string-reference , "," , expression , "," , expression , ")" ;
+string-function = ( "LEFT$" | "RIGHT$" ) , "(" , string-source , "," , expression , ")"
+                | "MID$" , "(" , string-source , "," , expression , "," , expression , ")" ;
+string-assignment-function = ( "LEFT$" | "RIGHT$" ) , "(" , string-source , "," , expression , ")"
+                           | "MID$" , "(" , string-source , "," , expression , "," , expression , ")" ;
 expression    = comparison ;
 comparison    = sum , [ ( "=" | "<>" | "<" | "<=" | ">" | ">=" ) , sum ] ;
 sum           = product , { ( "+" | "-" ) , product } ;
@@ -62,6 +62,7 @@ variable      = identifier ;
 string-variable = identifier , "$" ;
 string-reference = string-variable , [ "(" , index , [ "," , index ] , ")" ] ;
 string-target = string-reference ;
+string-source = string-reference | string ;
 index         = number | variable | number , ( "+" | "-" ) , number
               | variable , ( "+" | "-" ) , number ;
 identifier    = letter , { letter | digit | "_" } ;
@@ -146,8 +147,9 @@ une affectation, sur un tableau chaîne ou avec une chaîne littérale.
 
 La tranche assembleur accepte également
 `LET destination$=LEFT$(source$,n)`, `RIGHT$` et `MID$` (avec `LET` facultatif).
-La source et la destination peuvent être une variable chaîne scalaire ou un
-élément de tableau chaîne 1D/2D déjà résolu par le guest. Pour
+La source peut être un littéral ASCII, une variable chaîne scalaire ou un
+élément de tableau chaîne 1D/2D déjà résolu par le guest ; la destination peut
+être une variable scalaire ou un élément de tableau. Pour
 `LEFT$`/`RIGHT$`, `n` est évalué dans le guest, doit être entier et compris entre
 0 et 120 ; une valeur supérieure à la source est ramenée à sa longueur. Pour
 `MID$`, la position est 1-based, strictement positive, et la longueur suit les
