@@ -85,6 +85,9 @@
 - `scripts/test-guest-runtime-command-run-print.sh` vérifie la réception de
   `RUN`, la lecture du record `10 PRINT 2+3`, le calcul target-side et la sortie
   `5` par `write-buffer`.
+- `scripts/test-guest-runtime-command-run-fadd-d.sh` vérifie `RUN` avec le
+  même record, `fcvt.d.l`, `fadd.d`, le motif `5.0` dans `f3`, le breakpoint et
+  l’écriture binary64 exacte en RAM cible.
 - Le breakpoint `minibasic_divide` et `disasm` permettent d’observer la
   correspondance adresse → `fdiv.d`; les registres f et `fcsr` sont affichés
   avant/après le pas.

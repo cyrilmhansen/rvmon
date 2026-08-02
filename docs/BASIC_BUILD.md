@@ -361,3 +361,15 @@ bash scripts/test-guest-runtime-command-run-print.sh
 
 Cette étape est volontairement entière et bornée ; les expressions binary64,
 les variables et le contrôle de flot seront raccordés ensuite.
+
+La fixture [`minibasic-runtime-command-run-fadd-d.rv`](../examples/minibasic-runtime-command-run-fadd-d.rv)
+évalue le même record avec l’extension D : `2` et `3` sont convertis par
+`fcvt.d.l`, additionnés par `fadd.d`, puis le motif exact de `5.0` est écrit en
+RAM cible et observé au breakpoint :
+
+```text
+bash scripts/test-guest-runtime-command-run-fadd-d.sh
+```
+
+Le formatage décimal de sortie et les variables restent distincts de cette
+preuve arithmétique.

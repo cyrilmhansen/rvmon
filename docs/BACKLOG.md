@@ -2477,6 +2477,30 @@ release. Elles n’ajoutent aucune extension ISA.
 - **Parallélisable :** oui avec le parser D ; non avec une modification du
   layout record ou de l’ABI console.
 
+#### BASIC-LOAD-005B — RUN expression binary64 avec fadd.d — TERMINÉE
+
+- **Priorité :** P0, première évaluation flottante du chemin RUN.
+- **But :** convertir les opérandes entiers du record `PRINT 2+3` en
+  `binary64`, exécuter `fadd.d` dans la cible et rendre le motif `5.0`
+  observable par le débogueur.
+- **Non-but :** formatage décimal général, variables, parenthèses, division,
+  contrôle de flot et gestion complète des `fflags`.
+- **Entrées :** R1 F/D, R2 généré, `BASIC_LANGUAGE.md`, ABI payload et D-019
+  seulement comme extension future non prioritaire.
+- **Fichiers/modules :** `examples/minibasic-runtime-command-run-fadd-d.rv`,
+  `scripts/test-guest-runtime-command-run-fadd-d.sh`, documentation BASIC.
+- **Dépendances :** BASIC-LOAD-005A, `fadd.d`, `fcvt.d.l`, breakpoint guest et
+  mémoire cible.
+- **Tests :** commande RUN, `f3=0x4014000000000000`, dump little-endian de 5.0,
+  arrêt `ebreak` et inspection des registres flottants.
+- **Critères de sortie :** le résultat est produit par `fadd.d` target-side et
+  non par le script, l’hôte ou une chaîne préenregistrée.
+- **Cas limites :** `fsub.d`, `fmul.d`, `fdiv.d`, ±0, NaN, flags, fractions et
+  variables restent à intégrer au parser/exécuteur général.
+- **Taille :** 3 points / 1,5 journée-agent, incertitude faible.
+- **Parallélisable :** oui avec le parser des variables ; non avec une
+  modification de la convention des registres flottants.
+
 ### BASIC-LOAD-004 — Porter le magasin de lignes et le contrôle de flot
 
 - **Priorité :** P0.
