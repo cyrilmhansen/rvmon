@@ -157,3 +157,9 @@
   state crossed bit 31; converting the low 31 bits and adding `2^31` when the
   high bit is set fixes the full `[0,1)` range. QEMU proves the first four
   sequence values and rejects `RND(1)`; the parity matrix now reports 69 tests.
+- I revised `docs/MINIBASIC_PARITY.md` into an auditable parity register. The
+  previous version had become stale (it reported 69 scripts while the current
+  repository contains 70) and mixed historical TBXL parity with MiniBASIC
+  extensions. The new version separates proven target-side behavior, partial
+  semantics, planned work and deliberately rejected Atari scope, and records
+  the exact QEMU evidence families and remaining roadmap.

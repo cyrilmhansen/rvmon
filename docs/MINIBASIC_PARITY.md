@@ -1,101 +1,209 @@
-# MiniBASIC-RV / Turbo BASIC XL 1.5 — suivi de parité
+# MiniBASIC-RV — suivi de parité Turbo BASIC XL 1.5
 
-## Objet et limites
+## Objet
 
-Ce document suit la parité fonctionnelle entre MiniBASIC-RV et les idées
-structurantes de Turbo BASIC XL 1.5. Il ne promet ni compatibilité Atari, ni
-compatibilité binaire, ni reproduction des nombres, tokens, périphériques,
-DOS ou graphismes Atari.
+Ce document est le registre de suivi de la parité fonctionnelle entre
+MiniBASIC-RV et l’expérience de programmation de Turbo BASIC XL 1.5 (TBXL).
+Il sert à distinguer précisément :
 
-Les références d’étude sont :
+1. les fonctions présentes et prouvées dans le programme assembleur cible ;
+2. les fonctions présentes mais limitées par une décision MiniBASIC ;
+3. les fonctions planifiées ;
+4. les fonctions volontairement hors périmètre.
 
-- [Turbo-BASIC XL — Expanded Documentation](https://ftp.pigwa.net/stuff/collections/Atari%20books/Turbo-BASIC%20XL%20-%20Expanded%20Documentation.pdf), référence d’expérience et de langage historique ;
-- [`docs/BASIC_TBXL_NOTES.md`](BASIC_TBXL_NOTES.md), synthèse du désassemblage et des artefacts étudiés ;
-- les sources ASM-One v1.48 sous `docs/dontcommit/`, utilisées uniquement pour
-  l’ergonomie du moniteur.
+« Parité » signifie ici une proximité d’usage et de structures de langage :
+mode direct, lignes numérotées, édition immédiate, LIST/RUN, contrôle de flot,
+expressions, données, chaînes, tableaux et diagnostics. Elle ne signifie ni
+compatibilité Atari, ni compatibilité binaire, ni compatibilité des tokens,
+des nombres historiques, des périphériques, du DOS ou des graphismes.
 
-La preuve de MiniBASIC est toujours une exécution QEMU du payload assembleur
-chargé par le moniteur. L’interpréteur Rust résident (`basic-rust`) n’est pas
-utilisé comme oracle des résultats target-side.
+État de l’audit : **70 scripts QEMU assembleur MiniBASIC recensés**. Le nombre
+est contrôlable par :
 
-## Légende
+```text
+find scripts -maxdepth 1 -type f -name 'test-guest-runtime-asm-repl*.sh' | wc -l
+```
 
-- **VERT** : implémenté dans l’assembleur cible et couvert par un test QEMU.
-- **PARTIEL** : comportement présent mais limité par une décision documentée.
-- **PLANIFIÉ** : compatible avec la trajectoire, pas encore accepté.
-- **REJETÉ V1** : hors périmètre local, même si TBXL le propose.
+La preuve retenue est une exécution du payload assembleur dans la machine RV64
+du moniteur. L’interpréteur Rust résident peut servir à développer ou comparer
+des idées, mais il n’est pas l’oracle des résultats target-side.
 
-## Matrice de suivi
+## Sources et méthode
 
-| Domaine TBXL / MiniBASIC | MiniBASIC-RV actuel | État | Preuve ou remarque |
+- [Turbo-BASIC XL — Expanded Documentation](https://ftp.pigwa.net/stuff/collections/Atari%20books/Turbo-BASIC%20XL%20-%20Expanded%20Documentation.pdf)
+  : référence d’expérience utilisateur et de langage historique, non normative
+  pour RVMonitor ;
+- [`docs/BASIC_TBXL_NOTES.md`](BASIC_TBXL_NOTES.md) : observations issues de
+  l’étude du désassemblage et des artefacts TBXL 1.5 ;
+- [désassemblage `dmsc/turbo-dis`](https://github.com/dmsc/turbo-dis) :
+  référence d’architecture interne, non dépendance de construction ;
+- [`docs/BASIC_LANGUAGE.md`](BASIC_LANGUAGE.md) : contrat MiniBASIC effectif ;
+- [`docs/BASIC_TEST_PLAN.md`](BASIC_TEST_PLAN.md) : stratégie de vérification ;
+- les documents ASM-One sous `docs/dontcommit/` : ergonomie du moniteur
+  uniquement, sans autorité sur le langage BASIC.
+
+Les comparaisons historiques sont faites par familles de fonctions et non par
+copie des adresses 6502, des tables de tokens ou de l’OS Atari. Les tests
+différentiels éventuels vérifient des résultats, mais l’exécution doit rester
+entièrement dans le guest.
+
+## Légende des états
+
+| État | Signification |
+|---|---|
+| **VERT** | Fonction disponible dans le payload assembleur et couverte par au moins un test QEMU ciblé. |
+| **PARTIEL** | Fonction réellement disponible, mais avec une limite syntaxique, structurelle ou sémantique explicitement documentée. |
+| **PLANIFIÉ** | Extension compatible avec la trajectoire, non acceptée dans l’état courant. |
+| **DIFFÉRÉ** | Décision ou chantier conservé, mais non prioritaire pour la parité actuelle. |
+| **REJETÉ** | Fonction hors périmètre MiniBASIC-RV ; elle ne doit pas être comptée comme dette cachée. |
+
+## Matrice de parité fonctionnelle
+
+| Famille TBXL / MiniBASIC | Contrat MiniBASIC-RV | État | Preuve actuelle |
 |---|---|---:|---|
-| Invite directe et programme à lignes | `READY>`, insertion/remplacement/suppression, tri, `LIST` | VERT | `test-guest-runtime-asm-repl-two-lines.sh`, `four-lines.sh` |
-| `NEW`, `RUN`, `TRACE` | exécution et trace target-side | VERT | `test-guest-runtime-asm-repl-trace.sh` |
-| `PRINT` / `?` | nombres, chaînes, expressions et mélange | VERT | `print-mixed.sh`, `question.sh`, `string.sh` |
-| `INPUT` | numérique et chaînes, y compris noms longs | VERT | `input.sh`, `long-input.sh`, `long-string-input.sh` |
-| Expressions | parenthèses, signes, précédence, comparaisons, binary64 D | VERT | `precedence.sh`, `unary-paren.sh`, `format-negative-fraction.sh` |
-| Fonctions numériques | `TRUNC`, `FRAC`, `MOD`, appels target-side et un niveau d’imbrication | VERT | `test-guest-runtime-asm-repl-numeric-functions.sh`, `numeric-functions-error.sh` |
-| `RND` | LCG target-side reproductible, formes `RND` et `RND()` | VERT | `test-guest-runtime-asm-repl-rnd.sh`, `rnd-error.sh` |
-| Variables numériques | `A..Z` et noms ASCII jusqu’à 16 caractères | VERT | `scalars.sh`, `long-names.sh`, `keyword-vars.sh` |
-| Chaînes | cellules target-side, noms courts/longs, affectation/affichage | VERT | `string-var.sh`, `long-string.sh` |
-| Tableaux numériques | 1D/2D, noms courts/longs, index calculés et bornes | VERT | `array*.sh`, `long-numeric-array*.sh` |
-| Tableaux de chaînes | 1D/2D, noms courts/longs, stockage et bornes target-side | VERT | `string-array*.sh`, `long-string-array*.sh` |
-| `IF ... THEN` / `GOTO` | comparaisons et cibles par numéro de ligne | VERT | `if.sh`, `if-false.sh`, `goto*.sh` |
-| `FOR ... NEXT` | huit niveaux, `STEP` positif/négatif, noms longs | VERT | `for.sh`, `for-nested.sh`, `for-step.sh` |
-| `GOSUB ... RETURN` | huit retours, cible et retour target-side | VERT | `gosub.sh` |
-| `DATA`, `READ`, `RESTORE` | valeurs numériques et chaînes, curseur target-side | VERT | `data-read.sh`, `restore.sh` |
-| `REM` | commentaire BASIC | VERT | `rem.sh` |
-| `WHILE ... WEND` | huit niveaux, comparaisons et recherche de terminator | VERT | `while.sh`, `while-error.sh` |
-| `REPEAT ... UNTIL` | huit niveaux, test terminal et comparaisons | VERT | `repeat.sh`, `repeat-error.sh` |
-| `POP` | retire le cadre le plus récent de `FOR/GOSUB/WHILE/REPEAT/DO` | VERT | `pop.sh`, forme `POP:GOTO` |
-| `EXIT` | sortie structurée de `FOR/WHILE/REPEAT/DO` avec scan typé | VERT | `test-guest-runtime-asm-repl-exit.sh` |
-| `DO ... LOOP` | boucle inconditionnelle structurée | VERT | `test-guest-runtime-asm-repl-do-loop.sh` |
-| `IF ... ELSE ... ENDIF` | bloc structuré target-side, lignes dédiées, non imbriqué en V1 | VERT | `test-guest-runtime-asm-repl-if-block.sh`, `if-block-error.sh`; `THEN` sans numéro, `ELSE` et `ENDIF` en première instruction |
-| `ON ... GOTO/GOSUB` | sélection entière 1-based et liste de lignes | VERT | `test-guest-runtime-asm-repl-on.sh`, `on-error.sh` |
-| `PROC/EXEC`, fonctions utilisateur | non disponible | REJETÉ V1 | hors démonstrateur MiniBASIC actuel |
-| fichiers, DOS, graphismes, sons, périphériques Atari | non disponible | REJETÉ V1 | remplacés par les services RVMonitor documentés |
-| compilation native BASIC | roadmap séparée | DIFFÉRÉ | `BASIC_COMPILER_ROADMAP.md`, interpréteur prioritaire |
+| Invite directe | `READY>`, commande immédiate et retour après erreur | VERT | `test-guest-runtime-asm-repl-direct.sh` |
+| Programme à lignes | insertion, remplacement, suppression par numéro et tri croissant | VERT | `two-lines.sh`, `four-lines.sh` |
+| `NEW`, `LIST`, `RUN` | commandes target-side sur le magasin de lignes | VERT | `test-guest-runtime-asm-repl.sh`, `trace.sh` |
+| `TRACE ON/OFF` | affiche `[numéro]` avant l’exécution d’une ligne | VERT | `test-guest-runtime-asm-repl-trace.sh` |
+| `PRINT` / `?` | expressions, chaînes, mélange et éléments multiples | VERT | `print-mixed.sh`, `question.sh`, `string.sh` |
+| `INPUT` | lecture et conversion target-side de valeurs numériques et chaînes | VERT | `input.sh`, `long-input.sh`, `long-string-input.sh` |
+| Arithmétique | `+`, `-`, `*`, `/` en binary64 par `fadd.d`, `fsub.d`, `fmul.d`, `fdiv.d` | VERT | `precedence.sh`, `mul.sh`, `expression-div.sh` |
+| Comparaisons | `=`, `<>`, `<`, `<=`, `>`, `>=`, résultat `0.0` ou `1.0` | VERT | `if.sh`, `if-false.sh`, `precedence.sh` |
+| Fonctions numériques | `TRUNC`, `FRAC`, `MOD`, appels target-side et imbrication documentée | VERT | `numeric-functions.sh`, `numeric-functions-error.sh` |
+| Aléatoire | `RND` et `RND()`, LCG target-side reproductible, graine à 1 | VERT | `rnd.sh`, `rnd-error.sh` |
+| Variables numériques | variables courtes historiques et identifiants ASCII de 2 à 16 caractères | VERT | `scalars.sh`, `long-names.sh`, `keyword-vars.sh` |
+| Chaînes | littéraux, variables courtes/longues, affectation, affichage et entrée | VERT | `string-var.sh`, `long-string.sh` |
+| Tableaux numériques | 1D/2D, noms courts/longs, index calculés et contrôle des bornes | VERT | `array*.sh`, `long-numeric-array*.sh` |
+| Tableaux de chaînes | 1D/2D, noms courts/longs, stockage et contrôle des bornes | VERT | `string-array*.sh`, `long-string-array*.sh` |
+| `IF ... THEN numéro` | branchement direct par numéro de ligne | VERT | `if.sh`, `if-false.sh` |
+| `GOTO` | transfert par numéro de ligne et erreur de cible absente | VERT | `goto.sh`, `goto-30.sh` |
+| `FOR/NEXT` | huit niveaux, `STEP` positif/négatif et noms longs | VERT | `for.sh`, `for-nested.sh`, `for-step.sh` |
+| `GOSUB/RETURN` | huit retours, cible et retour target-side | VERT | `gosub.sh` |
+| `POP` | retire le cadre le plus récent de la pile unifiée | VERT | `test-guest-runtime-asm-repl-pop.sh` |
+| `EXIT` | sortie typée de `FOR`, `WHILE`, `REPEAT` ou `DO` | VERT | `test-guest-runtime-asm-repl-exit.sh` |
+| `WHILE/WEND` | boucles imbriquées jusqu’à huit niveaux | VERT | `while.sh`, `while-error.sh` |
+| `REPEAT/UNTIL` | test terminal et boucles imbriquées jusqu’à huit niveaux | VERT | `repeat.sh`, `repeat-error.sh` |
+| `DO/LOOP` | boucle inconditionnelle et sortie par `EXIT`/`POP` | VERT | `test-guest-runtime-asm-repl-do-loop.sh` |
+| `IF ... ELSE ... ENDIF` | bloc structuré non imbriqué, terminateurs sur lignes dédiées | PARTIEL | `if-block.sh`, `if-block-error.sh` |
+| `ON ... GOTO/GOSUB` | sélection entière 1-based sur une liste de lignes | VERT | `on.sh`, `on-error.sh` |
+| `DATA/READ/RESTORE` | données numériques et chaînes, curseur target-side | VERT | `data-read.sh`, `restore.sh` |
+| `REM` | commentaire BASIC jusqu’à la fin de la ligne | VERT | `rem.sh` |
+| interruption | Ctrl-C consommé par le guest pendant `RUN` | VERT | `break.sh` |
+| erreurs récupérables | code stable, ligne lorsque connue, retour à `READY>` | VERT | scripts `*-error.sh` |
 
-## Modèle d’exécution et divergences assumées
+Les motifs `*.sh` ci-dessus sont des familles ; les scripts exacts sont dans
+`scripts/` et doivent être conservés comme preuves exécutables.
 
-Turbo BASIC XL utilise une représentation et des conventions 8-bit Atari ;
-MiniBASIC-RV utilise exclusivement des structures dans la RAM cible et
-`binary64` exécuté par `fadd.d`, `fsub.d`, `fmul.d` et `fdiv.d`. Les résultats
-ne doivent donc pas être comparés bit à bit avec les valeurs Atari historiques.
+## Divergences sémantiques assumées
 
-Les piles spécialisées de MiniBASIC restent utiles aux algorithmes existants,
-mais une pile unifiée `{kind, line}` est maintenant maintenue en parallèle pour
-les opérations de nesting et `POP`. Une instruction de contrôle qui ne trouve
-pas son cadre attendu produit une erreur cible ; elle ne vide jamais
-silencieusement une pile étrangère.
+### Nombres
 
-Le format d’affichage numérique est fixe à six décimales pour V1. Les sorties
-de Hammurabi sont ainsi déterministes entre plateformes, mais elles ne
-reproduisent pas nécessairement le rendu de TBXL.
+TBXL historique repose sur l’environnement Atari et ses conventions numériques.
+MiniBASIC-RV utilise IEEE 754 binary64 dans le guest, avec l’extension RISC-V D.
+Les résultats ne sont donc pas comparés bit à bit à une sortie Atari. Le format
+d’affichage V1 est fixe à six décimales ; `INF`, `-INF` et `NAN` ont des formes
+stables documentées dans `BASIC_LANGUAGE.md`.
 
-## Fonctionnalités historiques à ne pas confondre
+`RND` est volontairement reproductible : LCG 32 bits, multiplicateur `1664525`,
+incrément `1013904223`, graine `1` au chargement et après `NEW`. Cela facilite
+l’audit et diffère d’un générateur TBXL destiné à un usage interactif.
 
-Le mot « parité » signifie ici parité de l’expérience de programmation et des
-structures utiles au démonstrateur : REPL, lignes numérotées, édition rapide,
-contrôle de flot, boucles, sous-programmes, données, chaînes, tableaux,
-diagnostics et observation au débogueur. Il ne signifie pas que les commandes
-suivantes doivent être ajoutées : `DIR`, `DELETE`, `RENAME`, `LOCK`, `UNLOCK`,
-`GRAPHICS`, `CIRCLE`, `PAINT`, `SOUND`, `PEEK/POKE` Atari, `USR`, ou les
-opérations DOS propriétaires.
+### Structures de contrôle
 
-## Prochaine séquence recommandée
+Les structures utilisent des zones statiques target-side et une pile unifiée
+portant au minimum le type de cadre et la ligne source. Cette représentation
+permet de rendre `POP` et `EXIT` typés ; elle ne reproduit pas les adresses ou
+les tables internes de TBXL.
 
-1. Étendre les fonctions numériques historiques restantes seulement après une
-   décision de syntaxe et d’oracle target-side ; la prochaine priorité est la
-   couverture pédagogique de Hammurabi et des entrées interactives.
+La forme `IF expression THEN` sans numéro ouvre un bloc MiniBASIC. En V1, les
+blocs sont non imbriqués et `ELSE`/`ENDIF` doivent être les premières
+instructions de lignes dédiées. Cette contrainte est **PARTIELLE** et doit
+rester visible dans le tutoriel.
 
-## Audit courant
+Les recherches de terminateurs sont bornées au magasin de lignes et portent
+sur le premier statement de chaque ligne. Les structures ouvertes et fermées
+dans une même ligne séparée par `:` ne doivent pas être considérées comme
+équivalentes aux formes TBXL plus permissives.
 
-La conversion assembleur couvre actuellement le chemin utile de bout en bout :
-source assembleur accepté par le moniteur, chargement U-mode, lexing et
-évaluation BASIC dans la cible, registres flottants observables, mémoire cible,
-breakpoints, interruption et reprise. La matrice assembleur compte maintenant
-69 tests QEMU ; après durcissement du harnais de tableau de chaînes 2D, le cas
-qui échouait sporadiquement passe cinq fois consécutives. La parité TBXL n’est
-pas déclarée complète tant que les décisions sur les extensions restantes ne
-sont pas résolues.
+### Identifiants, chaînes et tableaux
+
+MiniBASIC conserve la lisibilité des variables BASIC traditionnelles mais
+autorise des identifiants ASCII jusqu’à 16 caractères, ainsi que des variables
+chaînes et des tableaux numériques ou de chaînes 1D/2D. Ces capacités sont des
+extensions RV target-side ; elles ne prétendent pas reproduire les pointeurs,
+tokens ou layouts Atari.
+
+## Fonctions conservées, modernisées et rejetées
+
+### Conservées comme expérience
+
+- invite immédiate et programme à lignes numérotées ;
+- `LIST`, `RUN`, `TRACE`, `PRINT`, `INPUT` ;
+- contrôle de flot par lignes, boucles, sous-programmes et données ;
+- édition par remplacement/suppression et diagnostic lisible ;
+- programmes pédagogiques interactifs, notamment Hammurabi-RV.
+
+### Modernisées pour RVMonitor
+
+- exécution entièrement target-side dans RV64, sans interprétation hôte ;
+- binary64 matériel et observation de `fcsr`, `frm`, `fflags` au débogueur ;
+- bornes explicites, stockage statique, erreurs récupérables et interruption ;
+- noms longs, chaînes et tableaux inspectables ;
+- assemblage du payload par le moniteur et chargement relogeable ;
+- reproductibilité QEMU et tests automatisés indépendants du chemin hôte.
+
+### Rejetées du périmètre MiniBASIC
+
+Compatibilité Atari, BCD historique, DOS, fichiers Atari, graphismes, sons,
+périphériques Atari, tokens binaires TBXL, `PEEK/POKE` Atari et reproduction
+des contraintes mémoire 8-bit. Ces éléments ne sont pas des tâches de parité
+à cacher dans le backlog.
+
+## Écarts et roadmap
+
+Priorité suivante, après stabilisation du socle actuel :
+
+1. produire une démonstration Hammurabi complète et auditée, incluant les
+   variables longues et les tableaux visibles dans le moniteur ;
+2. finaliser le tutoriel progressif et son scénario de démonstration ;
+3. décider, avec tests target-side, les fonctions numériques historiques
+   supplémentaires (`ABS`, `SGN`, `INT`, puis fonctions de chaînes si elles
+   sont retenues) ;
+4. traiter les limites documentées des blocs structurés et des expressions
+   d’index uniquement si une compatibilité supplémentaire est prioritaire ;
+5. conserver la compilation native BASIC comme chantier séparé et différé,
+   conformément à [`docs/BASIC_COMPILER_ROADMAP.md`](BASIC_COMPILER_ROADMAP.md).
+
+Ne pas annoncer une parité complète TBXL avant d’avoir soit implémenté, soit
+explicitement rejeté dans une décision versionnée chaque famille jugée
+nécessaire au produit.
+
+## Reproduction de l’audit
+
+Construction du moniteur et des tests :
+
+```text
+cargo build -p luna-guest-monitor --target riscv64gc-unknown-none-elf
+bash scripts/test-guest-runtime-asm-repl-hammurabi.sh
+bash scripts/test-guest-runtime-asm-repl-rnd.sh
+bash scripts/test-guest-runtime-asm-repl-if-block.sh
+```
+
+Pour la matrice complète, exécuter les scripts
+`test-guest-runtime-asm-repl*.sh` individuellement ou via le harnais de test
+documenté dans `docs/BASIC_TEST_PLAN.md`. Un arrêt `trap: breakpoint` à la fin
+d’un test est le comportement de terminaison attendu du payload, pas une
+sortie BASIC préenregistrée.
+
+## Audit de couverture
+
+- **Décisions de parité figées :** mode direct, lignes, contrôle de flot,
+  chaînes, tableaux, binary64 target-side, interruption et périmètre Atari
+  rejeté ;
+- **Preuve automatisée :** 70 tests QEMU assembleur recensés au moment de cet
+  audit ;
+- **Écart important restant :** `IF/ELSE/ENDIF` est non imbriqué ; certaines
+  fonctions historiques TBXL ne sont pas encore retenues ;
+- **Conclusion :** la parité d’expérience du démonstrateur est solide, mais la
+  parité de langage TBXL 1.5 n’est pas complète et ne doit pas être présentée
+  comme telle.
