@@ -178,3 +178,11 @@
   MiniBASIC store correctly rejected; changing it to the required multiple of
   ten produced stable QEMU coverage for scalar, long-name, array and composed
   expressions. The documented assembly inventory now contains 74 scripts.
+- I started the string-returning function tranche with `PRINT LEFT$(TEXT$,n)`.
+  The first attempt exposed both a branch-range limit after growing the central
+  dispatcher and RV64 sign-extension of the absolute `0x82060000` scratch
+  address. Moving the function body near the end of the payload, replacing
+  distant conditional branches with local trampolines, and zero-extending the
+  address fixed both faults. QEMU now proves clamping, zero length and invalid
+  count/arity cases; `LEN` remains green after the change. The inventory reaches
+  76 scripts, while assignment and `RIGHT$/MID$` remain deliberately deferred.
