@@ -364,6 +364,27 @@ confondre code présent et exigence formellement auditée.
 - **Limites restantes :** PRINT multi-éléments, chaînes de Hammurabi et
   contrôle d’entrée restent à implémenter.
 - **Taille :** 3 points / 1,5 journée-agent, incertitude faible.
+
+#### BASIC-LOAD-005AT — PRINT multi-éléments target-side — TERMINÉE
+
+- **Priorité :** P0, sortie lisible du programme Hammurabi.
+- **But :** émettre une chaîne littérale puis des expressions binary64 dans une
+  liste `PRINT` séparée par des virgules.
+- **Non-but :** concaténation, variables chaîne dans une expression, tabulations
+  de zone et formatage culturellement localisé.
+- **Entrées/sources :** BASIC-LOAD-005AR/AS, ABI `write-char`/`write-buffer`,
+  syntaxe PRINT de `BASIC_LANGUAGE.md`.
+- **Étapes réalisées :** conserver le pointeur d’expression target-side,
+  chaîner les éléments via un état de continuation, insérer un espace stable,
+  réutiliser la conversion binary64 et les ecalls existants.
+- **Tests :** `scripts/test-guest-runtime-asm-repl-scalars.sh` vérifie
+  `PRINT "P",P` et le résultat `P 97.000000`; les chaînes simples et les
+  quatre-lignes restent vertes.
+- **Critères de sortie :** aucun arrêt intermédiaire entre les éléments, sortie
+  calculée par la cible, puis retour normal sur `END`/breakpoint.
+- **Limites restantes :** une liste de chaînes variables et les formes avancées
+  de PRINT restent hors de cette tranche.
+- **Taille :** 4 points / 2 journées-agent, incertitude moyenne.
 - **Compétences/outils :** Rust `no_std`, UART, assemblage en deux passes, QEMU.
 - **Parallélisable :** oui avec la spécification de l’éditeur source; non avec une modification concurrente du protocole d’erreur UART.
 - **Paquet de contexte minimal :** `crates/guest-monitor/src/main.rs`, `scripts/test-guest-monitor.sh`, `docs/TUTORIAL-GUEST.md`, SPEC §§11/17–19.

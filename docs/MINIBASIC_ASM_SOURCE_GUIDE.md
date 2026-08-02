@@ -253,6 +253,12 @@ parseur d’expressions ; par exemple `P=95`, `Q=2`, puis `10 P=P+Q` produit
 `scripts/test-guest-runtime-asm-repl-scalars.sh`. Les noms longs et les
 variables chaîne restent des représentations distinctes.
 
+`PRINT` accepte désormais une suite courte d’éléments séparés par des virgules,
+avec un espace ajouté entre éléments : `PRINT "P",P` produit `P 97.000000`.
+La chaîne et la valeur sont émises par des ecalls distincts depuis la cible ;
+le résultat numérique passe toujours par `f`/`fdiv.d` ou les autres opérations
+D du parseur. Les listes terminées par un élément non supporté sont rejetées.
+
 `END` est également dispatché target-side, émet `END\n` puis arrête la séance
 sur un breakpoint contrôlable. Sa non-régression est :
 

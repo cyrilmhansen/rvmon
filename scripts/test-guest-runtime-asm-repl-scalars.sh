@@ -29,7 +29,7 @@ awk '/^symbols$/{print; found=1; next} found && /^run-at /{print; exit} !found{p
     examples/minibasic-asm/payload-repl.rv |
     while IFS= read -r line; do printf '%s\n' "$line" >&3; sleep 0.002; done
 sleep 0.2
-printf 'P=95\nQ=2\n10 P=P+Q\n20 PRINT P\n30 END\nRUN\n' >&3
+printf 'P=95\nQ=2\n10 P=P+Q\n20 PRINT "P",P\n30 END\nRUN\n' >&3
 sleep 0.5
 printf 'regs\nq\n' >&3
 exec 3>&-
@@ -38,7 +38,7 @@ kill "$qemu_pid" 2>/dev/null || true
 wait "$qemu_pid" 2>/dev/null || true
 qemu_pid=""
 
-for expected in '97.000000' 'trap: breakpoint' 'f3=0x4058400000000000'; do
+for expected in 'P 97.000000' 'trap: breakpoint' 'f3=0x4058400000000000'; do
     if ! grep -aFq -- "$expected" "$output_file"; then
         cat "$output_file"
         printf 'missing integrated scalar variable output: %s\n' "$expected" >&2

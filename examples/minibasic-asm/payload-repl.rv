@@ -761,10 +761,19 @@ ecall
 addi x21,x21,1
 jal x0,print_string_loop
 print_string_done:
+addi x21,x21,1
+lbu x5,0(x21)
+addi x7,x0,44
+beq x5,x7,print_string_more
 addi x10,x0,10
 addi x17,x0,1
 ecall
 jal x0,if_false
+print_string_more:
+addi x10,x0,3
+sd x10,568(x8)
+sd x21,1176(x8)
+jal x0,print_more
 dim_statement:
 addi x21,x24,16
 jal x1,dim_array
@@ -1259,6 +1268,15 @@ ecall
 jal x0,command_loop
 run_save:
 fsd f3,1024(x8)
+sd x21,1176(x8)
+lbu x5,0(x21)
+addi x7,x0,44
+beq x5,x7,print_more_flag
+sd x0,568(x8)
+jal x0,print_result
+print_more_flag:
+addi x10,x0,3
+sd x10,568(x8)
 jal x0,print_result
 print_result:
 fsd f3,1048(x8)
@@ -1339,10 +1357,33 @@ beq x11,x0,print_normal_continuation
 sd x0,568(x8)
 addi x10,x0,1
 beq x11,x10,print_loop_continue
+addi x10,x0,3
+beq x11,x10,print_more
 jal x0,run_stop
 print_loop_continue:
 sd x10,536(x8)
 jal x0,run_line
+print_more:
+ld x21,1176(x8)
+addi x21,x21,1
+addi x10,x0,32
+addi x17,x0,1
+ecall
+print_more_spaces:
+lbu x5,0(x21)
+addi x7,x0,32
+bne x5,x7,print_more_item
+addi x21,x21,1
+jal x0,print_more_spaces
+print_more_item:
+addi x7,x0,34
+beq x5,x7,print_more_string
+addi x22,x0,0
+jal x1,eval_expression
+jal x0,run_save
+print_more_string:
+addi x21,x21,1
+jal x0,print_string_loop
 print_normal_continuation:
 jal x0,if_false
 run_stop:

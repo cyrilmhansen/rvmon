@@ -205,7 +205,7 @@
   depuis la ligne 10 vers le slot 30.
 - `scripts/test-guest-runtime-asm-repl-scalars.sh` vérifie les variables
   scalaires target-side hors X/Y : `P=95`, `Q=2`, `P=P+Q`, puis le motif
-  binary64 et l’affichage de `97.000000`.
+  binary64 et `PRINT "P",P`, affiché comme `P 97.000000`.
 - Le breakpoint `minibasic_divide` et `disasm` permettent d’observer la
   correspondance adresse → `fdiv.d`; les registres f et `fcsr` sont affichés
   avant/après le pas.
