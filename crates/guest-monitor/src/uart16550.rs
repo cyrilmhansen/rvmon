@@ -129,11 +129,6 @@ pub fn get() -> u8 {
     }
 }
 
-pub fn try_get() -> Option<u8> {
-    poll_rx();
-    pop_rx()
-}
-
 pub fn peek() -> Option<u8> {
     poll_rx();
     unsafe {
