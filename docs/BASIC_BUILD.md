@@ -430,6 +430,13 @@ Les facteurs peuvent maintenant être des chiffres simples. `PRINT 2+3` est
 bash scripts/test-guest-runtime-asm-repl-literal.sh
 ```
 
+Le record conserve maintenant sa longueur réelle et le payload accepte aussi
+la forme décimale bornée `PRINT 2.5+3.5` :
+
+```text
+bash scripts/test-guest-runtime-asm-repl-decimal.sh
+```
+
 La variante [`minibasic-runtime-command-run-variable-sub.rv`](../examples/minibasic-runtime-command-run-variable-sub.rv)
 applique le même contrat à `PRINT X-3` et vérifie `2.0` après `fsub.d` :
 

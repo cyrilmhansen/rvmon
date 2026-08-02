@@ -2891,6 +2891,31 @@ release. Elles n’ajoutent aucune extension ISA.
 - **Paquet de contexte :** BASIC-LOAD-005O/P, `payload-repl.rv`, tests `X+Y`,
   `X*Y` et règles d’expression de `BASIC_LANGUAGE.md`.
 
+#### BASIC-LOAD-005R — Longueur de record et littéraux décimaux target-side — TERMINÉE
+
+- **Priorité :** P0, suppression de la longueur de corps codée en dur.
+- **But :** stocker la longueur réelle du corps BASIC et évaluer la forme
+  bornée `PRINT d.d<op>d.d` dans le payload assembleur.
+- **Non-but :** exposant, signe, plusieurs chiffres, espaces, parenthèses,
+  précédence générale, formatage décimal et lexer non positionnel.
+- **Entrées :** `BASIC_LANGUAGE.md`, R1 F/D, layout record et ABI `RVMPAY01`.
+- **Fichiers/modules :** `payload-repl.rv`, quatre harnais de séance et
+  documentation BASIC.
+- **Dépendances :** BASIC-LOAD-005Q, champ longueur target-side, `fcvt.d.l` et
+  opérations `fdiv.d`/`fadd.d`.
+- **Tests :** `10 PRINT 2.5+3.5`, `LIST` avec longueur 13, `f1=2.5`, `f2=3.5`,
+  `f3=6.0`, breakpoint et dump exact sous QEMU.
+- **Critères de sortie :** les fragments décimaux et le résultat sont produits
+  par le payload ; le script ne calcule aucune valeur.
+- **Cas limites :** signes, plus de deux chiffres, point absent/répété,
+  espaces, sous-normaux et erreur syntaxique restent à intégrer.
+- **Taille :** 4 points / 2 journées-agent, incertitude moyenne.
+- **Compétences/outils :** assembleur RV64, IEEE binary64, QEMU et UART.
+- **Parallélisable :** oui avec le lexer abstrait ; non avec un changement du
+  layout de record ou de la capacité de transport source.
+- **Paquet de contexte :** BASIC-LOAD-005Q, `payload-repl.rv`, tests literal et
+  operators, `BASIC_LANGUAGE.md` et règles de représentation binary64.
+
 ### BASIC-LOAD-004 — Porter le magasin de lignes et le contrôle de flot
 
 - **Priorité :** P0.

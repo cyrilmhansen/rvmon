@@ -100,6 +100,16 @@ La prochaine généralisation devra remplacer les positions fixes par un lexer
 qui avance un pointeur dans le corps, puis ajouter espaces, parenthèses,
 précédence et littéraux décimaux.
 
+Le record conserve désormais la longueur réelle du corps, ce qui permet une
+forme décimale bornée `d.d`. La séance `PRINT 2.5+3.5` est vérifiée par :
+
+```text
+bash scripts/test-guest-runtime-asm-repl-decimal.sh
+```
+
+Le calcul et la conversion restent entièrement target-side ; la forme est
+encore volontairement limitée à un chiffre avant et après le point.
+
 ## Références historiques
 
 Le découpage suit le principe historique de tables de syntaxe, pile
