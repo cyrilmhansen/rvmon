@@ -1663,7 +1663,8 @@ sltu x7,x23,x6
 beq x7,x0,error_line
 addi x21,x21,1
 slli x6,x23,3
-addi x7,x8,720
+addi x7,x8,2047
+addi x7,x7,1
 add x7,x7,x6
 fld f4,0(x7)
 jal x0,store_atom
@@ -1728,7 +1729,8 @@ sd x6,584(x8)
 addi x9,x0,0
 dim_array_loop:
 slli x6,x9,3
-addi x7,x8,720
+addi x7,x8,2047
+addi x7,x7,1
 add x7,x7,x6
 sd x0,0(x7)
 addi x9,x9,1
@@ -1780,7 +1782,8 @@ addi x21,x21,1
 addi x22,x0,0
 jal x1,parse_atom
 ld x6,1112(x8)
-addi x7,x8,720
+addi x7,x8,2047
+addi x7,x7,1
 add x7,x7,x6
 fsd f1,0(x7)
 jalr x0,0(x30)

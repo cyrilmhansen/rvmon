@@ -211,9 +211,12 @@ DIM A(10)
 RUN
 ```
 
-La tranche réserve jusqu'à 32 cellules `binary64` à partir de `data+720`,
-initialise la zone dans le guest et vérifie l'index entier contre la dimension
-déclarée avant lecture ou écriture.
+La tranche réserve jusqu'à 32 cellules `binary64` à partir de `data+2048`,
+dans une région séparée de la table des 26 scalaires située à `data+768`.
+Le payload initialise la zone dans le guest et vérifie l'index entier contre
+la dimension déclarée avant lecture ou écriture. Cette séparation est
+nécessaire pour qu'un tableau et les variables scalaires puissent être utilisés
+dans le même programme sans recouvrement mémoire.
 Le test d'intégration est `scripts/test-guest-runtime-asm-repl-array.sh`.
 Il s'agit d'une étape de portage, pas encore du support complet des dimensions,
 des indices expressions ou des tableaux de chaînes.
