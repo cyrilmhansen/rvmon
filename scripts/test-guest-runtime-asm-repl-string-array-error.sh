@@ -29,8 +29,8 @@ awk '/^symbols$/{print; found=1; next} found && /^run-at /{print; exit} !found{p
     examples/minibasic-asm/payload-repl.rv |
     while IFS= read -r line; do printf '%s\n' "$line" >&3; sleep 0.002; done
 sleep 0.2
-printf 'DIM A$(2)\nI=1\nA$(I)="DIRECT"\n10 PRINT A$(I)\n20 DIM B$(2)\n30 B$(I)="PROGRAM"\n40 PRINT B$(I)\n50 END\nRUN\n' >&3
-sleep 0.8
+printf '10 DIM A$(1)\n20 PRINT A$(2)\n30 END\nRUN\n' >&3
+sleep 0.5
 printf 'q\n' >&3
 exec 3>&-
 sleep 0.3
@@ -38,11 +38,9 @@ kill "$qemu_pid" 2>/dev/null || true
 wait "$qemu_pid" 2>/dev/null || true
 qemu_pid=""
 
-for expected in 'DIRECT' 'PROGRAM' 'trap: breakpoint'; do
-    if ! grep -aFq -- "$expected" "$output_file"; then
-        cat "$output_file"
-        printf 'missing string array output: %s\n' "$expected" >&2
-        exit 1
-    fi
-done
-printf 'guest assembly REPL string array QEMU test passed\n'
+if ! grep -aFq -- 'ERR' "$output_file"; then
+    cat "$output_file"
+    printf 'missing string array bounds error\n' >&2
+    exit 1
+fi
+printf 'guest assembly REPL string array bounds QEMU test passed\n'

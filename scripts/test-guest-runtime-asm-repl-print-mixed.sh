@@ -29,8 +29,8 @@ awk '/^symbols$/{print; found=1; next} found && /^run-at /{print; exit} !found{p
     examples/minibasic-asm/payload-repl.rv |
     while IFS= read -r line; do printf '%s\n' "$line" >&3; sleep 0.002; done
 sleep 0.2
-printf 'DIM A$(2)\nI=1\nA$(I)="DIRECT"\n10 PRINT A$(I)\n20 DIM B$(2)\n30 B$(I)="PROGRAM"\n40 PRINT B$(I)\n50 END\nRUN\n' >&3
-sleep 0.8
+printf '10 S$="ALPHA"\n20 DIM A$(3)\n30 A$(2)="ARR"\n40 PRINT "HEAD",S$,2\n50 PRINT "ARRAY",A$(2),S$\n60 END\nRUN\n' >&3
+sleep 0.6
 printf 'q\n' >&3
 exec 3>&-
 sleep 0.3
@@ -38,11 +38,11 @@ kill "$qemu_pid" 2>/dev/null || true
 wait "$qemu_pid" 2>/dev/null || true
 qemu_pid=""
 
-for expected in 'DIRECT' 'PROGRAM' 'trap: breakpoint'; do
+for expected in 'HEAD ALPHA 2.000000' 'ARRAY ARR ALPHA' 'trap: breakpoint'; do
     if ! grep -aFq -- "$expected" "$output_file"; then
         cat "$output_file"
-        printf 'missing string array output: %s\n' "$expected" >&2
+        printf 'missing mixed PRINT output: %s\n' "$expected" >&2
         exit 1
     fi
 done
-printf 'guest assembly REPL string array QEMU test passed\n'
+printf 'guest assembly REPL mixed PRINT QEMU test passed\n'

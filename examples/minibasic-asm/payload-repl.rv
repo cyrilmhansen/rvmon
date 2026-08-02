@@ -903,7 +903,7 @@ lbu x5,17(x24)
 addi x7,x0,61
 beq x5,x7,assignment_statement
 addi x7,x0,36
-beq x5,x7,program_string_array_dispatch
+beq x5,x7,program_string_name_or_array
 jal x0,array_statement
 program_string_name_or_array:
 lbu x5,18(x24)
@@ -946,20 +946,27 @@ jal x1,resolve_string_variable
 addi x10,x7,0
 addi x17,x0,4
 ecall
-addi x10,x0,10
-addi x17,x0,1
-ecall
-jal x0,if_false
+jal x0,print_string_value_cont
 print_string_array_variable:
 addi x21,x24,22
 jal x1,resolve_string_array
 addi x10,x7,0
 addi x17,x0,4
 ecall
+jal x0,print_string_value_cont
+print_string_value_cont:
+lbu x5,0(x21)
+addi x7,x0,44
+beq x5,x7,print_string_value_more
 addi x10,x0,10
 addi x17,x0,1
 ecall
 jal x0,if_false
+print_string_value_more:
+addi x10,x0,3
+sd x10,568(x8)
+sd x21,1176(x8)
+jal x0,print_more
 goto_dispatch:
 lbu x5,17(x24)
 addi x7,x0,61
@@ -1578,12 +1585,30 @@ jal x0,print_more_spaces
 print_more_item:
 addi x7,x0,34
 beq x5,x7,print_more_string
+lbu x6,1(x21)
+addi x7,x0,36
+beq x6,x7,print_more_string_variable
 addi x22,x0,0
 jal x1,eval_expression
 jal x0,run_save
 print_more_string:
 addi x21,x21,1
 jal x0,print_string_loop
+print_more_string_variable:
+lbu x6,2(x21)
+addi x7,x0,40
+beq x6,x7,print_more_str_array
+jal x1,resolve_string_variable
+addi x10,x7,0
+addi x17,x0,4
+ecall
+jal x0,print_string_value_cont
+print_more_str_array:
+jal x1,resolve_string_array
+addi x10,x7,0
+addi x17,x0,4
+ecall
+jal x0,print_string_value_cont
 print_normal_continuation:
 jal x0,if_false
 run_stop:
@@ -2205,9 +2230,9 @@ addi x6,x27,-8
 sd x9,0(x6)
 jalr x0,0(x1)
 string_array_assign:
-sd x1,1152(x8)
+sd x1,1584(x8)
 jal x1,resolve_string_array
-ld x1,1152(x8)
+ld x1,1584(x8)
 addi x27,x7,0
 lbu x5,0(x21)
 addi x6,x0,61

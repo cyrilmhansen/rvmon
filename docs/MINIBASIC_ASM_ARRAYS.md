@@ -68,11 +68,15 @@ qu'un `DIM` ou une écriture indexée ne modifie un nom scalaire homonyme.
 
 ```sh
 bash scripts/test-guest-runtime-asm-repl-string-array.sh
+bash scripts/test-guest-runtime-asm-repl-string-array-error.sh
+bash scripts/test-guest-runtime-asm-repl-print-mixed.sh
 bash scripts/test-guest-runtime-asm-repl-array-table.sh
 bash scripts/test-guest-runtime-asm-repl-array-index-variable.sh
 ```
 
 Le premier test vérifie une affectation/lecture directe, une utilisation dans
-un programme, une lecture par variable et une erreur hors borne. Les deux
-autres protègent respectivement les tableaux numériques multi-noms et les
+un programme et une lecture par variable. Le second isole le diagnostic de
+borne hors tableau ; le troisième vérifie `PRINT` avec mélange de littéraux,
+variables chaînes, tableaux de chaînes et expressions numériques. Les deux
+derniers protègent respectivement les tableaux numériques multi-noms et les
 indices variables numériques.
