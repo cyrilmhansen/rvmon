@@ -2231,6 +2231,29 @@ release. Elles n’ajoutent aucune extension ISA.
 - **Parallélisable :** oui avec le test UART ; non avec une modification du
   layout `{line,length,body}`.
 
+#### BASIC-LOAD-004C — Parser et insertion de plusieurs lignes target-side — TERMINÉE
+
+- **Priorité :** P0, fermeture de l’insertion minimale.
+- **But :** parser deux sources numérotées en cible (`20 PRINT B`, puis
+  `10 PRINT A`), insérer dans l’ordre et déplacer le record complet, y compris
+  son corps.
+- **Non-but :** UART, capacité complète, `LIST`, suppression, remplacement et
+  exécution des instructions BASIC.
+- **Entrées :** `BASIC_LANGUAGE.md`, D-018, `GUEST_PAYLOAD_ABI.md`, R1 I et R2
+  pour les branches et accès mémoire.
+- **Fichiers/modules :** `examples/minibasic-runtime-line-input.rv`,
+  `scripts/test-guest-runtime-line-input.sh`, documentation BASIC.
+- **Dépendances :** BASIC-LOAD-004A/B, `jal/jalr` guest et layout record 32 octets.
+- **Tests :** deux numéros, deux longueurs de 7, corps `PRINT A`/`PRINT B`,
+  déplacement complet, compteur 2 et dump target-side.
+- **Critères de sortie :** la RAM contient la ligne 10 à l’offset 0 et la ligne
+  20 à l’offset 32 avec leurs corps intacts ; QEMU atteint `ebreak`.
+- **Cas limites :** égalité, troisième ligne, table pleine, suppression,
+  remplacement et source vide restent dans BASIC-LOAD-004D/004E.
+- **Taille :** 4 points / 2 journées-agent, incertitude moyenne.
+- **Parallélisable :** oui avec le pilote UART ; non avec une modification du
+  protocole de retour `jalr` ou du layout record.
+
 ### BASIC-LOAD-004 — Porter le magasin de lignes et le contrôle de flot
 
 - **Priorité :** P0.

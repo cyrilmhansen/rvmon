@@ -53,6 +53,9 @@
 - `scripts/test-guest-runtime-line-lexer.sh` vérifie le parcours target-side de
   `20 PRINT B`, l’accumulation du numéro, la copie du corps ASCII et la longueur
   produite dans l’enregistrement cible.
+- `scripts/test-guest-runtime-line-input.sh` vérifie deux lignes parsées dans
+  la cible (`20 PRINT B`, puis `10 PRINT A`), l’insertion ordonnée, le déplacement
+  complet du corps, les longueurs et le compteur.
 - Le breakpoint `minibasic_divide` et `disasm` permettent d’observer la
   correspondance adresse → `fdiv.d`; les registres f et `fcsr` sont affichés
   avant/après le pas.

@@ -226,3 +226,15 @@ bash scripts/test-guest-runtime-line-lexer.sh
 
 Cette étape ne lit pas encore l’UART et ne gère qu’une ligne bornée ; elle isole
 le contrat lexer → record avant l’insertion de plusieurs lignes.
+
+La fixture [`minibasic-runtime-line-input.rv`](../examples/minibasic-runtime-line-input.rv)
+enchaîne maintenant deux parsings target-side, `20 PRINT B` puis `10 PRINT A`.
+Elle déplace le record complet, y compris le corps de 7 octets, et vérifie une
+table ordonnée `10, 20` :
+
+```text
+bash scripts/test-guest-runtime-line-input.sh
+```
+
+Le compteur, les longueurs et les deux corps sont observables en RAM. La
+lecture UART, `LIST`, suppression et remplacement restent à raccorder.
