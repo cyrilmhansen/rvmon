@@ -3116,6 +3116,27 @@ release. Elles n’ajoutent aucune extension ISA.
 - **Paquet de contexte :** BASIC-LOAD-005Y, payload REPL, `GUEST_PAYLOAD_ABI.md`
   et tests expression QEMU.
 
+#### BASIC-LOAD-005AA — Non-régression signe/fraction du formateur — TERMINÉE
+
+- **Priorité :** P0, verrouillage du chemin de sortie avant le contrôle de flot.
+- **But :** vérifier une valeur négative avec fraction non nulle et restaurer
+  le motif original de `f3` après l’émission console.
+- **Non-but :** ajouter les formats IEEE spéciaux ou modifier la politique de
+  précision fixe.
+- **Entrées :** BASIC-LOAD-005Z, R1 D et ABI `ecall 4`.
+- **Fichiers/modules :** payload assembleur, test QEMU de formatage négatif et
+  documentation BASIC.
+- **Dépendances :** BASIC-LOAD-005Z et `fcvt.l.d` en arrondi vers zéro.
+- **Tests :** `PRINT -2.25+0`, texte `-2.250000`, `f3=0xc002...` et dump exact.
+- **Critères de sortie :** la sortie est correcte et le debugger observe encore
+  le résultat signé original, sans calcul hôte.
+- **Cas limites :** ±0, NaN, infinis, arrondi du sixième chiffre et overflow
+  restent à couvrir.
+- **Taille :** 2 points / 1 journée-agent, incertitude faible.
+- **Compétences/outils :** assembleur, IEEE 754, QEMU et débogueur.
+- **Parallélisable :** oui avec les cas IEEE ; non avec une refonte du buffer.
+- **Paquet de contexte :** BASIC-LOAD-005Z, test négatif et ABI console.
+
 ### BASIC-LOAD-004 — Porter le magasin de lignes et le contrôle de flot
 
 - **Priorité :** P0.

@@ -471,6 +471,12 @@ avec six décimales fixes, avant le breakpoint de débogage. Les cas `8.0`,
 conversion est une première forme pédagogique et ne couvre pas encore les
 valeurs IEEE particulières ni l’affichage shortest-round-trip.
 
+Le cas `PRINT -2.25+0` vérifie aussi le signe et une fraction non nulle :
+
+```text
+bash scripts/test-guest-runtime-asm-repl-format-negative-fraction.sh
+```
+
 Le mode direct `PRINT 2+3` est également pris en charge par le payload
 assembleur et passe par le même évaluateur :
 

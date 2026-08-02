@@ -125,6 +125,10 @@ La conversion est actuellement bornée aux valeurs finies représentables par
 la conversion entière utilisée par cette tranche ; NaN, infinis et grandes
 valeurs nécessitent encore une voie dédiée.
 
+Le cas négatif fractionnaire `PRINT -2.25+0` est couvert par
+`scripts/test-guest-runtime-asm-repl-format-negative-fraction.sh` et vérifie
+à la fois `-2.250000` sur la console, le motif signé de `f3` et le dump mémoire.
+
 Le scanner reconnaît maintenant les signes `+`/`-` et une parenthèse autour
 d’un atome, par exemple `PRINT (-2.5) + (+3.5)`. La négation est exécutée par
 le payload au moyen de `fmv.x.d`, inversion du bit 63 et `fmv.d.x`, car le

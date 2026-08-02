@@ -155,6 +155,9 @@
 - Les tests intégrés vérifient également l’émission target-side des résultats
   fixes (`8.000000`, `6.000000`, `1.000000`, `14.000000`) par le service
   `ecall 4`, indépendamment de l’inspection des motifs binaires.
+- `scripts/test-guest-runtime-asm-repl-format-negative-fraction.sh` vérifie
+  `-2.25`, la sortie `-2.250000`, la restauration du motif signé de `f3` au
+  breakpoint et l’octetage exact en RAM.
 - Le breakpoint `minibasic_divide` et `disasm` permettent d’observer la
   correspondance adresse → `fdiv.d`; les registres f et `fcsr` sont affichés
   avant/après le pas.
