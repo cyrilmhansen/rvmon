@@ -504,6 +504,17 @@ indépendamment du payload BASIC :
 bash scripts/test-guest-runtime-fcmp-d.sh
 ```
 
+La première forme `IF ... THEN` target-side est également disponible pour deux
+atomes et les six comparaisons (`<`, `<=`, `=`, `<>`, `>`, `>=`) avec cibles 10
+ou 20. Le chemin vrai `IF 1<2 THEN 20` est vérifié par :
+
+```text
+bash scripts/test-guest-runtime-asm-repl-if.sh
+```
+
+Les expressions de comparaison composées, `AND/OR`, parenthèses de condition
+et diagnostics détaillés restent à intégrer.
+
 La commande `END` est distincte de `NEW` et s’arrête proprement après avoir
 émis `END` depuis le guest :
 

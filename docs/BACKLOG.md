@@ -3247,6 +3247,29 @@ release. Elles n’ajoutent aucune extension ISA.
   conventions de booléens.
 - **Paquet de contexte :** R1 D, `riscv-opcodes`, fixture fcmp et ABI guest.
 
+#### BASIC-LOAD-005AG — IF THEN target-side borné — TERMINÉE
+
+- **Priorité :** P0, première décision conditionnelle BASIC.
+- **But :** évaluer une comparaison entre deux atomes et transférer vers la
+  ligne 10 ou 20 lorsque `THEN` est vrai, avec poursuite séquentielle lorsqu’il
+  est faux.
+- **Non-but :** expressions booléennes composées, `AND/OR`, parenthèses de
+  condition, lignes arbitraires et diagnostics complets.
+- **Entrées :** `BASIC_LANGUAGE.md`, comparaisons RISC-V D et état des slots.
+- **Fichiers/modules :** `payload-repl.rv`, test QEMU IF et docs BASIC.
+- **Dépendances :** BASIC-LOAD-005AF, BASIC-LOAD-005AD et slots 10/20.
+- **Tests :** `10 IF 1<2 THEN 20`, `20 PRINT 7+8`, résultat `15.000000`,
+  breakpoint final et exécution sans orchestration hôte.
+- **Critères de sortie :** la comparaison et la branche sont calculées dans la
+  cible ; le harnais ne choisit pas le chemin.
+- **Cas limites :** faux sans ligne suivante, cible absente, NaN, ±0, chaîne
+  de comparaison invalide et conditions composées restent à couvrir.
+- **Taille :** 5 points / 2,5 journées-agent, incertitude moyenne.
+- **Compétences/outils :** assembleur, IEEE 754, contrôle de flot et QEMU.
+- **Parallélisable :** oui avec diagnostics et `INPUT` ; non avec la convention
+  de booléens/slots.
+- **Paquet de contexte :** BASIC-LOAD-005AF, payload IF et test QEMU.
+
 ### BASIC-LOAD-004 — Porter le magasin de lignes et le contrôle de flot
 
 - **Priorité :** P0.
