@@ -3311,6 +3311,28 @@ release. Elles n’ajoutent aucune extension ISA.
 - **Parallélisable :** oui avec TRACE ; non avec une refonte du buffer d’entrée.
 - **Paquet de contexte :** BASIC-LOAD-005AH, ABI UART, payload IF et test INPUT.
 
+#### BASIC-LOAD-005AJ — TRACE et interruption Ctrl-C target-side — TERMINÉE
+
+- **Priorité :** P0, observabilité et sortie sûre des boucles.
+- **But :** tracer chaque slot exécuté avec `TRACE ON` et détecter Ctrl-C par
+  polling UART au début de chaque itération, sans terminer QEMU.
+- **Non-but :** trace d’expression détaillée, watchpoints, interruption dans
+  une instruction atomique ou historique arrière.
+- **Entrées :** `BASIC_LANGUAGE.md`, ABI UART, service `ecall 5` et modèle
+  d’arrêt du moniteur.
+- **Fichiers/modules :** `payload-repl.rv`, tests TRACE/Break et documentation.
+- **Dépendances :** BASIC-LOAD-005AI, `GOTO`, PLIC/UART et `run_stop`.
+- **Tests :** `[10]`/`[20]` en trace, `10 GOTO 10`, Ctrl-C, `BREAK`, retour au
+  moniteur et QEMU vivant.
+- **Critères de sortie :** les marques, la détection et l’arrêt proviennent du
+  guest ; le test ne tue QEMU qu’après avoir récupéré le breakpoint.
+- **Cas limites :** Ctrl-C pendant INPUT, polling perdu, TRACE OFF, fréquence
+  de polling et boucle sans point de service restent à préciser.
+- **Taille :** 4 points / 2 journées-agent, incertitude moyenne.
+- **Compétences/outils :** UART 16550, interruptions, assembleur et QEMU.
+- **Parallélisable :** oui avec diagnostics ; non avec la politique d’arrêt.
+- **Paquet de contexte :** BASIC-LOAD-005AI, tests trace/break et `GUEST_UART_DRIVER.md`.
+
 ### BASIC-LOAD-004 — Porter le magasin de lignes et le contrôle de flot
 
 - **Priorité :** P0.

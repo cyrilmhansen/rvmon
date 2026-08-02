@@ -168,6 +168,12 @@ invite, lit la ligne UART dans la cible, réutilise le parseur décimal binary64
 et reprend l’exécution vers le slot suivant. La séance `INPUT X` puis
 `PRINT X*X` est couverte par `scripts/test-guest-runtime-asm-repl-input.sh`.
 
+`TRACE ON` imprime `[10]` ou `[20]` avant chaque ligne exécutée ; la boucle
+`10 GOTO 10` peut être interrompue par Ctrl-C, qui produit `BREAK` dans le
+guest et rend le contrôle au moniteur. Les preuves sont respectivement
+`scripts/test-guest-runtime-asm-repl-trace.sh` et
+`scripts/test-guest-runtime-asm-repl-break.sh`.
+
 `END` est également dispatché target-side, émet `END\n` puis arrête la séance
 sur un breakpoint contrôlable. Sa non-régression est :
 

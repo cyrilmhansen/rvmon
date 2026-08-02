@@ -176,6 +176,9 @@
 - `scripts/test-guest-runtime-asm-repl-input.sh` vérifie l’invite, la lecture
   UART de `3.5`, la conversion target-side vers `X`, puis `PRINT X*X` avec
   `12.250000` et les motifs FP exacts.
+- `scripts/test-guest-runtime-asm-repl-trace.sh` vérifie `[10]` et `[20]` avant
+  deux lignes exécutées ; `scripts/test-guest-runtime-asm-repl-break.sh`
+  vérifie Ctrl-C sur `10 GOTO 10`, `BREAK` et le retour au moniteur.
 - Le breakpoint `minibasic_divide` et `disasm` permettent d’observer la
   correspondance adresse → `fdiv.d`; les registres f et `fcsr` sont affichés
   avant/après le pas.
