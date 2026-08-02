@@ -28,16 +28,16 @@ awk '/^symbols$/{print; found=1; next} found && /^run-at /{print; exit} !found{p
     examples/minibasic-asm/payload-repl.rv |
     while IFS= read -r line; do printf '%s\n' "$line" >&3; sleep 0.002; done
 sleep 0.2
-printf 'DIM A(10)\n10 A(10)=42\n20 PRINT A(10)\nRUN\n' >&3
+printf 'DIM A(10)\nA(0)=7\n10 A(10)=42\n20 PRINT A(0)+A(10)\nRUN\n' >&3
 sleep 0.5
-printf 'q\n' >&3
+printf 'regs\nmemory 0x820002d0 88\nq\n' >&3
 exec 3>&-
 sleep 0.3
 kill "$qemu_pid" 2>/dev/null || true
 wait "$qemu_pid" 2>/dev/null || true
 qemu_pid=""
 
-for expected in '42.000000' 'trap: breakpoint'; do
+for expected in '49.000000' 'trap: breakpoint'; do
     if ! grep -aFq -- "$expected" "$output_file"; then
         cat "$output_file"
         printf 'missing integrated assembly array output: %s\n' "$expected" >&2
