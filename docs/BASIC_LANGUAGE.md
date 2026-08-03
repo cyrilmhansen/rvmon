@@ -109,6 +109,55 @@ produisent une erreur cible sans écriture partielle.
 
 ### Architecture de résolution des expressions chaîne
 
+### Architecture effective et degré de généricité
+
+Il faut distinguer l'architecture cible du niveau de migration actuellement
+livré. MiniBASIC-RV n'est pas un ensemble de cas codés pour chaque expression
+possible, mais il ne possède pas encore non plus un lexer à tokens et un AST
+général.
+
+Le chemin numérique actuel est une descente récursive par niveaux de priorité :
+`eval_expression` traite les sommes et comparaisons, `parse_product` traite
+`*` et `/`, et `parse_atom` traite les littéraux, parenthèses, variables et
+appels. Une parenthèse appelle donc à nouveau l'évaluateur ; une expression
+telle que `MOD(INT(-3.9),SQR(4))` est composée par la structure du parseur,
+non par une entrée dédiée pour cette combinaison. La borne observable est la
+capacité des cadres et scratchs target-side, pas le nombre de combinaisons
+énumérées.
+
+Le chemin chaîne suit le même objectif avec un contrat commun
+`{adresse,longueur}` et une pile de cadres statiques. Il sait déjà composer
+des littéraux, variables et concaténations avec des parenthèses hors chaînes.
+Les fonctions de découpe dans certains consommateurs imbriqués restent
+toutefois une limite connue : elles ne doivent pas être présentées comme une
+composition générale tant que la régression `INSTR(LEFT$(...),...)` n'est pas
+résolue.
+
+L'implémentation assembleur est actuellement en migration :
+
+* les identifiants sont parcourus depuis la source ASCII et normalisés en
+  place ; il n'existe pas encore de flux de tokens indépendant ;
+* les fonctions parenthésées courantes sont reconnues par une table de
+  descripteurs target-side, puis envoyées vers des évaluateurs spécialisés ;
+* `RND` et plusieurs chemins historiques de variables, tableaux et mots-clés
+  conservent des probes explicites ;
+* les limites de mémoire, de profondeur et de cadres sont des limites
+  d'exécution explicites, pas des alternatives syntaxiques codées en dur.
+
+Ainsi, la généricité actuelle est réelle pour la composition des opérateurs et
+des appels déjà raccordés, mais incomplète au niveau lexical et du dispatch.
+La cible d'architecture est un lexer borné produisant des tokens, un parseur
+de précédence commun et des descripteurs de fonctions/mots-clés indiquant nom,
+catégorie, arité, séparateurs, borne de nesting et évaluateur. La migration
+doit conserver les contrats target-side existants et remplacer les probes par
+lots vérifiables ; elle ne doit pas ajouter une branche pour chaque nouvelle
+combinaison syntaxique.
+
+Cette décision diffère donc de l'état actuel du code, mais pas du contrat
+produit : les combinaisons doivent être générées par la grammaire et les
+cadres d'exécution, tandis que les capacités restent limitées par des bornes
+mesurables (taille de ligne, tokens, profondeur et mémoire).
+
 Le payload ne possède pas un chemin distinct pour chaque combinaison de
 fonction et de source. `LEN`, `ASC` et `VAL` appellent un résolveur commun
 target-side qui évalue l’expression dans le buffer partagé `0x82060830` et
