@@ -4108,6 +4108,8 @@ addi x26,x28,1
 sd x26,536(x8)
 jal x0,run_line
 if_block_scan_endif:
+addi x6,x27,-1
+bne x6,x0,if_block_scan_nested_endif
 beq x10,x0,if_block_scan_endif_false
 addi x10,x0,6
 jal x1,control_pop_expected
@@ -4115,6 +4117,9 @@ if_block_scan_endif_false:
 addi x26,x28,1
 sd x26,536(x8)
 jal x0,run_line
+if_block_scan_nested_endif:
+addi x27,x27,-1
+jal x0,if_block_scan_next
 if_block_scan_next:
 addi x28,x28,1
 jal x0,if_block_scan_line
@@ -9620,6 +9625,10 @@ beq x5,x0,statement_table_id
 jal x0,statement_table_miss
 statement_table_id:
 lbu x28,1(x27)
+addi x6,x0,16
+beq x28,x6,statement_table_else
+addi x6,x0,17
+beq x28,x6,statement_table_endif
 addi x6,x0,15
 beq x28,x6,statement_table_if
 addi x6,x0,1
@@ -9690,6 +9699,28 @@ ld x28,32(x10)
 ld x29,40(x10)
 lbu x10,16(x24)
 jal x0,if_statement
+statement_table_else:
+; ELSE reprend le contrôle de bloc sans changer son contrat historique.
+addi x10,x8,2047
+addi x10,x10,513
+ld x6,0(x10)
+ld x7,8(x10)
+ld x9,16(x10)
+ld x27,24(x10)
+ld x28,32(x10)
+ld x29,40(x10)
+jal x0,else_statement
+statement_table_endif:
+; ENDIF dépile le contexte de bloc dans endif_statement.
+addi x10,x8,2047
+addi x10,x10,513
+ld x6,0(x10)
+ld x7,8(x10)
+ld x9,16(x10)
+ld x27,24(x10)
+ld x28,32(x10)
+ld x29,40(x10)
+jal x0,endif_statement
 jal x0,statement_table_fallback
 statement_table_miss:
 addi x29,x29,1
