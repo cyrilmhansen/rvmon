@@ -88,6 +88,8 @@ data 0x820100b8 .dword 0x3e927e4fb7789f5c
 data 0x820100c0 .dword 0x4086200000000000
 data 0x820100c8 .dword 0xc086200000000000
 data 0x820100d0 .dword 0x4086280000000000
+data 0x820100d8 .dword 0x3fda827999fcef34
+data 0x820100e0 .dword 0x3fe921fb54442d18
 data 0x82000200 .dword 0x0000000000000000
 data 0x82000218 .dword 0x0000000000000000
 assemble-program 0x81000100
@@ -3747,6 +3749,8 @@ atom_a_dispatch:
 lbu x6,1(x21)
 addi x7,x0,66
 beq x6,x7,atom_abs_probe
+addi x7,x0,84
+beq x6,x7,atom_atn_probe
 addi x7,x0,83
 bne x6,x7,atom_a
 lbu x6,2(x21)
@@ -3764,6 +3768,14 @@ lbu x6,3(x21)
 addi x7,x0,40
 bne x6,x7,atom_a
 jal x0,atom_abs_function
+atom_atn_probe:
+lbu x6,2(x21)
+addi x7,x0,78
+bne x6,x7,atom_a
+lbu x6,3(x21)
+addi x7,x0,40
+bne x6,x7,atom_a
+jal x0,atom_atn_function
 atom_e_dispatch:
 lbu x6,1(x21)
 addi x7,x0,88
@@ -7424,6 +7436,165 @@ ld x31,40(x29)
 ld x29,1424(x8)
 jal x0,store_atom
 atom_log_error:
+jal x0,error_line
+atom_atn_function:
+ld x6,912(x8)
+beq x6,x0,atom_atn_frame_zero
+addi x7,x6,-1
+bne x7,x0,atom_atn_error
+sd x29,928(x8)
+addi x6,x0,2
+sd x6,912(x8)
+addi x29,x8,2047
+addi x29,x29,705
+jal x0,atom_atn_frame_ready
+atom_atn_frame_zero:
+sd x29,920(x8)
+addi x6,x0,1
+sd x6,912(x8)
+addi x29,x8,2047
+addi x29,x29,641
+atom_atn_frame_ready:
+sd x1,0(x29)
+sd x22,8(x29)
+sd x28,16(x29)
+sd x30,24(x29)
+sd x31,32(x29)
+lbu x5,1(x21)
+addi x6,x0,84
+bne x5,x6,atom_atn_error
+lbu x5,2(x21)
+addi x6,x0,78
+bne x5,x6,atom_atn_error
+lbu x5,3(x21)
+addi x6,x0,40
+bne x5,x6,atom_atn_error
+addi x21,x21,4
+addi x22,x0,0
+jal x1,eval_expression
+lbu x5,0(x21)
+addi x6,x0,41
+beq x5,x6,atom_atn_close_present
+beq x5,x0,atom_atn_close_consumed
+jal x0,atom_atn_error
+atom_atn_close_present:
+addi x21,x21,1
+jal x0,math_atn_prepare
+atom_atn_close_consumed:
+addi x6,x21,-1
+lbu x5,0(x6)
+addi x6,x0,41
+bne x5,x6,atom_atn_error
+math_atn_prepare:
+ld x6,912(x8)
+addi x7,x6,-1
+beq x7,x0,math_atn_prepare_zero
+addi x29,x8,2047
+addi x29,x29,705
+jal x0,math_atn_prepare_ready
+math_atn_prepare_zero:
+addi x29,x8,2047
+addi x29,x29,641
+math_atn_prepare_ready:
+feq.d x7,f3,f3
+beq x7,x0,atom_atn_error
+addi x28,x0,0
+addi x30,x0,0
+addi x31,x0,0
+fmv.x.d x10,f3
+srai x11,x10,63
+beq x11,x0,math_atn_positive
+addi x28,x0,1
+addi x6,x0,1
+slli x6,x6,63
+xor x10,x10,x6
+fmv.d.x f3,x10
+math_atn_positive:
+addi x10,x0,1
+fcvt.d.l f5,x10,0
+flt.d x7,f5,f3
+beq x7,x0,math_atn_threshold
+addi x30,x0,1
+fdiv.d f3,f5,f3
+math_atn_threshold:
+lui x7,0x82010
+slli x7,x7,32
+srli x7,x7,32
+addi x7,x7,216
+fld f5,0(x7)
+flt.d x7,f5,f3
+beq x7,x0,math_atn_polynomial
+addi x31,x0,1
+addi x10,x0,1
+fcvt.d.l f5,x10,0
+fsub.d f6,f3,f5
+fadd.d f7,f3,f5
+fdiv.d f3,f6,f7
+math_atn_polynomial:
+fmul.d f6,f3,f3
+lui x7,0x82010
+slli x7,x7,32
+srli x7,x7,32
+addi x7,x7,80
+fld f1,32(x7)
+fmul.d f1,f1,f6
+fld f5,24(x7)
+fsub.d f1,f5,f1
+fmul.d f1,f1,f6
+fld f5,16(x7)
+fsub.d f1,f5,f1
+fmul.d f1,f1,f6
+fld f5,8(x7)
+fsub.d f1,f5,f1
+fmul.d f1,f1,f6
+fld f5,0(x7)
+fsub.d f1,f5,f1
+fmul.d f1,f1,f6
+addi x10,x0,1
+fcvt.d.l f5,x10,0
+fsub.d f1,f5,f1
+fmul.d f4,f3,f1
+beq x31,x0,math_atn_no_pi4
+lui x7,0x82010
+slli x7,x7,32
+srli x7,x7,32
+addi x7,x7,224
+fld f5,0(x7)
+fadd.d f4,f5,f4
+math_atn_no_pi4:
+beq x30,x0,math_atn_no_reciprocal
+lui x7,0x82010
+slli x7,x7,32
+srli x7,x7,32
+addi x7,x7,16
+fld f5,0(x7)
+fsub.d f4,f5,f4
+math_atn_no_reciprocal:
+beq x28,x0,math_atn_restore
+fmv.x.d x10,f4
+addi x6,x0,1
+slli x6,x6,63
+xor x10,x10,x6
+fmv.d.x f4,x10
+math_atn_restore:
+ld x1,0(x29)
+ld x22,8(x29)
+ld x28,16(x29)
+ld x30,24(x29)
+ld x31,32(x29)
+ld x6,912(x8)
+addi x7,x6,-1
+beq x7,x0,math_atn_restore_zero
+ld x29,928(x8)
+addi x6,x6,-1
+sd x6,912(x8)
+jal x0,store_atom
+math_atn_restore_zero:
+ld x29,920(x8)
+sd x0,912(x8)
+jal x0,store_atom
+atom_atn_error:
+sd x0,912(x8)
 jal x0,error_line
 atom_exp_function:
 sd x29,1232(x8)

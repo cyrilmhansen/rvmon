@@ -176,6 +176,12 @@
   guest, avec affichage déterministe et breakpoint final.
 - `scripts/test-guest-runtime-asm-repl-log-exp-error.sh` vérifie le refus
   target-side de `LOG(0)` et le retour propre au moniteur.
+- `scripts/test-guest-runtime-asm-repl-atn.sh` vérifie `ATN(0)`, `ATN(±1)`,
+  `ATN(0.5)`, `ATN(10)` et `ATN(ATN(1))`, avec résultats produits par le
+  polynôme D target-side et arrêt propre au breakpoint.
+- `scripts/test-guest-runtime-asm-repl-atn-error.sh` vérifie une forme
+  syntaxique incomplète `ATN(`, le diagnostic guest et le retour propre au
+  moniteur.
 - `scripts/test-guest-runtime-asm-repl-two-lines.sh` vérifie l’insertion hors
   ordre de `20` puis `10`, le tri observable de `LIST`, les deux slots mémoire
   et l’exécution séquentielle target-side des lignes `10` puis `20`.

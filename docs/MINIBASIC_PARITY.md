@@ -18,8 +18,8 @@ compatibilité Atari, ni compatibilité binaire, ni compatibilité des tokens,
 des nombres historiques, des périphériques, du DOS ou des graphismes.
 
 État de l’audit au 3 août 2026 : **101 scripts QEMU assembleur MiniBASIC
-recensés**. Les deux derniers scénarios couvrent l’implémentation ATN en cours
-et ne sont comptés comme preuves de parité qu’après exécution verte. Ce nombre
+recensés**. Les deux derniers scénarios fournissent la preuve nominale et
+d’erreur de `ATN` après exécution QEMU verte. Ce nombre
 est contrôlable par :
 
 ```text
@@ -55,7 +55,6 @@ entièrement dans le guest.
 |---|---|
 | **VERT** | Fonction disponible dans le payload assembleur et couverte par au moins un test QEMU ciblé. |
 | **PARTIEL** | Fonction réellement disponible, mais avec une limite syntaxique, structurelle ou sémantique explicitement documentée. |
-| **EN COURS** | Code ou tests présents dans le dépôt, mais tranche non encore acceptée comme preuve de parité. |
 | **PLANIFIÉ** | Extension compatible avec la trajectoire, non acceptée dans l’état courant. |
 | **DIFFÉRÉ** | Décision ou chantier conservé, mais non prioritaire pour la parité actuelle. |
 | **REJETÉ** | Fonction hors périmètre MiniBASIC-RV ; elle ne doit pas être comptée comme dette cachée. |
@@ -73,7 +72,7 @@ entièrement dans le guest.
 | Arithmétique | `+`, `-`, `*`, `/` en binary64 par `fadd.d`, `fsub.d`, `fmul.d`, `fdiv.d` | VERT | `precedence.sh`, `mul.sh`, `expression-div.sh` |
 | Comparaisons | `=`, `<>`, `<`, `<=`, `>`, `>=`, résultat `0.0` ou `1.0` | VERT | `if.sh`, `if-false.sh`, `precedence.sh` |
 | Fonctions numériques | `ABS`, `SGN`, `INT`, `TRUNC`, `FRAC`, `MOD`, `SQR`, `SIN`, `COS`, `TAN`, `LOG`, `EXP`, appels target-side et imbrication documentée | VERT | `numeric-rounding.sh`, `numeric-rounding-error.sh`, `numeric-functions.sh`, `sqr.sh`, `sqr-error.sh`, `trig.sh`, `tan.sh`, `tan-error.sh`, `log-exp.sh`, `log-exp-error.sh` |
-| `ATN` | Fonction en cours d’intégration, radians et résultat binary64 target-side | EN COURS | `atn.sh` et `atn-error.sh` présents ; validation nominale et gestion des appels imbriqués encore à exécuter |
+| `ATN` | Fonction en radians, résultat binary64 target-side et imbrication bornée | VERT | `atn.sh` et `atn-error.sh` ; cas nominaux, appel imbriqué et diagnostic QEMU |
 | Conversion caractère | `ASC(string-source)` numérique et `CHR$(expression)` chaîne, exécutés dans le guest avec bornes explicites | PARTIEL | `test-guest-runtime-asm-repl-string-concat.sh`, `test-guest-runtime-asm-repl-string-concat-error.sh`; `CHR$` est disponible en affectation, concaténation et `PRINT`, tandis que les conversions implicites restent différées |
 | Conversion chaîne → nombre | `VAL(string-source)` parse une valeur décimale dans le guest et refuse les caractères non consommés | PARTIEL | `test-guest-runtime-asm-repl-string-concat.sh`, `test-guest-runtime-asm-repl-string-concat-error.sh`; exposants et formats historiques restent hors V1 |
 | Recherche chaîne | `INSTR(haystack,needle)` target-side, résultat 1-based, `0` absent et `1` pour aiguille vide | PARTIEL | `test-guest-runtime-asm-repl-string-concat.sh`, `test-guest-runtime-asm-repl-string-concat-error.sh`; options de comparaison historiques non retenues |
@@ -128,7 +127,7 @@ refusée.
 | `LEN`, `LEFT$`, `RIGHT$`, `MID$` | Conservées avec sources/destinations RV étendues | PARTIEL | fonctions disponibles dans le guest ; composition générale hors grammaire |
 | `ASC`, `CHR$`, `VAL`, `INSTR`, `STR$` | Compatibilité d’usage modernisée | PARTIEL | bornes, formats et cas historiques non promis |
 | `ABS`, `SGN`, `INT`, `TRUNC`, `FRAC`, `MOD`, `SQR`, `SIN`, `COS`, `TAN`, `LOG`, `EXP`, `RND` | Sous-ensemble numérique explicite | VERT/PARTIEL | `SQR` utilise `fsqrt.d`, les fonctions transcendantes utilisent réduction et polynômes target-side ; `LOG/EXP` sont bornées et leur approximation fixe peut perdre une unité au dernier chiffre affiché |
-| `ATN` | Implémentation target-side en cours d’acceptation | EN COURS | la présence du code et des scripts ne vaut pas preuve tant que les exécutions QEMU ne sont pas vertes |
+| `ATN` | Fonction target-side en radians avec réduction et polynôme binary64 | VERT | deux scénarios QEMU, dont `ATN(ATN(1))` et une erreur de syntaxe |
 | Autres fonctions mathématiques historiques non retenues dans la grammaire | Différées, pas implicitement supportées | DIFFÉRÉ | aucune syntaxe n’est promise sans décision et test dédiés |
 | Chaînes complètes et tableaux complets | Conservés comme trajectoire produit | PLANIFIÉ | concaténation et découpes sont présentes ; opérations restantes à auditer |
 | Fichiers, DOS, graphismes, sons, périphériques Atari | Rejetés | REJETÉ | ne font pas partie du modèle de services cible |
@@ -213,9 +212,8 @@ Priorité suivante, après stabilisation du socle actuel :
 3. consolider la surface chaîne déjà livrée : ajouter des cas limites pour
    les tableaux, l’auto-affectation, les buffers pleins et les compositions
    `STR$`/`CHR$`, sans élargir silencieusement la grammaire ;
-4. terminer l’acceptation de `ATN` (cas nominaux, imbrication, domaines et
-   diagnostic), puis auditer les familles TBXL non encore retenues (formatages
-   et commandes d’édition) et
+4. auditer les familles TBXL non encore retenues (formatages et commandes
+   d’édition), en conservant les limites explicites d’`ATN`, et
    prendre pour chacune une décision versionnée avant toute implémentation ;
 5. traiter les limites documentées des blocs structurés et des expressions
    d’index uniquement si une compatibilité supplémentaire est prioritaire ;
@@ -249,9 +247,7 @@ sortie BASIC préenregistrée.
   chaînes, tableaux, binary64 target-side, interruption et périmètre Atari
   rejeté ;
 - **Preuve automatisée :** 101 scripts QEMU assembleur recensés au moment de
-  cet audit ; 99 scénarios sont déjà intégrés à la preuve verte et deux
-  scénarios ATN attendent leur validation, avec des cas nominaux et négatifs
-  dédiés aux chaînes, tableaux,
+  cet audit, avec des cas nominaux et négatifs dédiés aux chaînes, tableaux,
   conversions, fonctions de recherche, formatage et blocs structurés ;
 - **Écart important restant :** `ELSE`/`ENDIF` doivent rester en lignes dédiées ;
   certaines fonctions historiques TBXL ne sont pas encore retenues ; les expressions
@@ -279,7 +275,7 @@ sortie BASIC préenregistrée.
 | 2026-08-03 | Ajout de `SIN(expression)` et `COS(expression)` avec réduction d’intervalle et polynôme binary64 target-side | `test-guest-runtime-asm-repl-trig.sh` sous QEMU ; cas canoniques, valeurs générales et appels imbriqués | la première famille transcendantale TBXL est VERT dans le sous-ensemble MiniBASIC ; `ATN`, `LOG` et `EXP` restent explicitement différés |
 | 2026-08-03 | Ajout de `TAN(expression)` par composition target-side de `SIN/COS` et refus des pôles | `test-guest-runtime-asm-repl-tan.sh` et `test-guest-runtime-asm-repl-tan-error.sh` sous QEMU ; valeurs générales, imbrication et `COS(pi/2)=0` | la famille trigonométrique directe est maintenant VERT dans le sous-ensemble MiniBASIC ; `ATN`, `LOG` et `EXP` restent explicitement différés |
 | 2026-08-03 | Ajout de `LOG(expression)` et `EXP(expression)` avec réduction binary64, polynômes target-side et bornes de domaine | `test-guest-runtime-asm-repl-log-exp.sh` et `test-guest-runtime-asm-repl-log-exp-error.sh` sous QEMU ; valeurs usuelles, composition et `LOG(0)` | la famille logarithmique/exponentielle est disponible dans une approximation déterministe bornée ; `ATN` reste le dernier grand manque mathématique explicite |
-| 2026-08-03 | Préparation de `ATN(expression)` target-side avec réduction par réciproque et intervalle `pi/4` | `test-guest-runtime-asm-repl-atn.sh` et `test-guest-runtime-asm-repl-atn-error.sh` ajoutés ; exécution d’acceptation encore requise | la fonction passe de DIFFÉRÉ à EN COURS ; elle ne sera VERT qu’après preuve QEMU nominale, imbriquée et d’erreur |
+| 2026-08-03 | Ajout et validation de `ATN(expression)` target-side avec réduction par réciproque et intervalle `pi/4` | `test-guest-runtime-asm-repl-atn.sh` et `test-guest-runtime-asm-repl-atn-error.sh` sous QEMU ; cas nominaux, imbrication et erreur | `ATN` devient VERT dans le sous-ensemble MiniBASIC ; les cadres statiques limitent l’imbrication à deux niveaux |
 
 Les affectations ne constituent pas encore une parité chaîne complète : le RHS
 est soit une forme `LEFT$`/`RIGHT$`/`MID$`, soit une concaténation de termes

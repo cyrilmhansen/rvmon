@@ -70,6 +70,7 @@ factor        = number | variable | "(" , expression , ")"
               | "TAN" , "(" , expression , ")"
               | "LOG" , "(" , expression , ")"
               | "EXP" , "(" , expression , ")"
+              | "ATN" , "(" , expression , ")"
               | "RND" | "RND" , "(" , ")"
               | ( "+" | "-" ) , factor ;
 variable      = identifier ;
@@ -164,6 +165,18 @@ cosinus nul est refusé par le diagnostic arithmétique cible au lieu de
 produire silencieusement une division par zéro. Le résultat est binary64 et
 est soumis à la même précision pratique et au même affichage fixe que
 `SIN`/`COS`.
+
+`ATN(x)` calcule l’arc tangente en radians entièrement dans le guest. Pour
+`|x|>1`, l’implémentation évalue la réciproque et applique l’identité avec
+`pi/2`; pour les valeurs réduites au-delà de `sqrt(2)-1`, elle utilise la
+transformation vers l’intervalle de `pi/4`. Le résultat final est obtenu par
+un polynôme binary64 évalué par les instructions D. `ATN(0)`, `ATN(1)` et
+les signes opposés sont couverts par les tests QEMU ; la précision V1 est
+définie par l’affichage déterministe à six décimales et les valeurs de
+référence du corpus. Les appels imbriqués sont supportés jusqu’à deux cadres
+`ATN`; un troisième niveau est refusé par le diagnostic target-side afin de
+préserver les zones statiques. Un NaN est refusé ; aucune conversion ni
+évaluation de l’opérande n’est déléguée à l’hôte.
 
 `LOG(x)` est le logarithme naturel. Il exige un opérande strictement positif,
 normalisé et fini ; zéro, les valeurs négatives, les NaN et les sous-normaux
