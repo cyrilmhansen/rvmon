@@ -13,44 +13,46 @@
 ; opérateur est empilé, puis les opérateurs de précédence supérieure ou égale
 ; sont réduits avant l’empilement suivant. Les parenthèses sont empilées comme
 ; barrières de réduction et ne sont jamais transmises à une opération D.
-; Les nombres sont des suites de chiffres ASCII, converties dans la cible
-; avant passage par l’extension D. Aucun résultat n’est fourni par l’hôte.
+; Les nombres décimaux ASCII sont convertis dans la cible avant passage par
+; l’extension D. Aucun résultat n’est fourni par l’hôte.
 
 data 0x82000000 .byte 0x32
-data 0x82000001 .byte 0x2a
-data 0x82000002 .byte 0x28
-data 0x82000003 .byte 0x33
-data 0x82000004 .byte 0x2b
-data 0x82000005 .byte 0x34
-data 0x82000006 .byte 0x29
+data 0x82000001 .byte 0x2e
+data 0x82000002 .byte 0x35
+data 0x82000003 .byte 0x2a
+data 0x82000004 .byte 0x28
+data 0x82000005 .byte 0x33
+data 0x82000006 .byte 0x2b
+data 0x82000007 .byte 0x34
+data 0x82000008 .byte 0x29
 
-; token 0: number "2"
+; token 0: number "2.5"
 data 0x82000020 .dword 1
 data 0x82000028 .dword 0x82000000
-data 0x82000030 .dword 1
+data 0x82000030 .dword 3
 ; token 1: operator "*"
 data 0x82000038 .dword 3
-data 0x82000040 .dword 0x82000001
+data 0x82000040 .dword 0x82000003
 data 0x82000048 .dword 1
 ; token 2: open parenthesis "("
 data 0x82000050 .dword 4
-data 0x82000058 .dword 0x82000002
+data 0x82000058 .dword 0x82000004
 data 0x82000060 .dword 1
 ; token 3: number "3"
 data 0x82000068 .dword 1
-data 0x82000070 .dword 0x82000003
+data 0x82000070 .dword 0x82000005
 data 0x82000078 .dword 1
 ; token 4: operator "+"
 data 0x82000080 .dword 3
-data 0x82000088 .dword 0x82000004
+data 0x82000088 .dword 0x82000006
 data 0x82000090 .dword 1
 ; token 5: number "4"
 data 0x82000098 .dword 1
-data 0x820000a0 .dword 0x82000005
+data 0x820000a0 .dword 0x82000007
 data 0x820000a8 .dword 1
 ; token 6: close parenthesis ")"
 data 0x820000b0 .dword 5
-data 0x820000b8 .dword 0x82000006
+data 0x820000b8 .dword 0x82000008
 data 0x820000c0 .dword 1
 data 0x820000f0 .dword 7
 
@@ -239,9 +241,9 @@ token_last_value:
 jal x1,value_pop
 jalr x0,0(x31)
 
-; Read the number at token index x9. This first contract handles integer
-; decimal tokens; decimal point and exponent support will be added only after
-; this evaluator’s stack ABI is independently stable.
+; Read the number at token index x9. This contract handles decimal integers
+; and one fractional part. Scientific notation and signs remain separate
+; token kinds so the evaluator can add them without changing this ABI.
 token_read_number:
 slli x7,x9,4
 slli x28,x9,3
@@ -251,21 +253,52 @@ add x7,x8,x7
 ld x6,8(x7)
 ld x7,16(x7)
 addi x14,x0,0
+addi x15,x0,0
+addi x16,x0,1
+addi x17,x0,0
+addi x18,x0,0
 token_digit_loop:
 beq x7,x0,token_digit_done
 lbu x5,0(x6)
+addi x28,x0,46
+beq x5,x28,token_decimal_point
 addi x5,x5,-48
 sltiu x28,x5,10
 beq x28,x0,fail
+addi x18,x18,1
+beq x17,x0,token_integer_digit
+slli x28,x15,3
+slli x13,x15,1
+add x15,x28,x13
+add x15,x15,x5
+slli x28,x16,3
+slli x13,x16,1
+add x16,x28,x13
+jal x0,token_digit_next
+token_integer_digit:
 slli x28,x14,3
 slli x13,x14,1
 add x14,x28,x13
 add x14,x14,x5
+token_digit_next:
+addi x6,x6,1
+addi x7,x7,-1
+jal x0,token_digit_loop
+token_decimal_point:
+bne x17,x0,fail
+addi x17,x0,1
 addi x6,x6,1
 addi x7,x7,-1
 jal x0,token_digit_loop
 token_digit_done:
+beq x18,x0,fail
 fcvt.d.l f1,x14,0
+beq x17,x0,token_number_done
+fcvt.d.l f2,x15,0
+fcvt.d.l f3,x16,0
+fdiv.d f2,f2,f3
+fadd.d f1,f1,f2
+token_number_done:
 addi x9,x9,1
 jalr x0,0(x1)
 

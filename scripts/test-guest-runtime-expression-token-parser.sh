@@ -38,9 +38,9 @@ output="$(<"$output_file")"
 
 for expected in \
     'trap: breakpoint' \
-    'f1=0x402c000000000000' \
+    'f1=0x4031800000000000' \
     'fcsr=0x0000000000000000' \
-    '0x00000000820000f8: 00 00 00 00 00 00 2c 40'; do
+    '0x00000000820000f8: 00 00 00 00 00 80 31 40'; do
     if [[ "$output" != *"$expected"* ]]; then
         printf '%s\n' "$output"
         printf 'missing token parser output: %s\n' "$expected" >&2

@@ -237,9 +237,10 @@ numérique, mais seulement partiellement au lexer et au dispatch :
    `examples/minibasic-runtime-expression-token-parser.rv`. Il consomme le
    même format de records, utilise une pile de valeurs et une pile
    d'opérateurs en RAM cible, réduit `2+3*4` avec la précédence correcte et
-   produit le motif binary64 de `14.0` sous QEMU. Il supporte les nombres
-   entiers décimaux, les quatre opérateurs binaires et les parenthèses comme
-   barrières de réduction ; il n'est pas encore raccordé au payload principal.
+   produit le motif binary64 de `17.5` sous QEMU. Il supporte les nombres
+   décimaux avec une partie fractionnaire, les quatre opérateurs binaires et
+   les parenthèses comme barrières de réduction ; il n'est pas encore raccordé
+   au payload principal.
 7. Les handlers historiques consomment encore directement le texte. Le plan
    de migration est de faire produire au lexer des tokens bornés, puis de
    faire partager le parseur de précédence et les descripteurs aux fonctions,
