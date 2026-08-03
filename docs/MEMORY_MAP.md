@@ -53,7 +53,7 @@ possède.
 | `2128..2199` | `0x82000850..0x820008b7` | profondeur et index de la pile `REPEAT/UNTIL` | contrôle de flot ; session |
 | `2200..2399` | `0x82000898..0x8200095f` | profondeur et cadres de la pile unifiée (`IF`, `FOR`, `GOSUB`, etc.) | contrôle de flot ; session |
 | `2400..2431` | `0x82000960..0x8200097f` | quatre cellules binary64 temporaires : sauvegarde `PRINT`, sauvegarde de résultat, atome et premier opérande | évaluateur/PRINT ; appel, non persistantes |
-| `2432..4095` | `0x82000980..0x82000fff` | réserve non allouée dans V1, sauf `x8+2432` pour le retour `x31` de `VAL` | réservé ; cette cellule est le cadre statique de `VAL` |
+| `2432..4095` | `0x82000980..0x82000fff` | réserve non allouée dans V1, sauf `x8+2432` pour le retour `x31` de `VAL`, `x8+2440` pour le contexte de `PRINT` concaténé et `x8+2448` pour le début d'une expression `PRINT LEFT$/RIGHT$/MID$` concaténée | réservé ; ces cellules sont des cadres statiques documentés |
 | `4096..12287` | `0x82001000..0x82002fff` | table des longueurs et cellules de variables/chaînes courtes selon le payload | MiniBASIC ; session |
 | `12288..` | `0x82003000..` | magasin fixe des 256 records de lignes, 128 octets chacun | éditeur ; session |
 
@@ -80,6 +80,15 @@ La cellule `x8+2432` est réservée à la sauvegarde de `x31` par
 `atom_val_function`, car `VAL` imbrique un second `eval_expression` qui
 utilise lui-même `x31` comme adresse de retour.
 
+La cellule `x8+2440` est réservée à la sauvegarde de `x31` par
+`print_string_concat`, car le concaténateur réutilise `x31` et `if_false` doit
+retrouver le contexte direct ou `RUN` après le `PRINT`.
+
+La cellule `x8+2448` conserve le pointeur initial d'une expression de découpe
+dans `PRINT`. Après validation de `LEFT$`, `RIGHT$` ou `MID$`, le chemin de
+sortie peut ainsi réévaluer toute l'expression par `string_concat_assign`, au
+lieu de détourner une routine d'affectation qui attend une destination.
+
 Ces cellules ont une durée de vie d’appel. Une routine qui appelle
 `eval_expression`, `resolve_string_source`, `string_concat_assign` ou une
 fonction numérique doit supposer que les cadres documentés comme « appel »
@@ -95,7 +104,7 @@ peuvent être réécrits.
 | `0x82020000..0x8203ffff` | cellules des tableaux de chaînes longs | `slot*4096 + index*128`, borné par slot | session |
 | `0x82040000..0x8204ffff` | éléments des tableaux numériques longs 1D | `slot*512 + index*8`, 64 éléments max/slot | session |
 | `0x82050000..0x8205ffff` | éléments des tableaux numériques longs 2D | `slot*4096 + (i*dim2+j)*8`, 512 éléments max/slot | session |
-| `0x82060000..0x820606ff` | buffers temporaires chaîne | concat copie à `+512`, découpes à `+768`, formatage à `+1280` | appel ; pas de conservation après retour |
+| `0x82060000..0x820606ff` | buffers temporaires chaîne | concat copie à `+512`, découpes à `+768`, `CHR$` à `+1024`, formatage à `+1280`, résultat `PRINT` concaténé à `+1536` | appel ; pas de conservation après retour |
 | `0x82060700..0x82060707` | retour du wrapper de concaténation | une adresse de retour | appel |
 | `0x82060710..0x82060717` | retour persistant de `string_concat_assign` | une adresse de retour | appel |
 | `0x82060728..0x8206072f` | retour des wrappers `string_assign_*` | une adresse de retour | appel |
