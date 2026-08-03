@@ -3709,10 +3709,25 @@ jal x0,atom_abs_function
 atom_int_dispatch:
 lbu x6,1(x21)
 addi x7,x0,78
-bne x6,x7,atom_array_name_scan
+beq x6,x7,atom_int_or_instr
+jal x0,atom_array_name_scan
+atom_int_or_instr:
 lbu x6,2(x21)
 addi x7,x0,84
+beq x6,x7,atom_int_function_probe
+addi x7,x0,83
 bne x6,x7,atom_array_name_scan
+lbu x6,3(x21)
+addi x7,x0,84
+bne x6,x7,atom_array_name_scan
+lbu x6,4(x21)
+addi x7,x0,82
+bne x6,x7,atom_array_name_scan
+lbu x6,5(x21)
+addi x7,x0,40
+bne x6,x7,atom_array_name_scan
+jal x0,atom_instr_function
+atom_int_function_probe:
 lbu x6,3(x21)
 addi x7,x0,40
 bne x6,x7,atom_array_name_scan
@@ -3976,6 +3991,72 @@ fld f2,1032(x8)
 jalr x0,0(x1)
 ; Fonctions numériques target-side. Les zones 1184..1536 sont des scratch
 ; distincts par fonction afin de permettre des appels imbriqués.
+atom_instr_function:
+sd x1,1648(x8)
+sd x22,1656(x8)
+sd x28,1664(x8)
+sd x29,1680(x8)
+sd x30,1808(x8)
+addi x21,x21,6
+jal x1,resolve_string_source
+sd x7,1944(x8)
+sd x11,1952(x8)
+lbu x5,0(x21)
+addi x6,x0,44
+bne x5,x6,atom_function_error
+addi x21,x21,1
+jal x1,resolve_string_source
+sd x7,1960(x8)
+sd x11,1976(x8)
+lbu x5,0(x21)
+addi x6,x0,41
+bne x5,x6,atom_function_error
+addi x21,x21,1
+ld x27,1952(x8)
+ld x28,1976(x8)
+beq x28,x0,atom_instr_empty_needle
+sltu x6,x27,x28
+bne x6,x0,atom_instr_not_found
+sub x29,x27,x28
+addi x29,x29,1
+addi x9,x0,0
+atom_instr_outer:
+sltu x6,x9,x29
+beq x6,x0,atom_instr_not_found
+addi x10,x0,0
+atom_instr_inner:
+sltu x6,x10,x28
+beq x6,x0,atom_instr_found
+add x7,x9,x10
+ld x27,1944(x8)
+add x27,x27,x7
+lbu x5,0(x27)
+ld x27,1960(x8)
+add x27,x27,x10
+lbu x6,0(x27)
+bne x5,x6,atom_instr_next
+addi x10,x10,1
+jal x0,atom_instr_inner
+atom_instr_next:
+addi x9,x9,1
+jal x0,atom_instr_outer
+atom_instr_found:
+addi x10,x9,1
+fcvt.d.l f4,x10,0
+jal x0,atom_instr_restore
+atom_instr_empty_needle:
+addi x10,x0,1
+fcvt.d.l f4,x10,0
+jal x0,atom_instr_restore
+atom_instr_not_found:
+fcvt.d.l f4,x0,0
+atom_instr_restore:
+ld x22,1656(x8)
+ld x28,1664(x8)
+ld x29,1680(x8)
+ld x30,1808(x8)
+ld x1,1648(x8)
+jal x0,store_atom
 atom_val_function:
 sd x1,1648(x8)
 sd x22,1656(x8)
