@@ -5394,6 +5394,38 @@ sd x29,1920(x8)
 sd x30,1928(x8)
 sd x31,1936(x8)
 addi x21,x21,4
+; Une expression concaténée est copiée dans un buffer target-side borné avant
+; d'être évaluée par le concaténateur commun. Les formes simples continuent
+; par le résolveur direct ci-dessous.
+addi x27,x21,0
+addi x29,x0,0
+atom_len_expression_probe:
+lbu x5,0(x27)
+beq x5,x0,len_expr_probe_done
+addi x6,x0,34
+beq x5,x6,len_expr_probe_quote
+addi x6,x0,43
+beq x5,x6,len_expr
+addi x6,x0,41
+beq x5,x6,len_expr_probe_done
+addi x27,x27,1
+jal x0,atom_len_expression_probe
+len_expr_probe_quote:
+xori x29,x29,1
+addi x27,x27,1
+jal x0,atom_len_expression_probe
+len_expr_probe_done:
+beq x29,x0,len_expr_probe_return
+jal x0,atom_function_error
+len_expr_probe_return:
+lbu x6,0(x21)
+addi x7,x0,34
+beq x6,x7,atom_len_literal
+addi x27,x21,0
+jal x0,atom_len_name_scan
+len_expr:
+jal x1,resolve_string_expression
+jal x0,atom_len_value
 ; Un littéral chaîne est résolu dans la RAM cible comme pour ASC/VAL ; les
 ; noms continuent vers les résolveurs de variables et de tableaux.
 lbu x6,0(x21)
@@ -7723,6 +7755,71 @@ addi x21,x21,1
 addi x11,x9,0
 sd x7,1992(x8)
 jalr x0,0(x1)
+; Résout une expression chaîne composée délimitée par une parenthèse fermante
+; externe. La copie source et la destination sont target-side et bornées à
+; 120 octets ; le concaténateur commun ne voit qu'un buffer terminé par NUL.
+; Retourne x7/x11 et laisse x21 sur la parenthèse externe afin que le
+; consommateur partagé la valide et l'absorbe.
+resolve_string_expression:
+addi x6,x8,2040
+addi x6,x6,432
+sd x1,0(x6)
+addi x6,x8,2040
+addi x6,x6,424
+sd x21,0(x6)
+lui x27,0x82060
+slli x27,x27,32
+srli x27,x27,32
+addi x27,x27,1968
+addi x24,x21,0
+addi x9,x0,0
+addi x29,x0,0
+resolve_string_expression_copy:
+lbu x5,0(x24)
+beq x5,x0,string_long_error
+addi x6,x0,34
+beq x5,x6,rse_quote
+addi x6,x0,41
+beq x5,x6,rse_close
+sltiu x6,x9,120
+beq x6,x0,string_long_error
+add x6,x27,x9
+sb x5,0(x6)
+addi x9,x9,1
+addi x24,x24,1
+jal x0,resolve_string_expression_copy
+rse_quote:
+sltiu x6,x9,120
+beq x6,x0,string_long_error
+add x6,x27,x9
+sb x5,0(x6)
+addi x9,x9,1
+xori x29,x29,1
+addi x24,x24,1
+jal x0,resolve_string_expression_copy
+rse_close:
+beq x29,x0,rse_close_ready
+jal x0,string_long_error
+rse_close_ready:
+addi x6,x8,2040
+addi x6,x6,424
+sd x24,0(x6)
+add x6,x27,x9
+sb x0,0(x6)
+addi x21,x27,0
+lui x6,0x82060
+slli x6,x6,32
+srli x6,x6,32
+addi x6,x6,56
+sd x6,1976(x8)
+jal x1,string_concat_assign
+addi x6,x8,2040
+addi x6,x6,424
+ld x21,0(x6)
+addi x6,x8,2040
+addi x6,x6,432
+ld x1,0(x6)
+jalr x0,0(x1)
 ; Concaténation : résout chaque terme, contrôle la longueur totale <=120,
 ; copie dans le buffer temporaire cible, puis écrit la cellule destination.
 ; Les retours globaux sont distincts des frames x8 réutilisés par les découpes.
@@ -7774,12 +7871,15 @@ string_concat_next:
 addi x21,x21,1
 jal x0,string_concat_term
 string_concat_store:
+; x9 contient la longueur totale de tous les termes ; x11 est le résultat
+; public de la routine, et doit donc être publié après chaque concaténation.
 lui x27,0x82060
 slli x27,x27,32
 srli x27,x27,32
 addi x27,x27,512
 ld x6,1976(x8)
 sd x9,-8(x6)
+addi x11,x9,0
 addi x10,x0,0
 string_concat_store_loop:
 sltu x7,x10,x9

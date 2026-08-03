@@ -196,6 +196,14 @@ accepte les noms courts/longs et les tableaux 1D/2D déjà disponibles ; le
 résultat est converti en binary64 pour rester utilisable dans une expression
 numérique. Les expressions chaîne générales restent hors de cette tranche.
 
+La forme `LEN(string-term+string-term+...)` est désormais acceptée pour les
+concaténations target-side simples, y compris une variable chaîne suivie d’un
+littéral. Le guest copie l’argument jusqu’à la parenthèse fermante dans un
+scratch borné, exécute le même concaténateur que les affectations, puis mesure
+le résultat ; la longueur totale est renvoyée par le contrat interne en `x11`
+avant conversion binary64. Aucune conversion n’est faite par l’hôte. Les
+fonctions imbriquées dans cet argument restent à étendre séparément.
+
 `PRINT LEFT$(string-variable,n)` et `PRINT RIGHT$(string-variable,n)` sont
 disponibles dans la tranche target-side actuelle pour une variable chaîne
 scalaire courte ou longue. `n` doit être entier, compris entre 0 et 120 ; une

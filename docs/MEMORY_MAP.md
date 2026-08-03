@@ -53,7 +53,7 @@ possède.
 | `2128..2199` | `0x82000850..0x820008b7` | profondeur et index de la pile `REPEAT/UNTIL` | contrôle de flot ; session |
 | `2200..2399` | `0x82000898..0x8200095f` | profondeur et cadres de la pile unifiée (`IF`, `FOR`, `GOSUB`, etc.) | contrôle de flot ; session |
 | `2400..2431` | `0x82000960..0x8200097f` | quatre cellules binary64 temporaires : sauvegarde `PRINT`, sauvegarde de résultat, atome et premier opérande | évaluateur/PRINT ; appel, non persistantes |
-| `2432..4095` | `0x82000980..0x82000fff` | réserve non allouée dans V1, sauf `x8+2432` pour le retour `x31` de `VAL`, `x8+2440` pour le contexte de `PRINT` concaténé, `x8+2448` pour le début d'une expression `PRINT LEFT$/RIGHT$/MID$` concaténée et `x8+2456` pour le drapeau de transaction `RENUM` | réservé ; ces cellules sont des cadres statiques documentés |
+| `2432..4095` | `0x82000980..0x82000fff` | réserve non allouée dans V1, sauf `x8+2432` pour le retour `x31` de `VAL`, `x8+2440` pour le contexte de `PRINT` concaténé, `x8+2448` pour le début d'une expression `PRINT LEFT$/RIGHT$/MID$` concaténée, `x8+2456` pour le drapeau de transaction `RENUM`, `x8+2464` pour le pointeur de fermeture d'expression chaîne et `x8+2472` pour son retour imbriqué | réservé ; ces cellules sont des cadres statiques documentés |
 | `4096..12287` | `0x82001000..0x82002fff` | table des longueurs et cellules de variables/chaînes courtes selon le payload | MiniBASIC ; session |
 | `12288..` | `0x82003000..` | magasin fixe des 256 records de lignes, 128 octets chacun | éditeur ; session |
 
@@ -109,7 +109,11 @@ peuvent être réécrits.
 | `0x82060710..0x82060717` | retour persistant de `string_concat_assign` | une adresse de retour | appel |
 | `0x82060728..0x8206072f` | retour des wrappers `string_assign_*` | une adresse de retour | appel |
 | `0x82060730..0x820607a7` | copie source de `INSTR` | 120 octets maximum ; évite l’écrasement par le second littéral | appel `INSTR` |
-| `0x820607a8..0x82060bff` | réserve globale chaîne | non allouée dans V1 | réservé |
+| `0x820607a8..0x820607af` | réserve globale chaîne | non allouée dans V1 | réservé |
+| `0x820607b0..0x82060827` | source temporaire d’expression chaîne | 120 octets maximum plus NUL, fourni au concaténateur target-side | fonctions chaîne |
+| `0x82060828..0x8206082f` | longueur de sortie d’expression chaîne | cellule `u64` du descripteur temporaire | fonctions chaîne |
+| `0x82060830..0x820608a7` | sortie temporaire d’expression chaîne | 120 octets maximum | fonctions chaîne |
+| `0x820608a8..0x82060bff` | réserve globale chaîne | non allouée dans V1 | réservé |
 | `0x82060c00..0x82060dff` | scratch de réécriture des cibles après `RENUM` | 512 octets ; un record à la fois, avant publication dans le record source | commande `RENUM` |
 | `0x82060e00..0x820615ff` | copie transactionnelle des 256 numéros de lignes | 256 valeurs `u64`, utilisée pour restaurer `RENUM` avant publication en cas de dépassement de record | commande `RENUM` |
 | `0x82061600..0x82061fff` | réserve globale chaîne | non allouée dans V1 | réservé |

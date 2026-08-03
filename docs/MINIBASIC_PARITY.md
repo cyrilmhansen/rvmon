@@ -17,7 +17,7 @@ expressions, données, chaînes, tableaux et diagnostics. Elle ne signifie ni
 compatibilité Atari, ni compatibilité binaire, ni compatibilité des tokens,
 des nombres historiques, des périphériques, du DOS ou des graphismes.
 
-État de l’audit au 3 août 2026 : **111 scripts QEMU assembleur MiniBASIC
+État de l’audit au 3 août 2026 : **112 scripts QEMU assembleur MiniBASIC
 recensés**. Les scénarios récents fournissent notamment la preuve nominale et
 d’erreur de `ATN` après exécution QEMU verte. Ce nombre
 est contrôlable par :
@@ -78,7 +78,7 @@ entièrement dans le guest.
 | Recherche chaîne | `INSTR(haystack,needle)` target-side, résultat 1-based, `0` absent et `1` pour aiguille vide | PARTIEL | `test-guest-runtime-asm-repl-string-concat.sh`, `test-guest-runtime-asm-repl-string-concat-error.sh`; options de comparaison historiques non retenues |
 | Conversion nombre → chaîne | `STR$(expression)` target-side, format fixe à six décimales réutilisable en affectation, concaténation et `PRINT` | PARTIEL | `test-guest-runtime-asm-repl-string-concat.sh`, `test-guest-runtime-asm-repl-string-concat-error.sh`; formats historiques différés |
 | Aléatoire | `RND` et `RND()`, LCG target-side reproductible, graine à 1 | VERT | `rnd.sh`, `rnd-error.sh` |
-| Fonctions de chaînes | `LEN`, `PRINT LEFT$`, `PRINT RIGHT$` et `PRINT MID$` avec buffer target-side, sources scalaires, tableaux chaîne ou littéraux | PARTIEL | `string-len*.sh`, `string-left*.sh`, `string-right*.sh`, `string-mid*.sh`, `string-slice-array-source.sh`, `string-slice-literal-source*.sh`; expressions chaîne différées |
+| Fonctions de chaînes | `LEN`, `PRINT LEFT$`, `PRINT RIGHT$` et `PRINT MID$` avec buffer target-side, sources scalaires, tableaux chaîne ou littéraux ; `LEN` accepte aussi les concaténations simples | PARTIEL | `string-len*.sh`, `test-guest-runtime-asm-repl-string-len-concat.sh`, `string-left*.sh`, `string-right*.sh`, `string-mid*.sh`, `string-slice-array-source.sh`, `string-slice-literal-source*.sh`; expressions chaîne différées |
 | Affectation chaîne par fonction | `LET destination$=LEFT$`, `RIGHT$` ou `MID$` avec source scalaire, tableau chaîne ou littéral et destination scalaire ou tableau, copie target-side bornée et sûre en cas de recouvrement | PARTIEL | `string-assignment.sh`, `string-slice-assignment*.sh`, `string-slice-array-source.sh`, `string-slice-array-destination*.sh`, `string-slice-literal-source*.sh`; expressions chaîne générales différées |
 | Concaténation chaîne en affectation | affectation de termes littéraux, variables, éléments de tableaux, `LEFT$`/`RIGHT$`/`MID$` ou `CHR$` avec `+`, buffer target-side de 120 octets et rejet des dépassements | PARTIEL | `test-guest-runtime-asm-repl-string-concat.sh`, `test-guest-runtime-asm-repl-string-concat-error.sh`; conversions numériques et autres opérateurs chaîne différés |
 | Concaténation chaîne dans `PRINT` | `PRINT` de littéraux, variables, découpes, `CHR$` et `STR$` avec `+`, évaluation complète dans le guest et sortie sans résultat préenregistré | VERT | `test-guest-runtime-asm-repl-string-print-concat.sh` sous QEMU ; `LEFT$`, `RIGHT$`, `MID$`, `CHR$`, `STR$`, littéraux et variables sont couverts |
@@ -249,7 +249,7 @@ sortie BASIC préenregistrée.
 - **Décisions de parité figées :** mode direct, lignes, contrôle de flot,
   chaînes, tableaux, binary64 target-side, interruption et périmètre Atari
   rejeté ;
-- **Preuve automatisée :** 111 scripts QEMU assembleur recensés au moment de
+- **Preuve automatisée :** 112 scripts QEMU assembleur recensés au moment de
   cet audit, avec des cas nominaux et négatifs dédiés aux chaînes, tableaux,
   conversions, fonctions de recherche, formatage et blocs structurés ;
 - **Écart important restant :** `ELSE`/`ENDIF` doivent rester en lignes dédiées ;
@@ -283,6 +283,7 @@ sortie BASIC préenregistrée.
 | 2026-08-03 | Ajout de `RENUM new,old,step` target-side avec prévalidation | `test-guest-runtime-asm-repl-renum.sh` et `test-guest-runtime-asm-repl-renum-error.sh` sous QEMU ; corps simples, listing, exécution et erreur sans écriture partielle | la commande d’édition est PARTIELLE : les records conservent un alias de leur numéro précédent pour les résolveurs de contrôle de flot |
 | 2026-08-03 | Réécriture target-side des références après plusieurs `RENUM` | `test-guest-runtime-asm-repl-renum-repeat-control.sh` sous QEMU ; deux renumérotations successives et `GOTO 30` exécutent `REN2` | les records restent en place mais les cibles `GOTO`/`GOSUB`/`THEN`/`ON` sont réémises dans un scratch cible ; la limite de record à 111 octets reste explicite |
 | 2026-08-03 | Prévalidation transactionnelle de la capacité `RENUM` | `test-guest-runtime-asm-repl-renum-capacity.sh` sous QEMU ; une réécriture dépassant 111 octets est refusée, les numéros et le corps sont restaurés, sans fault | la limite de record est désormais protégée sans mutation partielle |
+| 2026-08-03 | `LEN` évalue des concaténations chaîne simples dans le guest | `test-guest-runtime-asm-repl-string-len-concat.sh` et régression `string-len.sh` sous QEMU ; littéraux, variables et longueur totale après plusieurs appels `LEN` | le premier consommateur de fonctions chaîne accepte une expression composée ; fonctions imbriquées et généralisation aux autres fonctions restent partielles |
 | 2026-08-03 | Validation de la concaténation dans `PRINT` | `test-guest-runtime-asm-repl-string-print-concat.sh` sous QEMU : `"RV "+TEXT$`, `TEXT$+"!"`, `LEFT$(TEXT$,4)+"!"`, `"A"+"B"+"C"`, `CHR$(65)+"B"` et `STR$(12.5)+"!"` | la sortie concaténée, les découpes et les conversions chaîne sont calculées dans le payload ; l’affectation concaténée reste PARTIELLE pour les conversions numériques |
 | 2026-08-03 | Audit de cohérence du registre | comptage reproductible : `find scripts -maxdepth 1 -type f -name 'test-guest-runtime-asm-repl*.sh' \| wc -l` → `107` | l’inventaire courant est distingué des comptes historiques ; la concaténation `PRINT` est maintenant validée par un scénario QEMU dédié |
 | 2026-08-03 | Correction de la résolution des tableaux courts nommés `C` | `test-guest-runtime-asm-repl-array-table.sh` sous QEMU : `DIM B(3)`, `DIM C(2)`, affectations et `PRINT B(1)+C(2)` produisent `16.000000` | `C(...)` ne tombe plus dans le résolveur de tableaux longs ; le test de la fonction `COS(...)` doit rester vert |
