@@ -7898,7 +7898,7 @@ bne x5,x6,string_right_assign_error
 addi x21,x21,1
  lbu x5,0(x21)
 addi x6,x0,43
-beq x5,x6,print_slice_concat
+beq x5,x6,string_right_assign_concat
 fcvt.l.d x10,f3,1
 srai x6,x10,63
 bne x6,x0,string_right_assign_error
