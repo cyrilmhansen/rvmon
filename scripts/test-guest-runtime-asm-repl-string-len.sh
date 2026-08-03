@@ -30,7 +30,7 @@ sleep 0.3
 printf '%s\n' \
   'DIM A$(2)' \
   'LET A$(1)="ABC"' \
-  '10 PRINT LEN("RV64")' \
+  '10 PRINT len("RV64")' \
   '20 LET S$="HELLO"' \
   '30 LET LONGTEXT$="RV64"' \
   '40 PRINT LEN(S$)' \

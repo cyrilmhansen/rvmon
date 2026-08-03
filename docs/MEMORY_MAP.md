@@ -119,6 +119,7 @@ peuvent être réécrits.
 | `0x82061600..0x82061eff` | pile des concaténateurs chaîne | 8 cadres de 288 octets : retour, total, pointeurs de buffers et destination, buffer de concaténation et buffer source d'expression | appel target-side ; profondeur maximale 8 |
 | `0x82061f00..0x82061f7f` | métadonnées des résolveurs d'expressions chaîne | 8 cadres de 16 octets : retour et curseur appelant | appel target-side ; indexé par la profondeur de concaténation |
 | `0x82061f80..0x82061fff` | réserve globale chaîne | non allouée dans V1 | réservé |
+| `0x82062000..0x8206203f` | table de reconnaissance des fonctions numériques | 4 entrées de 16 octets : longueur, identifiant, nom ASCII et remplissage ; `LEN`, `ASC`, `VAL`, `INSTR` | lexer target-side ; statique |
 
 Les cellules de retour globales sont nécessaires parce que les appels de
 découpe réutilisent des cellules relatives à `x8`. Elles ne doivent pas être

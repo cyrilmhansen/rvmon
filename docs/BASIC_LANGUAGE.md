@@ -118,9 +118,13 @@ les parenthèses imbriquées hors chaînes ; sa profondeur transitoire est born�
 d’exécution, pas une énumération des combinaisons syntaxiques.
 
 Cette tranche stabilise le contrat commun, mais le source reste encore analysé
-en ASCII directement par des routines assembleur et les dispatchs de noms de
-fonctions ne sont pas encore une table de descripteurs. Une future migration
-vers un lexer à tokens et une table de fonctions devra conserver ce contrat.
+en ASCII directement par des routines assembleur. La reconnaissance des
+fonctions `LEN`, `ASC`, `VAL` et `INSTR` passe désormais par une table
+target-side de descripteurs bornée ; leurs évaluateurs restent des routines
+indépendantes. Les autres mots-clés et fonctions utilisent encore le dispatch
+historique. Une future migration vers un flux de tokens et une table complète
+de fonctions devra conserver ce contrat et remplacer progressivement ces
+probes, sans changer la grammaire observable.
 
 Les concaténations target-side disposent maintenant d’une pile statique de huit
 cadres. Chaque cadre possède son propre buffer source, son propre buffer de
