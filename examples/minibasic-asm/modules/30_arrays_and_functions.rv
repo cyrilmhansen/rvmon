@@ -1,4 +1,3 @@
-jal x0,atom_close_spaces
 atom_close_check:
 addi x6,x0,41
 bne x5,x6,atom_close_error
@@ -2300,3 +2299,4 @@ lbu x5,0(x21)
 jal x0,resolve_long_array_2d_done
 resolve_long_array_2d_digits:
 addi x6,x0,48
+sltu x7,x5,x6

@@ -4852,8 +4852,6 @@ eval_expression:
 addi x31,x1,0
 addi x22,x0,0
 jal x1,expression_lexer
-jal x1,integrated_token_try
-bne x6,x0,eval_expression_token_done
 jal x1,parse_product
 fmv.x.d x10,f1
 fmv.d.x f7,x10
@@ -4891,7 +4889,6 @@ fsub.d f3,f7,f1
 fmv.x.d x10,f3
 fmv.d.x f7,x10
 jal x0,sum_loop
-eval_expression_token_done:
 jalr x0,0(x31)
 
 ; Tokenized expression bridge. This is deliberately a subset gate: only a
