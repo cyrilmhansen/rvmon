@@ -523,6 +523,7 @@ impl Monitor {
         let mut output = String::new();
         for index in 1..=count {
             let pc_before = self.machine.pc;
+            let x_before = self.machine.x;
             let word = self.read_word(pc_before)?;
             let line = disassemble_word(pc_before, word, &self.symbols);
             let outcome = TargetBackend::step(&mut self.machine)?;
@@ -543,12 +544,14 @@ impl Monitor {
             }
             writeln!(
                 output,
-                "stepidp[{index}/{count}] 0x{pc_before:016x}: {word:08x}  {} -> pc=0x{pc_after:016x}",
-                line.text
+                "stepidp[{index}/{count}] 0x{pc_before:016x}: {word:08x}  {} -> pc=0x{pc_after:016x} flow={}",
+                line.text,
+                format_control_flow(pc_before, pc_after, word, &x_before)
             )
             .unwrap();
             writeln!(output, "{}", self.registers()?).unwrap();
             writeln!(output, "{}", self.show_stack()?).unwrap();
+            append_stack_context(&mut output, &mut self.machine)?;
             append_memory_context(&mut output, &mut self.machine, access)?;
             output.push('\n');
         }
@@ -1811,6 +1814,7 @@ where
         let mut output = String::new();
         for index in 1..=count {
             let pc_before = self.backend.context().pc;
+            let x_before = self.backend.context().x;
             let word = self.read_word(pc_before)?;
             let line = disassemble_word(pc_before, word, &self.symbols);
             let outcome = self.backend.step().map_err(target_error)?;
@@ -1824,12 +1828,14 @@ where
             }
             writeln!(
                 output,
-                "stepidp[{index}/{count}] 0x{pc_before:016x}: {word:08x}  {} -> pc=0x{pc_after:016x}",
-                line.text
+                "stepidp[{index}/{count}] 0x{pc_before:016x}: {word:08x}  {} -> pc=0x{pc_after:016x} flow={}",
+                line.text,
+                format_control_flow(pc_before, pc_after, word, &x_before)
             )
             .unwrap();
             writeln!(output, "{}", self.registers()).unwrap();
             writeln!(output, "{}", self.show_stack()).unwrap();
+            append_backend_stack_context(&mut output, &mut self.backend)?;
             append_backend_memory_context(&mut output, &mut self.backend, access)?;
             output.push('\n');
         }
@@ -3119,6 +3125,82 @@ fn format_memory_bytes(bytes: &[u8; 16]) -> String {
         .join(" ")
 }
 
+fn format_control_flow(pc_before: u64, pc_after: u64, word: u32, x_before: &[u64; 32]) -> String {
+    let fallthrough = pc_before.wrapping_add(4);
+    match luna_isa::decode(word) {
+        Instruction::Beq(_) | Instruction::Bne(_) => {
+            if pc_after == fallthrough {
+                "branch-not-taken".into()
+            } else {
+                format!("branch-taken->0x{pc_after:016x}")
+            }
+        }
+        Instruction::Jal(luna_isa::Jal { rd: 1, .. }) => {
+            format!("call->0x{pc_after:016x}")
+        }
+        Instruction::Jal(luna_isa::Jal { rd: 0, .. }) => {
+            format!("jump->0x{pc_after:016x}")
+        }
+        Instruction::Jal(luna_isa::Jal { .. }) => {
+            format!("call-like->0x{pc_after:016x}")
+        }
+        Instruction::Jalr(luna_isa::Jalr { rd: 0, rs1: 1, .. }) => {
+            format!("return->0x{pc_after:016x}")
+        }
+        Instruction::Jalr(luna_isa::Jalr { rd: 1, rs1, imm }) => {
+            let target = x_before[rs1 as usize].wrapping_add_signed(i64::from(imm)) & !1;
+            format!("call-indirect->0x{target:016x}")
+        }
+        Instruction::Jalr(_) => format!("jump-indirect->0x{pc_after:016x}"),
+        _ => "sequential".into(),
+    }
+}
+
+fn append_stack_context(output: &mut String, machine: &mut Machine) -> Result<()> {
+    append_stack_context_bytes(output, machine.x[2], |address, bytes| {
+        TargetBackend::read_memory(machine, address, bytes)
+    })
+}
+
+fn append_backend_stack_context<B: TargetBackend>(
+    output: &mut String,
+    backend: &mut B,
+) -> Result<()>
+where
+    B::Error: std::fmt::Debug,
+{
+    let sp = backend.context().x[2];
+    append_stack_context_bytes(output, sp, |address, bytes| {
+        backend.read_memory(address, bytes).map_err(target_error)
+    })
+}
+
+fn append_stack_context_bytes<F>(output: &mut String, sp: u64, mut read: F) -> Result<()>
+where
+    F: FnMut(u64, &mut [u8; 16]) -> Result<()>,
+{
+    let address = sp & !0x0f;
+    let mut bytes = [0u8; 16];
+    match read(address, &mut bytes) {
+        Ok(()) => {
+            writeln!(
+                output,
+                "stack memory: sp=0x{sp:016x} block=0x{address:016x} {}",
+                format_memory_bytes(&bytes)
+            )
+            .unwrap();
+        }
+        Err(_) => {
+            writeln!(
+                output,
+                "stack memory: sp=0x{sp:016x} block=0x{address:016x} unavailable"
+            )
+            .unwrap();
+        }
+    }
+    Ok(())
+}
+
 fn append_memory_context(
     output: &mut String,
     machine: &mut Machine,
@@ -4007,6 +4089,8 @@ mod tests {
         assert!(output.contains("floating registers"));
         assert!(output.contains("fcsr="));
         assert!(output.contains("stack: empty"));
+        assert!(output.contains("flow=sequential"));
+        assert!(output.contains("stack memory: sp=0x0000000000000000"));
         assert!(output.contains("memory modified: addr=0x0000000000000020 width=8"));
         assert!(output.contains("block=0x0000000000000020"));
         assert_eq!(monitor.machine.memory.load64(32).unwrap(), 42);
@@ -4023,6 +4107,22 @@ mod tests {
             monitor.execute("stepidp 257").unwrap_err().code,
             "MON-DBG-030"
         );
+    }
+
+    #[test]
+    fn stepidp_labels_calls_branches_and_returns() {
+        let mut monitor = Monitor::new(128);
+        monitor
+            .assemble_program(
+                "_start: jal ra,func\n        addi x4,x0,1\nfunc: beq x0,x0,done\n        addi x5,x0,2\ndone: jalr x0,0(ra)",
+            )
+            .unwrap();
+
+        let output = monitor.execute("stepidp 3").unwrap();
+
+        assert!(output.contains("flow=call->"));
+        assert!(output.contains("flow=branch-taken->"));
+        assert!(output.contains("flow=return->"));
     }
 
     #[test]
@@ -4925,6 +5025,8 @@ mod tests {
         assert!(output.contains("integer registers"));
         assert!(output.contains("floating registers (raw bits)"));
         assert!(output.contains("fcsr="));
+        assert!(output.contains("flow=sequential"));
+        assert!(output.contains("stack memory: sp=0x0000000000000000"));
         assert!(output.contains("memory modified: addr=0x0000000000000020 width=8"));
         assert_eq!(console.backend.memory.load64(32).unwrap(), 7);
     }

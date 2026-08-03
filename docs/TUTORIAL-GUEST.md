@@ -158,19 +158,21 @@ ou un snapshot contextuel attend le prochain trap.
 
 `stepidp N` exécute au plus `N` instructions en suivant les PC réellement
 calculés par les branches et appels. Après chaque instruction retraitée, le
-moniteur affiche le PC avant/après, les 32 registres entiers, les 32 registres
+moniteur affiche le PC avant/après, le flux (`sequential`, branche prise ou
+non prise, appel, saut, retour), les 32 registres entiers, les 32 registres
 flottants bruts, `fcsr`, les cinq bits `fflags`, puis une fenêtre de 16 octets
-alignée sur `x2`. La fenêtre indique les octets modifiés depuis le pas
-précédent. La commande accepte `1..1000` et exige que la cible soit arrêtée.
+alignée sur `x2`. Lorsqu’une instruction écrit en mémoire, un second bloc de
+16 octets centré sur l’écriture est affiché. La commande accepte `1..256` et
+exige que la cible soit arrêtée.
 
 Exemple minimal :
 
 ```text
 rvmonitor> stepidp 5
-stepidp retired pc=0x... -> 0x... fcsr=0x... flags=0x...
-pc=0x... mepc=0x... mcause=0x... mtval=0x...
+stepidp[1/5] 0x...: ... addi ... -> pc=0x... flow=sequential
+stepidp[3/5] 0x...: ... jal ... -> pc=0x... flow=call->0x...
 ...
-stepidp stack[0x...]: ... unchanged
+stack memory: sp=0x... block=0x... ...
 ```
 
 Cette vue est particulièrement utile pour suivre `fdiv.d` dans MiniBASIC et
