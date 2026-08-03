@@ -3673,6 +3673,8 @@ addi x6,x0,70
 beq x5,x6,atom_frac_dispatch
 addi x6,x0,77
 beq x5,x6,atom_mod_dispatch
+addi x6,x0,86
+beq x5,x6,atom_val_dispatch
 addi x6,x0,65
 sltu x7,x5,x6
 bne x7,x0,atom_numeric
@@ -3782,6 +3784,17 @@ lbu x6,3(x21)
 addi x7,x0,40
 bne x6,x7,atom_array_name_scan
 jal x0,atom_mod_function
+atom_val_dispatch:
+lbu x6,1(x21)
+addi x7,x0,65
+bne x6,x7,atom_array_name_scan
+lbu x6,2(x21)
+addi x7,x0,76
+bne x6,x7,atom_array_name_scan
+lbu x6,3(x21)
+addi x7,x0,40
+bne x6,x7,atom_array_name_scan
+jal x0,atom_val_function
 atom_rnd_dispatch:
 lbu x6,1(x21)
 addi x7,x0,78
@@ -3963,6 +3976,46 @@ fld f2,1032(x8)
 jalr x0,0(x1)
 ; Fonctions numériques target-side. Les zones 1184..1536 sont des scratch
 ; distincts par fonction afin de permettre des appels imbriqués.
+atom_val_function:
+sd x1,1648(x8)
+sd x22,1656(x8)
+sd x28,1664(x8)
+sd x29,1680(x8)
+sd x30,1808(x8)
+addi x21,x21,4
+jal x1,resolve_string_source
+sd x21,1888(x8)
+lbu x5,0(x21)
+addi x6,x0,41
+bne x5,x6,atom_function_error
+addi x21,x21,1
+addi x9,x0,0
+atom_val_copy:
+sltu x6,x9,x11
+beq x6,x0,atom_val_copy_done
+add x6,x7,x9
+lbu x5,0(x6)
+add x6,x18,x9
+sb x5,0(x6)
+addi x9,x9,1
+jal x0,atom_val_copy
+atom_val_copy_done:
+add x6,x18,x9
+sb x0,0(x6)
+addi x21,x18,0
+addi x22,x0,0
+jal x1,eval_expression
+lbu x5,0(x21)
+bne x5,x0,atom_function_error
+fmv.d.x f4,x0
+fadd.d f4,f3,f4
+ld x21,1888(x8)
+ld x22,1656(x8)
+ld x28,1664(x8)
+ld x29,1680(x8)
+ld x30,1808(x8)
+ld x1,1648(x8)
+jal x0,store_atom
 atom_asc_function:
 sd x1,1544(x8)
 sd x22,1552(x8)

@@ -54,7 +54,10 @@ printf '%s\n' \
   '110 PRINT ASC(TEXT$)' \
   '120 PRINT ASC(A$(0))' \
   '130 PRINT CHR$(67)' \
-  '140 END' \
+  '140 PRINT VAL("12.5")' \
+  '150 LET NUMTEXT$="3.25"' \
+  '160 PRINT VAL(NUMTEXT$)' \
+  '170 END' \
   'RUN' | while IFS= read -r line; do
     printf '%s\n' "$line" >&3
     sleep 0.08
@@ -67,7 +70,7 @@ kill "$qemu_pid" 2>/dev/null || true
 wait "$qemu_pid" 2>/dev/null || true
 qemu_pid=""
 
-for expected in 'RV HAMMURABI' 'RV HAMMURABI!' 'HAMMURABI GAME' '>HAMM<' 'RABI<' '[AMMU]' 'NILE' 'NILE RIVER' 'A' 'AB' '72.000000' 'C' 'trap: breakpoint'; do
+for expected in 'RV HAMMURABI' 'RV HAMMURABI!' 'HAMMURABI GAME' '>HAMM<' 'RABI<' '[AMMU]' 'NILE' 'NILE RIVER' 'A' 'AB' '72.000000' 'C' '12.500000' '3.250000' 'trap: breakpoint'; do
     if ! grep -aFq -- "$expected" "$output_file"; then
         cat "$output_file"
         printf 'missing string-concat result: %s\n' "$expected" >&2
