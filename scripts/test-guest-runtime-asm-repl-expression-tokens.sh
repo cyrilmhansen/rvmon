@@ -26,7 +26,7 @@ exec 3>"$input_fifo"
 sleep 0.1
 awk '/^symbols$/{print; found=1; next} found && /^run-at /{print; exit} !found{print}' \
     examples/minibasic-asm/payload-repl.rv |
-    while IFS= read -r line; do printf '%s\n' "$line" >&3; sleep 0.003; done
+    while IFS= read -r line; do printf '%s\n' "$line" >&3; sleep 0.01; done
 sleep 1.0
 printf '%s\n' \
   '10 PRINT 2+3*4' \
