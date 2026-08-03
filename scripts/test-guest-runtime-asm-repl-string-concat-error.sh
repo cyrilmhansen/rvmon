@@ -41,7 +41,8 @@ printf '%s\n' \
   'LET OUT$=CHR$()' \
   '10 PRINT ASC("")' \
   '20 PRINT ASC(TEXT$)' \
-  '30 END' \
+  '30 PRINT CHR$(-1)' \
+  '40 END' \
   'RUN' | while IFS= read -r line; do
     printf '%s\n' "$line" >&3
     sleep 0.08
