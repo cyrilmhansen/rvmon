@@ -37,7 +37,9 @@ printf '%s\n' \
     '20 PRINT TEXT$+"!"' \
     '30 PRINT LEFT$(TEXT$,4)+"!"' \
     '40 PRINT "A"+"B"+"C"' \
-    '50 END' \
+    '50 PRINT CHR$(65)+"B"' \
+    '60 PRINT STR$(12.5)+"!"' \
+    '70 END' \
     'RUN' | while IFS= read -r line; do
     printf '%s\n' "$line" >&3
     sleep 1
@@ -50,7 +52,7 @@ kill "$qemu_pid" 2>/dev/null || true
 wait "$qemu_pid" 2>/dev/null || true
 qemu_pid=""
 
-for expected in 'RV HAMMURABI' 'HAMMURABI!' 'HAMM!' 'ABC' 'trap: breakpoint'; do
+for expected in 'RV HAMMURABI' 'HAMMURABI!' 'HAMM!' 'ABC' 'AB' '12.500000!' 'trap: breakpoint'; do
     if ! grep -aFq -- "$expected" "$output_file"; then
         cat "$output_file"
         printf 'missing string PRINT concatenation result: %s\n' "$expected" >&2

@@ -7248,6 +7248,9 @@ addi x27,x27,401
 ld x21,0(x27)
 jal x0,print_string_concat
 print_chr_string:
+addi x27,x8,2047
+addi x27,x27,401
+sd x21,0(x27)
 addi x21,x21,5
 addi x22,x0,0
 jal x1,eval_expression
@@ -7255,6 +7258,9 @@ lbu x5,0(x21)
 addi x6,x0,41
 bne x5,x6,print_chr_error
 addi x21,x21,1
+ lbu x5,0(x21)
+addi x6,x0,43
+beq x5,x6,print_function_concat
 fcvt.l.d x10,f3,1
 srai x6,x10,63
 bne x6,x0,print_chr_error
@@ -7269,6 +7275,9 @@ jal x0,if_false
 print_chr_error:
 jal x0,error_line
 print_str_string:
+addi x27,x8,2047
+addi x27,x27,401
+sd x21,0(x27)
 addi x21,x21,5
  lbu x5,0(x21)
 addi x6,x0,41
@@ -7279,6 +7288,9 @@ lbu x5,0(x21)
 addi x6,x0,41
 bne x5,x6,print_str_error
 addi x21,x21,1
+ lbu x5,0(x21)
+addi x6,x0,43
+beq x5,x6,print_function_concat
 jal x1,string_format_number
 addi x10,x7,0
 addi x17,x0,4
@@ -7289,6 +7301,11 @@ ecall
 jal x0,if_false
 print_str_error:
 jal x0,error_line
+print_function_concat:
+addi x27,x8,2047
+addi x27,x27,401
+ld x21,0(x27)
+jal x0,print_string_concat
 ; Résolution de source chaîne : littéral, variable scalaire ou élément de
 ; tableau. Retourne x7=data, x11=length et avance x21 après le terme.
 resolve_string_source:
