@@ -161,6 +161,7 @@ impl Monitor {
             "assemble" | "a" => self.assemble(argument),
             "assemble-program" | "load" => self.assemble_program(argument),
             "step" | "s" => self.step(),
+            "stepidp" | "step-state" => self.stepidp(argument),
             "step-over" | "next" | "n" => self.step_over(),
             "step-out" | "finish" => self.step_out(),
             "run" | "r" => self.run(argument),
@@ -511,6 +512,47 @@ impl Monitor {
             "0x{address:016x}: {word:08x}  {:<28} -> pc=0x{pc_after:016x}; changes: {}",
             line.text, register_changes
         ))
+    }
+
+    /// Execute a bounded instruction trace and render the complete debugger
+    /// context after every retired instruction.  This is intentionally a
+    /// command-level facility: it follows the target PC, including calls and
+    /// branches, rather than trying to infer control flow on the host.
+    fn stepidp(&mut self, argument: &str) -> Result<String> {
+        let count = parse_stepidp_count(argument, "MON-DBG-030")?;
+        let mut output = String::new();
+        for index in 1..=count {
+            let pc_before = self.machine.pc;
+            let word = self.read_word(pc_before)?;
+            let line = disassemble_word(pc_before, word, &self.symbols);
+            let outcome = TargetBackend::step(&mut self.machine)?;
+            let access = match outcome {
+                ExecutionOutcome::Retired { memory_access, .. } => memory_access,
+                _ => None,
+            };
+            let pc_after = self.machine.pc;
+            if matches!(outcome, ExecutionOutcome::Retired { .. }) {
+                self.record_retired(
+                    pc_before,
+                    pc_after,
+                    line.instruction,
+                    &line.text,
+                    access,
+                    "full-state".into(),
+                );
+            }
+            writeln!(
+                output,
+                "stepidp[{index}/{count}] 0x{pc_before:016x}: {word:08x}  {} -> pc=0x{pc_after:016x}",
+                line.text
+            )
+            .unwrap();
+            writeln!(output, "{}", self.registers()?).unwrap();
+            writeln!(output, "{}", self.show_stack()?).unwrap();
+            append_memory_context(&mut output, &mut self.machine, access)?;
+            output.push('\n');
+        }
+        Ok(output.trim_end().into())
     }
 
     fn step_over(&mut self) -> Result<String> {
@@ -1554,6 +1596,7 @@ where
             "assemble" | "a" => self.assemble(argument),
             "assemble-program" | "load" => self.assemble_program(argument),
             "step" | "s" => self.step(),
+            "stepidp" | "step-state" => self.stepidp(argument),
             "step-over" | "next" | "n" => self.step_over(),
             "step-out" | "finish" => self.step_out(),
             "run" | "r" => self.run(argument),
@@ -1761,6 +1804,36 @@ where
             "{}; changes: {register_changes}",
             format_backend_console_step(pc_before, word, &text, outcome)
         ))
+    }
+
+    fn stepidp(&mut self, argument: &str) -> Result<String> {
+        let count = parse_stepidp_count(argument, "MON-DEBUG-130")?;
+        let mut output = String::new();
+        for index in 1..=count {
+            let pc_before = self.backend.context().pc;
+            let word = self.read_word(pc_before)?;
+            let line = disassemble_word(pc_before, word, &self.symbols);
+            let outcome = self.backend.step().map_err(target_error)?;
+            let access = match outcome {
+                ExecutionOutcome::Retired { memory_access, .. } => memory_access,
+                _ => None,
+            };
+            let pc_after = self.backend.context().pc;
+            if matches!(outcome, ExecutionOutcome::Retired { .. }) {
+                self.record_retired(pc_before, pc_after, word, access, "full-state".into());
+            }
+            writeln!(
+                output,
+                "stepidp[{index}/{count}] 0x{pc_before:016x}: {word:08x}  {} -> pc=0x{pc_after:016x}",
+                line.text
+            )
+            .unwrap();
+            writeln!(output, "{}", self.registers()).unwrap();
+            writeln!(output, "{}", self.show_stack()).unwrap();
+            append_backend_memory_context(&mut output, &mut self.backend, access)?;
+            output.push('\n');
+        }
+        Ok(output.trim_end().into())
     }
 
     fn step_over(&mut self) -> Result<String> {
@@ -2617,6 +2690,22 @@ where
         Ok(output.trim_end().into())
     }
 
+    fn show_stack(&self) -> String {
+        if self.call_stack.is_empty() {
+            return "stack: empty".into();
+        }
+        let mut output = String::from("stack:\n");
+        for (depth, frame) in self.call_stack.iter().rev().enumerate() {
+            writeln!(
+                output,
+                "  #{depth} target=0x{:016x} return=0x{:016x}",
+                frame.target, frame.return_pc
+            )
+            .unwrap();
+        }
+        output.trim_end().into()
+    }
+
     fn save_session(&self, argument: &str) -> Result<String> {
         let path = persistence_path(argument, "MON-SESSION-001")?;
         let mut writer = ByteWriter::new(SESSION_MAGIC);
@@ -2885,6 +2974,7 @@ fn backend_help() -> String {
         "assemble <source>    assemble and write at target pc",
         "assemble-program <source> load a multi-line image and symbols",
         "step                 execute one target instruction",
+        "stepidp [count]       execute up to 256 instructions with full state per step",
         "step-over|next       execute a call and stop at its return address",
         "step-out|finish      execute until the current call returns",
         "run [count]          execute up to count target steps",
@@ -3001,6 +3091,89 @@ fn parse_run_limit(argument: &str, default: u64) -> Result<u64> {
         .map_err(|_| Diagnostic::error("MON-RUN-001", "run count must be an unsigned integer"))
 }
 
+const MAX_STEPIDP_COUNT: u64 = 256;
+
+fn parse_stepidp_count(argument: &str, code: &'static str) -> Result<u64> {
+    let count = if argument.trim().is_empty() {
+        1
+    } else {
+        argument
+            .trim()
+            .parse::<u64>()
+            .map_err(|_| Diagnostic::error(code, "stepidp expects an unsigned count"))?
+    };
+    if count == 0 || count > MAX_STEPIDP_COUNT {
+        return Err(Diagnostic::error(
+            code,
+            format!("stepidp count must be between 1 and {MAX_STEPIDP_COUNT}"),
+        ));
+    }
+    Ok(count)
+}
+
+fn format_memory_bytes(bytes: &[u8; 16]) -> String {
+    bytes
+        .iter()
+        .map(|byte| format!("{byte:02x}"))
+        .collect::<Vec<_>>()
+        .join(" ")
+}
+
+fn append_memory_context(
+    output: &mut String,
+    machine: &mut Machine,
+    access: Option<MemoryAccess>,
+) -> Result<()> {
+    let Some(access) = access else {
+        return Ok(());
+    };
+    if !matches!(access.kind, MemoryAccessKind::Write) {
+        return Ok(());
+    }
+    let address = access.address & !0x0f;
+    let mut bytes = [0u8; 16];
+    TargetBackend::read_memory(machine, address, &mut bytes)?;
+    writeln!(
+        output,
+        "memory modified: addr=0x{:016x} width={} block=0x{address:016x} {}",
+        access.address,
+        access.width,
+        format_memory_bytes(&bytes)
+    )
+    .unwrap();
+    Ok(())
+}
+
+fn append_backend_memory_context<B: TargetBackend>(
+    output: &mut String,
+    backend: &mut B,
+    access: Option<MemoryAccess>,
+) -> Result<()>
+where
+    B::Error: std::fmt::Debug,
+{
+    let Some(access) = access else {
+        return Ok(());
+    };
+    if !matches!(access.kind, MemoryAccessKind::Write) {
+        return Ok(());
+    }
+    let address = access.address & !0x0f;
+    let mut bytes = [0u8; 16];
+    backend
+        .read_memory(address, &mut bytes)
+        .map_err(target_error)?;
+    writeln!(
+        output,
+        "memory modified: addr=0x{:016x} width={} block=0x{address:016x} {}",
+        access.address,
+        access.width,
+        format_memory_bytes(&bytes)
+    )
+    .unwrap();
+    Ok(())
+}
+
 fn format_backend_stop(event: StopEvent) -> String {
     format!(
         "stopped: {:?} at pc=0x{:016x}; total={}",
@@ -3039,6 +3212,7 @@ fn help() -> String {
         "assemble <source>    assemble and load one source line at pc",
         "assemble-program <source> load a multi-line program and symbols",
         "step                 execute one instruction",
+        "stepidp [count]       execute up to 256 instructions with full state per step",
         "step-over|next       execute a call and stop at its return address",
         "step-out|finish      execute until the current call returns",
         "run [count]          execute up to count instructions (default 1000)",
@@ -3815,6 +3989,39 @@ mod tests {
         assert_eq!(
             monitor.execute("dashboard nope").unwrap_err().code,
             "MON-UI-001"
+        );
+    }
+
+    #[test]
+    fn stepidp_renders_full_state_and_store_context() {
+        let mut monitor = Monitor::new(128);
+        monitor
+            .assemble_program("_start: addi x1,x0,42\n        sd x1,32(x0)")
+            .unwrap();
+
+        let output = monitor.execute("stepidp 2").unwrap();
+
+        assert!(output.contains("stepidp[1/2]"));
+        assert!(output.contains("stepidp[2/2]"));
+        assert!(output.contains("integer registers"));
+        assert!(output.contains("floating registers"));
+        assert!(output.contains("fcsr="));
+        assert!(output.contains("stack: empty"));
+        assert!(output.contains("memory modified: addr=0x0000000000000020 width=8"));
+        assert!(output.contains("block=0x0000000000000020"));
+        assert_eq!(monitor.machine.memory.load64(32).unwrap(), 42);
+    }
+
+    #[test]
+    fn stepidp_rejects_zero_and_unbounded_counts() {
+        let mut monitor = Monitor::new(128);
+        assert_eq!(
+            monitor.execute("stepidp 0").unwrap_err().code,
+            "MON-DBG-030"
+        );
+        assert_eq!(
+            monitor.execute("stepidp 257").unwrap_err().code,
+            "MON-DBG-030"
         );
     }
 
@@ -4702,6 +4909,24 @@ mod tests {
                 .unwrap()
                 .contains("blinkenlights registers")
         );
+    }
+
+    #[test]
+    fn backend_stepidp_uses_target_memory_and_state_renderers() {
+        let mut console = BackendConsole::new(Machine::new(128));
+        console
+            .execute("assemble-program _start: addi x1,x0,7\nsd x1,32(x0)")
+            .unwrap();
+
+        let output = console.execute("stepidp 2").unwrap();
+
+        assert!(output.contains("stepidp[1/2]"));
+        assert!(output.contains("stepidp[2/2]"));
+        assert!(output.contains("integer registers"));
+        assert!(output.contains("floating registers (raw bits)"));
+        assert!(output.contains("fcsr="));
+        assert!(output.contains("memory modified: addr=0x0000000000000020 width=8"));
+        assert_eq!(console.backend.memory.load64(32).unwrap(), 7);
     }
 
     #[test]

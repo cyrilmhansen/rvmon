@@ -12,7 +12,7 @@ l’ISA RISC-V et son contenu local n’est pas une dépendance versionnée du b
 | `A` / Assemble | `assemble`, `assemble-program`, `assemble-source` | présent, syntaxe moderne structurée |
 | `D` / `@D` | `disasm`, `disasm-mixed` | présent ; `@D` n’est pas encore un alias texte |
 | `G` / `J` | `run`, `run-at`, `continue` | présent ; budgets et arrêts sont bornés |
-| `K` | `step`, `step-over`, `step-out` | présent, avec support d’appels |
+| `K` | `step`, `step-over`, `step-out`, `stepidp` | présent ; `stepidp N` ajoute une trace complète bornée par instruction |
 | `M`, `H`, `N`, `@H`, `@N` | `memory`, `edit`, `ascii`, `cp437` | vues et édition présentes, modes legacy non aliasés |
 | `S`, `F`, `C`, `Q` mémoire | `find`, `fill`, `copy`, diagnostics de comparaison à préciser | les trois premiers présents |
 | breakpoints | `break`, `delete`, `info break` | présent, conditions en mode hôte |

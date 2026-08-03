@@ -151,7 +151,15 @@ unary = ["+"|"-"|"~"] , atom ;
 atom = number | symbol | register | "(" , expression , ")" ;
 ```
 
-Expressions sont entières signées 128 bits pendant l’évaluation, puis contrôlées par contexte. Commandes : `asm [file]`, `build`, `load image`, `run [until expr]`, `pause`, `si`, `so`, `su`, `reset`, `regs [x|f|csr]`, `set x5=expr`, `mem [b|h|w|d] range`, `edit addr=value`, `dis addr[..end]`, `break label|addr [if expr]`, `watch range [r|w]`, `trace on|off`, `snapshot name`, `restore name`, `undo`, `redo`, `symbols`, `find`, `fill`, `copy`, `save`, `open`, `help`, `quit`. Alias : `s=si`, `r=run`, `b=break`, `m=mem`, `u=undo`.
+Expressions sont entières signées 128 bits pendant l’évaluation, puis contrôlées par contexte. Commandes : `asm [file]`, `build`, `load image`, `run [until expr]`, `pause`, `si`, `so`, `su`, `stepidp [count]`, `reset`, `regs [x|f|csr]`, `set x5=expr`, `mem [b|h|w|d] range`, `edit addr=value`, `dis addr[..end]`, `break label|addr [if expr]`, `watch range [r|w]`, `trace on|off`, `snapshot name`, `restore name`, `undo`, `redo`, `symbols`, `find`, `fill`, `copy`, `save`, `open`, `help`, `quit`. Alias : `s=si`, `r=run`, `b=break`, `m=mem`, `u=undo`.
+
+`stepidp [count]` exécute 1 à 256 instructions selon le PC réellement produit
+par la cible, donc les appels et sauts sont suivis sans analyse de contrôle de
+flot côté hôte. Après chaque pas, la sortie contient l’instruction, le PC, les
+registres entiers et flottants, `fcsr` avec `frm/fflags`, la pile d’appels
+inférée et, lorsqu’un événement d’écriture est fourni, un bloc mémoire aligné
+de 16 octets autour de l’adresse écrite. La commande est bornée pour préserver
+la réactivité et ne remplace pas `step-over`/`step-out`.
 
 Exemples : `asm main.s`; `break add`; `run until a0 == 42`; `mem w 0x1000..0x103f`; `set a0=ptr32(0x80000000)`; `dis pc..pc+32`. Erreurs : commande inconnue `CMD-001`, argument manquant `CMD-002`, expression invalide `CMD-003`, plage inversée `CMD-004`, mutation pendant run `CMD-005`. `help` affiche syntaxe, exemples, profil et codes sans effet de bord.
 
