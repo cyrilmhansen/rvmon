@@ -3348,6 +3348,9 @@ for_statement:
 ld x27,1240(x8)
 sltiu x7,x27,8
 beq x7,x0,error_line
+addi x6,x8,2047
+addi x6,x6,561
+sd x27,0(x6)
 slli x6,x27,5
 addi x31,x8,1280
 add x31,x31,x6
@@ -3403,6 +3406,9 @@ jal x1,parse_atom
 ld x31,1560(x8)
 fsd f2,16(x31)
 for_step_done:
+addi x6,x8,2047
+addi x6,x6,561
+ld x27,0(x6)
 addi x27,x27,1
 sd x27,1240(x8)
 addi x10,x0,1

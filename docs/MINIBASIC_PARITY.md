@@ -89,6 +89,7 @@ entièrement dans le guest.
 | `IF ... THEN numéro` | branchement direct par numéro de ligne | VERT | `if.sh`, `if-false.sh` |
 | `GOTO` | transfert par numéro de ligne et erreur de cible absente | VERT | `goto.sh`, `goto-30.sh` |
 | `FOR/NEXT` | huit niveaux, `STEP` positif/négatif et noms longs | VERT | `for.sh`, `for-nested.sh`, `for-step.sh` |
+| `FOR/NEXT` | huit niveaux, `STEP` positif/négatif et noms longs | VERT | `for.sh`, `for-nested.sh`, `for-step.sh`, `for-y.sh`; profondeur temporaire target-side protégée pendant l'analyse de `TO/STEP` |
 | `GOSUB/RETURN` | huit retours, cible et retour target-side | VERT | `gosub.sh` |
 | `POP` | retire le cadre le plus récent de la pile unifiée | VERT | `test-guest-runtime-asm-repl-pop.sh` |
 | `EXIT` | sortie typée de `FOR`, `WHILE`, `REPEAT` ou `DO` | VERT | `test-guest-runtime-asm-repl-exit.sh` |
@@ -294,6 +295,7 @@ sortie BASIC préenregistrée.
 | 2026-08-03 | `INSTR` consomme deux expressions chaîne séparées par une virgule de niveau zéro, dont `LEFT$` imbriqué | `test-guest-runtime-asm-repl-string-instr-expression.sh` sous QEMU : concaténation dans les deux opérandes, virgule littérale, `INSTR(LEFT$(...),...)` et résultats 4, 3, 2, 2 | la séparation syntaxique et la composition sont génériques dans les bornes documentées ; le contrat préserve pointeur, curseur et `x31` de l'évaluateur appelant |
 | 2026-08-03 | Entrée de tous les noms alphabétiques dans le reconnaisseur table-driven | `test-guest-runtime-asm-repl-numeric-functions.sh` et `test-guest-runtime-asm-repl-array-table.sh` sous QEMU ; `ABS`, `TRUNC`, `FRAC`, `MOD` et repli `B(1)+C(2)` | les noms majuscules et minuscules suivent le même parcours ; le repli restaure l'état nécessaire aux variables/tableaux et chaque entrée est recalculée depuis `base + index*16` |
 | 2026-08-03 | Préreconnaissance table-driven des mots-clés statements | `test-guest-runtime-asm-repl.sh`, `numeric-functions.sh`, `if.sh` et `data-read.sh` sous QEMU ; mots-clés en casse mixte, normalisation target-side et repli legacy | la table borne les noms, longueurs et IDs sans créer un second exécuteur ; les handlers `FOR/NEXT` et autres familles conservent encore leurs contrats historiques jusqu'à migration dédiée |
+| 2026-08-03 | Correction de la profondeur `FOR/NEXT` pendant l'analyse des bornes | `test-guest-runtime-asm-repl-for-y.sh` et `test-guest-runtime-asm-repl-for-nested.sh` sous QEMU ; un et deux niveaux | la profondeur est sauvegardée en `x8+2608` avant `TO/STEP`, puis rechargée avant publication ; les boucles imbriquées produisent les résultats attendus |
 
 Les affectations ne constituent pas encore une parité chaîne complète : le RHS
 est soit une forme `LEFT$`/`RIGHT$`/`MID$`, soit une concaténation de termes
