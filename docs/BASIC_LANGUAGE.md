@@ -398,6 +398,10 @@ est maintenant fixé par D-018 ; le payload assembleur est chargé et assemblé
 par le moniteur dans les tests QEMU, et aucune conversion ou évaluation n’est
 déléguée à l’hôte.
 
+La carte mémoire opérationnelle du moniteur et du payload est la référence
+unique [`MEMORY_MAP.md`](MEMORY_MAP.md). Toute nouvelle routine doit y réserver
+ses scratchs et ses cadres avant modification du source assembleur.
+
 ## Contrat retenu pour les chaînes et tableaux
 
 Une chaîne est représentée en mémoire cible par
