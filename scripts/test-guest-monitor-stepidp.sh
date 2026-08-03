@@ -26,15 +26,15 @@ sleep 0.2
 printf '%s\n' \
   'assemble-program 0x81000100' \
   'ebreak' \
-  'addi x1,x0,1' \
-  'jal x0,target' \
-  'addi x3,x1,2' \
+  'addi x5,x0,7' \
+  'addi x6,x0,7' \
+  'beq x5,x6,target' \
   'target:' \
   'fadd.d f3,f0,f0' \
   'end' \
   'run-at 0x81000100' >&3
 sleep 1
-printf '%s\n' 'stepidp 3' >&3
+printf '%s\n' 'stepidp 4' >&3
 sleep 2
 printf 'q\n' >&3
 exec 3>&-
@@ -50,9 +50,9 @@ for expected in 'stepidp retired pc=' 'fcsr=0x' 'floating registers (raw bits):'
         exit 1
     fi
 done
-if [[ "$(grep -ac 'stepidp retired pc=' "$output_file")" -ne 3 ]]; then
+if [[ "$(grep -ac 'stepidp retired pc=' "$output_file")" -ne 4 ]]; then
     cat "$output_file"
-    printf 'stepidp did not report exactly three retired instructions\n' >&2
+    printf 'stepidp did not report exactly four retired instructions\n' >&2
     exit 1
 fi
 printf 'guest monitor stepidp QEMU test passed\n'

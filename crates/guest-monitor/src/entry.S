@@ -121,6 +121,10 @@ resume_user:
     csrw fcsr, t0
     ld t0, 528(t6)
     csrw mstatus, t0
+    # The CSR setup above uses t0 as a scratch register. Restore the target's
+    # x5/t0 after the last CSR write; otherwise every resumed target observes
+    # mstatus in x5 and conditional code is corrupted after a trap.
+    ld t0, 40(t6)
     csrw mscratch, t6
     ld t6, 248(t6)
     mret
