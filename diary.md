@@ -322,3 +322,10 @@
 2026-08-03 — Audit documentaire de la tranche expression : le chemin tokenisé
 des signes unaires devant littéraux est maintenant reflété dans le backlog et
 le registre de parité ; le comptage reproductible des scripts QEMU est 118.
+2026-08-04 — Le résolveur chaîne commun était déjà générique pour `LEN`,
+`ASC`, `VAL` et `INSTR`, mais les trois découpes d’affichage utilisaient encore
+une source simple. J’ai raccordé `PRINT LEFT$`, `PRINT RIGHT$` et `PRINT MID$`
+au mode d’arrêt sur virgule du résolveur, puis ajouté une preuve QEMU avec
+concaténations target-side. Une tentative équivalente dans les affectations de
+découpe a régressé `RIGHT$` concaténé ; elle a été retirée et reste une tranche
+à traiter avec un contrat de pile dédié.

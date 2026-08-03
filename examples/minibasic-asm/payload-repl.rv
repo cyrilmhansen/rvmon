@@ -8191,7 +8191,8 @@ addi x27,x8,2047
 addi x27,x27,401
 sd x21,0(x27)
 addi x21,x21,6
-jal x1,resolve_string_source
+addi x30,x0,1
+jal x1,resolve_string_expression
 sd x7,1944(x8)
 sd x11,1952(x8)
 lbu x5,0(x21)
@@ -8250,7 +8251,8 @@ addi x27,x8,2047
 addi x27,x27,401
 sd x21,0(x27)
 addi x21,x21,7
-jal x1,resolve_string_source
+addi x30,x0,1
+jal x1,resolve_string_expression
 sd x7,1944(x8)
 sd x11,1952(x8)
 lbu x5,0(x21)
@@ -8311,7 +8313,8 @@ addi x27,x8,2047
 addi x27,x27,401
 sd x21,0(x27)
 addi x21,x21,5
-jal x1,resolve_string_source
+addi x30,x0,1
+jal x1,resolve_string_expression
 sd x7,1944(x8)
 sd x11,1952(x8)
 lbu x5,0(x21)
@@ -8388,6 +8391,7 @@ jal x0,if_false
 print_mid_error:
 jal x0,error_line
 print_slice_concat:
+addi x30,x0,0
 addi x27,x8,2047
 addi x27,x27,401
 ld x21,0(x27)
