@@ -128,10 +128,11 @@ capacité des cadres et scratchs target-side, pas le nombre de combinaisons
 Le chemin chaîne suit le même objectif avec un contrat commun
 `{adresse,longueur}` et une pile de cadres statiques. Il sait déjà composer
 des littéraux, variables et concaténations avec des parenthèses hors chaînes.
-Les fonctions de découpe dans certains consommateurs imbriqués restent
-toutefois une limite connue : elles ne doivent pas être présentées comme une
-composition générale tant que la régression `INSTR(LEFT$(...),...)` n'est pas
-résolue.
+Les fonctions de découpe peuvent être consommées par les résolveurs chaîne
+imbriqués ; le contrat de retour conserve séparément le pointeur du buffer,
+le curseur de reprise et le `x31` de l'évaluateur englobant. Cette composition
+est couverte par `INSTR(LEFT$(...),...)`. Les bornes restantes sont celles
+des cadres et des buffers, pas une liste de combinaisons autorisées.
 
 L'implémentation assembleur est actuellement en migration :
 
@@ -182,9 +183,10 @@ concaténation, la destination publique sauvegardée et une cellule de retour
 pour les fonctions de découpe ; les retours et curseurs des résolutions
 imbriquées sont séparés.
 Cette pile est un mécanisme d’exécution, non une limite de grammaire : un
-dépassement produit une erreur cible explicite. Les fonctions de découpe
-appelées comme sous-expression d’un autre consommateur restent toutefois à
-intégrer à ce mécanisme et sont donc encore partielles.
+dépassement produit une erreur cible explicite. Pour une découpe consommée par
+un résolveur englobant, le cadre conserve séparément le pointeur du buffer, le
+curseur de reprise et le `x31` de l'évaluateur appelant ; cette composition est
+couverte par `INSTR(LEFT$(...),...)`.
 
 ## Sémantique numérique
 

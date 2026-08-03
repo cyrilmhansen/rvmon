@@ -36,7 +36,8 @@ printf '%s\n' \
     '10 PRINT INSTR("HAM"+"MURABI","MUR")' \
     '20 PRINT INSTR("A,B","B")' \
     '30 PRINT INSTR("HAM"+"M","AM")' \
-    '40 END' \
+    '40 PRINT INSTR(LEFT$("HAMMURABI",4),"AM")' \
+    '50 END' \
     'RUN' | while IFS= read -r line; do
     printf '%s\n' "$line" >&3
     sleep 0.12
@@ -49,7 +50,7 @@ kill "$qemu_pid" 2>/dev/null || true
 wait "$qemu_pid" 2>/dev/null || true
 qemu_pid=""
 
-for expected in '4.000000' '3.000000' '2.000000' 'trap: breakpoint'; do
+for expected in '4.000000' '3.000000' '2.000000' '2.000000' 'trap: breakpoint'; do
     if ! grep -aFq -- "$expected" "$output_file"; then
         cat "$output_file"
         printf 'missing INSTR expression result: %s\n' "$expected" >&2

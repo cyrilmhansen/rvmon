@@ -53,7 +53,7 @@ possède.
 | `2128..2199` | `0x82000850..0x820008b7` | profondeur et index de la pile `REPEAT/UNTIL` | contrôle de flot ; session |
 | `2200..2399` | `0x82000898..0x8200095f` | profondeur et cadres de la pile unifiée (`IF`, `FOR`, `GOSUB`, etc.) | contrôle de flot ; session |
 | `2400..2431` | `0x82000960..0x8200097f` | quatre cellules binary64 temporaires : sauvegarde `PRINT`, sauvegarde de résultat, atome et premier opérande | évaluateur/PRINT ; appel, non persistantes |
-| `2432..4095` | `0x82000980..0x82000fff` | réserve non allouée dans V1, sauf `x8+2432` pour le retour `x31` de `VAL`, `x8+2440` pour le contexte de `PRINT` concaténé, `x8+2448` pour le début d'une expression `PRINT LEFT$/RIGHT$/MID$` concaténée, `x8+2456` pour le drapeau de transaction `RENUM`, `x8+2488` pour la profondeur de la pile de contextes chaîne ; `x8+2464` et `x8+2472` restent réservés pour compatibilité de cadres | réservé ; ces cellules sont des cadres statiques documentés |
+| `2432..4095` | `0x82000980..0x82000fff` | réserve non allouée dans V1, sauf `x8+2432` pour le retour `x31` de `VAL`, `x8+2440` pour le contexte de `PRINT` concaténé, `x8+2448` pour le début d'une expression `PRINT LEFT$/RIGHT$/MID$` concaténée, `x8+2456` pour le drapeau de transaction `RENUM`, `x8+2464` pour le retour `x31` d'une découpe directe, `x8+2488` pour la profondeur de la pile de contextes chaîne ; `x8+2472` reste réservé pour compatibilité de cadres | réservé ; ces cellules sont des cadres statiques documentés |
 | `4096..12287` | `0x82001000..0x82002fff` | table des longueurs et cellules de variables/chaînes courtes selon le payload | MiniBASIC ; session |
 | `12288..` | `0x82003000..` | magasin fixe des 256 records de lignes, 128 octets chacun | éditeur ; session |
 
@@ -170,3 +170,8 @@ fusionnées, même si deux chemins semblent non imbriqués dans un exemple.
 En cas de divergence entre ce document et le source assembleur, le changement
 est incomplet : il faut corriger les deux et ajouter le test associé avant de
 commiter.
+Pour une découpe consommée par un résolveur chaîne englobant, chaque cadre de
+concaténation réserve `+272` au retour de reprise et `+280` au `x31` de
+l'évaluateur numérique englobant. Le pointeur de résultat est conservé dans
+un registre temporaire pendant le calcul de l'adresse du cadre ; il ne doit
+pas être confondu avec le curseur de reprise.
