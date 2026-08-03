@@ -224,7 +224,11 @@ numérique, mais seulement partiellement au lexer et au dispatch :
    descripteurs target-side bornés (`nom`, `longueur`, `ID`, catégorie). Le
    descripteur choisit une famille de handler ; il ne décrit pas les
    combinaisons d'arguments.
-4. Les handlers historiques consomment encore directement le texte. Le plan
+4. Pour les statements, le reconnaisseur publie maintenant un token borné
+   `{kind, start, length, id}` dans la mémoire cible. Le handler reçoit encore
+   son ABI historique pendant la migration, mais le lexème reconnu est déjà
+   représenté indépendamment du chemin de dispatch.
+5. Les handlers historiques consomment encore directement le texte. Le plan
    de migration est de faire produire au lexer des tokens bornés, puis de
    faire partager le parseur de précédence et les descripteurs aux fonctions,
    tableaux, comparaisons et arguments de statements. Les handlers cible et
@@ -239,19 +243,25 @@ jamais conduire à ajouter une nouvelle routine pour une combinaison précise.
 ### Différence avec Turbo BASIC XL
 
 MiniBASIC reprend de Turbo BASIC XL l'expérience utilisateur (mode direct,
-lignes numérotées, `LIST`, `RUN`, trace et erreurs lisibles), mais pas son
-implémentation historique. TBXL est un interpréteur tokenisé fortement
-intégré à son runtime, avec des tables et des conventions d'exécution
-spécifiques à l'Atari. MiniBASIC est un interpréteur target-side RV64 : ses
+lignes numérotées, `LIST`, `RUN`, trace et erreurs lisibles), mais pas sa
+représentation binaire ni ses conventions 6502. TBXL est un interpréteur
+tokenisé associé à un runtime privé, reconstruit dans son propre code machine
+6502 et ses propres tables ; il ne s'agit pas d'un « runtime Atari » fourni par
+l'OS. MiniBASIC est un interpréteur target-side RV64 : ses
 variables, frames, buffers, curseurs et opérations binary64 résident dans la
 mémoire cible et ses opérations flottantes passent par l'extension RISC-V D.
 
+L'étude du runtime TBXL reste une entrée de conception de premier ordre : son
+désassemblage permet de comparer concrètement la séparation `stmttab`/
+`syntable`, la pile d'opérandes, la pile d'exécution, l'évaluateur, la boucle
+d'exécution des lignes et les handlers de mots-clés. Ces structures sont
+réinterprétées pour RV64 et non copiées par adresse ou par représentation.
 La différence importante pour l'extensibilité est que MiniBASIC fixe des
 capacités et des contrats, pas un nombre de combinaisons syntaxiques. La
 représentation tokenisée complète est une étape de migration technique ; elle
-ne doit pas changer le comportement accepté ni transformer le langage en une
-suite de macros assembleur. Les différences de syntaxe et les limites
-intentionnelles avec TBXL sont listées dans `MINIBASIC_PARITY.md`.
+doit conserver les leçons structurelles de TBXL sans imposer son format binaire.
+Les différences de syntaxe et les limites intentionnelles avec TBXL sont
+listées dans `MINIBASIC_PARITY.md`.
 
 Les concaténations target-side disposent maintenant d’une pile statique de huit
 cadres. Chaque cadre possède son propre buffer source, son propre buffer de

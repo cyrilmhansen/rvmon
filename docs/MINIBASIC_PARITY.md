@@ -44,8 +44,11 @@ des idées, mais il n’est pas l’oracle des résultats target-side.
 - les documents ASM-One sous `docs/dontcommit/` : ergonomie du moniteur
   uniquement, sans autorité sur le langage BASIC.
 
-Les comparaisons historiques sont faites par familles de fonctions et non par
-copie des adresses 6502, des tables de tokens ou de l’OS Atari. Les tests
+Le runtime privé de TBXL est étudié comme une référence d'architecture à part
+entière : tables de syntaxe, piles d'opérandes et d'exécution, évaluateur,
+boucle des lignes, handlers et reprise sur erreur. Les comparaisons historiques
+sont faites par familles de fonctions et structures, sans copie des adresses
+6502, du format binaire des tokens ou des appels spécifiques à l'OS Atari. Les tests
 différentiels éventuels vérifient des résultats, mais l’exécution doit rester
 entièrement dans le guest.
 

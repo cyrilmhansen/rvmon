@@ -9575,6 +9575,14 @@ jal x0,atom_dispatch
 ; Table-driven statement recognizer. The record body starts at x24+16.
 ; A miss restores the legacy dispatcher, preserving support for assignments
 ; and ambiguous prefixes such as PRINT= or DIM variable forms.
+; On success it also publishes a bounded token record at x8+2648:
+;   +0  statement id (u64)
+;   +8  source start (u64)
+;   +16 source length (u64)
+;   +24 token kind (u64), 1 = statement
+; The legacy handlers still receive x24/x10 as before. Publishing the record
+; first makes the lexer contract explicit and lets later handlers consume the
+; same token without adding a branch for each argument combination.
 statement_table_probe:
 addi x10,x8,2047
 addi x10,x10,513
@@ -9585,6 +9593,9 @@ sd x27,24(x10)
 sd x28,32(x10)
 sd x29,40(x10)
 addi x30,x0,0
+addi x10,x8,2047
+addi x10,x10,625
+sd x0,0(x10)
 addi x29,x0,0
 statement_table_next:
 lui x27,0x82062
@@ -9629,6 +9640,17 @@ lbu x28,1(x27)
 addi x10,x8,2047
 addi x10,x10,601
 sd x28,0(x10)
+addi x6,x24,16
+addi x10,x8,2047
+addi x10,x10,609
+sd x6,0(x10)
+addi x10,x8,2047
+addi x10,x10,617
+sd x28,0(x10)
+addi x6,x0,1
+addi x10,x8,2047
+addi x10,x10,625
+sd x6,0(x10)
 addi x6,x0,2
 beq x28,x6,statement_table_goto
 addi x6,x0,10
