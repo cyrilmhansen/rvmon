@@ -184,10 +184,10 @@ future migration vers un flux de tokens et une table complète de mots-clés
 devra conserver ce contrat et remplacer progressivement ces probes, sans
 changer la grammaire observable.
 
-`GOTO`, `IF`, `ELSE`, `ENDIF`, `INPUT`, `FOR`, `NEXT`, `WHILE`, `WEND`, `PRINT`, `END` et `REM` sont maintenant les premiers handlers de statements appelés
+`GOTO`, `IF`, `ELSE`, `ENDIF`, `INPUT`, `FOR`, `NEXT`, `WHILE`, `WEND`, `REPEAT`, `UNTIL`, `PRINT`, `END` et `REM` sont maintenant les premiers handlers de statements appelés
 directement par leur ID reconnu dans la table. Le contexte historique (`x6`,
 `x7`, `x9`, `x27`, `x28`, `x29`) est restauré avant l'appel à `print_dispatch`
-`goto_dispatch`, `if_statement`, `else_statement`, `endif_statement`, `input_statement`, `for_statement`, `next_statement`, `while_dispatch`, `wend_statement` ou `end_statement`; `REM` restaure le même contexte avant de
+`goto_dispatch`, `if_statement`, `else_statement`, `endif_statement`, `input_statement`, `for_statement`, `next_statement`, `while_dispatch`, `wend_statement`, `repeat_statement`, `until_statement` ou `end_statement`; `REM` restaure le même contexte avant de
 terminer la ligne.
 Les autres IDs restent en repli vers leur dispatch
 historique jusqu'à la validation de leur contrat propre.

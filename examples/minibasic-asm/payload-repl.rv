@@ -9625,6 +9625,10 @@ beq x5,x0,statement_table_id
 jal x0,statement_table_miss
 statement_table_id:
 lbu x28,1(x27)
+addi x6,x0,4
+beq x28,x6,statement_table_until
+addi x6,x0,13
+beq x28,x6,statement_table_repeat
 addi x6,x0,3
 beq x28,x6,statement_table_while
 addi x6,x0,14
@@ -9789,6 +9793,28 @@ ld x28,32(x10)
 ld x29,40(x10)
 lbu x10,16(x24)
 jal x0,wend_statement
+statement_table_until:
+; UNTIL évalue sa condition et dépile/reprend la frame REPEAT côté cible.
+addi x10,x8,2047
+addi x10,x10,513
+ld x6,0(x10)
+ld x7,8(x10)
+ld x9,16(x10)
+ld x27,24(x10)
+ld x28,32(x10)
+ld x29,40(x10)
+jal x0,until_statement
+statement_table_repeat:
+; REPEAT marque ou réutilise la continuation target-side.
+addi x10,x8,2047
+addi x10,x10,513
+ld x6,0(x10)
+ld x7,8(x10)
+ld x9,16(x10)
+ld x27,24(x10)
+ld x28,32(x10)
+ld x29,40(x10)
+jal x0,repeat_statement
 jal x0,statement_table_fallback
 statement_table_miss:
 addi x29,x29,1
