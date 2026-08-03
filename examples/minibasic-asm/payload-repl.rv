@@ -8303,7 +8303,29 @@ addi x7,x12,0
 ld x1,1816(x8)
 jalr x0,0(x1)
 string_concat_slice_term:
+; Dans un concaténateur imbriqué, le retour ne doit pas partager la cellule
+; historique x8+2000 avec un autre terme. Les 16 derniers octets du cadre
+; courant (offset +272) sont réservés à ce retour; profondeur nulle conserve
+; l'ABI directe existante.
+addi x27,x8,2047
+addi x27,x27,441
+ld x6,0(x27)
+beq x6,x0,string_slice_save_global_return
+addi x6,x6,-1
+slli x7,x6,8
+slli x10,x6,5
+add x7,x7,x10
+lui x27,0x82061
+slli x27,x27,32
+srli x27,x27,32
+addi x27,x27,1536
+add x27,x27,x7
+addi x27,x27,272
+sd x1,0(x27)
+jal x0,string_slice_return_saved
+string_slice_save_global_return:
 sd x1,2000(x8)
+string_slice_return_saved:
 jal x1,resolve_string_source
 sd x7,1944(x8)
 sd x11,1952(x8)
@@ -8412,6 +8434,23 @@ srli x7,x7,32
 addi x7,x7,768
 addi x11,x10,0
 sd x7,1992(x8)
+addi x27,x8,2047
+addi x27,x27,441
+ld x6,0(x27)
+beq x6,x0,string_slice_load_global_return
+addi x6,x6,-1
+slli x7,x6,8
+slli x10,x6,5
+add x7,x7,x10
+lui x27,0x82061
+slli x27,x27,32
+srli x27,x27,32
+addi x27,x27,1536
+add x27,x27,x7
+addi x27,x27,272
+ld x1,0(x27)
+jalr x0,0(x1)
+string_slice_load_global_return:
 ld x1,2000(x8)
 jalr x0,0(x1)
 string_concat_slice_error:

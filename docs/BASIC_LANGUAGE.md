@@ -129,8 +129,9 @@ changer la grammaire observable.
 
 Les concaténations target-side disposent maintenant d’une pile statique de huit
 cadres. Chaque cadre possède son propre buffer source, son propre buffer de
-concaténation et la destination publique sauvegardée ; les retours et curseurs
-des résolutions imbriquées sont séparés.
+concaténation, la destination publique sauvegardée et une cellule de retour
+pour les fonctions de découpe ; les retours et curseurs des résolutions
+imbriquées sont séparés.
 Cette pile est un mécanisme d’exécution, non une limite de grammaire : un
 dépassement produit une erreur cible explicite. Les fonctions de découpe
 appelées comme sous-expression d’un autre consommateur restent toutefois à
