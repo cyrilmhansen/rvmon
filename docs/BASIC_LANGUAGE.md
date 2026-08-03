@@ -245,7 +245,9 @@ restent rejetés ; `CHR$` et `STR$` sont des conversions explicites évaluées
 dans le guest.
 
 `ASC(string-source)` renvoie dans le guest le premier octet ASCII de la source
-et refuse la chaîne vide. `CHR$(expression)` convertit dans le guest une valeur
+et refuse la chaîne vide. Une concaténation simple peut servir de source à
+`ASC`; elle est matérialisée dans le buffer target-side d’expression avant la
+lecture du premier octet. `CHR$(expression)` convertit dans le guest une valeur
 entière de 0 à 255 en un terme chaîne d’un octet ; les valeurs négatives,
 supérieures à 255, fractionnaires ou sans argument sont rejetées. En `PRINT`,
 le terme est émis comme un octet puis suivi d’un saut de ligne.

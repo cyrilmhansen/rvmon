@@ -5233,7 +5233,35 @@ sd x28,1568(x8)
 sd x29,1576(x8)
 sd x30,1584(x8)
 addi x21,x21,4
+; Comme LEN, ASC peut consommer une concaténation simple. Le probe ne fait
+; qu'identifier un '+' hors guillemets ; le résolveur target-side reste la
+; seule routine qui construit et mesure effectivement la chaîne.
+addi x27,x21,0
+addi x29,x0,0
+atom_asc_expression_probe:
+lbu x5,0(x27)
+beq x5,x0,asc_probe_done
+addi x6,x0,34
+beq x5,x6,asc_probe_quote
+addi x6,x0,43
+beq x5,x6,asc_expression
+addi x6,x0,41
+beq x5,x6,asc_probe_done
+addi x27,x27,1
+jal x0,atom_asc_expression_probe
+asc_probe_quote:
+xori x29,x29,1
+addi x27,x27,1
+jal x0,atom_asc_expression_probe
+asc_probe_done:
+beq x29,x0,asc_source
+jal x0,atom_function_error
+asc_expression:
+jal x1,resolve_string_expression
+jal x0,asc_resolved
+asc_source:
 jal x1,resolve_string_source
+asc_resolved:
 beq x11,x0,atom_function_error
 lbu x5,0(x21)
 addi x6,x0,41
@@ -7810,6 +7838,7 @@ addi x21,x27,0
 lui x6,0x82060
 slli x6,x6,32
 srli x6,x6,32
+addi x6,x6,2040
 addi x6,x6,56
 sd x6,1976(x8)
 jal x1,string_concat_assign
@@ -7819,6 +7848,13 @@ ld x21,0(x6)
 addi x6,x8,2040
 addi x6,x6,432
 ld x1,0(x6)
+; Les consommateurs numériques ont besoin de l'adresse du résultat concaténé,
+; pas de l'adresse du dernier terme résolu. x11 reste la longueur totale.
+lui x7,0x82060
+slli x7,x7,32
+srli x7,x7,32
+addi x7,x7,2040
+addi x7,x7,56
 jalr x0,0(x1)
 ; Concaténation : résout chaque terme, contrôle la longueur totale <=120,
 ; copie dans le buffer temporaire cible, puis écrit la cellule destination.

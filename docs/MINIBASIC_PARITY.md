@@ -17,7 +17,7 @@ expressions, données, chaînes, tableaux et diagnostics. Elle ne signifie ni
 compatibilité Atari, ni compatibilité binaire, ni compatibilité des tokens,
 des nombres historiques, des périphériques, du DOS ou des graphismes.
 
-État de l’audit au 3 août 2026 : **112 scripts QEMU assembleur MiniBASIC
+État de l’audit au 3 août 2026 : **114 scripts QEMU assembleur MiniBASIC
 recensés**. Les scénarios récents fournissent notamment la preuve nominale et
 d’erreur de `ATN` après exécution QEMU verte. Ce nombre
 est contrôlable par :
@@ -73,7 +73,7 @@ entièrement dans le guest.
 | Comparaisons | `=`, `<>`, `<`, `<=`, `>`, `>=`, résultat `0.0` ou `1.0` | VERT | `if.sh`, `if-false.sh`, `precedence.sh` |
 | Fonctions numériques | `ABS`, `SGN`, `INT`, `TRUNC`, `FRAC`, `MOD`, `SQR`, `SIN`, `COS`, `TAN`, `LOG`, `EXP`, appels target-side et imbrication documentée | VERT | `numeric-rounding.sh`, `numeric-rounding-error.sh`, `numeric-functions.sh`, `sqr.sh`, `sqr-error.sh`, `trig.sh`, `tan.sh`, `tan-error.sh`, `log-exp.sh`, `log-exp-error.sh` |
 | `ATN` | Fonction en radians, résultat binary64 target-side et imbrication bornée | VERT | `atn.sh` et `atn-error.sh` ; cas nominaux, appel imbriqué et diagnostic QEMU |
-| Conversion caractère | `ASC(string-source)` numérique et `CHR$(expression)` chaîne, exécutés dans le guest avec bornes explicites | PARTIEL | `test-guest-runtime-asm-repl-string-concat.sh`, `test-guest-runtime-asm-repl-string-concat-error.sh`; `CHR$` est disponible en affectation, concaténation et `PRINT`, tandis que les conversions implicites restent différées |
+| Conversion caractère | `ASC(string-source)` numérique et `CHR$(expression)` chaîne, exécutés dans le guest avec bornes explicites ; `ASC` accepte aussi les concaténations simples | PARTIEL | `test-guest-runtime-asm-repl-string-asc-concat*.sh`, `test-guest-runtime-asm-repl-string-concat.sh`, `test-guest-runtime-asm-repl-string-concat-error.sh`; `CHR$` est disponible en affectation, concaténation et `PRINT`, tandis que les conversions implicites restent différées |
 | Conversion chaîne → nombre | `VAL(string-source)` parse une valeur décimale dans le guest et refuse les caractères non consommés | PARTIEL | `test-guest-runtime-asm-repl-string-concat.sh`, `test-guest-runtime-asm-repl-string-concat-error.sh`; exposants et formats historiques restent hors V1 |
 | Recherche chaîne | `INSTR(haystack,needle)` target-side, résultat 1-based, `0` absent et `1` pour aiguille vide | PARTIEL | `test-guest-runtime-asm-repl-string-concat.sh`, `test-guest-runtime-asm-repl-string-concat-error.sh`; options de comparaison historiques non retenues |
 | Conversion nombre → chaîne | `STR$(expression)` target-side, format fixe à six décimales réutilisable en affectation, concaténation et `PRINT` | PARTIEL | `test-guest-runtime-asm-repl-string-concat.sh`, `test-guest-runtime-asm-repl-string-concat-error.sh`; formats historiques différés |
@@ -249,7 +249,7 @@ sortie BASIC préenregistrée.
 - **Décisions de parité figées :** mode direct, lignes, contrôle de flot,
   chaînes, tableaux, binary64 target-side, interruption et périmètre Atari
   rejeté ;
-- **Preuve automatisée :** 112 scripts QEMU assembleur recensés au moment de
+- **Preuve automatisée :** 114 scripts QEMU assembleur recensés au moment de
   cet audit, avec des cas nominaux et négatifs dédiés aux chaînes, tableaux,
   conversions, fonctions de recherche, formatage et blocs structurés ;
 - **Écart important restant :** `ELSE`/`ENDIF` doivent rester en lignes dédiées ;
@@ -284,6 +284,7 @@ sortie BASIC préenregistrée.
 | 2026-08-03 | Réécriture target-side des références après plusieurs `RENUM` | `test-guest-runtime-asm-repl-renum-repeat-control.sh` sous QEMU ; deux renumérotations successives et `GOTO 30` exécutent `REN2` | les records restent en place mais les cibles `GOTO`/`GOSUB`/`THEN`/`ON` sont réémises dans un scratch cible ; la limite de record à 111 octets reste explicite |
 | 2026-08-03 | Prévalidation transactionnelle de la capacité `RENUM` | `test-guest-runtime-asm-repl-renum-capacity.sh` sous QEMU ; une réécriture dépassant 111 octets est refusée, les numéros et le corps sont restaurés, sans fault | la limite de record est désormais protégée sans mutation partielle |
 | 2026-08-03 | `LEN` évalue des concaténations chaîne simples dans le guest | `test-guest-runtime-asm-repl-string-len-concat.sh` et régression `string-len.sh` sous QEMU ; littéraux, variables et longueur totale après plusieurs appels `LEN` | le premier consommateur de fonctions chaîne accepte une expression composée ; fonctions imbriquées et généralisation aux autres fonctions restent partielles |
+| 2026-08-03 | `ASC` évalue des concaténations chaîne simples dans le guest | `test-guest-runtime-asm-repl-string-asc-concat.sh` et `string-asc-concat-error.sh` sous QEMU ; littéral + littéral, variable + littéral et chaîne vide | `ASC` rejoint `LEN` comme consommateur d’expression chaîne ; `VAL`, `INSTR`, `LEFT$`, `RIGHT$` et `MID$` restent à généraliser séparément |
 | 2026-08-03 | Validation de la concaténation dans `PRINT` | `test-guest-runtime-asm-repl-string-print-concat.sh` sous QEMU : `"RV "+TEXT$`, `TEXT$+"!"`, `LEFT$(TEXT$,4)+"!"`, `"A"+"B"+"C"`, `CHR$(65)+"B"` et `STR$(12.5)+"!"` | la sortie concaténée, les découpes et les conversions chaîne sont calculées dans le payload ; l’affectation concaténée reste PARTIELLE pour les conversions numériques |
 | 2026-08-03 | Audit de cohérence du registre | comptage reproductible : `find scripts -maxdepth 1 -type f -name 'test-guest-runtime-asm-repl*.sh' \| wc -l` → `107` | l’inventaire courant est distingué des comptes historiques ; la concaténation `PRINT` est maintenant validée par un scénario QEMU dédié |
 | 2026-08-03 | Correction de la résolution des tableaux courts nommés `C` | `test-guest-runtime-asm-repl-array-table.sh` sous QEMU : `DIM B(3)`, `DIM C(2)`, affectations et `PRINT B(1)+C(2)` produisent `16.000000` | `C(...)` ne tombe plus dans le résolveur de tableaux longs ; le test de la fonction `COS(...)` doit rester vert |
