@@ -93,6 +93,13 @@ data 0x820100e0 .dword 0x3fe921fb54442d18
 data 0x82000200 .dword 0x0000000000000000
 data 0x82000218 .dword 0x0000000000000000
 assemble-program 0x81000100
+; ---------------------------------------------------------------------------
+; Image de données initiale
+; Les octets bas sont les messages de REPL/diagnostic ; les mots à partir de
+; 0x82010000 sont des constantes binary64 little-endian utilisées par les
+; fonctions mathématiques. Les zones de travail allouées à l'exécution sont
+; séparées : voir docs/MEMORY_MAP.md, notamment variables, records et tas.
+; ---------------------------------------------------------------------------
 ; ============================================================================
 ; MiniBASIC-RV — guide de lecture du payload
 ; ============================================================================
@@ -134,6 +141,36 @@ assemble-program 0x81000100
 ; Conventions pédagogiques : les commentaires de section expliquent
 ; l'algorithme et l'invariant ; les commentaires d'une instruction isolée
 ; signalent seulement un piège (largeur, signe, sauvegarde ou alias mémoire).
+; ============================================================================
+; Noms logiques utilisés dans le reste du fichier
+; -----------------------------------------------
+; `program_lines`      = x19, base des records BASIC de 128 octets.
+; `line_lengths`       = [x8+480], table u64 indexée par (N/10)-1.
+; `variables`          = x20, 26 cellules binary64 pour A..Z.
+; `input_buffer`       = x18, ligne ASCII courante terminée par NUL.
+; `source_cursor`      = x21, prochain caractère à consommer dans une ligne.
+; `current_line`       = x26, index du record courant pendant RUN.
+; `next_line`          = [x8+536], index choisi par les sauts et les boucles.
+; `expression_value`   = f3, résultat public de eval_expression.
+; `temp_number`        = f1/f2, opérandes des opérations et comparaisons D.
+; `for_frame`          = x8+1280 + depth*32 : variable, borne, STEP, reprise.
+; `control_stack`      = x8+2200/2208 : types et lignes des cadres imbriqués.
+; `string_table`       = x8+1344 et cellules réservées : longueur puis octets.
+; `array_descriptors`  = tables de descripteurs ; chaque entrée pointe vers
+;                         une zone et décrit ses bornes et sa dimension.
+;
+; Algorithme de haut niveau
+; -------------------------
+; 1. command_loop lit une ligne dans la machine cible.
+; 2. Une commande directe est exécutée immédiatement ; une ligne numérotée
+;    est copiée dans un record fixe (insertion/remplacement/suppression).
+; 3. RUN recherche le premier record non vide et appelle run_line.
+; 4. dispatch_statement reconnaît le mot-clé ; les parseurs consomment le
+;    texte target-side et n'appellent jamais l'interpréteur Rust de l'hôte.
+; 5. Les nombres suivent expression -> somme -> produit -> atome ; chaque
+;    opération arithmétique binaire passe par l'extension RISC-V D.
+; 6. Les structures de contrôle utilisent des cadres statiques bornés ; les
+;    sauts modifient next_line ou reviennent via if_false.
 ; ============================================================================
 ; MiniBASIC-RV payload assembleur : noyau REPL target-side.
 ; Contrat de cette tranche : une ligne 10 PRINT X+Y, LIST, NEW, RUN.
@@ -183,6 +220,11 @@ sd x0,0(x29)
 addi x29,x8,2047
 addi x29,x29,153
 sd x0,0(x29)
+; ---------------------------------------------------------------------------
+; REPL et commandes directes
+; `read_line` remplit input_buffer ; le dispatch initial distingue numéro,
+; commande et affectation. Les erreurs retournent toujours à command_loop.
+; ---------------------------------------------------------------------------
 command_loop:
 ; REPL target-side : affiche READY>, lit une ligne ASCII terminée par LF,
 ; puis choisit commande directe, record numéroté ou erreur récupérable.
@@ -400,6 +442,12 @@ jal x0,renum_command
 ; Magasin de programme : parse le numéro et copie le corps dans un record
 ; fixe. Le remplacement et la suppression ne déplacent jamais les autres
 ; records ; LIST les parcourt ensuite par index croissant.
+; ---------------------------------------------------------------------------
+; Magasin de programme numéroté
+; Un record reste à son index (N/10)-1 : aucune compaction n'est nécessaire.
+; `store_line_generic` parse le numéro, puis copie le corps ; un numéro seul
+; efface la longueur. Cette invariance rend LIST et les sauts déterministes.
+; ---------------------------------------------------------------------------
 store_line_generic:
 ; Parse un numéro décimal, puis le convertit en index de ligne (N/10)-1.
 ; V1 de cette tranche : numéros 10..640 multiples de dix, corps <=111 octets.
@@ -1034,6 +1082,12 @@ jal x0,command_loop
 ; LIST : sélectionne les records non vides, reconstruit leur numéro et émet
 ; le corps via le service guest de sortie ; aucun texte n'est fabriqué par
 ; l'hôte.
+; ---------------------------------------------------------------------------
+; LIST / NEW / RUN
+; LIST parcourt line_lengths dans l'ordre des indices et émet le record associé.
+; NEW vide les longueurs et les piles ; RUN initialise current_line et délègue
+; l'exécution d'une ligne à run_line.
+; ---------------------------------------------------------------------------
 list_line:
 jal x0,list_line_generic
 list_line_generic:
@@ -1231,6 +1285,8 @@ ecall
 jal x0,command_loop
 ; RUN : initialise le curseur de ligne et le contexte de contrôle, puis
 ; délègue chaque record à run_line jusqu'à END, erreur ou Ctrl-C.
+; RUN choisit le premier record occupé ; run_line charge ensuite le corps,
+; gère TRACE et redirige les erreurs avec le numéro de ligne courant.
 run_command:
 jal x0,run_command_generic
 run_command_generic:
@@ -1361,6 +1417,12 @@ ld x11,512(x8)
 andi x11,x11,1
 beq x11,x0,run_line_error
 addi x24,x19,0
+; ---------------------------------------------------------------------------
+; Dispatch d'instructions BASIC
+; Les mots-clés sont reconnus directement sur les octets du record. Les
+; sous-dispatchers séparent expressions, chaînes et structures de contrôle ;
+; cette séparation garde les conventions de curseur explicites au débogueur.
+; ---------------------------------------------------------------------------
 dispatch_statement:
 sd x24,1864(x8)
 sd x26,1872(x8)
