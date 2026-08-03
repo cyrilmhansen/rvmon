@@ -1264,7 +1264,9 @@ jal x0,run_line
 run_command_legacy:
 ld x10,512(x8)
 andi x11,x10,1
-bne x11,x0,run_command_ten
+beq x11,x0,run_command_legacy_no_ten
+jal x0,run_command_ten
+run_command_legacy_no_ten:
 andi x11,x10,2
 beq x11,x0,run_check_thirty
 addi x10,x0,1
@@ -1455,7 +1457,9 @@ bne x5,x7,rem_not_repeat
 jal x0,repeat_statement
 rem_not_repeat:
 addi x7,x0,84
-beq x5,x7,return_statement
+bne x5,x7,dispatch_not_return
+jal x0,return_statement
+dispatch_not_return:
 addi x7,x0,65
 beq x5,x7,read_statement
 addi x7,x0,83
@@ -1739,6 +1743,12 @@ addi x7,x0,82
 beq x5,x7,print_right_probe
 addi x7,x0,67
 beq x5,x7,print_chr_probe
+addi x7,x0,65
+beq x5,x7,print_asc_probe
+addi x7,x0,86
+beq x5,x7,print_val_probe
+addi x7,x0,73
+beq x5,x7,print_instr_probe
 addi x7,x0,83
 beq x5,x7,print_str_probe
 addi x7,x0,76
@@ -1828,6 +1838,48 @@ lbu x5,4(x22)
 addi x7,x0,40
 bne x5,x7,print_statement_string_scan
 jal x0,print_str_string
+; Numeric string-consuming functions must enter eval_expression directly.
+; A generic '$' scan is unsafe here because it would mistake the '$' inside
+; ASC(TEXT$), VAL(TEXT$) or INSTR(TEXT$,"X") for a top-level string value.
+print_asc_probe:
+lbu x5,1(x22)
+addi x7,x0,83
+bne x5,x7,print_statement_string_scan
+lbu x5,2(x22)
+addi x7,x0,67
+bne x5,x7,print_statement_string_scan
+lbu x5,3(x22)
+addi x7,x0,40
+bne x5,x7,print_statement_string_scan
+jal x0,print_numeric_statement
+print_val_probe:
+lbu x5,1(x22)
+addi x7,x0,65
+bne x5,x7,print_statement_string_scan
+lbu x5,2(x22)
+addi x7,x0,76
+bne x5,x7,print_statement_string_scan
+lbu x5,3(x22)
+addi x7,x0,40
+bne x5,x7,print_statement_string_scan
+jal x0,print_numeric_statement
+print_instr_probe:
+lbu x5,1(x22)
+addi x7,x0,78
+bne x5,x7,print_statement_string_scan
+lbu x5,2(x22)
+addi x7,x0,83
+bne x5,x7,print_statement_string_scan
+lbu x5,3(x22)
+addi x7,x0,84
+bne x5,x7,print_statement_string_scan
+lbu x5,4(x22)
+addi x7,x0,82
+bne x5,x7,print_statement_string_scan
+lbu x5,5(x22)
+addi x7,x0,40
+bne x5,x7,print_statement_string_scan
+jal x0,print_numeric_statement
 print_statement_string_scan:
 lbu x5,0(x22)
 addi x7,x0,36
@@ -4590,11 +4642,11 @@ sd x29,1680(x8)
 sd x30,1808(x8)
 addi x21,x21,4
 jal x1,resolve_string_source
-sd x21,1888(x8)
 lbu x5,0(x21)
 addi x6,x0,41
 bne x5,x6,atom_function_error
 addi x21,x21,1
+sd x21,1888(x8)
 addi x9,x0,0
 atom_val_copy:
 sltu x6,x9,x11
