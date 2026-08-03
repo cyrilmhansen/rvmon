@@ -143,7 +143,8 @@ entry:
 ; hôte ; le reste de l'état BASIC est initialisé dans les zones réservées.
 auipc x8,0x1000
 addi x8,x8,-256
-; Buffer de saisie historique ; le scratch numérique de sauvegarde est déplacé séparément.
+; Buffer de saisie historique. Les scratchs numériques sont placés après la
+; pile de contrôle (x8+2400..2424) afin de ne jamais recouvrir cette entrée.
 addi x18,x8,1024
 ; 256 enregistrements de 128 octets, lignes 10..2560 par pas de 10.
 ; Le magasin est séparé de la table des variables et des tableaux.
@@ -4506,6 +4507,11 @@ fld f2,0(x27)
 jalr x0,0(x1)
 ; Fonctions numériques target-side. Les zones 1184..1536 sont des scratch
 ; distincts par fonction afin de permettre des appels imbriqués.
+;
+; INSTR$(source,needle) : les deux appels à resolve_string_source renvoient
+; chacun (x7=adresse,x11=longueur). La recherche naïve compare chaque fenêtre
+; de la source avec l'aiguille ; le résultat BASIC est la position 1-based,
+; ou zéro si elle est absente. f4 est ensuite publié par store_atom.
 atom_instr_function:
 sd x1,1648(x8)
 sd x22,1656(x8)
@@ -4572,6 +4578,10 @@ ld x29,1680(x8)
 ld x30,1808(x8)
 ld x1,1648(x8)
 jal x0,store_atom
+; VAL$(texte) : copie le texte source dans le buffer de saisie réservé, puis
+; réutilise l'évaluateur binaire64 existant. Cette réutilisation est volontaire:
+; elle maintient une seule grammaire des nombres et une seule politique D/fcsr.
+; x21 est sauvegardé car l'évaluateur consomme un nouveau curseur de texte.
 atom_val_function:
 sd x1,1648(x8)
 sd x22,1656(x8)
@@ -4612,6 +4622,9 @@ ld x29,1680(x8)
 ld x30,1808(x8)
 ld x1,1648(x8)
 jal x0,store_atom
+; ASC(texte) : résout une valeur chaîne, vérifie la parenthèse fermante (ou la
+; fin déjà consommée par le résolveur), lit son premier octet et le convertit
+; en binary64. Une chaîne vide est rejetée par resolve_string_source.
 atom_asc_function:
 sd x1,1544(x8)
 sd x22,1552(x8)
@@ -5761,6 +5774,11 @@ fsd f1,0(x6)
 jalr x0,0(x1)
 ; Chaînes : une cellule contient une longueur u64 suivie d'octets ASCII.
 ; Les sources et destinations sont toujours des adresses de la RAM cible.
+; Affectation chaîne : le dispatcher distingue variable scalaire, élément de
+; tableau et terme composé. Les routines ci-dessous évaluent d'abord le RHS
+; dans un scratch target-side, puis copient vers la destination seulement
+; après validation : une erreur ne laisse donc pas une chaîne partiellement
+; écrite. x7/x11 forment le couple adresse/longueur d'une source résolue.
 string_assign:
 sd x1,1152(x8)
 jal x1,resolve_string_variable
@@ -7041,6 +7059,11 @@ jalr x0,0(x1)
 ; Concaténation : résout chaque terme, contrôle la longueur totale <=120,
 ; copie dans le buffer temporaire cible, puis écrit la cellule destination.
 ; Les retours globaux sont distincts des frames x8 réutilisés par les découpes.
+; Concaténation : string_concat_term parcourt les termes séparés par '+',
+; string_concat_copy ajoute chaque octet dans le buffer borné, et
+; string_concat_store publie le résultat atomiquement. Les buffers distincts
+; (littéral, slice, concaténation) permettent l'auto-affectation sans aliaser
+; la destination pendant l'évaluation.
 string_concat_assign:
 ; Retour persistant du concaténateur : les termes peuvent réutiliser les cadres x8+.
  lui x27,0x82060
