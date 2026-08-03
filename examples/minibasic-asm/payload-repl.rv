@@ -1872,7 +1872,7 @@ addi x11,x0,5
 addi x17,x0,4
 ecall
 trace_done:
-jal x0,statement_dispatch_legacy
+jal x0,statement_table_probe
 statement_dispatch_legacy:
 lbu x10,16(x24)
 addi x7,x0,71
