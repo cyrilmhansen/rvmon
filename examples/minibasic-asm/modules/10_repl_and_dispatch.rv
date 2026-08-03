@@ -1903,7 +1903,7 @@ jal x0,if_false
 ; PRINT et chaînes
 ; Le chemin numérique retourne f3 ; les chemins chaîne émettent les octets
 ; présents dans les cellules target-side. Les fonctions LEFT$/RIGHT$/MID$,
-; CHR$/STR$/ASC$/VAL$/INSTR ont chacune un parseur borné et réutilisent les
+; CHR$/STR$/HEX$/ASC$/VAL$/INSTR ont chacune un parseur borné et réutilisent les
 ; buffers décrits dans MEMORY_MAP.md.
 ; ---------------------------------------------------------------------------
 print_statement:
@@ -1922,6 +1922,8 @@ addi x7,x0,82
 beq x5,x7,print_right_probe
 addi x7,x0,67
 beq x5,x7,print_chr_probe
+addi x7,x0,72
+beq x5,x7,print_hex_probe
 addi x7,x0,65
 beq x5,x7,print_asc_probe
 addi x7,x0,86
@@ -2003,6 +2005,20 @@ lbu x5,4(x22)
 addi x7,x0,40
 bne x5,x7,print_statement_string_scan
 jal x0,print_chr_string
+print_hex_probe:
+lbu x5,1(x22)
+addi x7,x0,69
+bne x5,x7,print_statement_string_scan
+lbu x5,2(x22)
+addi x7,x0,88
+bne x5,x7,print_statement_string_scan
+lbu x5,3(x22)
+addi x7,x0,36
+bne x5,x7,print_statement_string_scan
+lbu x5,4(x22)
+addi x7,x0,40
+bne x5,x7,print_statement_string_scan
+jal x0,print_hex_string
 print_str_probe:
 lbu x5,1(x22)
 addi x7,x0,84

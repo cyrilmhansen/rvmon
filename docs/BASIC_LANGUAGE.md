@@ -48,7 +48,8 @@ string-assignment-rhs = string-assignment-function | string-expression ;
 string-expression = string-term , { "+" , string-term } ;
 string-term = string-source | string-assignment-function | string-constructor ;
 string-constructor = "CHR$" , "(" , expression , ")"
-                   | "STR$" , "(" , expression , ")" ;
+                   | "STR$" , "(" , expression , ")"
+                   | "HEX$" , "(" , expression , ")" ;
 expression    = comparison ;
 comparison    = sum , [ ( "=" | "<>" | "<" | "<=" | ">" | ">=" ) , sum ] ;
 sum           = product , { ( "+" | "-" ) , product } ;
@@ -431,12 +432,15 @@ les sources simples conservent le chemin spécialisé.
 
 Une affectation peut également concaténer plusieurs termes chaîne avec `+` :
 chaque terme est un littéral ASCII, une variable, un élément de tableau chaîne,
-une fonction `LEFT$`/`RIGHT$`/`MID$` ou un constructeur `CHR$`/`STR$`, par exemple
+une fonction `LEFT$`/`RIGHT$`/`MID$` ou un constructeur `CHR$`/`STR$`/`HEX$`, par exemple
 `LET TITLE$="RV "+LEFT$(TEXT$,4)+"!"`. Le résultat est assemblé dans un buffer
 cible borné à 120 octets avant d’être copié vers la destination. Les
 conversions numériques implicites et les opérateurs chaîne autres que `+`
-restent rejetés ; `CHR$` et `STR$` sont des conversions explicites évaluées
-dans le guest.
+restent rejetés ; `CHR$`, `STR$` et `HEX$` sont des conversions explicites
+évaluées dans le guest. `HEX$(expression)` exige une valeur entière exacte
+comprise entre `0` et `0xffffffff`, produit des chiffres hexadécimaux ASCII
+majuscules sans zéros de tête (`HEX$(0)` vaut `"0"`) et rejette les autres
+valeurs sans écriture partielle.
 
 `ASC(string-source)` renvoie dans le guest le premier octet ASCII de la source
 et refuse la chaîne vide. Une concaténation simple peut servir de source à

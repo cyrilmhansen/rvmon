@@ -274,6 +274,26 @@ ecall
 jal x0,if_false
 print_chr_error:
 jal x0,error_line
+print_hex_string:
+sd x1,2000(x8)
+addi x21,x21,5
+addi x22,x0,0
+jal x1,eval_expression
+lbu x5,0(x21)
+addi x6,x0,41
+bne x5,x6,print_hex_error
+addi x21,x21,1
+jal x1,string_format_hex
+addi x10,x7,0
+addi x17,x0,4
+ecall
+addi x10,x0,10
+addi x17,x0,1
+ecall
+ld x1,2000(x8)
+jal x0,if_false
+print_hex_error:
+jal x0,error_line
 print_str_string:
 addi x27,x8,2047
 addi x27,x27,401
@@ -671,6 +691,22 @@ sd x0,0(x27)
 jal x0,error_line
 resolve_string_concat_term:
 lbu x5,0(x21)
+addi x6,x0,72
+bne x5,x6,string_concat_check_left
+lbu x5,1(x21)
+addi x6,x0,69
+bne x5,x6,string_concat_source
+lbu x5,2(x21)
+addi x6,x0,88
+bne x5,x6,string_concat_source
+lbu x5,3(x21)
+addi x6,x0,36
+bne x5,x6,string_concat_source
+lbu x5,4(x21)
+addi x6,x0,40
+beq x5,x6,string_concat_hex_term
+jal x0,string_concat_source
+string_concat_check_left:
 addi x6,x0,76
 bne x5,x6,string_concat_check_right
 lbu x5,1(x21)
@@ -822,6 +858,19 @@ jal x1,string_format_number
 sd x7,1992(x8)
 ld x1,2000(x8)
 jalr x0,0(x1)
+string_concat_hex_term:
+sd x1,2000(x8)
+addi x21,x21,5
+addi x22,x0,0
+jal x1,eval_expression
+lbu x5,0(x21)
+addi x6,x0,41
+bne x5,x6,string_concat_slice_error
+addi x21,x21,1
+jal x1,string_format_hex
+sd x7,1992(x8)
+ld x1,2000(x8)
+jalr x0,0(x1)
 string_format_number:
 ; Formatage pédagogique V1 : signe, partie entière, point et exactement six
 ; chiffres fractionnaires. La conversion utilise le mode immédiat du payload ;
@@ -899,6 +948,46 @@ bne x9,x0,string_format_fraction
 sub x11,x13,x12
 addi x7,x12,0
 ld x1,1816(x8)
+jalr x0,0(x1)
+string_format_hex:
+; HEX$ formate une valeur entière non signée sur 32 bits, sans zéros de tête.
+; La conversion et le buffer sont entièrement target-side ; les valeurs
+; négatives, fractionnaires ou supérieures à 0xffffffff sont refusées.
+fcvt.l.d x10,f3,1
+srai x6,x10,63
+bne x6,x0,string_concat_slice_error
+srli x6,x10,32
+bne x6,x0,string_concat_slice_error
+fcvt.d.l f4,x10,0
+feq.d x6,f3,f4
+beq x6,x0,string_concat_slice_error
+lui x7,0x82060
+slli x7,x7,32
+srli x7,x7,32
+addi x7,x7,1296
+addi x11,x0,0
+beq x10,x0,string_format_hex_zero
+string_format_hex_loop:
+andi x6,x10,15
+addi x5,x6,-10
+sltiu x5,x5,6
+beq x5,x0,string_format_hex_digit
+addi x6,x6,55
+jal x0,string_format_hex_store
+string_format_hex_digit:
+addi x6,x6,48
+string_format_hex_store:
+addi x7,x7,-1
+sb x6,0(x7)
+addi x11,x11,1
+srli x10,x10,4
+bne x10,x0,string_format_hex_loop
+jalr x0,0(x1)
+string_format_hex_zero:
+addi x6,x0,48
+addi x7,x7,-1
+sb x6,0(x7)
+addi x11,x0,1
 jalr x0,0(x1)
 string_concat_slice_term:
 ; Dans un concaténateur imbriqué, le retour ne doit pas partager la cellule

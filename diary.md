@@ -354,3 +354,10 @@ numériques de sources chaîne. `LEN(LEFT$(...))`, `ASC(RIGHT$(...))`,
 (`LEFT$("12.5X",3)` vaut `12.`) ; le scénario a été corrigé puis validé sans
 `ERR` ni fault. Le résolveur commun est donc plus avancé que l’ancienne
 description documentaire ne le laissait entendre.
+2026-08-04 — Ajout de `HEX$` inspiré de la surface TBXL : le payload assembleur
+convertit target-side les entiers exacts `0..0xffffffff` en ASCII majuscule sans
+zéros de tête. Le premier test a révélé une omission de publication du pointeur
+de buffer dans le contrat concaténateur et produisait `HE!`; après ajout de
+`sd x7,1992(x8)`, QEMU valide `0`, `FF`, `1234ABCD`, l’affectation concaténée
+et les erreurs négative/fractionnaire/hors-borne. Le comptage reproductible est
+maintenant de 122 scripts QEMU assembleur.
