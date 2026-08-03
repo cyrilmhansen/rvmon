@@ -32,7 +32,7 @@ awk '/^symbols$/{print; found=1; next} found && /^run-at /{print; exit} !found{p
 sleep 0.2
 printf 'X=7\nPRINT X+3\n' >&3
 sleep 0.4
-printf 'regs\nmemory 0x820003b8 8\nmemory 0x82000400 8\nq\n' >&3
+printf 'regs\nmemory 0x820003b8 8\nmemory 0x82000968 8\nq\n' >&3
 exec 3>&-
 sleep 0.3
 kill "$qemu_pid" 2>/dev/null || true
@@ -45,7 +45,7 @@ for expected in \
     'f2=0x4008000000000000' \
     'f3=0x4024000000000000' \
     '0x00000000820003b8: 00 00 00 00 00 00 1c 40' \
-    '0x0000000082000400: 00 00 00 00 00 00 24 40'; do
+    '0x0000000082000968: 00 00 00 00 00 00 24 40'; do
     if ! grep -aFq "$expected" "$output_file"; then
         cat "$output_file"
         printf 'missing integrated assembly assignment output: %s\n' "$expected" >&2
