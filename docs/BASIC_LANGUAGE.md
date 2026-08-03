@@ -396,9 +396,10 @@ commun s’arrête à la virgule de niveau zéro et retourne `{adresse,longueur}
 `n` doit être entier, compris entre 0 et 120 ; une valeur supérieure à la
 longueur source est ramenée à cette longueur. Le résultat est copié dans un
 buffer temporaire de la RAM cible puis émis par `write_buffer`. Les
-affectations de découpe conservent encore le contrat de source simple ; elles
-peuvent toutefois être utilisées comme termes d’une concaténation target-side,
-selon les limites décrites ci-dessous.
+les affectations de découpe utilisent le même contrat lorsque leur expression
+contient une concaténation au niveau externe ; les sources simples conservent
+le chemin spécialisé. Elles peuvent donc être utilisées comme termes d’une
+concaténation target-side, selon les limites décrites ci-dessous.
 
 `PRINT MID$(string-expression,start,n)` utilise une position `start` 1-based,
 comme le BASIC traditionnel. La source accepte le même résolveur d’expression
@@ -412,8 +413,9 @@ littérales, scalaires et tableaux décrites ci-dessous.
 
 La tranche assembleur accepte également
 `LET destination$=LEFT$(source$,n)`, `RIGHT$` et `MID$` (avec `LET` facultatif).
-La source peut être un littéral ASCII, une variable chaîne scalaire ou un
-élément de tableau chaîne 1D/2D déjà résolu par le guest ; la destination peut
+La source peut être un littéral ASCII, une variable chaîne scalaire, une
+expression chaîne composée de ces termes, ou un élément de tableau chaîne
+1D/2D déjà résolu par le guest ; la destination peut
 être une variable scalaire ou un élément de tableau. Pour
 `LEFT$`/`RIGHT$`, `n` est évalué dans le guest, doit être entier et compris entre
 0 et 120 ; une valeur supérieure à la source est ramenée à sa longueur. Pour
