@@ -389,17 +389,20 @@ le résultat ; la longueur totale est renvoyée par le contrat interne en `x11`
 avant conversion binary64. Aucune conversion n’est faite par l’hôte. Les
 fonctions imbriquées dans cet argument restent à étendre séparément.
 
-`PRINT LEFT$(string-variable,n)` et `PRINT RIGHT$(string-variable,n)` sont
-disponibles dans la tranche target-side actuelle pour une variable chaîne
-scalaire courte ou longue. `n` doit être entier, compris entre 0 et 120 ; une
-valeur supérieure à la longueur source est ramenée à cette longueur. Le
-résultat est copié dans un buffer temporaire de la RAM cible puis émis par
-`write_buffer`. Elles peuvent aussi être utilisées dans les affectations et
-comme termes d’une concaténation target-side, selon les limites décrites
-ci-dessous.
+`PRINT LEFT$(string-expression,n)` et `PRINT RIGHT$(string-expression,n)` sont
+disponibles dans la tranche target-side actuelle. La source peut être une
+variable, un littéral ou une concaténation d’expressions chaîne ; le résolveur
+commun s’arrête à la virgule de niveau zéro et retourne `{adresse,longueur}`.
+`n` doit être entier, compris entre 0 et 120 ; une valeur supérieure à la
+longueur source est ramenée à cette longueur. Le résultat est copié dans un
+buffer temporaire de la RAM cible puis émis par `write_buffer`. Les
+affectations de découpe conservent encore le contrat de source simple ; elles
+peuvent toutefois être utilisées comme termes d’une concaténation target-side,
+selon les limites décrites ci-dessous.
 
-`PRINT MID$(string-variable,start,n)` utilise une position `start` 1-based,
-comme le BASIC traditionnel. `start=0` et les valeurs négatives sont rejetés ;
+`PRINT MID$(string-expression,start,n)` utilise une position `start` 1-based,
+comme le BASIC traditionnel. La source accepte le même résolveur d’expression
+chaîne que `LEFT$` et `RIGHT$`. `start=0` et les valeurs négatives sont rejetés ;
 un début supérieur à la longueur source produit une chaîne vide. Une longueur
 nulle produit également une chaîne vide, et une longueur supérieure au restant
 disponible est ramenée à ce restant. Le résultat est copié et affiché dans la
