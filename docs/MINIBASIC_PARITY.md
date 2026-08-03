@@ -88,7 +88,6 @@ entièrement dans le guest.
 | Tableaux de chaînes | 1D/2D, noms courts/longs, stockage et contrôle des bornes | VERT | `string-array*.sh`, `long-string-array*.sh` |
 | `IF ... THEN numéro` | branchement direct par numéro de ligne | VERT | `if.sh`, `if-false.sh` |
 | `GOTO` | transfert par numéro de ligne et erreur de cible absente | VERT | `goto.sh`, `goto-30.sh` |
-| `FOR/NEXT` | huit niveaux, `STEP` positif/négatif et noms longs | VERT | `for.sh`, `for-nested.sh`, `for-step.sh` |
 | `FOR/NEXT` | huit niveaux, `STEP` positif/négatif et noms longs | VERT | `for.sh`, `for-nested.sh`, `for-step.sh`, `for-y.sh`; profondeur temporaire target-side protégée pendant l'analyse de `TO/STEP` |
 | `GOSUB/RETURN` | huit retours, cible et retour target-side | VERT | `gosub.sh` |
 | `POP` | retire le cadre le plus récent de la pile unifiée | VERT | `test-guest-runtime-asm-repl-pop.sh` |
