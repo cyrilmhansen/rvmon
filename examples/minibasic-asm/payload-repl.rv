@@ -281,7 +281,17 @@ check_d_command:
 lbu x5,1(x18)
 addi x7,x0,73
 beq x5,x7,dim_direct
+addi x7,x0,69
+beq x5,x7,check_del_command
 jal x0,check_generic_assignment
+check_del_command:
+lbu x5,2(x18)
+addi x7,x0,76
+bne x5,x7,check_generic_assignment
+lbu x5,3(x18)
+addi x7,x0,32
+bne x5,x7,check_generic_assignment
+jal x0,delete_range_command
 trace_command:
 lbu x5,1(x18)
 addi x7,x0,82
@@ -392,6 +402,95 @@ delete_line_generic:
 sd x0,0(x25)
 jal x0,command_loop
 store_line_error:
+jal x0,error_line
+
+; DEL start[,end] : suppression target-side d'un intervalle inclusif de lignes.
+; Les numéros suivent la même politique que le magasin : 10..2560, pas de dix.
+delete_range_command:
+addi x21,x18,4
+addi x26,x0,0
+addi x27,x0,0
+delete_range_start_digits:
+lbu x5,0(x21)
+addi x7,x0,48
+sltu x28,x5,x7
+bne x28,x0,delete_range_start_done
+addi x7,x0,58
+sltu x28,x5,x7
+beq x28,x0,delete_range_start_done
+addi x7,x0,48
+sub x5,x5,x7
+addi x7,x0,10
+mul x26,x26,x7
+add x26,x26,x5
+addi x27,x27,1
+addi x21,x21,1
+jal x0,delete_range_start_digits
+delete_range_start_done:
+beq x27,x0,delete_range_error
+addi x28,x5,0
+addi x7,x0,10
+remu x5,x26,x7
+bne x5,x0,delete_range_error
+sltiu x7,x26,10
+bne x7,x0,delete_range_error
+lui x7,1
+addi x7,x7,-1535
+sltu x7,x26,x7
+beq x7,x0,delete_range_error
+addi x7,x0,44
+bne x28,x7,delete_range_single
+addi x21,x21,1
+addi x27,x0,0
+delete_range_end_digits:
+lbu x5,0(x21)
+addi x7,x0,48
+sltu x28,x5,x7
+bne x28,x0,delete_range_end_done
+addi x7,x0,58
+sltu x28,x5,x7
+beq x28,x0,delete_range_end_done
+addi x7,x0,48
+sub x5,x5,x7
+addi x7,x0,10
+mul x27,x27,x7
+add x27,x27,x5
+addi x21,x21,1
+jal x0,delete_range_end_digits
+delete_range_end_done:
+beq x27,x0,delete_range_error
+addi x7,x0,10
+remu x5,x27,x7
+bne x5,x0,delete_range_error
+sltiu x7,x27,10
+bne x7,x0,delete_range_error
+lui x7,1
+addi x7,x7,-1535
+sltu x7,x27,x7
+beq x7,x0,delete_range_error
+jal x0,delete_range_indexes
+delete_range_single:
+addi x27,x26,0
+delete_range_indexes:
+addi x7,x26,0
+addi x26,x26,-10
+addi x6,x0,10
+divu x26,x26,x6
+addi x27,x27,-10
+divu x27,x27,x6
+sltu x7,x27,x26
+bne x7,x0,delete_range_error
+delete_range_loop:
+slli x7,x26,3
+ld x10,480(x8)
+add x10,x10,x7
+sd x0,0(x10)
+beq x26,x27,delete_range_done
+addi x26,x26,1
+jal x0,delete_range_loop
+delete_range_done:
+jal x0,command_loop
+delete_range_error:
 jal x0,error_line
 
 store_line_ten_command:

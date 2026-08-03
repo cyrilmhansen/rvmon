@@ -64,8 +64,8 @@ entièrement dans le guest.
 | Famille TBXL / MiniBASIC | Contrat MiniBASIC-RV | État | Preuve actuelle |
 |---|---|---:|---|
 | Invite directe | `READY>`, commande immédiate et retour après erreur | VERT | `test-guest-runtime-asm-repl-direct.sh` |
-| Programme à lignes | insertion, remplacement, suppression par numéro et tri croissant | VERT | `two-lines.sh`, `four-lines.sh` |
-| `NEW`, `LIST`, `RUN` | commandes target-side sur le magasin de lignes | VERT | `test-guest-runtime-asm-repl.sh`, `trace.sh` |
+| Programme à lignes | insertion, remplacement, suppression par numéro/plage et tri croissant | VERT | `two-lines.sh`, `four-lines.sh`, `del.sh` |
+| `NEW`, `LIST`, `RUN` | commandes target-side sur le magasin de lignes | VERT | `test-guest-runtime-asm-repl.sh`, `trace.sh`, `del.sh` |
 | `TRACE ON/OFF` | affiche `[numéro]` avant l’exécution d’une ligne | VERT | `test-guest-runtime-asm-repl-trace.sh` |
 | `PRINT` / `?` | expressions, chaînes, mélange et éléments multiples | VERT | `print-mixed.sh`, `question.sh`, `string.sh` |
 | `INPUT` | lecture et conversion target-side de valeurs numériques et chaînes | VERT | `input.sh`, `long-input.sh`, `long-string-input.sh` |
@@ -128,6 +128,7 @@ refusée.
 | `ASC`, `CHR$`, `VAL`, `INSTR`, `STR$` | Compatibilité d’usage modernisée | PARTIEL | bornes, formats et cas historiques non promis |
 | `ABS`, `SGN`, `INT`, `TRUNC`, `FRAC`, `MOD`, `SQR`, `SIN`, `COS`, `TAN`, `LOG`, `EXP`, `RND` | Sous-ensemble numérique explicite | VERT/PARTIEL | `SQR` utilise `fsqrt.d`, les fonctions transcendantes utilisent réduction et polynômes target-side ; `LOG/EXP` sont bornées et leur approximation fixe peut perdre une unité au dernier chiffre affiché |
 | `ATN` | Fonction target-side en radians avec réduction et polynôme binary64 | VERT | deux scénarios QEMU, dont `ATN(ATN(1))` et une erreur de syntaxe |
+| `DEL n,m` | Extension target-side bornée, suppression inclusive | VERT | `test-guest-runtime-asm-repl-del.sh`; formes simple, plage et erreur |
 | Autres fonctions mathématiques historiques non retenues dans la grammaire | Différées, pas implicitement supportées | DIFFÉRÉ | aucune syntaxe n’est promise sans décision et test dédiés |
 | Chaînes complètes et tableaux complets | Conservés comme trajectoire produit | PLANIFIÉ | concaténation et découpes sont présentes ; opérations restantes à auditer |
 | Fichiers, DOS, graphismes, sons, périphériques Atari | Rejetés | REJETÉ | ne font pas partie du modèle de services cible |
@@ -212,8 +213,8 @@ Priorité suivante, après stabilisation du socle actuel :
 3. consolider la surface chaîne déjà livrée : ajouter des cas limites pour
    les tableaux, l’auto-affectation, les buffers pleins et les compositions
    `STR$`/`CHR$`, sans élargir silencieusement la grammaire ;
-4. auditer les familles TBXL non encore retenues (formatages et commandes
-   d’édition), en conservant les limites explicites d’`ATN`, et
+4. auditer les familles TBXL non encore retenues (`RENUM`, formatages et
+   commandes d’édition), en conservant les limites explicites d’`ATN`, et
    prendre pour chacune une décision versionnée avant toute implémentation ;
 5. traiter les limites documentées des blocs structurés et des expressions
    d’index uniquement si une compatibilité supplémentaire est prioritaire ;
@@ -276,6 +277,7 @@ sortie BASIC préenregistrée.
 | 2026-08-03 | Ajout de `TAN(expression)` par composition target-side de `SIN/COS` et refus des pôles | `test-guest-runtime-asm-repl-tan.sh` et `test-guest-runtime-asm-repl-tan-error.sh` sous QEMU ; valeurs générales, imbrication et `COS(pi/2)=0` | la famille trigonométrique directe est maintenant VERT dans le sous-ensemble MiniBASIC ; `ATN`, `LOG` et `EXP` restent explicitement différés |
 | 2026-08-03 | Ajout de `LOG(expression)` et `EXP(expression)` avec réduction binary64, polynômes target-side et bornes de domaine | `test-guest-runtime-asm-repl-log-exp.sh` et `test-guest-runtime-asm-repl-log-exp-error.sh` sous QEMU ; valeurs usuelles, composition et `LOG(0)` | la famille logarithmique/exponentielle est disponible dans une approximation déterministe bornée ; `ATN` reste le dernier grand manque mathématique explicite |
 | 2026-08-03 | Ajout et validation de `ATN(expression)` target-side avec réduction par réciproque et intervalle `pi/4` | `test-guest-runtime-asm-repl-atn.sh` et `test-guest-runtime-asm-repl-atn-error.sh` sous QEMU ; cas nominaux, imbrication et erreur | `ATN` devient VERT dans le sous-ensemble MiniBASIC ; les cadres statiques limitent l’imbrication à deux niveaux |
+| 2026-08-03 | Ajout de `DEL n` et `DEL n,m` target-side | `test-guest-runtime-asm-repl-del.sh` sous QEMU ; suppression simple, plage inclusive, listing, exécution et plage inversée | l’édition de blocs TBXL est partiellement reprise ; `RENUM` et les commandes de fichiers restent différés |
 
 Les affectations ne constituent pas encore une parité chaîne complète : le RHS
 est soit une forme `LEFT$`/`RIGHT$`/`MID$`, soit une concaténation de termes

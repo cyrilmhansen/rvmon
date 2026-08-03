@@ -182,6 +182,9 @@
 - `scripts/test-guest-runtime-asm-repl-atn-error.sh` vérifie une forme
   syntaxique incomplète `ATN(`, le diagnostic guest et le retour propre au
   moniteur.
+- `scripts/test-guest-runtime-asm-repl-del.sh` vérifie `DEL n`, `DEL n,m`,
+  l’intervalle inclusif, le tri/listing après suppression, l’absence
+  d’exécution des lignes supprimées et le rejet d’une plage inversée.
 - `scripts/test-guest-runtime-asm-repl-two-lines.sh` vérifie l’insertion hors
   ordre de `20` puis `10`, le tri observable de `LIST`, les deux slots mémoire
   et l’exécution séquentielle target-side des lignes `10` puis `20`.
