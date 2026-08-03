@@ -18,7 +18,7 @@ compatibilité Atari, ni compatibilité binaire, ni compatibilité des tokens,
 des nombres historiques, des périphériques, du DOS ou des graphismes.
 
 État de l’audit au 3 août 2026 : **92 scripts QEMU assembleur MiniBASIC
-recensés**. Le nombre
+recensés**. Ce nombre
 est contrôlable par :
 
 ```text
@@ -102,6 +102,38 @@ entièrement dans le guest.
 Les motifs `*.sh` ci-dessus sont des familles ; les scripts exacts sont dans
 `scripts/` et doivent être conservés comme preuves exécutables.
 
+## Registre de couverture TBXL
+
+Le tableau suivant est le point d’entrée de la comparaison. Il ne confond pas
+une fonction historiquement connue avec une exigence MiniBASIC : une capacité
+peut être **conservée**, **modernisée**, **partielle**, **planifiée** ou
+**rejetée**. Toute promotion vers **VERT** doit être accompagnée d’une preuve
+target-side ; toute décision de périmètre doit être reflétée dans
+`BASIC_LANGUAGE.md` et dans un test négatif si la syntaxe est explicitement
+refusée.
+
+| Surface observée dans TBXL 1.5 | Décision MiniBASIC-RV | État au 2026-08-03 | Écart vérifiable |
+|---|---|---:|---|
+| Mode direct et invite | Conservée sous `READY>` | VERT | invite et commandes exécutées dans le guest |
+| Programme à lignes, insertion, remplacement, suppression | Conservée | VERT | limites de numéros et de capacité RV explicites |
+| `LIST`, `RUN`, `TRACE` | Conservée, avec diagnostics structurés | VERT | pas de compatibilité d’écran ou de tokens Atari |
+| Expressions numériques | Modernisée vers binary64/RISC-V D | VERT | pas de BCD ni de résultats numériques Atari bit à bit |
+| `IF`, `GOTO`, `FOR/NEXT`, `WHILE/WEND`, `REPEAT/UNTIL`, `DO/LOOP` | Contrôle de flot conservé et borné | VERT | blocs `IF` avec `ELSE`/`ENDIF` sur lignes dédiées |
+| `GOSUB/RETURN`, `POP`, `EXIT`, `ON GOTO/GOSUB` | Sous-programmes et sorties structurées conservés | VERT | piles statiques de huit niveaux, pas de layout TBXL |
+| `DATA/READ/RESTORE` | Conservée dans une représentation target-side | VERT | types et stockage propres à MiniBASIC |
+| Variables longues, chaînes et tableaux | Extension RV voulue, non simple compatibilité TBXL | VERT/PARTIEL | capacités fixes, 1D/2D, expressions chaîne encore bornées |
+| `LEN`, `LEFT$`, `RIGHT$`, `MID$` | Conservées avec sources/destinations RV étendues | PARTIEL | fonctions disponibles dans le guest ; composition générale hors grammaire |
+| `ASC`, `CHR$`, `VAL`, `INSTR`, `STR$` | Compatibilité d’usage modernisée | PARTIEL | bornes, formats et cas historiques non promis |
+| `ABS`, `SGN`, `INT`, `TRUNC`, `FRAC`, `MOD`, `RND` | Sous-ensemble numérique explicite | VERT | `RND` est un LCG reproductible propre à RVMonitor |
+| Fonctions mathématiques historiques non retenues dans la grammaire | Différées, pas implicitement supportées | DIFFÉRÉ | pas de `SQR`, `SIN`, `COS`, `TAN`, `ATN`, `LOG` ou `EXP` dans V1 actuelle |
+| Chaînes complètes et tableaux complets | Conservés comme trajectoire produit | PLANIFIÉ | concaténation et découpes sont présentes ; opérations restantes à auditer |
+| Fichiers, DOS, graphismes, sons, périphériques Atari | Rejetés | REJETÉ | ne font pas partie du modèle de services cible |
+| Tokens et représentation mémoire TBXL | Rejetés | REJETÉ | le source est ASCII et le payload est relogeable RV |
+
+Les mentions **VERT/PARTIEL** dans une même ligne signifient que le sous-ensemble
+nommé est prouvé, mais que la famille historique est plus large. Elles ne
+doivent pas être lues comme une promesse de compatibilité complète.
+
 ## Divergences sémantiques assumées
 
 ### Nombres
@@ -174,13 +206,15 @@ Priorité suivante, après stabilisation du socle actuel :
 1. produire une démonstration Hammurabi complète et auditée, incluant les
    variables longues et les tableaux visibles dans le moniteur ;
 2. finaliser le tutoriel progressif et son scénario de démonstration ;
-3. étendre prudemment les fonctions chaîne aux termes de découpe et aux
-   expressions de sortie ; `LEN`, `PRINT LEFT$`, `PRINT RIGHT$`,
-   `PRINT MID$` et les affectations scalaires `LEFT$`/`RIGHT$`/`MID$` sont
-   désormais implémentés avec les limites documentées ;
-4. traiter les limites documentées des blocs structurés et des expressions
+3. consolider la surface chaîne déjà livrée : ajouter des cas limites pour
+   les tableaux, l’auto-affectation, les buffers pleins et les compositions
+   `STR$`/`CHR$`, sans élargir silencieusement la grammaire ;
+4. auditer les familles TBXL non encore retenues (`SQR`, fonctions
+   trigonométriques/logarithmiques, formatages et commandes d’édition) et
+   prendre pour chacune une décision versionnée avant toute implémentation ;
+5. traiter les limites documentées des blocs structurés et des expressions
    d’index uniquement si une compatibilité supplémentaire est prioritaire ;
-5. conserver la compilation native BASIC comme chantier séparé et différé,
+6. conserver la compilation native BASIC comme chantier séparé et différé,
    conformément à [`docs/BASIC_COMPILER_ROADMAP.md`](BASIC_COMPILER_ROADMAP.md).
 
 Ne pas annoncer une parité complète TBXL avant d’avoir soit implémenté, soit
@@ -210,8 +244,8 @@ sortie BASIC préenregistrée.
   chaînes, tableaux, binary64 target-side, interruption et périmètre Atari
   rejeté ;
 - **Preuve automatisée :** 92 tests QEMU assembleur recensés au moment de cet
-  audit, dont six scénarios dédiés aux affectations chaîne et à leurs sources
-  ou destinations tableau ;
+  audit, avec des scénarios nominaux et négatifs dédiés aux chaînes, tableaux,
+  conversions, fonctions de recherche, formatage et blocs structurés ;
 - **Écart important restant :** `ELSE`/`ENDIF` doivent rester en lignes dédiées ;
   certaines fonctions historiques TBXL ne sont pas encore retenues ; les expressions
   chaîne générales et les autres opérateurs chaîne restent partiels ;
@@ -233,6 +267,7 @@ sortie BASIC préenregistrée.
 | 2026-08-03 | Formatage et impression `STR$(expression)` dans un buffer chaîne target-side | mêmes scénarios QEMU, valeurs positives/négatives, affectation, concaténation, `PRINT` et argument absent | le formateur partage la politique fixe à six décimales de `PRINT` sans délégation hôte |
 | 2026-08-03 | Preuve des blocs `IF/ELSE/ENDIF` imbriqués | `test-guest-runtime-asm-repl-if-block-nested.sh` sous QEMU, branches vraie/fausse internes et externes | la profondeur de recherche et la pile unifiée sont désormais couvertes jusqu’à la limite documentée |
 | 2026-08-03 | Inventaire recalculé | `find scripts -maxdepth 1 -type f -name 'test-guest-runtime-asm-repl*.sh' \| wc -l` → `92` | le nombre annoncé dans ce document est reproductible et non maintenu manuellement |
+| 2026-08-03 | Registre de parité révisé après comparaison TBXL/MiniBASIC | matrice TBXL ci-dessus, `BASIC_LANGUAGE.md`, `BASIC_TBXL_NOTES.md` et scripts QEMU existants | les fonctions livrées sont séparées des extensions RV et des familles historiques différées ; la roadmap ne traite plus les découpes déjà implémentées comme une dette |
 
 Les affectations ne constituent pas encore une parité chaîne complète : le RHS
 est soit une forme `LEFT$`/`RIGHT$`/`MID$`, soit une concaténation de termes
