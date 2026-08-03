@@ -71,10 +71,11 @@ entièrement dans le guest.
 | Arithmétique | `+`, `-`, `*`, `/` en binary64 par `fadd.d`, `fsub.d`, `fmul.d`, `fdiv.d` | VERT | `precedence.sh`, `mul.sh`, `expression-div.sh` |
 | Comparaisons | `=`, `<>`, `<`, `<=`, `>`, `>=`, résultat `0.0` ou `1.0` | VERT | `if.sh`, `if-false.sh`, `precedence.sh` |
 | Fonctions numériques | `ABS`, `SGN`, `INT`, `TRUNC`, `FRAC`, `MOD`, appels target-side et imbrication documentée | VERT | `numeric-rounding.sh`, `numeric-rounding-error.sh`, `numeric-functions.sh` |
+| Conversion caractère | `ASC(string-source)` numérique et `CHR$(expression)` chaîne, exécutés dans le guest avec bornes explicites | PARTIEL | `test-guest-runtime-asm-repl-string-concat.sh`, `test-guest-runtime-asm-repl-string-concat-error.sh`; `CHR$` est disponible comme terme d’affectation/concaténation, pas encore comme item `PRINT` direct |
 | Aléatoire | `RND` et `RND()`, LCG target-side reproductible, graine à 1 | VERT | `rnd.sh`, `rnd-error.sh` |
 | Fonctions de chaînes | `LEN`, `PRINT LEFT$`, `PRINT RIGHT$` et `PRINT MID$` avec buffer target-side, sources scalaires, tableaux chaîne ou littéraux | PARTIEL | `string-len*.sh`, `string-left*.sh`, `string-right*.sh`, `string-mid*.sh`, `string-slice-array-source.sh`, `string-slice-literal-source*.sh`; expressions chaîne différées |
 | Affectation chaîne par fonction | `LET destination$=LEFT$`, `RIGHT$` ou `MID$` avec source scalaire, tableau chaîne ou littéral et destination scalaire ou tableau, copie target-side bornée et sûre en cas de recouvrement | PARTIEL | `string-assignment.sh`, `string-slice-assignment*.sh`, `string-slice-array-source.sh`, `string-slice-array-destination*.sh`, `string-slice-literal-source*.sh`; expressions chaîne générales différées |
-| Concaténation chaîne | affectation de termes littéraux, variables, éléments de tableaux ou `LEFT$`/`RIGHT$`/`MID$` avec `+`, buffer target-side de 120 octets et rejet des dépassements | PARTIEL | `test-guest-runtime-asm-repl-string-concat.sh`, `test-guest-runtime-asm-repl-string-concat-error.sh`; conversions numériques et autres opérateurs chaîne différés |
+| Concaténation chaîne | affectation de termes littéraux, variables, éléments de tableaux, `LEFT$`/`RIGHT$`/`MID$` ou `CHR$` avec `+`, buffer target-side de 120 octets et rejet des dépassements | PARTIEL | `test-guest-runtime-asm-repl-string-concat.sh`, `test-guest-runtime-asm-repl-string-concat-error.sh`; conversions numériques et autres opérateurs chaîne différés |
 | Variables numériques | variables courtes historiques et identifiants ASCII de 2 à 16 caractères | VERT | `scalars.sh`, `long-names.sh`, `keyword-vars.sh` |
 | Chaînes | littéraux, variables courtes/longues, affectation, affichage et entrée | VERT | `string-var.sh`, `long-string.sh` |
 | Tableaux numériques | 1D/2D, noms courts/longs, index calculés et contrôle des bornes | VERT | `array*.sh`, `long-numeric-array*.sh` |
@@ -205,13 +206,13 @@ sortie BASIC préenregistrée.
 - **Décisions de parité figées :** mode direct, lignes, contrôle de flot,
   chaînes, tableaux, binary64 target-side, interruption et périmètre Atari
   rejeté ;
-- **Preuve automatisée :** 87 tests QEMU assembleur recensés au moment de cet
+- **Preuve automatisée :** 91 tests QEMU assembleur recensés au moment de cet
   audit, dont six scénarios dédiés aux affectations chaîne et à leurs sources
   ou destinations tableau ;
 - **Écart important restant :** `IF/ELSE/ENDIF` est non imbriqué ; certaines
   fonctions historiques TBXL ne sont pas encore retenues ; les expressions
-  chaîne générales et les affectations sur tableaux ou littéraux restent
-  partielles ;
+  chaîne générales, `CHR$` en item `PRINT` direct et les autres opérateurs
+  chaîne restent partiels ;
 - **Conclusion :** la parité d’expérience du démonstrateur est solide, mais la
   parité de langage TBXL 1.5 n’est pas complète et ne doit pas être présentée
   comme telle.
@@ -224,13 +225,13 @@ sortie BASIC préenregistrée.
 | 2026-08-03 | Résolution de sources scalaires et d’éléments de tableaux chaîne dans les fonctions de découpe | `test-guest-runtime-asm-repl-string-slice-array-source.sh` sous QEMU, incluant tableau court et long | les fonctions peuvent consommer les données de tableaux sans délégation hôte |
 | 2026-08-03 | Écriture dans des destinations scalaires et éléments de tableaux chaîne | `test-guest-runtime-asm-repl-string-slice-array-destination*.sh` sous QEMU, cas nominal et erreurs | les trois fonctions de découpe peuvent alimenter les tableaux target-side, sans écriture partielle lors d’une erreur |
 | 2026-08-03 | Littéraux ASCII comme sources des fonctions de découpe | `test-guest-runtime-asm-repl-string-slice-literal-source*.sh` sous QEMU, cas nominal et erreurs de forme/bornes | les littéraux sont copiés dans un buffer cible distinct ; aucune évaluation de chaîne n’est déléguée à l’hôte |
-| 2026-08-03 | Concaténation target-side de termes chaîne avec `+` | `test-guest-runtime-asm-repl-string-concat*.sh` sous QEMU, cas nominal, capacité, fonctions de découpe et formes invalides | les affectations composées sont exécutées dans la cible ; les conversions numériques et autres opérateurs chaîne restent hors de cette grammaire |
+| 2026-08-03 | Concaténation target-side de termes chaîne avec `+` | `test-guest-runtime-asm-repl-string-concat*.sh` sous QEMU, cas nominal, capacité, fonctions de découpe, `CHR$` et formes invalides | les affectations composées sont exécutées dans la cible ; les conversions numériques et autres opérateurs chaîne restent hors de cette grammaire |
 | 2026-08-03 | Inventaire recalculé | `find scripts -maxdepth 1 -type f -name 'test-guest-runtime-asm-repl*.sh' \| wc -l` → `91` | le nombre annoncé dans ce document est reproductible et non maintenu manuellement |
 
 Les affectations ne constituent pas encore une parité chaîne complète : le RHS
 est soit une forme `LEFT$`/`RIGHT$`/`MID$`, soit une concaténation de termes
-littéraux, variables, éléments de tableau chaîne ou fonctions de découpe ; les
-conversions numériques et autres opérateurs chaîne sont explicitement hors de
-cette tranche. Toute extension doit ajouter
+littéraux, variables, éléments de tableau chaîne, fonctions de découpe ou
+`CHR$` ; les conversions numériques et autres opérateurs chaîne sont
+explicitement hors de cette tranche. Toute extension doit ajouter
 un test QEMU target-side et une entrée à cette matrice avant d’être marquée
 VERT.

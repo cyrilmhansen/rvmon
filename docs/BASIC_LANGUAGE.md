@@ -46,13 +46,15 @@ string-assignment-function = ( "LEFT$" | "RIGHT$" ) , "(" , string-source , "," 
                            | "MID$" , "(" , string-source , "," , expression , "," , expression , ")" ;
 string-assignment-rhs = string-assignment-function | string-expression ;
 string-expression = string-term , { "+" , string-term } ;
-string-term = string-source | string-assignment-function ;
+string-term = string-source | string-assignment-function | string-constructor ;
+string-constructor = "CHR$" , "(" , expression , ")" ;
 expression    = comparison ;
 comparison    = sum , [ ( "=" | "<>" | "<" | "<=" | ">" | ">=" ) , sum ] ;
 sum           = product , { ( "+" | "-" ) , product } ;
 product       = factor , { ( "*" | "/" ) , factor } ;
 factor        = number | variable | "(" , expression , ")"
               | "LEN" , "(" , string-reference , ")"
+              | "ASC" , "(" , string-source , ")"
               | "ABS" , "(" , expression , ")"
               | "SGN" , "(" , expression , ")"
               | "INT" , "(" , expression , ")"
@@ -169,6 +171,11 @@ ou une fonction `LEFT$`/`RIGHT$`/`MID$`, par exemple
 cible borné à 120 octets avant d’être copié vers la destination. Les
 conversions implicites numériques et les opérateurs chaîne autres que `+`
 restent rejetés.
+
+`ASC(string-source)` renvoie dans le guest le premier octet ASCII de la source
+et refuse la chaîne vide. `CHR$(expression)` convertit dans le guest une valeur
+entière de 0 à 255 en un terme chaîne d’un octet ; les valeurs négatives,
+supérieures à 255, fractionnaires ou sans argument sont rejetées.
 
 `RND` et `RND()` renvoient un nombre pseudo-aléatoire binary64 dans `[0,1)`.
 Le générateur est un LCG 32 bits target-side de paramètres `1664525` et
