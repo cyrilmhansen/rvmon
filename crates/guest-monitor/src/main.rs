@@ -39,7 +39,7 @@ const MAX_SOURCE_LINES: usize = 4096;
 // A standalone payload may be larger than the interactive source document.
 // Keep the persistent editor/snapshot contract at 4096 lines while allowing
 // generated target programs such as MiniBASIC-RV to be assembled in one pass.
-const MAX_ASSEMBLY_LINES: usize = 9216;
+const MAX_ASSEMBLY_LINES: usize = 12288;
 // Standalone payloads may contain hundreds of local control-flow labels. Keep
 // this scratch capacity independent from the editable source document and
 // leave room for target-side lexer/parser veneers without special-casing them
@@ -1479,7 +1479,7 @@ fn assemble_program_command(context: *mut TargetContext, argument: &[u8]) {
     }
 
     if overflow {
-        guest_error(b"GUEST-ASM-001", b"source program exceeds 9216 assembly lines");
+        guest_error(b"GUEST-ASM-001", b"source program exceeds 12288 assembly lines");
         return;
     }
     if count == 0 {

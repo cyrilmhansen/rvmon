@@ -4656,9 +4656,202 @@ jalr x0,0(x1)
 ; Évaluateur numérique : descente en deux niveaux, somme puis produit, avec
 ; parse_atom pour signes, parenthèses, variables, tableaux et fonctions.
 ; f3 est le résultat ; les opérations arithmétiques sont les instructions D.
+; Le lexer d'expressions publie d'abord un flux borné de tokens dans la RAM
+; cible. Les parseurs historiques continuent à consommer x21 pendant cette
+; tranche ; le flux est donc une validation structurée et un contrat de
+; migration, pas encore un second évaluateur. Un token occupe 24 octets :
+; type:u64, adresse source:u64, longueur:u64. 32 tokens maximum.
+expression_lexer:
+lui x7,0x82062
+slli x7,x7,32
+srli x7,x7,32
+addi x7,x7,768
+addi x10,x7,-32
+ld x11,0(x10)
+bne x11,x0,expression_lexer_skip
+addi x11,x0,1
+sd x11,0(x10)
+addi x10,x7,-16
+sd x0,0(x10)
+addi x6,x21,0
+addi x9,x0,0
+addi x29,x0,0
+addi x28,x0,0
+expression_lexer_loop:
+lbu x5,0(x6)
+beq x5,x0,expression_lexer_done
+addi x10,x0,32
+beq x5,x10,expression_lexer_space
+addi x10,x0,41
+beq x5,x10,expression_lexer_close
+addi x10,x0,44
+beq x5,x10,expression_lexer_comma
+addi x10,x0,58
+beq x5,x10,expression_lexer_colon
+sltiu x10,x29,32
+beq x10,x0,expression_lexer_error
+addi x10,x0,34
+beq x5,x10,expression_lexer_string
+addi x10,x5,-48
+sltiu x10,x10,10
+bne x10,x0,expression_lexer_number
+addi x10,x0,46
+beq x5,x10,expression_lexer_number
+addi x10,x5,-97
+sltiu x10,x10,26
+bne x10,x0,expression_lexer_name
+addi x10,x5,-65
+sltiu x10,x10,26
+bne x10,x0,expression_lexer_name
+addi x10,x0,43
+beq x5,x10,expression_lexer_operator
+addi x10,x0,45
+beq x5,x10,expression_lexer_operator
+addi x10,x0,42
+beq x5,x10,expression_lexer_operator
+addi x10,x0,47
+beq x5,x10,expression_lexer_operator
+addi x10,x0,61
+beq x5,x10,expression_lexer_operator
+addi x10,x0,60
+beq x5,x10,expression_lexer_operator
+addi x10,x0,62
+beq x5,x10,expression_lexer_operator
+addi x10,x0,40
+beq x5,x10,expression_lexer_open
+jal x0,expression_lexer_error
+expression_lexer_space:
+addi x6,x6,1
+jal x0,expression_lexer_loop
+expression_lexer_close:
+beq x28,x0,expression_lexer_done
+addi x5,x0,5
+addi x27,x6,0
+addi x11,x0,1
+jal x30,expression_lexer_store
+addi x6,x6,1
+addi x28,x28,-1
+jal x0,expression_lexer_loop
+expression_lexer_comma:
+bne x28,x0,expression_lexer_comma_nested
+jal x0,expression_lexer_done
+expression_lexer_comma_nested:
+addi x5,x0,6
+addi x27,x6,0
+addi x11,x0,1
+jal x30,expression_lexer_store
+addi x6,x6,1
+jal x0,expression_lexer_loop
+expression_lexer_colon:
+beq x28,x0,expression_lexer_done
+jal x0,expression_lexer_operator
+expression_lexer_open:
+addi x5,x0,4
+addi x27,x6,0
+addi x11,x0,1
+jal x30,expression_lexer_store
+addi x6,x6,1
+addi x28,x28,1
+jal x0,expression_lexer_loop
+expression_lexer_operator:
+addi x5,x0,3
+addi x27,x6,0
+addi x11,x0,1
+jal x30,expression_lexer_store
+addi x6,x6,1
+jal x0,expression_lexer_loop
+expression_lexer_number:
+addi x27,x6,0
+addi x11,x0,0
+addi x25,x0,0
+expression_lexer_number_loop:
+lbu x5,0(x6)
+addi x10,x5,-48
+sltiu x10,x10,10
+bne x10,x0,expression_lexer_number_digit
+addi x10,x0,46
+bne x5,x10,expression_lexer_number_done
+bne x25,x0,expression_lexer_number_done
+addi x25,x0,1
+addi x6,x6,1
+addi x11,x11,1
+jal x0,expression_lexer_number_loop
+expression_lexer_number_digit:
+addi x6,x6,1
+addi x11,x11,1
+jal x0,expression_lexer_number_loop
+expression_lexer_number_done:
+addi x5,x0,1
+jal x30,expression_lexer_store
+jal x0,expression_lexer_loop
+expression_lexer_name:
+addi x27,x6,0
+addi x11,x0,0
+expression_lexer_name_loop:
+lbu x5,0(x6)
+addi x10,x5,-97
+sltiu x10,x10,26
+bne x10,x0,expression_lexer_name_char
+addi x10,x5,-65
+sltiu x10,x10,26
+bne x10,x0,expression_lexer_name_char
+addi x10,x5,-48
+sltiu x10,x10,10
+bne x10,x0,expression_lexer_name_char
+addi x10,x0,95
+beq x5,x10,expression_lexer_name_char
+addi x10,x0,36
+bne x5,x10,expression_lexer_name_done
+expression_lexer_name_char:
+addi x6,x6,1
+addi x11,x11,1
+jal x0,expression_lexer_name_loop
+expression_lexer_name_done:
+addi x5,x0,2
+jal x30,expression_lexer_store
+jal x0,expression_lexer_loop
+expression_lexer_string:
+addi x27,x6,0
+addi x6,x6,1
+addi x11,x0,1
+expression_lexer_string_loop:
+lbu x5,0(x6)
+beq x5,x0,expression_lexer_error
+addi x10,x0,34
+beq x5,x10,expression_lexer_string_close
+addi x6,x6,1
+addi x11,x11,1
+jal x0,expression_lexer_string_loop
+expression_lexer_string_close:
+addi x6,x6,1
+addi x11,x11,1
+addi x5,x0,7
+jal x30,expression_lexer_store
+jal x0,expression_lexer_loop
+expression_lexer_store:
+add x10,x7,x9
+sd x5,0(x10)
+sd x27,8(x10)
+sd x11,16(x10)
+addi x9,x9,24
+addi x29,x29,1
+jalr x0,0(x30)
+expression_lexer_done:
+addi x10,x7,-16
+sd x29,0(x10)
+addi x10,x7,-32
+sd x0,0(x10)
+jalr x0,0(x1)
+expression_lexer_skip:
+jalr x0,0(x1)
+expression_lexer_error:
+addi x10,x7,-32
+sd x0,0(x10)
+jal x0,error_line
 eval_expression:
 addi x31,x1,0
 addi x22,x0,0
+jal x1,expression_lexer
 jal x1,parse_product
 fmv.x.d x10,f1
 fmv.d.x f7,x10

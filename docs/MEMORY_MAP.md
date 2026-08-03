@@ -120,6 +120,9 @@ peuvent être réécrits.
 | `0x82061f00..0x82061f7f` | métadonnées des résolveurs d'expressions chaîne | 8 cadres de 16 octets : retour et curseur appelant | appel target-side ; indexé par la profondeur de concaténation |
 | `0x82061f80..0x82061fff` | réserve globale chaîne | non allouée dans V1 | réservé |
 | `0x82062000..0x8206211f` | table de reconnaissance des fonctions numériques | 18 entrées de 16 octets : longueur, identifiant, nom ASCII et remplissage ; fonctions chaîne, mathématiques et `SQR` | lexer target-side ; statique |
+| `0x820622e0` | profondeur temporaire du lexer d'expressions | `u64`, non imbriqué pendant la validation | lexer target-side ; appel |
+| `0x820622f0` | nombre de tokens d'expression publiés | `u64`, 0..32 | lexer target-side ; appel |
+| `0x82062300..0x820625ff` | flux de tokens d'expression | 32 records de 24 octets : type, adresse source, longueur | lexer target-side ; appel |
 
 Les cellules de retour globales sont nécessaires parce que les appels de
 découpe réutilisent des cellules relatives à `x8`. Elles ne doivent pas être

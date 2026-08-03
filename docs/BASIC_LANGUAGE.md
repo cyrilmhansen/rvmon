@@ -228,7 +228,12 @@ numérique, mais seulement partiellement au lexer et au dispatch :
    `{kind, start, length, id}` dans la mémoire cible. Le handler reçoit encore
    son ABI historique pendant la migration, mais le lexème reconnu est déjà
    représenté indépendamment du chemin de dispatch.
-5. Les handlers historiques consomment encore directement le texte. Le plan
+5. L'entrée de `eval_expression` effectue maintenant une validation lexicale
+   target-side et publie jusqu'à 32 tokens `{type, source, length}`. Le parseur
+   numérique conserve encore `x21` comme curseur de compatibilité pendant cette
+   étape ; le flux de tokens est donc un oracle lexical interne et non encore
+   l'entrée du calcul.
+6. Les handlers historiques consomment encore directement le texte. Le plan
    de migration est de faire produire au lexer des tokens bornés, puis de
    faire partager le parseur de précédence et les descripteurs aux fonctions,
    tableaux, comparaisons et arguments de statements. Les handlers cible et
