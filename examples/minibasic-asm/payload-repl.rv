@@ -3750,6 +3750,10 @@ bne x6,x7,atom_array_name_scan
 jal x0,atom_int_function
 atom_sgn_dispatch:
 lbu x6,1(x21)
+addi x7,x0,81
+bne x6,x7,atom_sgn_check
+jal x0,atom_sqr_function
+atom_sgn_check:
 addi x7,x0,71
 bne x6,x7,atom_array_name_scan
 lbu x6,2(x21)
@@ -4484,7 +4488,9 @@ addi x6,x0,44
 beq x5,x6,array_open_long
 addi x6,x0,41
 beq x5,x6,array_open_short
-beq x5,x0,error_line
+bne x5,x0,array_open_nonzero
+jal x0,error_line
+array_open_nonzero:
 addi x22,x22,1
 jal x0,array_open_probe
 array_open_long:
@@ -6414,11 +6420,11 @@ addi x22,x21,0
 resolve_string_source_scan:
 lbu x5,0(x22)
 addi x6,x0,36
-beq x5,x6,resolve_string_source_after_dollar
+beq x5,x6,resolve_str_src_after_dollar
 beq x5,x0,string_long_error
 addi x22,x22,1
 jal x0,resolve_string_source_scan
-resolve_string_source_after_dollar:
+resolve_str_src_after_dollar:
 lbu x5,1(x22)
 addi x6,x0,40
 beq x5,x6,resolve_string_source_array
@@ -7043,6 +7049,50 @@ string_mid_assign_done:
 ld x1,2016(x8)
 jalr x0,0(x1)
 string_mid_assign_error:
+jal x0,error_line
+atom_sqr_function:
+sd x1,1984(x8)
+sd x22,1992(x8)
+sd x28,2000(x8)
+sd x29,2008(x8)
+sd x30,2016(x8)
+sd x31,2024(x8)
+lbu x5,2(x21)
+addi x6,x0,82
+bne x5,x6,atom_sqr_error
+lbu x5,3(x21)
+addi x6,x0,40
+bne x5,x6,atom_sqr_error
+addi x21,x21,4
+addi x22,x0,0
+jal x1,eval_expression
+addi x29,x0,0
+lbu x5,0(x21)
+addi x6,x0,41
+beq x5,x6,atom_sqr_close_present
+beq x5,x0,atom_sqr_close_consumed
+jal x0,atom_sqr_error
+atom_sqr_close_present:
+addi x21,x21,1
+jal x0,atom_sqr_close_done
+atom_sqr_close_consumed:
+addi x6,x21,-1
+lbu x5,0(x6)
+addi x6,x0,41
+bne x5,x6,atom_sqr_error
+atom_sqr_close_done:
+fcvt.d.l f5,x0,0
+flt.d x7,f3,f5
+bne x7,x0,atom_sqr_error
+fsqrt.d f4,f3
+ld x22,1992(x8)
+ld x28,2000(x8)
+ld x29,2008(x8)
+ld x30,2016(x8)
+ld x31,2024(x8)
+ld x1,1984(x8)
+jal x0,store_atom
+atom_sqr_error:
 jal x0,error_line
 end
 symbols

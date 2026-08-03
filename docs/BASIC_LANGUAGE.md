@@ -64,6 +64,7 @@ factor        = number | variable | "(" , expression , ")"
               | "TRUNC" , "(" , expression , ")"
               | "FRAC" , "(" , expression , ")"
               | "MOD" , "(" , expression , "," , expression , ")"
+              | "SQR" , "(" , expression , ")"
               | "RND" | "RND" , "(" , ")"
               | ( "+" | "-" ) , factor ;
 variable      = identifier ;
@@ -107,12 +108,13 @@ tranche assembleur utilise les 26 slots courts et 32 slots nommés décrits
 ci-dessus. Les opérations `+`, `-`, `*` et `/` sont
 effectuées dans le guest ; le chemin `/` contient réellement une instruction
 `fdiv.d` (symbole `minibasic_divide`). Les comparaisons produisent `0.0` ou
-`1.0`. L’affichage V1 est fixe à six décimales, arrondi au plus proche ; les
+`1.0`. L’affichage V1 est fixe à six décimales, tronqué de façon déterministe
+après conversion binary64 ; les
 valeurs infinies et NaN sont affichées `INF`, `-INF` et `NAN`. Une division par
 zéro produit `BASIC-ARITH-001`.
 
 Les fonctions numériques `ABS(expr)`, `SGN(expr)`, `INT(expr)`,
-`TRUNC(expr)`, `FRAC(expr)` et `MOD(a,b)` sont
+`TRUNC(expr)`, `FRAC(expr)`, `MOD(a,b)` et `SQR(expr)` sont
 évaluées dans le guest. `TRUNC` convertit vers l’entier signé en arrondissant
 vers zéro puis reconvertit en binary64 ; `FRAC(x)` vaut `x-TRUNC(x)` ;
 `MOD(a,b)` vaut `a-TRUNC(a/b)*b` et refuse `b=0`. Les scratchs target-side sont
@@ -126,8 +128,16 @@ non entières (`INT(-3.9)=-4.0`). Les valeurs hors domaine de conversion entièr
 suivent
 la politique RISC-V de conversion implémentée par le moteur et restent une
 limite V1. Le format décimal fixe peut afficher `FRAC(-3.9)` comme `-0.899999`
-après l’arrondi binary64 et le formateur à six chiffres ; ce résultat est
+après la troncature binary64 et le formateur à six chiffres ; ce résultat est
 déterministe et n’est pas une valeur décimale exacte.
+
+`SQR(x)` utilise l’instruction RISC-V `fsqrt.d` sur un opérande binary64
+non-négatif. `SQR(0)` renvoie `0.0`; une valeur négative est refusée par le
+diagnostic target-side au lieu de laisser une valeur NaN de domaine se
+propager silencieusement. La syntaxe exige exactement une expression et une
+parenthèse fermante. Le résultat et les éventuels flags flottants restent
+ceux de l’exécution D dans la cible ; aucun calcul de racine n’est effectué
+par l’hôte.
 
 `LEN(string-variable)` renvoie dans le guest la longueur de la variable chaîne
 ou de l’élément de tableau chaîne fourni. La résolution accepte les noms

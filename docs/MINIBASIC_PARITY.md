@@ -70,7 +70,7 @@ entièrement dans le guest.
 | `INPUT` | lecture et conversion target-side de valeurs numériques et chaînes | VERT | `input.sh`, `long-input.sh`, `long-string-input.sh` |
 | Arithmétique | `+`, `-`, `*`, `/` en binary64 par `fadd.d`, `fsub.d`, `fmul.d`, `fdiv.d` | VERT | `precedence.sh`, `mul.sh`, `expression-div.sh` |
 | Comparaisons | `=`, `<>`, `<`, `<=`, `>`, `>=`, résultat `0.0` ou `1.0` | VERT | `if.sh`, `if-false.sh`, `precedence.sh` |
-| Fonctions numériques | `ABS`, `SGN`, `INT`, `TRUNC`, `FRAC`, `MOD`, appels target-side et imbrication documentée | VERT | `numeric-rounding.sh`, `numeric-rounding-error.sh`, `numeric-functions.sh` |
+| Fonctions numériques | `ABS`, `SGN`, `INT`, `TRUNC`, `FRAC`, `MOD`, `SQR`, appels target-side et imbrication documentée | VERT | `numeric-rounding.sh`, `numeric-rounding-error.sh`, `numeric-functions.sh`, `sqr.sh`, `sqr-error.sh` |
 | Conversion caractère | `ASC(string-source)` numérique et `CHR$(expression)` chaîne, exécutés dans le guest avec bornes explicites | PARTIEL | `test-guest-runtime-asm-repl-string-concat.sh`, `test-guest-runtime-asm-repl-string-concat-error.sh`; `CHR$` est disponible en affectation, concaténation et `PRINT`, tandis que les conversions implicites restent différées |
 | Conversion chaîne → nombre | `VAL(string-source)` parse une valeur décimale dans le guest et refuse les caractères non consommés | PARTIEL | `test-guest-runtime-asm-repl-string-concat.sh`, `test-guest-runtime-asm-repl-string-concat-error.sh`; exposants et formats historiques restent hors V1 |
 | Recherche chaîne | `INSTR(haystack,needle)` target-side, résultat 1-based, `0` absent et `1` pour aiguille vide | PARTIEL | `test-guest-runtime-asm-repl-string-concat.sh`, `test-guest-runtime-asm-repl-string-concat-error.sh`; options de comparaison historiques non retenues |
@@ -124,8 +124,8 @@ refusée.
 | Variables longues, chaînes et tableaux | Extension RV voulue, non simple compatibilité TBXL | VERT/PARTIEL | capacités fixes, 1D/2D, expressions chaîne encore bornées |
 | `LEN`, `LEFT$`, `RIGHT$`, `MID$` | Conservées avec sources/destinations RV étendues | PARTIEL | fonctions disponibles dans le guest ; composition générale hors grammaire |
 | `ASC`, `CHR$`, `VAL`, `INSTR`, `STR$` | Compatibilité d’usage modernisée | PARTIEL | bornes, formats et cas historiques non promis |
-| `ABS`, `SGN`, `INT`, `TRUNC`, `FRAC`, `MOD`, `RND` | Sous-ensemble numérique explicite | VERT | `RND` est un LCG reproductible propre à RVMonitor |
-| Fonctions mathématiques historiques non retenues dans la grammaire | Différées, pas implicitement supportées | DIFFÉRÉ | pas de `SQR`, `SIN`, `COS`, `TAN`, `ATN`, `LOG` ou `EXP` dans V1 actuelle |
+| `ABS`, `SGN`, `INT`, `TRUNC`, `FRAC`, `MOD`, `SQR`, `RND` | Sous-ensemble numérique explicite | VERT | `SQR` utilise `fsqrt.d`; `RND` est un LCG reproductible propre à RVMonitor |
+| Fonctions mathématiques historiques non retenues dans la grammaire | Différées, pas implicitement supportées | DIFFÉRÉ | pas de `SIN`, `COS`, `TAN`, `ATN`, `LOG` ou `EXP` dans V1 actuelle |
 | Chaînes complètes et tableaux complets | Conservés comme trajectoire produit | PLANIFIÉ | concaténation et découpes sont présentes ; opérations restantes à auditer |
 | Fichiers, DOS, graphismes, sons, périphériques Atari | Rejetés | REJETÉ | ne font pas partie du modèle de services cible |
 | Tokens et représentation mémoire TBXL | Rejetés | REJETÉ | le source est ASCII et le payload est relogeable RV |
@@ -209,7 +209,7 @@ Priorité suivante, après stabilisation du socle actuel :
 3. consolider la surface chaîne déjà livrée : ajouter des cas limites pour
    les tableaux, l’auto-affectation, les buffers pleins et les compositions
    `STR$`/`CHR$`, sans élargir silencieusement la grammaire ;
-4. auditer les familles TBXL non encore retenues (`SQR`, fonctions
+4. auditer les familles TBXL non encore retenues (fonctions
    trigonométriques/logarithmiques, formatages et commandes d’édition) et
    prendre pour chacune une décision versionnée avant toute implémentation ;
 5. traiter les limites documentées des blocs structurés et des expressions
@@ -268,6 +268,7 @@ sortie BASIC préenregistrée.
 | 2026-08-03 | Preuve des blocs `IF/ELSE/ENDIF` imbriqués | `test-guest-runtime-asm-repl-if-block-nested.sh` sous QEMU, branches vraie/fausse internes et externes | la profondeur de recherche et la pile unifiée sont désormais couvertes jusqu’à la limite documentée |
 | 2026-08-03 | Inventaire recalculé | `find scripts -maxdepth 1 -type f -name 'test-guest-runtime-asm-repl*.sh' \| wc -l` → `92` | le nombre annoncé dans ce document est reproductible et non maintenu manuellement |
 | 2026-08-03 | Registre de parité révisé après comparaison TBXL/MiniBASIC | matrice TBXL ci-dessus, `BASIC_LANGUAGE.md`, `BASIC_TBXL_NOTES.md` et scripts QEMU existants | les fonctions livrées sont séparées des extensions RV et des familles historiques différées ; la roadmap ne traite plus les découpes déjà implémentées comme une dette |
+| 2026-08-03 | Ajout de `SQR(expression)` avec contrôle de domaine | `test-guest-runtime-asm-repl-sqr.sh` et `test-guest-runtime-asm-repl-sqr-error.sh` sous QEMU ; exécution `fsqrt.d` dans le payload | la fonction numérique historique est désormais VERT dans son sous-ensemble MiniBASIC ; les fonctions trigonométriques et logarithmiques restent différées |
 
 Les affectations ne constituent pas encore une parité chaîne complète : le RHS
 est soit une forme `LEFT$`/`RIGHT$`/`MID$`, soit une concaténation de termes

@@ -2768,6 +2768,9 @@ fn parse_source_instruction(
     if let Some(operands) = source.strip_prefix(b"fsd ") {
         return parse_float_load_store_operands("fsd", operands, symbols);
     }
+    if let Some(operands) = source.strip_prefix(b"fsqrt.d ") {
+        return parse_fsqrt_operands(operands);
+    }
     for (prefix, mnemonic) in [
         (b"fadd.s " as &[u8], "fadd.s"),
         (b"fadd.d ", "fadd.d"),
@@ -3020,6 +3023,13 @@ fn parse_fadd_operands(mnemonic: &str, operands: &[u8]) -> Option<u32> {
         (value <= 7).then_some(value as u8)?
     };
     luna_isa_core::encode_f_r(mnemonic, rd, rs1, rs2, rm)
+}
+
+fn parse_fsqrt_operands(operands: &[u8]) -> Option<u32> {
+    let (rd_bytes, rs1_bytes) = split_once_comma(operands)?;
+    let rd = parse_float_register(rd_bytes.trim_ascii())?;
+    let rs1 = parse_float_register(rs1_bytes.trim_ascii())?;
+    luna_isa_core::encode_f_r("fsqrt.d", rd, rs1, 0, 7)
 }
 
 fn parse_fcompare_operands(mnemonic: &str, operands: &[u8]) -> Option<u32> {

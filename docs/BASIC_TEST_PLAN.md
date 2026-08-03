@@ -158,6 +158,12 @@
 - `scripts/test-guest-runtime-asm-repl-format-negative-fraction.sh` vérifie
   `-2.25`, la sortie `-2.250000`, la restauration du motif signé de `f3` au
   breakpoint et l’octetage exact en RAM.
+- `scripts/test-guest-runtime-asm-repl-sqr.sh` vérifie `SQR(9)`, `SQR(2)`,
+  `SQR(0)` et l’imbrication `SQR(ABS(-16))` dans le guest, avec sortie
+  déterministe issue de `fsqrt.d`.
+- `scripts/test-guest-runtime-asm-repl-sqr-error.sh` vérifie le refus
+  target-side d’un argument négatif et d’une parenthèse fermante absente,
+  avec deux diagnostics et retour propre au moniteur.
 - `scripts/test-guest-runtime-asm-repl-two-lines.sh` vérifie l’insertion hors
   ordre de `20` puis `10`, le tri observable de `LIST`, les deux slots mémoire
   et l’exécution séquentielle target-side des lignes `10` puis `20`.
