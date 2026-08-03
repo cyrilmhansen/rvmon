@@ -142,6 +142,11 @@ L'implémentation assembleur est actuellement en migration :
   descripteurs target-side, puis envoyées vers des évaluateurs spécialisés ;
   la reconnaissance est insensible à la casse et le repli conserve les
   invariants de l'analyseur de variables/tableaux ;
+* les mots-clés de statements sont préreconnus par une table bornée de
+  descripteurs {longueur, id, nom} ; cette tranche normalise la casse puis
+  délègue encore les handlers au dispatch historique afin de préserver leurs
+  contrats implicites. La migration des handlers est séparée et testée par
+  famille.
 * `RND` et plusieurs chemins historiques de variables, tableaux et mots-clés
   conservent des probes explicites ;
 * les limites de mémoire, de profondeur et de cadres sont des limites

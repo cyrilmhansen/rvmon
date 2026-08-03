@@ -30,7 +30,7 @@ awk '/^symbols$/{print; found=1; next} found && /^run-at /{print; exit} !found{p
     examples/minibasic-asm/payload-repl.rv |
     while IFS= read -r line; do printf '%s\n' "$line" >&3; sleep 0.003; done
 sleep 0.2
-printf '10 PRINT X+Y\nLIST\nRUN\n' >&3
+printf '10 print X+Y\nLIST\nRUN\n' >&3
 sleep 0.4
 printf 'regs\nmemory 0x82000968 8\nq\n' >&3
 exec 3>&-
@@ -42,7 +42,7 @@ qemu_pid=""
 for expected in \
     'assembled program:' \
     'READY> ' \
-    '10 PRINT X+Y' \
+    '10 print X+Y' \
     'trap: breakpoint' \
     'f1=0x4014000000000000' \
     'f2=0x4008000000000000' \

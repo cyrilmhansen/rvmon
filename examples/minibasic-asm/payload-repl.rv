@@ -131,6 +131,59 @@ data 0x820620f0 .dword 0x000000444f4d1003
 data 0x820620f8 .dword 0x0000000000000000
 data 0x82062100 .dword 0x0000005251531103
 data 0x82062108 .dword 0x0000000000000000
+; Table des mots-clés statement : {longueur:u8, id:u8, nom ASCII, padding}.
+; Les IDs sont résolus par statement_table_probe ; les formes ambiguës
+; retombent dans dispatch_statement_legacy.
+data 0x82062120 .dword 0x00004f544f470104
+data 0x82062128 .dword 0x0000000000000000
+data 0x82062130 .dword 0x004255534f470205
+data 0x82062138 .dword 0x0000000000000000
+data 0x82062140 .dword 0x00454c4948570305
+data 0x82062148 .dword 0x0000000000000000
+data 0x82062150 .dword 0x004c49544e550405
+data 0x82062158 .dword 0x0000000000000000
+data 0x82062160 .dword 0x000000444e450503
+data 0x82062168 .dword 0x0000000000000000
+data 0x82062170 .dword 0x000000524f460603
+data 0x82062178 .dword 0x0000000000000000
+data 0x82062180 .dword 0x00005458454e0704
+data 0x82062188 .dword 0x0000000000000000
+data 0x82062190 .dword 0x00544e4952500805
+data 0x82062198 .dword 0x0000000000000000
+data 0x820621a0 .dword 0x005455504e490905
+data 0x820621a8 .dword 0x0000000000000000
+data 0x820621b0 .dword 0x4e52555445520a06
+data 0x820621b8 .dword 0x0000000000000000
+data 0x820621c0 .dword 0x0000444145520b04
+data 0x820621c8 .dword 0x0000000000000000
+data 0x820621d0 .dword 0x524f545345520c07
+data 0x820621d8 .dword 0x0000000000000045
+data 0x820621e0 .dword 0x5441455045520d06
+data 0x820621e8 .dword 0x0000000000000000
+data 0x820621f0 .dword 0x0000444e45570e04
+data 0x820621f8 .dword 0x0000000000000000
+data 0x82062200 .dword 0x0000000046490f02
+data 0x82062208 .dword 0x0000000000000000
+data 0x82062210 .dword 0x000045534c451004
+data 0x82062218 .dword 0x0000000000000000
+data 0x82062220 .dword 0x004649444e451105
+data 0x82062228 .dword 0x0000000000000000
+data 0x82062230 .dword 0x0000415441441204
+data 0x82062238 .dword 0x0000000000000000
+data 0x82062240 .dword 0x000000004f441302
+data 0x82062248 .dword 0x0000000000000000
+data 0x82062250 .dword 0x0000504f4f4c1404
+data 0x82062258 .dword 0x0000000000000000
+data 0x82062260 .dword 0x0000544958451504
+data 0x82062268 .dword 0x0000000000000000
+data 0x82062270 .dword 0x000000504f501603
+data 0x82062278 .dword 0x0000000000000000
+data 0x82062280 .dword 0x0000004d45521703
+data 0x82062288 .dword 0x0000000000000000
+data 0x82062290 .dword 0x000000004e4f1802
+data 0x82062298 .dword 0x0000000000000000
+data 0x820622a0 .dword 0x0000004d49441903
+data 0x820622a8 .dword 0x0000000000000000
 assemble-program 0x81000100
 ; ---------------------------------------------------------------------------
 ; Image de données initiale
@@ -1819,6 +1872,8 @@ addi x11,x0,5
 addi x17,x0,4
 ecall
 trace_done:
+jal x0,statement_dispatch_legacy
+statement_dispatch_legacy:
 lbu x10,16(x24)
 addi x7,x0,71
 beq x10,x7,goto_dispatch
@@ -9506,6 +9561,75 @@ addi x28,x0,0
 addi x29,x0,0
 lbu x5,0(x21)
 jal x0,atom_dispatch
+; Table-driven statement recognizer. The record body starts at x24+16.
+; A miss restores the legacy dispatcher, preserving support for assignments
+; and ambiguous prefixes such as PRINT= or DIM variable forms.
+statement_table_probe:
+addi x10,x8,2047
+addi x10,x10,513
+sd x6,0(x10)
+sd x7,8(x10)
+sd x9,16(x10)
+sd x27,24(x10)
+sd x28,32(x10)
+sd x29,40(x10)
+addi x29,x0,0
+statement_table_next:
+lui x27,0x82062
+slli x27,x27,32
+srli x27,x27,32
+addi x27,x27,288
+slli x6,x29,4
+add x27,x27,x6
+lbu x28,0(x27)
+beq x28,x0,statement_table_fallback
+addi x9,x0,0
+addi x7,x27,2
+statement_table_compare:
+sltu x6,x9,x28
+beq x6,x0,statement_table_boundary
+addi x10,x24,16
+add x10,x10,x9
+lbu x5,0(x10)
+addi x6,x5,-97
+sltiu x11,x6,26
+beq x11,x0,statement_table_input_upper
+addi x5,x5,-32
+sb x5,0(x10)
+statement_table_input_upper:
+add x10,x7,x9
+lbu x10,0(x10)
+bne x5,x10,statement_table_miss
+addi x9,x9,1
+jal x0,statement_table_compare
+statement_table_boundary:
+addi x10,x24,16
+add x10,x10,x28
+lbu x5,0(x10)
+addi x6,x0,32
+beq x5,x6,statement_table_id
+addi x6,x0,58
+beq x5,x6,statement_table_id
+beq x5,x0,statement_table_id
+jal x0,statement_table_miss
+statement_table_id:
+jal x0,statement_table_fallback
+statement_table_miss:
+addi x29,x29,1
+sltiu x6,x29,25
+bne x6,x0,statement_table_next
+jal x0,statement_table_fallback
+statement_table_fallback:
+addi x10,x8,2047
+addi x10,x10,513
+ld x6,0(x10)
+ld x7,8(x10)
+ld x9,16(x10)
+ld x27,24(x10)
+ld x28,32(x10)
+ld x29,40(x10)
+lbu x10,16(x24)
+jal x0,statement_dispatch_legacy
 end
 symbols
 run-at 0x81000100
