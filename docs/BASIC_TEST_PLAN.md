@@ -189,8 +189,11 @@
   `RENUM 100,10,10`, les nouveaux numéros triés, la conservation des corps et
   l’exécution target-side du programme renuméroté.
 - `scripts/test-guest-runtime-asm-repl-renum-error.sh` vérifie le refus
-  pré-écriture d’un programme contenant `GOTO` et l’absence de résultat
-  partiellement renuméroté.
+  pré-écriture d’un `STEP` nul et l’absence de résultat partiellement
+  renuméroté.
+- `scripts/test-guest-runtime-asm-repl-renum-control.sh` vérifie, sous QEMU,
+  la résolution par alias après RENUM pour `IF THEN`, `GOSUB/RETURN` et
+  `ON GOTO`.
 - `scripts/test-guest-runtime-asm-repl-two-lines.sh` vérifie l’insertion hors
   ordre de `20` puis `10`, le tri observable de `LIST`, les deux slots mémoire
   et l’exécution séquentielle target-side des lignes `10` puis `20`.

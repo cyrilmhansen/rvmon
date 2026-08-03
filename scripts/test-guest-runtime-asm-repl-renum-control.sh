@@ -34,31 +34,37 @@ awk '/^symbols$/{print; found=1; next} found && /^run-at /{print; exit} !found{p
     done
 sleep 0.2
 printf '%s\n' \
-  '10 PRINT "A"' \
-  '30 END' \
-  'RENUM 100,10,0' \
-  'LIST' \
+  '10 X=0' \
+  '20 IF X=0 THEN 40' \
+  '30 PRINT "BAD-IF"' \
+  '40 GOSUB 80' \
+  '50 ON 2 GOTO 60,70' \
+  '60 PRINT "BAD-ON"' \
+  '70 END' \
+  '80 PRINT "SUB"' \
+  '90 RETURN' \
+  'RENUM 100,10,10' \
+  'RUN' \
   'q' >&3
-sleep 0.5
+sleep 0.8
 exec 3>&-
 sleep 0.2
 kill "$qemu_pid" 2>/dev/null || true
 wait "$qemu_pid" 2>/dev/null || true
 qemu_pid=""
 
-if ! grep -aFq -- 'ERR' "$output_file"; then
-    cat "$output_file"
-    printf 'missing RENUM reference diagnostic\n' >&2
-    exit 1
-fi
-if ! grep -aFq -- '10 PRINT "A"' "$output_file"; then
-    cat "$output_file"
-    printf 'RENUM error changed the program unexpectedly\n' >&2
-    exit 1
-fi
-if grep -aFq -- '100 PRINT "A"' "$output_file"; then
-    cat "$output_file"
-    printf 'RENUM wrote a partial result after rejecting references\n' >&2
-    exit 1
-fi
-printf 'guest assembly REPL RENUM validation-error QEMU test passed\n'
+for expected in 'SUB' 'trap: breakpoint'; do
+    if ! grep -aFq -- "$expected" "$output_file"; then
+        cat "$output_file"
+        printf 'missing RENUM control-flow output: %s\n' "$expected" >&2
+        exit 1
+    fi
+done
+for forbidden in 'BAD-IF' 'BAD-ON' 'ERR'; do
+    if grep -aFq -- "$forbidden" "$output_file"; then
+        cat "$output_file"
+        printf 'unexpected RENUM control-flow output: %s\n' "$forbidden" >&2
+        exit 1
+    fi
+done
+printf 'guest assembly REPL RENUM control-flow QEMU test passed\n'

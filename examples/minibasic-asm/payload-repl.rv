@@ -403,6 +403,7 @@ sub x28,x9,x6
 sltiu x7,x28,112
 beq x7,x0,store_line_error
 sd x29,0(x24)
+sd x0,8(x24)
 sd x28,0(x25)
 addi x27,x0,0
 store_body_generic:
@@ -511,8 +512,8 @@ delete_range_error:
 jal x0,error_line
 
 ; RENUM new_start,old_start,step.
-; V1 conserve l'ordre des records et refuse les références de contrôle de flot
-; afin de ne jamais laisser un programme partiellement renuméroté.
+; V1 conserve l'ordre des records et mémorise le numéro précédent en +8.
+; Les résolveurs de contrôle de flot acceptent le numéro courant ou cet alias.
 renum_command:
 addi x21,x18,6
 addi x26,x0,0
@@ -629,49 +630,9 @@ addi x7,x7,-1535
 sltu x7,x31,x7
 beq x7,x0,renum_error
 addi x22,x0,1
-slli x7,x30,7
-add x24,x19,x7
-addi x21,x24,16
-addi x9,x0,0
-renum_reference_scan:
-sltu x7,x9,x6
-beq x7,x0,renum_preflight_next
-add x7,x21,x9
-lbu x5,0(x7)
-addi x7,x0,71
-beq x5,x7,renum_reject_goto
-addi x7,x0,84
-beq x5,x7,renum_reject_then
-addi x7,x0,79
-beq x5,x7,renum_reject_on
-addi x9,x9,1
-jal x0,renum_reference_scan
-renum_reject_goto:
-addi x7,x21,0
-add x7,x7,x9
-lbu x5,1(x7)
-addi x7,x0,79
-beq x5,x7,renum_error
-jal x0,renum_reference_scan_next
-renum_reject_then:
-add x7,x21,x9
-lbu x5,1(x7)
-addi x7,x0,72
-bne x5,x7,renum_reference_scan_next
-add x7,x21,x9
-lbu x5,2(x7)
-addi x7,x0,69
-beq x5,x7,renum_error
-jal x0,renum_reference_scan_next
-renum_reject_on:
-add x7,x21,x9
-lbu x5,1(x7)
-addi x7,x0,78
-beq x5,x7,renum_error
-jal x0,renum_reference_scan_next
-renum_reference_scan_next:
-addi x9,x9,1
-jal x0,renum_reference_scan
+; La prévalidation vérifie uniquement les bornes et la présence d'au moins
+; une ligne. Les cibles textuelles sont résolues par alias au moment du RUN.
+jal x0,renum_preflight_next
 renum_preflight_next:
 addi x30,x30,1
 add x31,x31,x28
@@ -695,6 +656,10 @@ ld x6,0(x6)
 beq x6,x0,renum_write_empty
 slli x7,x30,7
 add x24,x19,x7
+addi x7,x30,1
+addi x6,x0,10
+mul x7,x7,x6
+sd x7,8(x24)
 sd x31,0(x24)
 add x31,x31,x28
 renum_write_empty:
@@ -991,6 +956,7 @@ addi x10,x26,-1
 addi x6,x0,10
 mul x10,x10,x6
 sd x10,0(x24)
+sd x0,8(x24)
 addi x10,x9,-3
 sd x10,0(x25)
 addi x9,x0,0
@@ -2116,18 +2082,7 @@ remu x5,x26,x6
 bne x5,x0,error_line_near
 sltiu x6,x26,10
 bne x6,x0,error_line_near
-lui x6,1
-addi x6,x6,-1535
-sltu x6,x26,x6
-beq x6,x0,error_line_near
-addi x26,x26,-10
-addi x6,x0,10
-divu x26,x26,x6
-slli x7,x26,3
-ld x6,480(x8)
-add x6,x6,x7
-ld x7,0(x6)
-beq x7,x0,error_line_near
+jal x1,resolve_target_number
 ld x30,1608(x8)
 beq x30,x0,goto_save_target
 ld x27,1616(x8)
@@ -2254,14 +2209,7 @@ on_target_more:
 addi x21,x21,1
 jal x0,on_target_loop
 on_target_selected:
-addi x6,x0,10
-divu x26,x26,x6
-addi x26,x26,-1
-slli x7,x26,3
-ld x6,480(x8)
-add x6,x6,x7
-ld x7,0(x6)
-beq x7,x0,error_line_near
+jal x1,resolve_target_number
 ld x30,1672(x8)
 beq x30,x0,on_goto_target
 ld x27,1616(x8)
@@ -3486,20 +3434,44 @@ remu x5,x26,x6
 bne x5,x0,if_block_error
 sltiu x6,x26,10
 bne x6,x0,if_block_error
+jal x1,resolve_target_number
+sd x26,536(x8)
+jal x0,run_line
+
+; Résout un numéro BASIC vers l'index de record.
+; Entrée : x26 = numéro (multiple de dix).
+; Sortie : x26 = index [0,255].
+; Un record renuméroté garde son numéro précédent en +8 ; cet alias est
+; volontairement limité au dernier RENUM pour conserver un état compact.
+resolve_target_number:
 lui x6,1
 addi x6,x6,-1535
 sltu x6,x26,x6
-beq x6,x0,if_block_error
-addi x26,x26,-10
+beq x6,x0,error_line_near
 addi x6,x0,10
-divu x26,x26,x6
-slli x7,x26,3
+remu x7,x26,x6
+bne x7,x0,error_line_near
+addi x30,x0,0
+resolve_target_scan:
+sltiu x7,x30,256
+beq x7,x0,error_line_near
+slli x7,x30,3
 ld x6,480(x8)
 add x6,x6,x7
 ld x7,0(x6)
-beq x7,x0,if_block_error
-sd x26,536(x8)
-jal x0,run_line
+beq x7,x0,resolve_target_next
+slli x7,x30,7
+add x24,x19,x7
+ld x7,0(x24)
+beq x7,x26,resolve_target_found
+ld x7,8(x24)
+beq x7,x26,resolve_target_found
+resolve_target_next:
+addi x30,x30,1
+jal x0,resolve_target_scan
+resolve_target_found:
+addi x26,x30,0
+jalr x0,0(x1)
 
 if_target_legacy:
 lbu x5,0(x21)
