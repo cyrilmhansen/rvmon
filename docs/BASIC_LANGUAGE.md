@@ -107,6 +107,21 @@ cellule longue contient un nom canonique de 16 octets, une longueur `u64` et
 chaîne long sont exécutées dans la cible. Les chaînes dépassant 120 octets
 produisent une erreur cible sans écriture partielle.
 
+### Architecture de résolution des expressions chaîne
+
+Le payload ne possède pas un chemin distinct pour chaque combinaison de
+fonction et de source. `LEN`, `ASC` et `VAL` appellent un résolveur commun
+target-side qui évalue l’expression dans le buffer partagé `0x82060830` et
+expose le contrat `{adresse, longueur}`. Il reconnaît les guillemets, `+` et
+les parenthèses imbriquées hors chaînes ; sa profondeur transitoire est bornée
+à huit niveaux. La limite du buffer et cette profondeur sont des limites
+d’exécution, pas une énumération des combinaisons syntaxiques.
+
+Cette tranche stabilise le contrat commun, mais le source reste encore analysé
+en ASCII directement par des routines assembleur et les dispatchs de noms de
+fonctions ne sont pas encore une table de descripteurs. Une future migration
+vers un lexer à tokens et une table de fonctions devra conserver ce contrat.
+
 ## Sémantique numérique
 
 Les identifiants sont 64 variables binary64 au maximum dans le langage ; la

@@ -5186,7 +5186,10 @@ addi x27,x8,2047
 addi x27,x27,385
 sd x31,0(x27)
 addi x21,x21,4
-jal x1,resolve_string_source
+; parse_string_expression fournit toujours le couple {adresse,longueur} d'une
+; expression chaîne complète. VAL ne connaît donc ni les littéraux, ni les
+; variables, ni les concaténations : il ne fait que copier puis parser.
+jal x1,resolve_string_expression
 beq x11,x0,atom_function_error
 lbu x5,0(x21)
 addi x6,x0,41
@@ -5233,35 +5236,8 @@ sd x28,1568(x8)
 sd x29,1576(x8)
 sd x30,1584(x8)
 addi x21,x21,4
-; Comme LEN, ASC peut consommer une concaténation simple. Le probe ne fait
-; qu'identifier un '+' hors guillemets ; le résolveur target-side reste la
-; seule routine qui construit et mesure effectivement la chaîne.
-addi x27,x21,0
-addi x29,x0,0
-atom_asc_expression_probe:
-lbu x5,0(x27)
-beq x5,x0,asc_probe_done
-addi x6,x0,34
-beq x5,x6,asc_probe_quote
-addi x6,x0,43
-beq x5,x6,asc_expression
-addi x6,x0,41
-beq x5,x6,asc_probe_done
-addi x27,x27,1
-jal x0,atom_asc_expression_probe
-asc_probe_quote:
-xori x29,x29,1
-addi x27,x27,1
-jal x0,atom_asc_expression_probe
-asc_probe_done:
-beq x29,x0,asc_source
-jal x0,atom_function_error
-asc_expression:
+; Le parseur chaîne commun fournit toujours {adresse,longueur} dans la cible.
 jal x1,resolve_string_expression
-jal x0,asc_resolved
-asc_source:
-jal x1,resolve_string_source
-asc_resolved:
 beq x11,x0,atom_function_error
 lbu x5,0(x21)
 addi x6,x0,41
@@ -5422,62 +5398,9 @@ sd x29,1920(x8)
 sd x30,1928(x8)
 sd x31,1936(x8)
 addi x21,x21,4
-; Une expression concaténée est copiée dans un buffer target-side borné avant
-; d'être évaluée par le concaténateur commun. Les formes simples continuent
-; par le résolveur direct ci-dessous.
-addi x27,x21,0
-addi x29,x0,0
-atom_len_expression_probe:
-lbu x5,0(x27)
-beq x5,x0,len_expr_probe_done
-addi x6,x0,34
-beq x5,x6,len_expr_probe_quote
-addi x6,x0,43
-beq x5,x6,len_expr
-addi x6,x0,41
-beq x5,x6,len_expr_probe_done
-addi x27,x27,1
-jal x0,atom_len_expression_probe
-len_expr_probe_quote:
-xori x29,x29,1
-addi x27,x27,1
-jal x0,atom_len_expression_probe
-len_expr_probe_done:
-beq x29,x0,len_expr_probe_return
-jal x0,atom_function_error
-len_expr_probe_return:
-lbu x6,0(x21)
-addi x7,x0,34
-beq x6,x7,atom_len_literal
-addi x27,x21,0
-jal x0,atom_len_name_scan
-len_expr:
+; Toute source de chaîne passe par le même parseur d'expression et le même
+; résultat {adresse,longueur}; LEN ne connaît plus les formes particulières.
 jal x1,resolve_string_expression
-jal x0,atom_len_value
-; Un littéral chaîne est résolu dans la RAM cible comme pour ASC/VAL ; les
-; noms continuent vers les résolveurs de variables et de tableaux.
-lbu x6,0(x21)
-addi x7,x0,34
-beq x6,x7,atom_len_literal
-addi x27,x21,0
-atom_len_name_scan:
-lbu x5,0(x27)
-beq x5,x0,atom_function_error
-addi x6,x0,36
-beq x5,x6,atom_len_name_done
-addi x27,x27,1
-jal x0,atom_len_name_scan
-atom_len_name_done:
-lbu x6,1(x27)
-addi x7,x0,40
-beq x6,x7,atom_len_array
-jal x1,resolve_string_variable
-jal x0,atom_len_value
-atom_len_array:
-jal x1,resolve_string_array
-jal x0,atom_len_value
-atom_len_literal:
-jal x1,resolve_string_source
 atom_len_value:
 fcvt.d.l f4,x11,0
 lbu x5,0(x21)
@@ -7802,13 +7725,43 @@ addi x27,x27,1968
 addi x24,x21,0
 addi x9,x0,0
 addi x29,x0,0
+addi x28,x0,0
 resolve_string_expression_copy:
 lbu x5,0(x24)
 beq x5,x0,string_long_error
 addi x6,x0,34
 beq x5,x6,rse_quote
+addi x6,x0,40
+beq x5,x6,rse_open
 addi x6,x0,41
-beq x5,x6,rse_close
+beq x5,x6,rse_close_probe
+jal x0,rse_copy_char
+rse_close_probe:
+bne x29,x0,rse_copy_char
+beq x28,x0,rse_close
+sltiu x6,x9,120
+beq x6,x0,string_long_error
+add x6,x27,x9
+sb x5,0(x6)
+addi x9,x9,1
+addi x24,x24,1
+addi x28,x28,-1
+jal x0,resolve_string_expression_copy
+rse_open:
+beq x29,x0,rse_open_char
+jal x0,rse_copy_char
+rse_open_char:
+sltiu x6,x28,8
+beq x6,x0,string_long_error
+sltiu x6,x9,120
+beq x6,x0,string_long_error
+add x6,x27,x9
+sb x5,0(x6)
+addi x9,x9,1
+addi x24,x24,1
+addi x28,x28,1
+jal x0,resolve_string_expression_copy
+rse_copy_char:
 sltiu x6,x9,120
 beq x6,x0,string_long_error
 add x6,x27,x9
