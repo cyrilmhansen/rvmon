@@ -55,6 +55,7 @@ product       = factor , { ( "*" | "/" ) , factor } ;
 factor        = number | variable | "(" , expression , ")"
               | "LEN" , "(" , string-reference , ")"
               | "ASC" , "(" , string-source , ")"
+              | "VAL" , "(" , string-source , ")"
               | "ABS" , "(" , expression , ")"
               | "SGN" , "(" , expression , ")"
               | "INT" , "(" , expression , ")"
@@ -177,6 +178,11 @@ et refuse la chaîne vide. `CHR$(expression)` convertit dans le guest une valeur
 entière de 0 à 255 en un terme chaîne d’un octet ; les valeurs négatives,
 supérieures à 255, fractionnaires ou sans argument sont rejetées. En `PRINT`,
 le terme est émis comme un octet puis suivi d’un saut de ligne.
+
+`VAL(string-source)` copie la source dans un buffer target-side puis applique le
+parseur numérique binary64 du guest. Les espaces et le format décimal accepté
+par l’expression numérique sont conservés ; toute source vide, non numérique ou
+contenant une traîne non consommée est rejetée.
 
 `RND` et `RND()` renvoient un nombre pseudo-aléatoire binary64 dans `[0,1)`.
 Le générateur est un LCG 32 bits target-side de paramètres `1664525` et
