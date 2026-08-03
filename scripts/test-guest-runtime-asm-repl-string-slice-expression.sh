@@ -35,7 +35,13 @@ printf '%s\n' \
   '10 PRINT LEFT$(TEXT$+"X",5)' \
   '20 PRINT RIGHT$("0"+TEXT$,4)' \
   '30 PRINT MID$(TEXT$+"X",2,4)' \
-  '40 END' \
+  '40 LET LEFTOUT$=LEFT$(TEXT$+"X",5)' \
+  '50 LET RIGHTOUT$=RIGHT$("0"+TEXT$,4)+"<"' \
+  '60 LET MIDOUT$=MID$(TEXT$+"X",2,4)+"]"' \
+  '70 PRINT LEFTOUT$' \
+  '80 PRINT RIGHTOUT$' \
+  '90 PRINT MIDOUT$' \
+  '100 END' \
   'RUN' | while IFS= read -r line; do
     printf '%s\n' "$line" >&3
     sleep 0.08
@@ -48,7 +54,7 @@ kill "$qemu_pid" 2>/dev/null || true
 wait "$qemu_pid" 2>/dev/null || true
 qemu_pid=""
 
-for expected in 'HAMMU' 'RABI' 'AMMU' 'trap: breakpoint'; do
+for expected in 'HAMMU' 'RABI' 'AMMU' 'RABI<' 'AMMU]' 'trap: breakpoint'; do
     if ! grep -aFq -- "$expected" "$output_file"; then
         cat "$output_file"
         printf 'missing string-slice expression result: %s\n' "$expected" >&2

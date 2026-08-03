@@ -329,3 +329,9 @@ au mode d’arrêt sur virgule du résolveur, puis ajouté une preuve QEMU avec
 concaténations target-side. Une tentative équivalente dans les affectations de
 découpe a régressé `RIGHT$` concaténé ; elle a été retirée et reste une tranche
 à traiter avec un contrat de pile dédié.
+2026-08-04 — Le défaut d’affectation composée venait de la sélection trop
+précoce du handler spécialisé, pas du concaténateur. Un probe lexical target-side
+compte les parenthèses, ignore les guillemets et détecte uniquement un `+` au
+niveau externe ; il route alors `LEFT$`/`RIGHT$`/`MID$` vers le concaténateur
+commun. QEMU valide les trois affectations composées, la régression `RIGHT$`,
+les erreurs de découpe et les chaînes trop longues.

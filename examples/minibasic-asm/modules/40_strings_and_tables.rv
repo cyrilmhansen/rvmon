@@ -929,7 +929,8 @@ addi x27,x8,2047
 addi x27,x27,417
 sd x31,0(x27)
 string_slice_return_saved:
-jal x1,resolve_string_source
+addi x30,x0,1
+jal x1,resolve_string_expression
 sd x7,1944(x8)
 sd x11,1952(x8)
 addi x27,x8,2047
@@ -1065,12 +1066,59 @@ addi x7,x9,0
 jalr x0,0(x1)
 string_concat_slice_error:
 jal x0,error_line
+; Détecte une expression composée dans la source d'une découpe affectée.
+; Retourne x27=1 si un '+' est rencontré au niveau externe, sinon x27=0.
+; Les guillemets et parenthèses imbriquées ne déclenchent pas le repli.
+string_slice_assign_probe:
+addi x24,x21,0
+addi x25,x0,0
+addi x26,x0,0
+string_slice_probe_loop:
+lbu x5,0(x24)
+beq x5,x0,string_slice_probe_no
+addi x6,x0,34
+bne x5,x6,string_slice_probe_not_quote
+xori x25,x25,1
+addi x24,x24,1
+jal x0,string_slice_probe_loop
+string_slice_probe_not_quote:
+bne x25,x0,string_slice_probe_advance
+addi x6,x0,40
+bne x5,x6,string_slice_probe_not_open
+addi x26,x26,1
+jal x0,string_slice_probe_advance
+string_slice_probe_not_open:
+addi x6,x0,41
+bne x5,x6,string_slice_probe_not_close
+beq x26,x0,string_slice_probe_advance
+addi x26,x26,-1
+jal x0,string_slice_probe_advance
+string_slice_probe_not_close:
+addi x6,x0,43
+bne x5,x6,string_slice_probe_not_plus
+beq x26,x0,string_slice_probe_yes
+jal x0,string_slice_probe_advance
+string_slice_probe_not_plus:
+addi x6,x0,44
+bne x5,x6,string_slice_probe_advance
+beq x26,x0,string_slice_probe_no
+string_slice_probe_advance:
+addi x24,x24,1
+jal x0,string_slice_probe_loop
+string_slice_probe_yes:
+addi x27,x0,1
+jalr x0,0(x1)
+string_slice_probe_no:
+addi x27,x0,0
+jalr x0,0(x1)
 ; LEFT$/RIGHT$/MID$ en affectation : calculent une fenêtre source, la copient
 ; dans un scratch chaîne, puis la recopient vers la destination ; cette double
 ; copie rend l'auto-affectation sûre.
 string_left_assign:
 sd x1,2016(x8)
 addi x21,x21,6
+jal x1,string_slice_assign_probe
+bne x27,x0,string_left_assign_concat
 jal x1,resolve_string_source
 sd x7,1944(x8)
 sd x11,1952(x8)
@@ -1139,6 +1187,8 @@ jal x0,error_line
 string_right_assign:
 sd x1,2016(x8)
 addi x21,x21,7
+jal x1,string_slice_assign_probe
+bne x27,x0,string_right_assign_concat
 jal x1,resolve_string_source
 sd x7,1944(x8)
 sd x11,1952(x8)
@@ -1209,6 +1259,8 @@ jal x0,error_line
 string_mid_assign:
 sd x1,2016(x8)
 addi x21,x21,5
+jal x1,string_slice_assign_probe
+bne x27,x0,string_mid_assign_concat
 jal x1,resolve_string_source
 sd x7,1944(x8)
 sd x11,1952(x8)
