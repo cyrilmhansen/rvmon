@@ -167,6 +167,10 @@
 - `scripts/test-guest-runtime-asm-repl-trig.sh` vérifie `SIN` et `COS` dans le
   guest sur `0`, `1`, `±pi/2`, `pi` et des appels imbriqués, avec les motifs
   décimaux déterministes et le breakpoint final.
+- `scripts/test-guest-runtime-asm-repl-tan.sh` vérifie `TAN(0)`, `TAN(±1)`,
+  `TAN(pi)`, `TAN(COS(0))` et le calcul target-side jusqu’au breakpoint.
+- `scripts/test-guest-runtime-asm-repl-tan-error.sh` vérifie le refus target-side
+  d’un pôle de tangente (`COS(pi/2)=0`) et le retour propre au moniteur.
 - `scripts/test-guest-runtime-asm-repl-two-lines.sh` vérifie l’insertion hors
   ordre de `20` puis `10`, le tri observable de `LIST`, les deux slots mémoire
   et l’exécution séquentielle target-side des lignes `10` puis `20`.

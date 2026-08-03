@@ -67,6 +67,7 @@ factor        = number | variable | "(" , expression , ")"
               | "SQR" , "(" , expression , ")"
               | "SIN" , "(" , expression , ")"
               | "COS" , "(" , expression , ")"
+              | "TAN" , "(" , expression , ")"
               | "RND" | "RND" , "(" , ")"
               | ( "+" | "-" ) , factor ;
 variable      = identifier ;
@@ -116,8 +117,8 @@ valeurs infinies et NaN sont affichées `INF`, `-INF` et `NAN`. Une division par
 zéro produit `BASIC-ARITH-001`.
 
 Les fonctions numériques `ABS(expr)`, `SGN(expr)`, `INT(expr)`,
-`TRUNC(expr)`, `FRAC(expr)`, `MOD(a,b)`, `SQR(expr)`, `SIN(expr)` et
-`COS(expr)` sont
+`TRUNC(expr)`, `FRAC(expr)`, `MOD(a,b)`, `SQR(expr)`, `SIN(expr)`,
+`COS(expr)` et `TAN(expr)` sont
 évaluées dans le guest. `TRUNC` convertit vers l’entier signé en arrondissant
 vers zéro puis reconvertit en binary64 ; `FRAC(x)` vaut `x-TRUNC(x)` ;
 `MOD(a,b)` vaut `a-TRUNC(a/b)*b` et refuse `b=0`. Les scratchs target-side sont
@@ -154,6 +155,13 @@ n’est effectué. Les valeurs infinies, NaN et les opérandes hors domaine de
 conversion entière suivent la limite numérique V1 documentée pour la
 réduction ; elles ne constituent pas encore une promesse de précision
 transcendante sur toute la plage binary64.
+
+`TAN(x)` évalue `SIN(x)/COS(x)` dans la cible en réutilisant le même noyau
+de réduction et de polynôme, sans repasser par le parseur ou l’hôte. Un
+cosinus nul est refusé par le diagnostic arithmétique cible au lieu de
+produire silencieusement une division par zéro. Le résultat est binary64 et
+est soumis à la même précision pratique et au même affichage fixe que
+`SIN`/`COS`.
 
 `LEN(string-variable)` renvoie dans le guest la longueur de la variable chaîne
 ou de l’élément de tableau chaîne fourni. La résolution accepte les noms

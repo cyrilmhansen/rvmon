@@ -3695,7 +3695,7 @@ beq x5,x6,atom_cos_probe
 addi x6,x0,76
 beq x5,x6,atom_len_dispatch
 addi x6,x0,84
-beq x5,x6,atom_trunc_dispatch
+beq x5,x6,atom_t_dispatch
 addi x6,x0,70
 beq x5,x6,atom_frac_dispatch
 addi x6,x0,77
@@ -3744,6 +3744,19 @@ lbu x6,3(x21)
 addi x7,x0,40
 bne x6,x7,atom_a
 jal x0,atom_abs_function
+atom_t_dispatch:
+lbu x6,1(x21)
+addi x7,x0,82
+beq x6,x7,atom_trunc_dispatch
+addi x7,x0,65
+bne x6,x7,atom_array_name_scan
+lbu x6,2(x21)
+addi x7,x0,78
+bne x6,x7,atom_array_name_scan
+lbu x6,3(x21)
+addi x7,x0,40
+bne x6,x7,atom_array_name_scan
+jal x0,atom_tan_function
 atom_int_dispatch:
 lbu x6,1(x21)
 addi x7,x0,78
@@ -7261,6 +7274,70 @@ ld x30,24(x29)
 ld x31,32(x29)
 ld x29,1632(x8)
 jal x0,store_atom
+atom_tan_function:
+sd x29,1536(x8)
+addi x29,x8,2047
+addi x29,x29,385
+sd x1,0(x29)
+sd x22,8(x29)
+sd x28,16(x29)
+sd x30,24(x29)
+sd x31,32(x29)
+lbu x5,1(x21)
+addi x6,x0,65
+bne x5,x6,atom_tan_error
+lbu x5,2(x21)
+addi x6,x0,78
+bne x5,x6,atom_tan_error
+lbu x5,3(x21)
+addi x6,x0,40
+bne x5,x6,atom_tan_error
+addi x21,x21,4
+addi x22,x0,0
+jal x1,eval_expression
+lbu x5,0(x21)
+addi x6,x0,41
+beq x5,x6,atom_tan_close_present
+beq x5,x0,atom_tan_close_consumed
+jal x0,atom_tan_error
+atom_tan_close_present:
+addi x21,x21,1
+jal x0,math_tan_prepare
+atom_tan_close_consumed:
+addi x6,x21,-1
+lbu x5,0(x6)
+addi x6,x0,41
+bne x5,x6,atom_tan_error
+math_tan_prepare:
+addi x29,x8,2047
+addi x29,x29,385
+fsd f3,40(x29)
+jal x1,math_sin_core_body
+math_tan_after_sin:
+fsd f4,48(x29)
+fld f3,40(x29)
+lui x7,0x82010
+slli x7,x7,32
+srli x7,x7,32
+addi x7,x7,16
+fld f5,0(x7)
+fadd.d f3,f3,f5
+jal x1,math_sin_core_body
+math_tan_after_cos:
+fcvt.d.l f2,x0,0
+feq.d x7,f4,f2
+bne x7,x0,atom_tan_error
+fld f5,48(x29)
+fdiv.d f4,f5,f4
+ld x1,0(x29)
+ld x22,8(x29)
+ld x28,16(x29)
+ld x30,24(x29)
+ld x31,32(x29)
+ld x29,1536(x8)
+jal x0,store_atom
+atom_tan_error:
+jal x0,error_line
 atom_math_error:
 jal x0,error_line
 atom_sqr_function:
