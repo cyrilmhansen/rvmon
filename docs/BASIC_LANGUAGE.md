@@ -56,6 +56,7 @@ factor        = number | variable | "(" , expression , ")"
               | "LEN" , "(" , string-reference , ")"
               | "ASC" , "(" , string-source , ")"
               | "VAL" , "(" , string-source , ")"
+              | "INSTR" , "(" , string-source , "," , string-source , ")"
               | "ABS" , "(" , expression , ")"
               | "SGN" , "(" , expression , ")"
               | "INT" , "(" , expression , ")"
@@ -183,6 +184,12 @@ le terme est émis comme un octet puis suivi d’un saut de ligne.
 parseur numérique binary64 du guest. Les espaces et le format décimal accepté
 par l’expression numérique sont conservés ; toute source vide, non numérique ou
 contenant une traîne non consommée est rejetée.
+
+`INSTR(haystack,needle)` recherche `needle` dans `haystack` entièrement dans la
+RAM cible et renvoie une position 1-based, ou `0.0` si aucune occurrence n’est
+trouvée. Une aiguille vide renvoie `1.0`. Les deux opérandes acceptent les
+littéraux, variables et éléments de tableaux chaîne ; les formes numériques ou
+les arguments manquants sont rejetés.
 
 `RND` et `RND()` renvoient un nombre pseudo-aléatoire binary64 dans `[0,1)`.
 Le générateur est un LCG 32 bits target-side de paramètres `1664525` et
