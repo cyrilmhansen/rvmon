@@ -3670,7 +3670,17 @@ addi x27,x21,0
 atom_a_dispatch:
 lbu x6,1(x21)
 addi x7,x0,66
+beq x6,x7,atom_abs_probe
+addi x7,x0,83
 bne x6,x7,atom_a
+lbu x6,2(x21)
+addi x7,x0,67
+bne x6,x7,atom_a
+lbu x6,3(x21)
+addi x7,x0,40
+bne x6,x7,atom_a
+jal x0,atom_asc_function
+atom_abs_probe:
 lbu x6,2(x21)
 addi x7,x0,83
 bne x6,x7,atom_a
@@ -3937,6 +3947,37 @@ fld f2,1032(x8)
 jalr x0,0(x1)
 ; Fonctions numériques target-side. Les zones 1184..1536 sont des scratch
 ; distincts par fonction afin de permettre des appels imbriqués.
+atom_asc_function:
+sd x1,1544(x8)
+sd x22,1552(x8)
+sd x28,1568(x8)
+sd x29,1576(x8)
+sd x30,1584(x8)
+addi x21,x21,4
+jal x1,resolve_string_source
+beq x11,x0,atom_function_error
+lbu x5,0(x21)
+addi x6,x0,41
+beq x5,x6,atom_asc_close_present
+beq x5,x0,atom_asc_close_consumed
+jal x0,atom_function_error
+atom_asc_close_present:
+addi x21,x21,1
+jal x0,atom_asc_close_done
+atom_asc_close_consumed:
+addi x6,x21,-1
+lbu x5,0(x6)
+addi x6,x0,41
+bne x5,x6,atom_function_error
+atom_asc_close_done:
+lbu x6,0(x7)
+fcvt.d.l f4,x6,0
+ld x22,1552(x8)
+ld x28,1568(x8)
+ld x29,1576(x8)
+ld x30,1584(x8)
+ld x1,1544(x8)
+jal x0,store_atom
 atom_abs_function:
 sd x1,1376(x8)
 sd x22,1384(x8)
@@ -6308,7 +6349,7 @@ beq x5,x6,string_concat_right_term
 jal x0,string_concat_source
 string_concat_check_mid:
 addi x6,x0,77
-bne x5,x6,string_concat_source
+bne x5,x6,string_concat_check_chr
 lbu x5,1(x21)
 addi x6,x0,73
 bne x5,x6,string_concat_source
@@ -6321,6 +6362,22 @@ bne x5,x6,string_concat_source
 lbu x5,4(x21)
 addi x6,x0,40
 beq x5,x6,string_concat_mid_term
+jal x0,string_concat_source
+string_concat_check_chr:
+addi x6,x0,67
+bne x5,x6,string_concat_source
+lbu x5,1(x21)
+addi x6,x0,72
+bne x5,x6,string_concat_source
+lbu x5,2(x21)
+addi x6,x0,82
+bne x5,x6,string_concat_source
+lbu x5,3(x21)
+addi x6,x0,36
+bne x5,x6,string_concat_source
+lbu x5,4(x21)
+addi x6,x0,40
+beq x5,x6,string_concat_chr_term
 jal x0,string_concat_source
 string_concat_source:
 sd x1,2000(x8)
@@ -6341,6 +6398,29 @@ string_concat_mid_term:
 addi x28,x0,3
 sd x28,2040(x8)
 addi x21,x21,5
+jal x0,string_concat_slice_term
+string_concat_chr_term:
+sd x1,2000(x8)
+addi x21,x21,5
+addi x22,x0,0
+jal x1,eval_expression
+lbu x5,0(x21)
+addi x6,x0,41
+bne x5,x6,string_concat_slice_error
+addi x21,x21,1
+fcvt.l.d x10,f3,1
+srai x6,x10,63
+bne x6,x0,string_concat_slice_error
+sltiu x7,x10,256
+beq x7,x0,string_concat_slice_error
+lui x7,0x82060
+slli x7,x7,32
+srli x7,x7,32
+addi x7,x7,1024
+sb x10,0(x7)
+addi x11,x0,1
+ld x1,2000(x8)
+jalr x0,0(x1)
 string_concat_slice_term:
 sd x1,2000(x8)
 jal x1,resolve_string_source
