@@ -4851,7 +4851,16 @@ jal x0,error_line
 eval_expression:
 addi x31,x1,0
 addi x22,x0,0
+; Preserve the caller's source length before the lexer reuses x9 as a token
+; byte offset. The integrated bridge restores this value on both paths.
+lui x10,0x82062
+slli x10,x10,32
+srli x10,x10,32
+addi x10,x10,1848
+sd x9,0(x10)
 jal x1,expression_lexer
+jal x1,integrated_token_try
+bne x6,x0,eval_expression_token_done
 jal x1,parse_product
 fmv.x.d x10,f1
 fmv.d.x f7,x10
@@ -4889,6 +4898,7 @@ fsub.d f3,f7,f1
 fmv.x.d x10,f3
 fmv.d.x f7,x10
 jal x0,sum_loop
+eval_expression_token_done:
 jalr x0,0(x31)
 
 ; Tokenized expression bridge. This is deliberately a subset gate: only a
@@ -4908,6 +4918,10 @@ slli x10,x10,32
 srli x10,x10,32
 addi x10,x10,1832
 sd x18,0(x10)
+; integrated_token_eval uses x31 as its own continuation. Preserve the
+; caller's eval_expression return address across that nested evaluator.
+addi x10,x10,8
+sd x31,0(x10)
 addi x10,x7,-16
 ld x9,0(x10)
 beq x9,x0,integrated_token_no
@@ -4963,7 +4977,7 @@ addi x27,x6,0
 addi x29,x29,1
 jal x0,integrated_token_validate_loop
 integrated_token_validate_close:
-beq x30,x0,integrated_token_no
+bne x30,x0,integrated_token_no
 beq x27,x0,integrated_token_no
 addi x27,x27,-1
 addi x30,x0,0
@@ -4996,6 +5010,12 @@ add x28,x7,x28
 ld x21,8(x28)
 ld x6,16(x28)
 add x21,x21,x6
+; x9 is the source length used by the direct/program PRINT dispatcher.
+lui x10,0x82062
+slli x10,x10,32
+srli x10,x10,32
+addi x10,x10,1848
+ld x9,0(x10)
 ; Audit marker: this expression completed through the token evaluator. It is
 ; target memory, not host output, and is cleared by NEW in a later tranche.
 lui x10,0x82062
@@ -5004,9 +5024,21 @@ srli x10,x10,32
 addi x10,x10,1824
 addi x6,x0,1
 sd x6,0(x10)
+addi x10,x10,16
+ld x31,0(x10)
 addi x6,x0,1
 jalr x0,0(x1)
 integrated_token_no:
+; x7 is the token-stream base, so use absolute global cells here.
+lui x10,0x82062
+slli x10,x10,32
+srli x10,x10,32
+addi x10,x10,1840
+ld x31,0(x10)
+addi x10,x10,-8
+ld x18,0(x10)
+addi x10,x10,16
+ld x9,0(x10)
 addi x6,x0,0
 jalr x0,0(x1)
 

@@ -113,8 +113,8 @@ produisent une erreur cible sans écriture partielle.
 
 Il faut distinguer l'architecture cible du niveau de migration actuellement
 livré. MiniBASIC-RV n'est pas un ensemble de cas codés pour chaque expression
-possible, mais il ne possède pas encore non plus un lexer à tokens et un AST
-général.
+possible, mais il ne possède pas encore un AST général ni un flux tokenisé
+complet pour toutes les familles de statements et de fonctions.
 
 Le chemin numérique actuel est une descente récursive par niveaux de priorité :
 `eval_expression` traite les sommes et comparaisons, `parse_product` traite
@@ -137,7 +137,9 @@ des cadres et des buffers, pas une liste de combinaisons autorisées.
 L'implémentation assembleur est actuellement en migration :
 
 * les identifiants sont parcourus depuis la source ASCII et normalisés en
-  place ; il n'existe pas encore de flux de tokens indépendant ;
+  place ; le lexer d'expressions publie désormais aussi un flux borné de
+  tokens target-side, tout en conservant le curseur historique pour les
+  formes qui ne sont pas encore migrées ;
 * les fonctions parenthésées courantes sont reconnues par une table de
   descripteurs target-side, puis envoyées vers des évaluateurs spécialisés ;
   la reconnaissance est insensible à la casse et le repli conserve les
@@ -179,10 +181,10 @@ en ASCII directement par des routines assembleur. La reconnaissance des
 fonctions chaîne et des fonctions numériques parenthésées passe désormais par
 une table target-side de descripteurs bornée ; leurs évaluateurs restent des
 routines indépendantes. Les autres mots-clés et fonctions utilisent encore le
-dispatch historique (`RND` conserve notamment sa forme sans parenthèses). Une
-future migration vers un flux de tokens et une table complète de mots-clés
-devra conserver ce contrat et remplacer progressivement ces probes, sans
-changer la grammaire observable.
+dispatch historique (`RND` conserve notamment sa forme sans parenthèses). La
+poursuite de la migration vers un flux de tokens partagé et une table complète
+de mots-clés devra conserver ce contrat et remplacer progressivement ces
+probes, sans changer la grammaire observable.
 
 Les IDs reconnus par la table sont ensuite répartis en deux chemins :
 
@@ -228,20 +230,22 @@ numérique, mais seulement partiellement au lexer et au dispatch :
    `{kind, start, length, id}` dans la mémoire cible. Le handler reçoit encore
    son ABI historique pendant la migration, mais le lexème reconnu est déjà
    représenté indépendamment du chemin de dispatch.
-5. L'entrée de `eval_expression` effectue maintenant une validation lexicale
-   target-side et publie jusqu'à 32 tokens `{type, source, length}`. Le parseur
-   numérique conserve encore `x21` comme curseur de compatibilité pendant cette
-   étape ; le flux de tokens est donc un oracle lexical interne et non encore
-   l'entrée du calcul.
-6. Un évaluateur tokenisé indépendant est maintenant prouvé dans
-   `examples/minibasic-runtime-expression-token-parser.rv`. Il consomme le
-   même format de records, utilise une pile de valeurs et une pile
-   d'opérateurs en RAM cible, réduit `2+3*4` avec la précédence correcte et
-   produit le motif binary64 de `17.5` sous QEMU. Il supporte les nombres
-   décimaux avec une partie fractionnaire, les quatre opérateurs binaires et
-   les parenthèses comme barrières de réduction ; il n'est pas encore raccordé
-   au payload principal.
-7. Les handlers historiques consomment encore directement le texte. Le plan
+5. L'entrée de `eval_expression` effectue une validation lexicale target-side
+   et publie jusqu'à 32 tokens `{type, source, length}`. Les flux composés
+   uniquement de nombres décimaux, opérateurs binaires `+ - * /` et
+   parenthèses sont maintenant consommés par l'évaluateur tokenisé intégré ;
+   les noms, appels de fonctions, chaînes et signes unaires reviennent sans
+   mutation au parseur historique. Le contrat préserve `x18`, `x31` et `x9`
+   dans les cellules `0x82062728`, `0x82062730` et `0x82062738`.
+6. L'évaluateur tokenisé indépendant reste prouvé dans
+   `examples/minibasic-runtime-expression-token-parser.rv` avec le même format
+   de records et les mêmes piles target-side. Le payload principal possède
+   désormais en plus un raccordement borné, prouvé sous QEMU par `PRINT 2+3`,
+   `PRINT 2*(3+4)` et leurs variantes directes/numérotées. Le fixture isolé
+   conserve une preuve plus petite et indépendante de la compatibilité des
+   piles et de la conversion décimale.
+7. Les handlers historiques consomment encore directement le texte lorsqu'une
+   expression sort du sous-ensemble tokenisé. Le plan
    de migration est de faire produire au lexer des tokens bornés, puis de
    faire partager le parseur de précédence et les descripteurs aux fonctions,
    tableaux, comparaisons et arguments de statements. Les handlers cible et

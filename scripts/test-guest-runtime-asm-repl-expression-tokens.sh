@@ -23,18 +23,34 @@ qemu-system-riscv64 -M virt -m 64M -bios none -kernel "$image" \
     -nographic <"$input_fifo" >"$output_file" 2>&1 &
 qemu_pid=$!
 exec 3>"$input_fifo"
+send_line() {
+    local line="$1"
+    local index
+    for ((index = 0; index < ${#line}; index++)); do
+        printf '%s' "${line:index:1}" >&3
+        sleep 0.01
+    done
+    printf '\n' >&3
+    sleep 0.5
+}
 sleep 0.1
-awk '/^symbols$/{print; found=1; next} found && /^run-at /{print; exit} !found{print}' \
+awk '/^symbols$/{exit} !found{print}' \
     examples/minibasic-asm/payload-repl.rv |
-    while IFS= read -r line; do printf '%s\n' "$line" >&3; sleep 0.01; done
-sleep 1.0
-printf '%s\n' \
+    while IFS= read -r line; do printf '%s\n' "$line" >&3; sleep 0.005; done
+sleep 2.0
+send_line 'symbols'
+send_line 'run-at 0x81000100'
+for line in \
   '10 PRINT 2+3*4' \
-  '20 END' \
+  '20 PRINT 2*(3+4)' \
+  '30 END' \
   'RUN' \
   'memory 0x820622f0 8' \
   'memory 0x82062300 24' \
-  'q' >&3
+  'memory 0x82062720 8' \
+  'q'; do
+    send_line "$line"
+done
 exec 3>&-
 sleep 0.4
 kill "$qemu_pid" 2>/dev/null || true
@@ -43,7 +59,9 @@ qemu_pid=""
 
 for expected in \
   '14.000000' \
-  '0x00000000820622f0: 05 00 00 00 00 00 00 00' \
+  '14.000000' \
+  '0x0000000082062720: 01 00 00 00 00 00 00 00' \
+  '0x00000000820622f0: 07 00 00 00 00 00 00 00' \
   '0x0000000082062300: 01 00 00 00 00 00 00 00'; do
     if [[ "$(<"$output_file")" != *"$expected"* ]]; then
         cat "$output_file"

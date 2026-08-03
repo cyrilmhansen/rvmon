@@ -32,7 +32,7 @@ awk '/^symbols$/{print; found=1; next} found && /^run-at /{print; exit} !found{p
 sleep 0.2
 printf '?2+3\n' >&3
 sleep 0.4
-printf 'regs\nmemory 0x82000400 8\nq\n' >&3
+printf 'regs\nmemory 0x82000420 8\nq\n' >&3
 exec 3>&-
 sleep 0.3
 kill "$qemu_pid" 2>/dev/null || true
@@ -41,10 +41,10 @@ qemu_pid=""
 
 for expected in \
     'trap: breakpoint' \
-    'f1=0x4000000000000000' \
+    'f1=0x4014000000000000' \
     'f2=0x4008000000000000' \
     'f3=0x4014000000000000' \
-    '0x0000000082000400: 00 00 00 00 00 00 14 40'; do
+    '0x0000000082000420: 35 2e 30 30 30 30 30 30'; do
     if ! grep -aFq "$expected" "$output_file"; then
         cat "$output_file"
         printf 'missing integrated assembly question alias output: %s\n' "$expected" >&2
