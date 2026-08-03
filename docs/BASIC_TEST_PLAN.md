@@ -162,8 +162,11 @@
   `SQR(0)` et l’imbrication `SQR(ABS(-16))` dans le guest, avec sortie
   déterministe issue de `fsqrt.d`.
 - `scripts/test-guest-runtime-asm-repl-sqr-error.sh` vérifie le refus
-  target-side d’un argument négatif et d’une parenthèse fermante absente,
-  avec deux diagnostics et retour propre au moniteur.
+  target-side de deux arguments négatifs, avec deux diagnostics et retour
+  propre au moniteur.
+- `scripts/test-guest-runtime-asm-repl-trig.sh` vérifie `SIN` et `COS` dans le
+  guest sur `0`, `1`, `±pi/2`, `pi` et des appels imbriqués, avec les motifs
+  décimaux déterministes et le breakpoint final.
 - `scripts/test-guest-runtime-asm-repl-two-lines.sh` vérifie l’insertion hors
   ordre de `20` puis `10`, le tri observable de `LIST`, les deux slots mémoire
   et l’exécution séquentielle target-side des lignes `10` puis `20`.

@@ -61,6 +61,15 @@ data 0x820003b8 .dword 0x4014000000000000
 data 0x820003c0 .dword 0x4008000000000000
 data 0x820003c8 .dword 0x41f0000000000000
 data 0x820003d0 .dword 0x41e0000000000000
+data 0x82010000 .dword 0x400921fb54442d18
+data 0x82010008 .dword 0x401921fb54442d18
+data 0x82010010 .dword 0x3ff921fb54442d18
+data 0x82010018 .dword 0x3ff0000000000000
+data 0x82010020 .dword 0xbfc5555555555555
+data 0x82010028 .dword 0x3f81111111111111
+data 0x82010030 .dword 0xbf2a01a01a01a01a
+data 0x82010038 .dword 0x3ec71de3a556c734
+data 0x82010040 .dword 0xbe5ae64567f544e4
 data 0x82000200 .dword 0x0000000000000000
 data 0x82000218 .dword 0x0000000000000000
 assemble-program 0x81000100
@@ -3681,6 +3690,8 @@ addi x6,x0,73
 beq x5,x6,atom_int_dispatch
 addi x6,x0,83
 beq x5,x6,atom_sgn_dispatch
+addi x6,x0,67
+beq x5,x6,atom_cos_probe
 addi x6,x0,76
 beq x5,x6,atom_len_dispatch
 addi x6,x0,84
@@ -3701,6 +3712,17 @@ lbu x6,1(x21)
 addi x7,x0,40
 beq x6,x7,array_open_generic
 addi x27,x21,0
+atom_cos_probe:
+lbu x6,1(x21)
+addi x7,x0,79
+bne x6,x7,atom_array_name_scan
+lbu x6,2(x21)
+addi x7,x0,83
+bne x6,x7,atom_array_name_scan
+lbu x6,3(x21)
+addi x7,x0,40
+bne x6,x7,atom_array_name_scan
+jal x0,atom_cos_function
 atom_a_dispatch:
 lbu x6,1(x21)
 addi x7,x0,66
@@ -3751,8 +3773,18 @@ jal x0,atom_int_function
 atom_sgn_dispatch:
 lbu x6,1(x21)
 addi x7,x0,81
-bne x6,x7,atom_sgn_check
+bne x6,x7,atom_sgn_sin_probe
 jal x0,atom_sqr_function
+atom_sgn_sin_probe:
+addi x7,x0,73
+bne x6,x7,atom_sgn_check
+lbu x6,2(x21)
+addi x7,x0,78
+bne x6,x7,atom_sgn_check
+lbu x6,3(x21)
+addi x7,x0,40
+bne x6,x7,atom_array_name_scan
+jal x0,atom_sin_function
 atom_sgn_check:
 addi x7,x0,71
 bne x6,x7,atom_array_name_scan
@@ -7049,6 +7081,187 @@ string_mid_assign_done:
 ld x1,2016(x8)
 jalr x0,0(x1)
 string_mid_assign_error:
+jal x0,error_line
+atom_sin_function:
+sd x29,1968(x8)
+addi x29,x8,2047
+addi x29,x29,257
+sd x29,1480(x8)
+sd x1,0(x29)
+sd x22,8(x29)
+sd x28,16(x29)
+sd x30,24(x29)
+sd x31,32(x29)
+lbu x5,1(x21)
+addi x6,x0,73
+bne x5,x6,atom_math_error
+lbu x5,2(x21)
+addi x6,x0,78
+bne x5,x6,atom_math_error
+lbu x5,3(x21)
+addi x6,x0,40
+bne x5,x6,atom_math_error
+addi x21,x21,4
+addi x22,x0,0
+jal x1,eval_expression
+lbu x5,0(x21)
+addi x6,x0,41
+beq x5,x6,atom_sin_close_present
+beq x5,x0,atom_sin_close_consumed
+jal x0,atom_math_error
+atom_sin_close_present:
+addi x21,x21,1
+jal x0,math_sin_core
+atom_sin_close_consumed:
+addi x6,x21,-1
+lbu x5,0(x6)
+addi x6,x0,41
+bne x5,x6,atom_math_error
+jal x0,math_sin_core
+atom_cos_function:
+sd x29,1632(x8)
+addi x29,x8,2047
+addi x29,x29,257
+addi x29,x29,64
+sd x29,1624(x8)
+sd x1,0(x29)
+sd x22,8(x29)
+sd x28,16(x29)
+sd x30,24(x29)
+sd x31,32(x29)
+lbu x5,1(x21)
+addi x6,x0,79
+bne x5,x6,atom_math_error
+lbu x5,2(x21)
+addi x6,x0,83
+bne x5,x6,atom_math_error
+lbu x5,3(x21)
+addi x6,x0,40
+bne x5,x6,atom_math_error
+addi x21,x21,4
+addi x22,x0,0
+jal x1,eval_expression
+lbu x5,0(x21)
+addi x6,x0,41
+beq x5,x6,atom_cos_close_present
+beq x5,x0,atom_cos_close_consumed
+jal x0,atom_math_error
+atom_cos_close_present:
+addi x21,x21,1
+jal x0,atom_cos_add_shift
+atom_cos_close_consumed:
+addi x6,x21,-1
+lbu x5,0(x6)
+addi x6,x0,41
+bne x5,x6,atom_math_error
+atom_cos_add_shift:
+lui x7,0x82010
+slli x7,x7,32
+srli x7,x7,32
+addi x7,x7,16
+fld f5,0(x7)
+fadd.d f3,f3,f5
+jal x0,math_cos_core
+math_sin_core:
+ld x29,1480(x8)
+jal x1,math_sin_core_body
+jal x0,math_sin_restore
+math_cos_core:
+ld x29,1624(x8)
+jal x1,math_sin_core_body
+jal x0,math_cos_restore
+math_sin_core_body:
+lui x7,0x82010
+slli x7,x7,32
+srli x7,x7,32
+addi x7,x7,0
+fld f4,0(x7)
+fld f6,8(x7)
+fcvt.d.l f7,x0,0
+fsub.d f7,f7,f4
+fdiv.d f5,f3,f6
+fcvt.l.d x22,f5,1
+fcvt.d.l f5,x22,0
+fmul.d f5,f5,f6
+fsub.d f3,f3,f5
+flt.d x7,f4,f3
+beq x7,x0,math_sin_low_pi
+fsub.d f3,f4,f3
+math_sin_low_pi:
+flt.d x7,f3,f7
+beq x7,x0,math_sin_symmetry
+fadd.d f3,f3,f6
+math_sin_symmetry:
+lui x7,0x82010
+slli x7,x7,32
+srli x7,x7,32
+addi x7,x7,16
+fld f5,0(x7)
+flt.d x7,f5,f3
+beq x7,x0,math_sin_check_negative
+fsub.d f3,f4,f3
+math_sin_check_negative:
+fcvt.d.l f2,x0,0
+fsub.d f2,f2,f5
+flt.d x7,f3,f2
+beq x7,x0,math_sin_exact_check
+fsub.d f3,f7,f3
+math_sin_exact_check:
+feq.d x7,f3,f5
+bne x7,x0,math_sin_exact_positive
+feq.d x7,f3,f2
+bne x7,x0,math_sin_exact_negative
+jal x0,math_sin_polynomial
+math_sin_polynomial:
+fmul.d f6,f3,f3
+lui x7,0x82010
+slli x7,x7,32
+srli x7,x7,32
+addi x7,x7,32
+fld f7,32(x7)
+fmul.d f7,f7,f6
+fld f5,24(x7)
+fadd.d f7,f5,f7
+fmul.d f7,f7,f6
+fld f5,16(x7)
+fadd.d f7,f5,f7
+fmul.d f7,f7,f6
+fld f5,8(x7)
+fadd.d f7,f5,f7
+fmul.d f7,f7,f6
+fld f5,0(x7)
+fadd.d f7,f5,f7
+fmul.d f7,f7,f6
+addi x10,x0,1
+fcvt.d.l f5,x10,0
+fadd.d f7,f5,f7
+fmul.d f4,f3,f7
+jalr x0,0(x1)
+math_sin_exact_positive:
+addi x10,x0,1
+fcvt.d.l f4,x10,0
+jalr x0,0(x1)
+math_sin_exact_negative:
+addi x10,x0,-1
+fcvt.d.l f4,x10,0
+jalr x0,0(x1)
+math_sin_restore:
+ld x1,0(x29)
+ld x22,8(x29)
+ld x28,16(x29)
+ld x30,24(x29)
+ld x31,32(x29)
+ld x29,1968(x8)
+jal x0,store_atom
+math_cos_restore:
+ld x1,0(x29)
+ld x22,8(x29)
+ld x28,16(x29)
+ld x30,24(x29)
+ld x31,32(x29)
+ld x29,1632(x8)
+jal x0,store_atom
+atom_math_error:
 jal x0,error_line
 atom_sqr_function:
 sd x1,1984(x8)

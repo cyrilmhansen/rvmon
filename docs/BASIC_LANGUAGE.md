@@ -65,6 +65,8 @@ factor        = number | variable | "(" , expression , ")"
               | "FRAC" , "(" , expression , ")"
               | "MOD" , "(" , expression , "," , expression , ")"
               | "SQR" , "(" , expression , ")"
+              | "SIN" , "(" , expression , ")"
+              | "COS" , "(" , expression , ")"
               | "RND" | "RND" , "(" , ")"
               | ( "+" | "-" ) , factor ;
 variable      = identifier ;
@@ -114,7 +116,8 @@ valeurs infinies et NaN sont affichées `INF`, `-INF` et `NAN`. Une division par
 zéro produit `BASIC-ARITH-001`.
 
 Les fonctions numériques `ABS(expr)`, `SGN(expr)`, `INT(expr)`,
-`TRUNC(expr)`, `FRAC(expr)`, `MOD(a,b)` et `SQR(expr)` sont
+`TRUNC(expr)`, `FRAC(expr)`, `MOD(a,b)`, `SQR(expr)`, `SIN(expr)` et
+`COS(expr)` sont
 évaluées dans le guest. `TRUNC` convertit vers l’entier signé en arrondissant
 vers zéro puis reconvertit en binary64 ; `FRAC(x)` vaut `x-TRUNC(x)` ;
 `MOD(a,b)` vaut `a-TRUNC(a/b)*b` et refuse `b=0`. Les scratchs target-side sont
@@ -138,6 +141,19 @@ propager silencieusement. La syntaxe exige exactement une expression et une
 parenthèse fermante. Le résultat et les éventuels flags flottants restent
 ceux de l’exécution D dans la cible ; aucun calcul de racine n’est effectué
 par l’hôte.
+
+`SIN(x)` et `COS(x)` utilisent une réduction d’intervalle target-side en
+radians, suivie d’un polynôme binary64 évalué par les instructions D. La
+réduction ramène l’opérande dans `[-pi/2,pi/2]`; les constantes et les
+coefficients sont des motifs binary64 stockés dans la mémoire cible. Les
+points canoniques `0`, `±pi/2` et `pi` bénéficient d’un résultat exact dans la
+limite de la représentation retenue. Les autres résultats sont déterministes
+et leur précision utile V1 est vérifiée à six décimales sur le domaine borné
+par les tests QEMU. Aucun appel à une bibliothèque mathématique de l’hôte
+n’est effectué. Les valeurs infinies, NaN et les opérandes hors domaine de
+conversion entière suivent la limite numérique V1 documentée pour la
+réduction ; elles ne constituent pas encore une promesse de précision
+transcendante sur toute la plage binary64.
 
 `LEN(string-variable)` renvoie dans le guest la longueur de la variable chaîne
 ou de l’élément de tableau chaîne fourni. La résolution accepte les noms
