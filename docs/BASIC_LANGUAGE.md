@@ -184,6 +184,12 @@ future migration vers un flux de tokens et une table complète de mots-clés
 devra conserver ce contrat et remplacer progressivement ces probes, sans
 changer la grammaire observable.
 
+`PRINT` est maintenant le premier handler de statement appelé directement par
+l'ID reconnu dans la table. Le contexte historique (`x6`, `x7`, `x9`, `x27`,
+`x28`, `x29`) est restauré avant l'appel à `print_dispatch`; les autres IDs
+restent en repli vers leur dispatch historique jusqu'à la validation de leur
+contrat propre.
+
 Les concaténations target-side disposent maintenant d’une pile statique de huit
 cadres. Chaque cadre possède son propre buffer source, son propre buffer de
 concaténation, la destination publique sauvegardée et une cellule de retour
