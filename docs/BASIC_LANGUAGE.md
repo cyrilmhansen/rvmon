@@ -233,9 +233,10 @@ numérique, mais seulement partiellement au lexer et au dispatch :
 5. L'entrée de `eval_expression` effectue une validation lexicale target-side
    et publie jusqu'à 32 tokens `{type, source, length}`. Les flux composés
    uniquement de nombres décimaux, opérateurs binaires `+ - * /` et
-   parenthèses sont maintenant consommés par l'évaluateur tokenisé intégré ;
-   les noms, appels de fonctions, chaînes et signes unaires reviennent sans
-   mutation au parseur historique. Le contrat préserve `x18`, `x31` et `x9`
+   parenthèses et signes unaires devant un littéral sont maintenant consommés
+   par l'évaluateur tokenisé intégré ; les noms, appels de fonctions, chaînes
+   et signes devant un groupe parenthésé reviennent sans mutation au parseur
+   historique. Le contrat préserve `x18`, `x31` et `x9`
    dans les cellules `0x82062728`, `0x82062730` et `0x82062738`.
 6. L'évaluateur tokenisé indépendant reste prouvé dans
    `examples/minibasic-runtime-expression-token-parser.rv` avec le même format

@@ -32,7 +32,7 @@ awk '/^symbols$/{print; found=1; next} found && /^run-at /{print; exit} !found{p
 sleep 0.2
 printf '10 PRINT (-2.5) + (+3.5)\nRUN\n' >&3
 sleep 0.4
-printf 'regs\nmemory 0x82000400 8\nq\n' >&3
+printf 'regs\nmemory 0x82000420 8\nmemory 0x82062720 8\nq\n' >&3
 exec 3>&-
 sleep 0.3
 kill "$qemu_pid" 2>/dev/null || true
@@ -41,11 +41,12 @@ qemu_pid=""
 
 for expected in \
     'trap: breakpoint' \
-    'f1=0xc004000000000000' \
+    'f1=0x3ff0000000000000' \
     'f2=0x400c000000000000' \
     'f3=0x3ff0000000000000' \
     '1.000000' \
-    '0x0000000082000400: 00 00 00 00 00 00 f0 3f'; do
+    '0x0000000082000420: 31 2e 30 30 30 30 30 30' \
+    '0x0000000082062720: 01 00 00 00 00 00 00 00'; do
     if ! grep -aFq "$expected" "$output_file"; then
         cat "$output_file"
         printf 'missing integrated assembly unary/parenthesis output: %s\n' "$expected" >&2

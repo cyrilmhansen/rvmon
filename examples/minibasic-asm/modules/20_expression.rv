@@ -426,6 +426,12 @@ addi x29,x29,1
 jal x0,integrated_token_validate_loop
 itok_val_op:
 beq x30,x0,itok_val_opbyte
+ld x6,8(x28)
+lbu x5,0(x6)
+addi x6,x0,43
+beq x5,x6,integrated_token_operator_ok
+addi x6,x0,45
+beq x5,x6,integrated_token_operator_ok
 jal x0,integrated_token_no
 itok_val_opbyte:
 ld x6,8(x28)
@@ -524,6 +530,12 @@ addi x31,x1,0
 addi x9,x0,0
 addi x10,x0,0
 addi x11,x0,0
+addi x24,x0,1
+lui x6,0x82062
+slli x6,x6,32
+srli x6,x6,32
+addi x6,x6,1856
+sd x0,0(x6)
 integrated_token_loop:
 lui x7,0x82062
 slli x7,x7,32
@@ -549,6 +561,23 @@ beq x5,x6,integrated_token_close
 jal x0,error_line
 integrated_token_number:
 jal x1,integrated_token_read_number
+; Apply a pending unary minus after the target-side literal conversion.
+lui x6,0x82062
+slli x6,x6,32
+srli x6,x6,32
+addi x6,x6,1856
+ld x5,0(x6)
+beq x5,x0,itok_num_sign_done
+addi x28,x10,0
+fmv.x.d x10,f1
+addi x5,x0,1
+slli x5,x5,63
+xor x10,x10,x5
+fmv.d.x f1,x10
+addi x10,x28,0
+sd x0,0(x6)
+itok_num_sign_done:
+addi x24,x0,0
 jal x1,integrated_value_push
 jal x0,integrated_token_loop
 integrated_token_operator:
@@ -556,6 +585,22 @@ ld x6,8(x28)
 lbu x5,0(x6)
 addi x14,x5,0
 addi x9,x9,1
+beq x24,x0,itok_binary_op
+addi x6,x0,43
+beq x5,x6,integrated_token_unary_plus
+addi x6,x0,45
+bne x5,x6,integrated_token_error
+lui x6,0x82062
+slli x6,x6,32
+srli x6,x6,32
+addi x6,x6,1856
+ld x5,0(x6)
+addi x5,x5,1
+andi x5,x5,1
+sd x5,0(x6)
+integrated_token_unary_plus:
+jal x0,integrated_token_loop
+itok_binary_op:
 addi x6,x0,43
 beq x5,x6,integrated_token_plus
 addi x6,x0,45
@@ -566,20 +611,30 @@ addi x6,x0,47
 beq x5,x6,integrated_token_mul
 jal x0,error_line
 integrated_token_plus:
+addi x24,x0,1
 addi x6,x0,1
 jal x1,integrated_operator_reduce
 jal x0,integrated_token_loop
 integrated_token_mul:
+addi x24,x0,1
 addi x6,x0,2
 jal x1,integrated_operator_reduce
 jal x0,integrated_token_loop
 integrated_token_open:
+beq x24,x0,integrated_token_error
+lui x6,0x82062
+slli x6,x6,32
+srli x6,x6,32
+addi x6,x6,1856
+ld x5,0(x6)
+bne x5,x0,integrated_token_no
 sltiu x6,x11,32
 beq x6,x0,integrated_token_error
 jal x1,integrated_operator_push_open
 addi x9,x9,1
 jal x0,integrated_token_loop
 integrated_token_close:
+bne x24,x0,integrated_token_error
 addi x9,x9,1
 integrated_token_close_reduce:
 beq x11,x0,integrated_token_error
@@ -596,6 +651,7 @@ jal x1,integrated_reduce_one
 jal x0,integrated_token_close_reduce
 integrated_token_close_pop:
 addi x11,x11,-1
+addi x24,x0,0
 jal x0,integrated_token_loop
 integrated_operator_push_open:
 lui x27,0x82062
