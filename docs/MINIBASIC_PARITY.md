@@ -17,7 +17,7 @@ expressions, données, chaînes, tableaux et diagnostics. Elle ne signifie ni
 compatibilité Atari, ni compatibilité binaire, ni compatibilité des tokens,
 des nombres historiques, des périphériques, du DOS ou des graphismes.
 
-État de l’audit au 3 août 2026 : **109 scripts QEMU assembleur MiniBASIC
+État de l’audit au 3 août 2026 : **110 scripts QEMU assembleur MiniBASIC
 recensés**. Les scénarios récents fournissent notamment la preuve nominale et
 d’erreur de `ATN` après exécution QEMU verte. Ce nombre
 est contrôlable par :
@@ -130,7 +130,7 @@ refusée.
 | `ABS`, `SGN`, `INT`, `TRUNC`, `FRAC`, `MOD`, `SQR`, `SIN`, `COS`, `TAN`, `LOG`, `EXP`, `RND` | Sous-ensemble numérique explicite | VERT/PARTIEL | `SQR` utilise `fsqrt.d`, les fonctions transcendantes utilisent réduction et polynômes target-side ; `LOG/EXP` sont bornées et leur approximation fixe peut perdre une unité au dernier chiffre affiché |
 | `ATN` | Fonction target-side en radians avec réduction et polynôme binary64 | VERT | deux scénarios QEMU, dont `ATN(ATN(1))` et une erreur de syntaxe |
 | `DEL n,m` | Extension target-side bornée, suppression inclusive | VERT | `test-guest-runtime-asm-repl-del.sh`; formes simple, plage et erreur |
-| `RENUM new,old,step` | Reprise target-side bornée, avec prévalidation et alias ancien→nouveau pour les cibles de flot | PARTIEL | `test-guest-runtime-asm-repl-renum*.sh`; `GOTO`, `GOSUB`, `THEN` et `ON GOTO` sont résolus après une renumérotation |
+| `RENUM new,old,step` | Reprise target-side bornée, avec prévalidation et réécriture des cibles de flot | PARTIEL | `test-guest-runtime-asm-repl-renum*.sh`, `renum-repeat-control.sh`; `GOTO`, `GOSUB`, `THEN` et les listes `ON` sont réécrits après plusieurs renumérotations |
 | Autres fonctions mathématiques historiques non retenues dans la grammaire | Différées, pas implicitement supportées | DIFFÉRÉ | aucune syntaxe n’est promise sans décision et test dédiés |
 | Chaînes complètes et tableaux complets | Conservés comme trajectoire produit | PLANIFIÉ | concaténation et découpes sont présentes ; opérations restantes à auditer |
 | Fichiers, DOS, graphismes, sons, périphériques Atari | Rejetés | REJETÉ | ne font pas partie du modèle de services cible |
@@ -215,9 +215,9 @@ Priorité suivante, après stabilisation du socle actuel :
 3. consolider la surface chaîne déjà livrée : ajouter des cas limites pour
    les tableaux, l’auto-affectation, les buffers pleins et les compositions
    `STR$`/`CHR$`, sans élargir silencieusement la grammaire ;
-4. décider si l’alias de dernière renumérotation doit devenir une réécriture
-   atomique permanente des références absolues, puis auditer les familles TBXL
-   non encore retenues (formatages et commandes d’édition), en conservant les limites explicites d’`ATN`, et
+4. auditer les limites restantes de `RENUM` (notamment l’expansion d’un record
+   proche de 111 octets), puis les familles TBXL non encore retenues
+   (formatages et commandes d’édition), en conservant les limites explicites d’`ATN`, et
    prendre pour chacune une décision versionnée avant toute implémentation ;
 5. traiter les limites documentées des blocs structurés et des expressions
    d’index uniquement si une compatibilité supplémentaire est prioritaire ;
@@ -250,7 +250,7 @@ sortie BASIC préenregistrée.
 - **Décisions de parité figées :** mode direct, lignes, contrôle de flot,
   chaînes, tableaux, binary64 target-side, interruption et périmètre Atari
   rejeté ;
-- **Preuve automatisée :** 109 scripts QEMU assembleur recensés au moment de
+- **Preuve automatisée :** 110 scripts QEMU assembleur recensés au moment de
   cet audit, avec des cas nominaux et négatifs dédiés aux chaînes, tableaux,
   conversions, fonctions de recherche, formatage et blocs structurés ;
 - **Écart important restant :** `ELSE`/`ENDIF` doivent rester en lignes dédiées ;
@@ -282,7 +282,7 @@ sortie BASIC préenregistrée.
 | 2026-08-03 | Ajout et validation de `ATN(expression)` target-side avec réduction par réciproque et intervalle `pi/4` | `test-guest-runtime-asm-repl-atn.sh` et `test-guest-runtime-asm-repl-atn-error.sh` sous QEMU ; cas nominaux, imbrication et erreur | `ATN` devient VERT dans le sous-ensemble MiniBASIC ; les cadres statiques limitent l’imbrication à deux niveaux |
 | 2026-08-03 | Ajout de `DEL n` et `DEL n,m` target-side | `test-guest-runtime-asm-repl-del.sh` sous QEMU ; suppression simple, plage inclusive, listing, exécution et plage inversée | l’édition de blocs TBXL est partiellement reprise ; `RENUM` et les commandes de fichiers restent différés |
 | 2026-08-03 | Ajout de `RENUM new,old,step` target-side avec prévalidation | `test-guest-runtime-asm-repl-renum.sh` et `test-guest-runtime-asm-repl-renum-error.sh` sous QEMU ; corps simples, listing, exécution et erreur sans écriture partielle | la commande d’édition est PARTIELLE : les records conservent un alias de leur numéro précédent pour les résolveurs de contrôle de flot |
-| 2026-08-03 | Résolution des cibles après RENUM | `test-guest-runtime-asm-repl-renum-control.sh` sous QEMU ; `IF THEN`, `GOSUB/RETURN` et `ON GOTO` reprennent effectivement les lignes renumérotées | les références restent dans le texte, l’alias ne couvre que la dernière renumérotation et la réécriture permanente reste une décision ultérieure |
+| 2026-08-03 | Réécriture target-side des références après plusieurs `RENUM` | `test-guest-runtime-asm-repl-renum-repeat-control.sh` sous QEMU ; deux renumérotations successives et `GOTO 30` exécutent `REN2` | les records restent en place mais les cibles `GOTO`/`GOSUB`/`THEN`/`ON` sont réémises dans un scratch cible ; la limite de record à 111 octets reste explicite |
 | 2026-08-03 | Validation de la concaténation dans `PRINT` | `test-guest-runtime-asm-repl-string-print-concat.sh` sous QEMU : `"RV "+TEXT$`, `TEXT$+"!"`, `LEFT$(TEXT$,4)+"!"`, `"A"+"B"+"C"`, `CHR$(65)+"B"` et `STR$(12.5)+"!"` | la sortie concaténée, les découpes et les conversions chaîne sont calculées dans le payload ; l’affectation concaténée reste PARTIELLE pour les conversions numériques |
 | 2026-08-03 | Audit de cohérence du registre | comptage reproductible : `find scripts -maxdepth 1 -type f -name 'test-guest-runtime-asm-repl*.sh' \| wc -l` → `107` | l’inventaire courant est distingué des comptes historiques ; la concaténation `PRINT` est maintenant validée par un scénario QEMU dédié |
 | 2026-08-03 | Correction de la résolution des tableaux courts nommés `C` | `test-guest-runtime-asm-repl-array-table.sh` sous QEMU : `DIM B(3)`, `DIM C(2)`, affectations et `PRINT B(1)+C(2)` produisent `16.000000` | `C(...)` ne tombe plus dans le résolveur de tableaux longs ; le test de la fonction `COS(...)` doit rester vert |

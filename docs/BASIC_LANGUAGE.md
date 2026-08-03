@@ -358,12 +358,13 @@ est rejetée sans écriture partielle. `TRACE ON` affiche `[numéro]` avant chaq
 ligne. `RENUM new,old,step` renumérote les lignes actives à partir de `old`
 vers `new`, avec l’incrément `step`. V1 exige des paramètres décimaux
 multiples de dix dans 10..2560, `new >= old` et une ligne finale dans la plage.
-L’opération est prévalidée avant écriture. Les références textuelles `GOTO`,
-`GOSUB`, `THEN` et `ON` restent dans les corps : chaque record renuméroté
-conserve en `record+8` son numéro précédent, et les résolveurs acceptent le
-numéro courant ou cet alias. L’alias est remplacé lors d’un RENUM ultérieur ;
-les chaînes de références antérieures à la dernière renumérotation ne sont
-pas garanties. Un numéro cible absent reste une erreur à l’exécution.
+L’opération est prévalidée avant écriture. Après la mise à jour des numéros,
+le guest réécrit dans un scratch target-side les cibles numériques de `GOTO`,
+`GOSUB`, `THEN` et des listes `ON ... GOTO/GOSUB`, en résolvant le numéro
+courant ou l’alias `record+8`. Cette réécriture rend les références stables
+après plusieurs `RENUM` ; les chaînes littérales ne sont jamais modifiées.
+Un numéro cible absent reste inchangé et produit une erreur à l’exécution.
+La capacité de sortie d’un record reste limitée à 111 octets.
 Ctrl-C est capturé par le pilote UART interrupt-driven puis consommé par
 polling coopératif pendant `RUN`.
 

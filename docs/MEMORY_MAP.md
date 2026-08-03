@@ -109,7 +109,9 @@ peuvent être réécrits.
 | `0x82060710..0x82060717` | retour persistant de `string_concat_assign` | une adresse de retour | appel |
 | `0x82060728..0x8206072f` | retour des wrappers `string_assign_*` | une adresse de retour | appel |
 | `0x82060730..0x820607a7` | copie source de `INSTR` | 120 octets maximum ; évite l’écrasement par le second littéral | appel `INSTR` |
-| `0x820607a8..0x82060fff` | réserve globale chaîne | non allouée dans V1 | réservé |
+| `0x820607a8..0x82060bff` | réserve globale chaîne | non allouée dans V1 | réservé |
+| `0x82060c00..0x82060dff` | scratch de réécriture des cibles après `RENUM` | 512 octets ; un record à la fois, avant publication dans le record source | commande `RENUM` |
+| `0x82060e00..0x82060fff` | réserve globale chaîne | non allouée dans V1 | réservé |
 
 Les cellules de retour globales sont nécessaires parce que les appels de
 découpe réutilisent des cellules relatives à `x8`. Elles ne doivent pas être

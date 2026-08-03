@@ -279,7 +279,9 @@ beq x10,x7,trace_command
 addi x7,x0,82
 beq x10,x7,check_r_command
 addi x7,x0,78
-beq x10,x7,new_program
+bne x10,x7,command_not_new
+jal x0,new_program
+command_not_new:
 command_not_numbered:
 jal x0,error_line
 check_l_command:
@@ -613,11 +615,10 @@ delete_range_error:
 jal x0,error_line
 
 ; RENUM new_start,old_start,step.
-; V1 conserve l'ordre des records et mémorise le numéro précédent en +8.
-; Les résolveurs de contrôle de flot acceptent le numéro courant ou cet alias.
-; RENUM : deux passes. La première refuse toute référence non supportée et
-; vérifie les bornes ; la seconde écrit le nouveau numéro et garde l'ancien à
-; record+8 afin que les résolveurs de contrôle restent utilisables une fois.
+; Les records restent dans leur slot physique ; leur numéro courant est écrit
+; en +0 et l'ancien en +8. Deux passes valident puis renumérotent les records.
+; renum_rewrite_all réécrit ensuite les cibles numériques dans le scratch cible,
+; ce qui rend les références GOTO/GOSUB/THEN/ON robustes après plusieurs RENUM.
 renum_command:
 addi x21,x18,6
 addi x26,x0,0
@@ -716,19 +717,21 @@ sltu x7,x28,x7
 beq x7,x0,renum_error
 sltu x7,x26,x27
 bne x7,x0,renum_error
-addi x30,x27,-10
-addi x7,x0,10
-divu x30,x30,x7
+; Les records ne changent pas de slot physique après RENUM. Le parcours doit
+; inspecter le numéro courant du record, et non indexer line_lengths avec
+; old_start ; cette distinction rend les RENUM successifs possibles.
+addi x30,x0,0
 addi x31,x26,0
 addi x22,x0,0
 renum_preflight_line:
 sltiu x7,x30,256
 beq x7,x0,renum_preflight_done
-slli x7,x30,3
-ld x6,480(x8)
-add x6,x6,x7
-ld x6,0(x6)
+slli x7,x30,7
+add x24,x19,x7
+ld x6,0(x24)
 beq x6,x0,renum_preflight_empty
+sltu x7,x6,x27
+bne x7,x0,renum_preflight_empty
 lui x7,1
 addi x7,x7,-1535
 sltu x7,x31,x7
@@ -746,33 +749,294 @@ addi x30,x30,1
 jal x0,renum_preflight_line
 renum_preflight_done:
 beq x22,x0,renum_error
-addi x30,x27,-10
-addi x7,x0,10
-divu x30,x30,x7
+addi x30,x0,0
 addi x31,x26,0
 renum_write_line:
 sltiu x7,x30,256
 beq x7,x0,renum_done
-slli x7,x30,3
-ld x6,480(x8)
-add x6,x6,x7
-ld x6,0(x6)
-beq x6,x0,renum_write_empty
 slli x7,x30,7
 add x24,x19,x7
-addi x7,x30,1
-addi x6,x0,10
-mul x7,x7,x6
-sd x7,8(x24)
+ld x6,0(x24)
+beq x6,x0,renum_write_empty
+sltu x7,x6,x27
+bne x7,x0,renum_write_empty
+sd x6,8(x24)
 sd x31,0(x24)
 add x31,x31,x28
 renum_write_empty:
 addi x30,x30,1
 jal x0,renum_write_line
 renum_done:
-jal x0,command_loop
+; Le texte des sauts reste dans les records ; réécrire ces numéros après la
+; seconde passe évite de dépendre d'un alias unique lors d'un RENUM ultérieur.
+jal x0,renum_rewrite_all
 renum_error:
 jal x0,error_line
+
+; Réécriture target-side des cibles GOTO/GOSUB/THEN/ON après RENUM.
+; x23=slot, x24=record, x25=longueur, x26=curseur source, x27=sortie,
+; x29=état (bit0 guillemets, bit1 prochain nombre cible, bit2 ON), x22=scratch.
+; Les mots-clés sont reconnus hors chaînes ; les nombres sont résolus par
+; record+0/record+8 et émis en décimal dans un scratch avant publication.
+renum_rewrite_all:
+lui x22,0x82061
+slli x22,x22,32
+srli x22,x22,32
+addi x22,x22,-1024
+addi x23,x0,0
+renum_rewrite_record:
+sltiu x7,x23,256
+beq x7,x0,renum_rewrite_done
+slli x7,x23,7
+add x24,x19,x7
+slli x7,x23,3
+ld x6,480(x8)
+add x6,x6,x7
+ld x25,0(x6)
+beq x25,x0,renum_rewrite_skip_record
+addi x26,x0,0
+addi x27,x0,0
+addi x29,x0,0
+renum_rewrite_scan:
+sltu x7,x26,x25
+beq x7,x0,renum_rewrite_publish
+addi x7,x24,16
+add x7,x7,x26
+lbu x5,0(x7)
+addi x6,x0,34
+beq x5,x6,renum_rewrite_quote
+andi x6,x29,1
+bne x6,x0,renum_rewrite_copy
+addi x6,x0,58
+beq x5,x6,renum_rewrite_colon
+andi x6,x29,2
+bne x6,x0,renum_rewrite_target
+jal x0,renum_rewrite_keyword
+renum_rewrite_quote:
+xori x29,x29,1
+jal x0,renum_rewrite_copy
+renum_rewrite_colon:
+addi x29,x0,0
+jal x0,renum_rewrite_copy
+renum_rewrite_target:
+addi x6,x0,48
+sltu x7,x5,x6
+bne x7,x0,renum_rewrite_target_done
+addi x6,x0,58
+sltu x7,x5,x6
+beq x7,x0,renum_rewrite_target_done
+addi x28,x0,0
+addi x31,x0,0
+renum_rw_digits:
+addi x7,x24,16
+add x7,x7,x26
+lbu x5,0(x7)
+addi x6,x0,48
+sltu x7,x5,x6
+ bne x7,x0,renum_rw_digits_done
+addi x6,x0,58
+sltu x7,x5,x6
+beq x7,x0,renum_rw_digits_done
+addi x6,x0,48
+sub x5,x5,x6
+addi x6,x0,10
+mul x28,x28,x6
+add x28,x28,x5
+addi x26,x26,1
+addi x31,x31,1
+jal x0,renum_rw_digits
+renum_rw_digits_done:
+beq x31,x0,renum_rewrite_target_done
+; Recherche du numéro courant ou de l'ancien alias dans les 256 records.
+addi x31,x0,0
+renum_rewrite_map:
+sltiu x7,x31,256
+beq x7,x0,renum_rewrite_emit_number
+slli x7,x31,7
+add x30,x19,x7
+ld x6,0(x30)
+beq x6,x28,renum_rewrite_map_found
+ld x6,8(x30)
+beq x6,x28,renum_rewrite_map_found
+addi x31,x31,1
+jal x0,renum_rewrite_map
+renum_rewrite_map_found:
+ld x28,0(x30)
+renum_rewrite_emit_number:
+; Émet le nombre sans zéros de tête ; x20 sert de drapeau temporaire.
+addi x20,x0,0
+addi x30,x0,1000
+divu x31,x28,x30
+beq x31,x0,renum_rewrite_no_thousands
+addi x20,x0,1
+addi x6,x31,48
+add x7,x22,x27
+sb x6,0(x7)
+addi x27,x27,1
+remu x28,x28,x30
+renum_rewrite_no_thousands:
+addi x30,x0,100
+divu x31,x28,x30
+beq x31,x0,renum_rewrite_no_hundreds
+addi x20,x0,1
+addi x6,x31,48
+add x7,x22,x27
+sb x6,0(x7)
+addi x27,x27,1
+remu x28,x28,x30
+jal x0,renum_rewrite_tens
+renum_rewrite_no_hundreds:
+beq x20,x0,renum_rewrite_tens
+addi x6,x0,48
+add x7,x22,x27
+sb x6,0(x7)
+addi x27,x27,1
+renum_rewrite_tens:
+addi x30,x0,10
+divu x31,x28,x30
+beq x31,x0,renum_rewrite_no_tens
+addi x20,x0,1
+addi x6,x31,48
+add x7,x22,x27
+sb x6,0(x7)
+addi x27,x27,1
+remu x28,x28,x30
+jal x0,renum_rewrite_ones
+renum_rewrite_no_tens:
+beq x20,x0,renum_rewrite_ones
+addi x6,x0,48
+add x7,x22,x27
+sb x6,0(x7)
+addi x27,x27,1
+renum_rewrite_ones:
+addi x6,x28,48
+add x7,x22,x27
+sb x6,0(x7)
+addi x27,x27,1
+andi x29,x29,4
+jal x0,renum_rewrite_scan
+renum_rewrite_target_done:
+andi x29,x29,4
+jal x0,renum_rewrite_scan
+renum_rewrite_keyword:
+; GOTO, GOSUB, THEN et ON sont reconnus avec leur espace terminal.
+addi x7,x24,16
+add x7,x7,x26
+addi x6,x0,71
+bne x5,x6,renum_rewrite_check_then
+lbu x6,1(x7)
+addi x5,x0,79
+bne x6,x5,renum_rewrite_check_then
+lbu x6,2(x7)
+addi x5,x0,84
+beq x6,x5,renum_rewrite_keyword_goto
+addi x5,x0,83
+bne x6,x5,renum_rewrite_copy
+lbu x6,3(x7)
+addi x5,x0,85
+bne x6,x5,renum_rewrite_copy
+lbu x6,4(x7)
+addi x5,x0,66
+bne x6,x5,renum_rewrite_copy
+lbu x6,5(x7)
+addi x5,x0,32
+bne x6,x5,renum_rewrite_copy
+addi x31,x0,6
+addi x20,x0,2
+jal x0,renum_rewrite_copy_keyword
+renum_rewrite_keyword_goto:
+lbu x6,3(x7)
+addi x5,x0,79
+bne x6,x5,renum_rewrite_copy
+lbu x6,4(x7)
+addi x5,x0,32
+bne x6,x5,renum_rewrite_copy
+addi x31,x0,5
+addi x20,x0,2
+jal x0,renum_rewrite_copy_keyword
+renum_rewrite_check_then:
+addi x6,x0,84
+bne x5,x6,renum_rewrite_check_on
+lbu x6,1(x7)
+addi x5,x0,72
+bne x6,x5,renum_rewrite_copy
+lbu x6,2(x7)
+addi x5,x0,69
+bne x6,x5,renum_rewrite_copy
+lbu x6,3(x7)
+addi x5,x0,78
+bne x6,x5,renum_rewrite_copy
+lbu x6,4(x7)
+addi x5,x0,32
+bne x6,x5,renum_rewrite_copy
+addi x31,x0,5
+addi x20,x0,2
+jal x0,renum_rewrite_copy_keyword
+renum_rewrite_check_on:
+addi x6,x0,79
+bne x5,x6,renum_rewrite_copy
+lbu x6,1(x7)
+addi x5,x0,78
+bne x6,x5,renum_rewrite_copy
+lbu x6,2(x7)
+addi x5,x0,32
+bne x6,x5,renum_rewrite_copy
+addi x31,x0,3
+addi x20,x0,4
+jal x0,renum_rewrite_copy_keyword
+renum_rewrite_copy_keyword:
+beq x31,x0,renum_rewrite_keyword_done
+addi x7,x24,16
+add x7,x7,x26
+lbu x5,0(x7)
+add x6,x22,x27
+sb x5,0(x6)
+addi x26,x26,1
+addi x27,x27,1
+addi x31,x31,-1
+jal x0,renum_rewrite_copy_keyword
+renum_rewrite_keyword_done:
+or x29,x29,x20
+jal x0,renum_rewrite_scan
+renum_rewrite_copy:
+addi x6,x0,44
+bne x5,x6,renum_rewrite_copy_byte
+andi x6,x29,4
+beq x6,x0,renum_rewrite_copy_byte
+addi x6,x0,2
+add x29,x29,x6
+renum_rewrite_copy_byte:
+addi x7,x24,16
+add x7,x7,x26
+lbu x5,0(x7)
+add x6,x22,x27
+sb x5,0(x6)
+addi x26,x26,1
+addi x27,x27,1
+jal x0,renum_rewrite_scan
+renum_rewrite_publish:
+addi x26,x0,0
+renum_rewrite_publish_loop:
+sltu x7,x26,x27
+beq x7,x0,renum_rewrite_next_record
+add x6,x22,x26
+lbu x5,0(x6)
+addi x7,x24,16
+add x7,x7,x26
+sb x5,0(x7)
+addi x26,x26,1
+jal x0,renum_rewrite_publish_loop
+renum_rewrite_next_record:
+slli x7,x23,3
+ld x6,480(x8)
+add x6,x6,x7
+sd x27,0(x6)
+renum_rewrite_skip_record:
+addi x23,x23,1
+jal x0,renum_rewrite_record
+renum_rewrite_done:
+addi x20,x8,768
+jal x0,command_loop
 
 store_line_ten_command:
 addi x26,x0,1
@@ -1231,7 +1495,9 @@ addi x17,x0,4
 ecall
 list_line_forty:
 andi x13,x12,8
-beq x13,x0,command_loop
+bne x13,x0,list_line_forty_continue
+jal x0,command_loop
+list_line_forty_continue:
 addi x10,x8,128
 addi x10,x10,48
 addi x11,x0,3
