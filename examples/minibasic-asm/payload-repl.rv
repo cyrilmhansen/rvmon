@@ -4339,6 +4339,11 @@ beq x6,x7,array_open_generic
 addi x27,x21,0
 atom_cos_probe:
 lbu x6,1(x21)
+; `C(...)` is a short numeric-array expression unless the following bytes
+; spell `COS(`. Test the array delimiter before the function-name probe;
+; otherwise every C-array would fall through to the long-array resolver.
+addi x7,x0,40
+beq x6,x7,array_open_generic
 addi x7,x0,79
 bne x6,x7,atom_array_name_scan
 lbu x6,2(x21)

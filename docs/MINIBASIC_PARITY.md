@@ -285,6 +285,7 @@ sortie BASIC préenregistrée.
 | 2026-08-03 | Résolution des cibles après RENUM | `test-guest-runtime-asm-repl-renum-control.sh` sous QEMU ; `IF THEN`, `GOSUB/RETURN` et `ON GOTO` reprennent effectivement les lignes renumérotées | les références restent dans le texte, l’alias ne couvre que la dernière renumérotation et la réécriture permanente reste une décision ultérieure |
 | 2026-08-03 | Validation de la concaténation dans `PRINT` | `test-guest-runtime-asm-repl-string-print-concat.sh` sous QEMU : `"RV "+TEXT$`, `TEXT$+"!"`, `LEFT$(TEXT$,4)+"!"`, `"A"+"B"+"C"`, `CHR$(65)+"B"` et `STR$(12.5)+"!"` | la sortie concaténée, les découpes et les conversions chaîne sont calculées dans le payload ; l’affectation concaténée reste PARTIELLE pour les conversions numériques |
 | 2026-08-03 | Audit de cohérence du registre | comptage reproductible : `find scripts -maxdepth 1 -type f -name 'test-guest-runtime-asm-repl*.sh' \| wc -l` → `107` | l’inventaire courant est distingué des comptes historiques ; la concaténation `PRINT` est maintenant validée par un scénario QEMU dédié |
+| 2026-08-03 | Correction de la résolution des tableaux courts nommés `C` | `test-guest-runtime-asm-repl-array-table.sh` sous QEMU : `DIM B(3)`, `DIM C(2)`, affectations et `PRINT B(1)+C(2)` produisent `16.000000` | `C(...)` ne tombe plus dans le résolveur de tableaux longs ; le test de la fonction `COS(...)` doit rester vert |
 
 Les affectations ne constituent pas encore une parité chaîne complète : le RHS
 est soit une forme `LEFT$`/`RIGHT$`/`MID$`, soit une concaténation de termes
