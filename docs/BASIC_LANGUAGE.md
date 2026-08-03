@@ -175,7 +175,8 @@ restent rejetés.
 `ASC(string-source)` renvoie dans le guest le premier octet ASCII de la source
 et refuse la chaîne vide. `CHR$(expression)` convertit dans le guest une valeur
 entière de 0 à 255 en un terme chaîne d’un octet ; les valeurs négatives,
-supérieures à 255, fractionnaires ou sans argument sont rejetées.
+supérieures à 255, fractionnaires ou sans argument sont rejetées. En `PRINT`,
+le terme est émis comme un octet puis suivi d’un saut de ligne.
 
 `RND` et `RND()` renvoient un nombre pseudo-aléatoire binary64 dans `[0,1)`.
 Le générateur est un LCG 32 bits target-side de paramètres `1664525` et
