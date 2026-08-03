@@ -81,7 +81,7 @@ entièrement dans le guest.
 | Recherche chaîne | `INSTR(haystack,needle)` target-side, résultat 1-based, `0` absent et `1` pour aiguille vide ; les deux opérandes peuvent être des expressions chaîne communes, dont une découpe imbriquée | PARTIEL | `test-guest-runtime-asm-repl-string-instr-expression.sh`, `test-guest-runtime-asm-repl-string-concat.sh`, `test-guest-runtime-asm-repl-string-concat-error.sh`; les formats historiques restent hors contrat |
 | Conversion nombre → chaîne | `STR$(expression)` target-side, format fixe à six décimales réutilisable en affectation, concaténation et `PRINT` | PARTIEL | `test-guest-runtime-asm-repl-string-concat.sh`, `test-guest-runtime-asm-repl-string-concat-error.sh`; formats historiques différés |
 | Aléatoire | `RND` et `RND()`, LCG target-side reproductible, graine à 1 | VERT | `rnd.sh`, `rnd-error.sh` |
-| Fonctions de chaînes | `LEN`, `PRINT LEFT$`, `PRINT RIGHT$` et `PRINT MID$` avec buffer target-side ; les découpes d’affichage et les affectations de découpe acceptent l’expression chaîne commune dans les limites documentées | PARTIEL | `string-len*.sh`, `test-guest-runtime-asm-repl-string-len-concat.sh`, `test-guest-runtime-asm-repl-string-slice-expression.sh`, `string-left*.sh`, `string-right*.sh`, `string-mid*.sh`, `string-slice-assignment*.sh`, `string-slice-array-source.sh`, `string-slice-literal-source*.sh` |
+| Fonctions de chaînes | `LEN`, `PRINT LEFT$`, `PRINT RIGHT$` et `PRINT MID$` avec buffer target-side ; les découpes d’affichage et les affectations de découpe acceptent l’expression chaîne commune dans les limites documentées | PARTIEL | `string-len*.sh`, `test-guest-runtime-asm-repl-string-len-concat.sh`, `test-guest-runtime-asm-repl-string-slice-expression.sh`, `test-guest-runtime-asm-repl-string-nested-expression.sh`, `string-left*.sh`, `string-right*.sh`, `string-mid*.sh`, `string-slice-assignment*.sh`, `string-slice-array-source.sh`, `string-slice-literal-source*.sh` |
 | Affectation chaîne par fonction | `LET destination$=LEFT$`, `RIGHT$` ou `MID$` avec source scalaire, tableau chaîne, littéral ou expression composée et destination scalaire ou tableau, copie target-side bornée et sûre en cas de recouvrement | PARTIEL | `string-assignment.sh`, `test-guest-runtime-asm-repl-string-slice-expression.sh`, `string-slice-assignment*.sh`, `string-slice-array-source.sh`, `string-slice-array-destination*.sh`, `string-slice-literal-source*.sh`; fonctions et imbrications au-delà des cadres documentés restent différées |
 | Concaténation chaîne en affectation | affectation de termes littéraux, variables, éléments de tableaux, `LEFT$`/`RIGHT$`/`MID$` ou `CHR$` avec `+`, buffer target-side de 120 octets et rejet des dépassements | PARTIEL | `test-guest-runtime-asm-repl-string-concat.sh`, `test-guest-runtime-asm-repl-string-concat-error.sh`; conversions numériques et autres opérateurs chaîne différés |
 | Concaténation chaîne dans `PRINT` | `PRINT` de littéraux, variables, découpes, `CHR$` et `STR$` avec `+`, évaluation complète dans le guest et sortie sans résultat préenregistré | VERT | `test-guest-runtime-asm-repl-string-print-concat.sh` sous QEMU ; `LEFT$`, `RIGHT$`, `MID$`, `CHR$`, `STR$`, littéraux et variables sont couverts |
@@ -213,18 +213,17 @@ des contraintes mémoire 8-bit. Ces éléments ne sont pas des tâches de parit�
 
 Priorité suivante, après stabilisation du socle actuel :
 
-1. produire une démonstration Hammurabi complète et auditée, incluant les
-   variables longues et les tableaux visibles dans le moniteur ;
-2. finaliser le tutoriel progressif et son scénario de démonstration ;
-3. consolider la surface chaîne déjà livrée : ajouter des cas limites pour
+1. finaliser le tutoriel progressif et son scénario de démonstration ;
+2. consolider la surface chaîne déjà livrée : ajouter des cas limites pour
    les tableaux, l’auto-affectation, les buffers pleins et les compositions
-   `STR$`/`CHR$`, sans élargir silencieusement la grammaire ;
-4. auditer les familles TBXL non encore retenues
+   `STR$`/`CHR$`, et généraliser les fonctions imbriquées restantes sans
+   élargir silencieusement la grammaire ;
+3. auditer les familles TBXL non encore retenues
    (formatages et commandes d’édition), en conservant les limites explicites d’`ATN`, et
    prendre pour chacune une décision versionnée avant toute implémentation ;
-5. traiter les limites documentées des blocs structurés et des expressions
+4. traiter les limites documentées des blocs structurés et des expressions
    d’index uniquement si une compatibilité supplémentaire est prioritaire ;
-6. conserver la compilation native BASIC comme chantier séparé et différé,
+5. conserver la compilation native BASIC comme chantier séparé et différé,
    conformément à [`docs/BASIC_COMPILER_ROADMAP.md`](BASIC_COMPILER_ROADMAP.md).
 
 Ne pas annoncer une parité complète TBXL avant d’avoir soit implémenté, soit

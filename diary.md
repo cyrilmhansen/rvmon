@@ -340,3 +340,10 @@ dans QEMU. Le script saisit les 61 lignes numérotées dans le désordre, active
 `TRACE`, injecte quinze réponses, puis vérifie `HAMMURABI-RV`, `HARVEST`, la
 sortie finale `1950.000000` et le retour par breakpoint. La preuve est verte et
 reste target-side ; elle ne masque pas les familles TBXL encore partielles.
+2026-08-04 — Le test d’expression chaîne imbriquée a d’abord révélé une erreur
+après les affichages : l’affectation de découpe sélectionnait encore le chemin
+spécialisé dès que le `+` était seulement à l’intérieur d’une fonction imbriquée.
+Le probe target-side détecte maintenant `$(` hors guillemets et route ce cas vers
+le concaténateur commun. QEMU valide `LEFT$(RIGHT$(...))`, `MID$(LEFT$(...))`
+et leur affectation, ainsi que les régressions de découpe, concaténation et
+Hammurabi.

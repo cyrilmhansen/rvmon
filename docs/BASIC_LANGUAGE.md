@@ -387,7 +387,9 @@ littéral. Le guest copie l’argument jusqu’à la parenthèse fermante dans u
 scratch borné, exécute le même concaténateur que les affectations, puis mesure
 le résultat ; la longueur totale est renvoyée par le contrat interne en `x11`
 avant conversion binary64. Aucune conversion n’est faite par l’hôte. Les
-fonctions imbriquées dans cet argument restent à étendre séparément.
+fonctions imbriquées dans cet argument restent à étendre séparément ; les
+fonctions de découpe imbriquées sont toutefois couvertes par la tranche
+target-side dédiée ci-dessous.
 
 `PRINT LEFT$(string-expression,n)` et `PRINT RIGHT$(string-expression,n)` sont
 disponibles dans la tranche target-side actuelle. La source peut être une
@@ -423,7 +425,9 @@ expression chaîne composée de ces termes, ou un élément de tableau chaîne
 mêmes bornes ; une position au-delà de la source produit une chaîne vide. La
 copie passe par un scratch de la RAM cible afin que l’auto-affectation et les
 recouvrements restent sûrs, puis écrit la longueur et les octets de destination
-sans intervention de l’hôte.
+sans intervention de l’hôte. Une source contenant une fonction chaîne imbriquée,
+par exemple `LEFT$(RIGHT$(TEXT$,8),4)`, est routée vers le concaténateur commun ;
+les sources simples conservent le chemin spécialisé.
 
 Une affectation peut également concaténer plusieurs termes chaîne avec `+` :
 chaque terme est un littéral ASCII, une variable, un élément de tableau chaîne,

@@ -1083,6 +1083,8 @@ addi x24,x24,1
 jal x0,string_slice_probe_loop
 string_slice_probe_not_quote:
 bne x25,x0,string_slice_probe_advance
+addi x6,x0,36
+beq x5,x6,string_slice_probe_dollar
 addi x6,x0,40
 bne x5,x6,string_slice_probe_not_open
 addi x26,x26,1
@@ -1102,6 +1104,11 @@ string_slice_probe_not_plus:
 addi x6,x0,44
 bne x5,x6,string_slice_probe_advance
 beq x26,x0,string_slice_probe_no
+string_slice_probe_dollar:
+lbu x6,1(x24)
+addi x7,x0,40
+beq x6,x7,string_slice_probe_yes
+jal x0,string_slice_probe_advance
 string_slice_probe_advance:
 addi x24,x24,1
 jal x0,string_slice_probe_loop
