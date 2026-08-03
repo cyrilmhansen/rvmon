@@ -52,8 +52,8 @@ possède.
 | `2072..2127` | `0x82000818..0x8200084f` | mode et cadres auxiliaires des découpes/concaténations | chaînes ; appel |
 | `2128..2199` | `0x82000850..0x820008b7` | profondeur et index de la pile `REPEAT/UNTIL` | contrôle de flot ; session |
 | `2200..2399` | `0x82000898..0x8200095f` | profondeur et cadres de la pile unifiée (`IF`, `FOR`, `GOSUB`, etc.) | contrôle de flot ; session |
-| `2400..2423` | `0x82000960..0x82000977` | quatre cellules binary64 temporaires : sauvegarde `PRINT`, sauvegarde de résultat, atome et premier opérande | évaluateur/PRINT ; appel, non persistantes |
-| `2424..4095` | `0x82000978..0x82000fff` | réserve non allouée dans V1 | réservé ; aucune utilisation sans mise à jour de ce document |
+| `2400..2431` | `0x82000960..0x8200097f` | quatre cellules binary64 temporaires : sauvegarde `PRINT`, sauvegarde de résultat, atome et premier opérande | évaluateur/PRINT ; appel, non persistantes |
+| `2432..4095` | `0x82000980..0x82000fff` | réserve non allouée dans V1, sauf `x8+2432` pour le retour `x31` de `VAL` | réservé ; cette cellule est le cadre statique de `VAL` |
 | `4096..12287` | `0x82001000..0x82002fff` | table des longueurs et cellules de variables/chaînes courtes selon le payload | MiniBASIC ; session |
 | `12288..` | `0x82003000..` | magasin fixe des 256 records de lignes, 128 octets chacun | éditeur ; session |
 
@@ -76,6 +76,10 @@ parseur. Ils ne forment pas une zone libre. En particulier :
 - `x8+2016` est le retour des routines spécialisées d’affectation de découpe ;
 - `x8+2024` est un retour de résolution de source chaîne.
 
+La cellule `x8+2432` est réservée à la sauvegarde de `x31` par
+`atom_val_function`, car `VAL` imbrique un second `eval_expression` qui
+utilise lui-même `x31` comme adresse de retour.
+
 Ces cellules ont une durée de vie d’appel. Une routine qui appelle
 `eval_expression`, `resolve_string_source`, `string_concat_assign` ou une
 fonction numérique doit supposer que les cadres documentés comme « appel »
@@ -95,7 +99,8 @@ peuvent être réécrits.
 | `0x82060700..0x82060707` | retour du wrapper de concaténation | une adresse de retour | appel |
 | `0x82060710..0x82060717` | retour persistant de `string_concat_assign` | une adresse de retour | appel |
 | `0x82060728..0x8206072f` | retour des wrappers `string_assign_*` | une adresse de retour | appel |
-| `0x82060730..0x82060fff` | réserve globale chaîne | non allouée dans V1 | réservé |
+| `0x82060730..0x820607a7` | copie source de `INSTR` | 120 octets maximum ; évite l’écrasement par le second littéral | appel `INSTR` |
+| `0x820607a8..0x82060fff` | réserve globale chaîne | non allouée dans V1 | réservé |
 
 Les cellules de retour globales sont nécessaires parce que les appels de
 découpe réutilisent des cellules relatives à `x8`. Elles ne doivent pas être

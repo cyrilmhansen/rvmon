@@ -80,7 +80,7 @@ kill "$qemu_pid" 2>/dev/null || true
 wait "$qemu_pid" 2>/dev/null || true
 qemu_pid=""
 
-for expected in 'RV HAMMURABI' 'RV HAMMURABI!' 'HAMMURABI GAME' '>HAMM<' 'RABI<' '[AMMU]' 'NILE' 'NILE RIVER' 'A' 'AB' '72.000000' 'C' '12.500000' '3.250000' '3.000000' '6.000000' '0.000000' '1.000000' '12.500000' 'N=-3.250000' '7.250000' 'trap: breakpoint'; do
+for expected in 'RV HAMMURABI' 'RV HAMMURABI!' 'HAMMURABI GAME' '>HAMM<' 'RABI<' '[AMMU]' 'NILE' 'NILE RIVER' 'A' 'AB' '72.000000' 'C' '12.500000' '3.250000' '4.000000' '6.000000' '0.000000' '1.000000' '12.500000' 'N=-3.250000' '7.250000' 'trap: breakpoint'; do
     if ! grep -aFq -- "$expected" "$output_file"; then
         cat "$output_file"
         printf 'missing string-concat result: %s\n' "$expected" >&2

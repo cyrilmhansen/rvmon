@@ -4563,7 +4563,10 @@ jalr x0,0(x1)
 ; INSTR$(source,needle) : les deux appels à resolve_string_source renvoient
 ; chacun (x7=adresse,x11=longueur). La recherche naïve compare chaque fenêtre
 ; de la source avec l'aiguille ; le résultat BASIC est la position 1-based,
-; ou zéro si elle est absente. f4 est ensuite publié par store_atom.
+; ou zéro si elle est absente. Les littéraux sont copiés dans le buffer global
+; dédié à +0x730 avant le second appel : resolve_string_source réutilise son
+; buffer de littéral, qui ne peut donc pas conserver simultanément les deux
+; opérandes. f4 est ensuite publié par store_atom.
 atom_instr_function:
 sd x1,1648(x8)
 sd x22,1656(x8)
@@ -4574,6 +4577,26 @@ addi x21,x21,6
 jal x1,resolve_string_source
 sd x7,1944(x8)
 sd x11,1952(x8)
+lui x27,0x82060
+slli x27,x27,32
+srli x27,x27,32
+addi x27,x27,1840
+addi x9,x0,0
+atom_instr_copy_source:
+sltu x6,x9,x11
+beq x6,x0,atom_instr_copy_source_done
+add x6,x7,x9
+lbu x5,0(x6)
+add x6,x27,x9
+sb x5,0(x6)
+addi x9,x9,1
+jal x0,atom_instr_copy_source
+atom_instr_copy_source_done:
+lui x27,0x82060
+slli x27,x27,32
+srli x27,x27,32
+addi x27,x27,1840
+sd x27,1944(x8)
 lbu x5,0(x21)
 addi x6,x0,44
 bne x5,x6,atom_function_error
@@ -4640,6 +4663,12 @@ sd x22,1656(x8)
 sd x28,1664(x8)
 sd x29,1680(x8)
 sd x30,1808(x8)
+; eval_expression utilise x31 comme adresse de retour. VAL l'appelle de façon
+; imbriquée et doit donc préserver le retour de l'évaluateur externe. L'offset
+; dépasse l'immédiat signé de ld/sd : l'adresse est construite explicitement.
+addi x27,x8,2047
+addi x27,x27,385
+sd x31,0(x27)
 addi x21,x21,4
 jal x1,resolve_string_source
 lbu x5,0(x21)
@@ -4671,6 +4700,9 @@ ld x21,1888(x8)
 ld x22,1656(x8)
 ld x28,1664(x8)
 ld x29,1680(x8)
+addi x27,x8,2047
+addi x27,x27,385
+ld x31,0(x27)
 ld x30,1808(x8)
 ld x1,1648(x8)
 jal x0,store_atom
