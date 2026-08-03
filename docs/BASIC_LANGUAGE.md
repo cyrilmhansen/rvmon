@@ -184,13 +184,74 @@ future migration vers un flux de tokens et une table complète de mots-clés
 devra conserver ce contrat et remplacer progressivement ces probes, sans
 changer la grammaire observable.
 
-`GOTO`, `GOSUB`, `RETURN`, `ON`, `IF`, `ELSE`, `ENDIF`, `FOR`, `NEXT`, `WHILE`, `WEND`, `REPEAT`, `UNTIL`, `DO`, `LOOP`, `PRINT` et `REM` sont maintenant les handlers de statements appelés directement par la table ; `INPUT` et `END` restent sur leur fallback legacy pour respecter la limite de labels du payload.
-directement par leur ID reconnu dans la table. Le contexte historique (`x6`,
-`x7`, `x9`, `x27`, `x28`, `x29`) est restauré avant l'appel à `print_dispatch`
-`goto_dispatch`, `return_statement`, `on_statement`, `if_statement`, `else_statement`, `endif_statement`, `for_statement`, `next_statement`, `while_dispatch`, `wend_statement`, `repeat_statement`, `until_statement`, `do_statement` ou `loop_statement`; `REM` restaure le même contexte avant de
-terminer la ligne.
-Les autres IDs restent en repli vers leur dispatch
-historique jusqu'à la validation de leur contrat propre.
+Les IDs reconnus par la table sont ensuite répartis en deux chemins :
+
+* les veneers directs actuellement actifs sont `GOTO`, `GOSUB`, `RETURN`,
+  `ON`, `IF`, `ELSE`, `ENDIF`, `FOR`, `NEXT`, `WHILE`, `WEND`, `REPEAT`,
+  `UNTIL`, `DO`, `LOOP` et `PRINT` ;
+* `INPUT`, `END`, `REM`, `DATA`, `READ`, `RESTORE` et `DIM` utilisent encore le
+  fallback legacy. Ce fallback reste target-side et passe par le même
+  dispatch historique que les versions précédentes ; il n'est pas une
+  exécution côté hôte.
+
+Un veneer direct restaure le contexte historique (`x6`, `x7`, `x9`, `x27`,
+`x28`, `x29`) avant d'appeler le handler concerné. Le fallback conserve le
+  même contrat en restaurant ce contexte avant de reprendre le dispatcher
+  historique. La séparation est donc une décision de migration et de budget
+  de labels, non une différence de grammaire ou de sémantique observable.
+
+### Ce qui est générique et ce qui est borné
+
+La règle d'architecture est la suivante : une forme syntaxique est décrite par
+la grammaire et consommée par une routine paramétrée ; elle ne reçoit pas une
+branche dédiée pour chaque combinaison possible. Les limites sont des
+capacités mesurables : longueur de ligne, nombre de tokens ou de cadres,
+taille des tables, profondeur maximale et mémoire disponible.
+
+Dans l'état livré, cette règle est appliquée complètement au parseur
+numérique, mais seulement partiellement au lexer et au dispatch :
+
+1. Le lexer actuel parcourt directement les octets ASCII avec un curseur. Il
+   reconnaît les catégories lexicales communes (espaces, chiffres, noms,
+   chaînes, séparateurs et opérateurs), mais ne produit pas encore un flux de
+   tokens persistant.
+2. Le parseur numérique est compositionnel :
+   `expression -> comparison -> sum -> product -> factor`. Chaque niveau
+   appelle le niveau inférieur et les parenthèses rappellent `expression`.
+   Ainsi `A*(B+SQR(C))`, dans les limites de capacité, n'est pas une
+   combinaison énumérée.
+3. Les fonctions parenthésées et les statements préreconnus utilisent des
+   descripteurs target-side bornés (`nom`, `longueur`, `ID`, catégorie). Le
+   descripteur choisit une famille de handler ; il ne décrit pas les
+   combinaisons d'arguments.
+4. Les handlers historiques consomment encore directement le texte. Le plan
+   de migration est de faire produire au lexer des tokens bornés, puis de
+   faire partager le parseur de précédence et les descripteurs aux fonctions,
+   tableaux, comparaisons et arguments de statements. Les handlers cible et
+   leurs contrats de registres resteront inchangés pendant cette migration.
+
+Cette formulation est volontairement honnête : la généricité du langage est
+déjà réelle pour les expressions et les résolveurs composables, mais le
+payload assembleur n'est pas encore un compilateur à AST général. Une limite
+de nesting ou de mémoire doit produire une erreur explicite ; elle ne doit
+jamais conduire à ajouter une nouvelle routine pour une combinaison précise.
+
+### Différence avec Turbo BASIC XL
+
+MiniBASIC reprend de Turbo BASIC XL l'expérience utilisateur (mode direct,
+lignes numérotées, `LIST`, `RUN`, trace et erreurs lisibles), mais pas son
+implémentation historique. TBXL est un interpréteur tokenisé fortement
+intégré à son runtime, avec des tables et des conventions d'exécution
+spécifiques à l'Atari. MiniBASIC est un interpréteur target-side RV64 : ses
+variables, frames, buffers, curseurs et opérations binary64 résident dans la
+mémoire cible et ses opérations flottantes passent par l'extension RISC-V D.
+
+La différence importante pour l'extensibilité est que MiniBASIC fixe des
+capacités et des contrats, pas un nombre de combinaisons syntaxiques. La
+représentation tokenisée complète est une étape de migration technique ; elle
+ne doit pas changer le comportement accepté ni transformer le langage en une
+suite de macros assembleur. Les différences de syntaxe et les limites
+intentionnelles avec TBXL sont listées dans `MINIBASIC_PARITY.md`.
 
 Les concaténations target-side disposent maintenant d’une pile statique de huit
 cadres. Chaque cadre possède son propre buffer source, son propre buffer de
