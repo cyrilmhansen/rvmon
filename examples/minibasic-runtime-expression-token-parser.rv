@@ -141,6 +141,8 @@ jal x1,reduce_one
 addi x6,x15,0
 jal x0,operator_reduce
 operator_push:
+sltiu x6,x11,8
+beq x6,x0,fail
 addi x7,x8,320
 add x7,x7,x11
 ; x27 contains the operator byte from the current token record.
@@ -227,6 +229,8 @@ addi x9,x9,1
 jalr x0,0(x1)
 
 value_push:
+sltiu x6,x10,8
+beq x6,x0,fail
 addi x7,x8,256
 slli x6,x10,3
 add x7,x7,x6
