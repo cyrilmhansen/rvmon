@@ -47,7 +47,8 @@ string-assignment-function = ( "LEFT$" | "RIGHT$" ) , "(" , string-source , "," 
 string-assignment-rhs = string-assignment-function | string-expression ;
 string-expression = string-term , { "+" , string-term } ;
 string-term = string-source | string-assignment-function | string-constructor ;
-string-constructor = "CHR$" , "(" , expression , ")" ;
+string-constructor = "CHR$" , "(" , expression , ")"
+                   | "STR$" , "(" , expression , ")" ;
 expression    = comparison ;
 comparison    = sum , [ ( "=" | "<>" | "<" | "<=" | ">" | ">=" ) , sum ] ;
 sum           = product , { ( "+" | "-" ) , product } ;
@@ -190,6 +191,12 @@ RAM cible et renvoie une position 1-based, ou `0.0` si aucune occurrence n’est
 trouvée. Une aiguille vide renvoie `1.0`. Les deux opérandes acceptent les
 littéraux, variables et éléments de tableaux chaîne ; les formes numériques ou
 les arguments manquants sont rejetés.
+
+`STR$(expression)` utilise dans le guest le même format fixe à six décimales
+que `PRINT` et produit un terme chaîne réutilisable dans une affectation ou une
+concaténation. Le format conserve le signe et les zéros de fraction ; les
+valeurs particulières suivent la limite du formateur V1. `PRINT STR$(...)`
+direct reste différé.
 
 `RND` et `RND()` renvoient un nombre pseudo-aléatoire binary64 dans `[0,1)`.
 Le générateur est un LCG 32 bits target-side de paramètres `1664525` et
