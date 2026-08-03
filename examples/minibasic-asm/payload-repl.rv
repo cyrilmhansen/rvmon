@@ -105,6 +105,32 @@ data 0x82062020 .dword 0x0000004c41560303
 data 0x82062028 .dword 0x0000000000000000
 data 0x82062030 .dword 0x005254534e490405
 data 0x82062038 .dword 0x0000000000000000
+data 0x82062040 .dword 0x000000534f430503
+data 0x82062048 .dword 0x0000000000000000
+data 0x82062050 .dword 0x0000005342410603
+data 0x82062058 .dword 0x0000000000000000
+data 0x82062060 .dword 0x0000004e54410703
+data 0x82062068 .dword 0x0000000000000000
+data 0x82062070 .dword 0x0000005058450803
+data 0x82062078 .dword 0x0000000000000000
+data 0x82062080 .dword 0x000000474f4c0903
+data 0x82062088 .dword 0x0000000000000000
+data 0x82062090 .dword 0x0000004e41540a03
+data 0x82062098 .dword 0x0000000000000000
+data 0x820620a0 .dword 0x000000544e490b03
+data 0x820620a8 .dword 0x0000000000000000
+data 0x820620b0 .dword 0x0000004e49530c03
+data 0x820620b8 .dword 0x0000000000000000
+data 0x820620c0 .dword 0x0000004e47530d03
+data 0x820620c8 .dword 0x0000000000000000
+data 0x820620d0 .dword 0x00004e5552540e04
+data 0x820620d8 .dword 0x0000000000000000
+data 0x820620e0 .dword 0x0000434152460f04
+data 0x820620e8 .dword 0x0000000000000000
+data 0x820620f0 .dword 0x000000444f4d1003
+data 0x820620f8 .dword 0x0000000000000000
+data 0x82062100 .dword 0x0000005251531103
+data 0x82062108 .dword 0x0000000000000000
 assemble-program 0x81000100
 ; ---------------------------------------------------------------------------
 ; Image de données initiale
@@ -4668,57 +4694,6 @@ beq x7,x0,atom_dispatch
 addi x5,x5,-32
 sb x5,0(x21)
 jal x0,atom_function_table_probe
-; Reconnaissance générique des fonctions : x21 reste inchangé pendant la
-; comparaison. Une entrée n'est acceptée que si son nom est immédiatement
-; suivi de '(', afin que LENX reste une variable et non LEN(...).
-atom_function_table_probe:
-lui x27,0x82062
-slli x27,x27,32
-srli x27,x27,32
-addi x29,x0,0
-atom_function_table_next:
-slli x6,x29,4
-add x27,x27,x6
-lbu x28,0(x27)
-beq x28,x0,atom_dispatch
-addi x9,x0,0
-addi x7,x27,2
-atom_function_table_compare:
-sltu x6,x9,x28
-beq x6,x0,atom_function_table_boundary
-add x10,x21,x9
-lbu x5,0(x10)
-addi x6,x5,-97
-sltiu x11,x6,26
-beq x11,x0,atom_function_table_input_upper
-addi x5,x5,-32
-atom_function_table_input_upper:
-sb x5,0(x10)
-add x10,x7,x9
-lbu x10,0(x10)
-bne x5,x10,atom_function_table_miss
-addi x9,x9,1
-jal x0,atom_function_table_compare
-atom_function_table_boundary:
-add x10,x21,x28
-lbu x5,0(x10)
-addi x6,x0,40
-bne x5,x6,atom_function_table_miss
-lbu x28,1(x27)
-addi x6,x0,1
-beq x28,x6,atom_len_function
-addi x6,x0,2
-beq x28,x6,atom_asc_function
-addi x6,x0,3
-beq x28,x6,atom_val_function
-addi x6,x0,4
-beq x28,x6,atom_instr_function
-jal x0,atom_dispatch
-atom_function_table_miss:
-addi x29,x29,1
-sltiu x6,x29,4
-bne x6,x0,atom_function_table_next
-jal x0,atom_dispatch
 atom_dispatch:
 addi x27,x21,0
 addi x6,x0,88
@@ -9338,6 +9313,120 @@ ld x1,1984(x8)
 jal x0,store_atom
 atom_sqr_error:
 jal x0,error_line
+; Table-driven function recognizer. Kept after the evaluator so adding entries
+; does not move the historical branches in eval_expression/parse_product.
+; IDs 1..17 correspond to the four string consumers and the parenthesized
+; numeric functions. Dispatch stubs use jal for the long handler transfers.
+atom_function_table_probe:
+lui x27,0x82062
+slli x27,x27,32
+srli x27,x27,32
+addi x29,x0,0
+atom_function_table_next:
+slli x6,x29,4
+add x27,x27,x6
+lbu x28,0(x27)
+bne x28,x0,atom_function_table_nonempty
+jal x0,atom_dispatch
+atom_function_table_nonempty:
+addi x9,x0,0
+addi x7,x27,2
+atom_function_table_compare:
+sltu x6,x9,x28
+beq x6,x0,atom_function_table_boundary
+add x10,x21,x9
+lbu x5,0(x10)
+addi x6,x5,-97
+sltiu x11,x6,26
+beq x11,x0,atom_function_table_input_upper
+addi x5,x5,-32
+atom_function_table_input_upper:
+sb x5,0(x10)
+add x10,x7,x9
+lbu x10,0(x10)
+bne x5,x10,atom_function_table_miss
+addi x9,x9,1
+jal x0,atom_function_table_compare
+atom_function_table_boundary:
+add x10,x21,x28
+lbu x5,0(x10)
+addi x6,x0,40
+bne x5,x6,atom_function_table_miss
+lbu x28,1(x27)
+addi x6,x0,1
+beq x28,x6,atom_function_table_id1
+addi x6,x0,2
+beq x28,x6,atom_function_table_id2
+addi x6,x0,3
+beq x28,x6,atom_function_table_id3
+addi x6,x0,4
+beq x28,x6,atom_function_table_id4
+addi x6,x0,5
+beq x28,x6,atom_function_table_id5
+addi x6,x0,6
+beq x28,x6,atom_function_table_id6
+addi x6,x0,7
+beq x28,x6,atom_function_table_id7
+addi x6,x0,8
+beq x28,x6,atom_function_table_id8
+addi x6,x0,9
+beq x28,x6,atom_function_table_id9
+addi x6,x0,10
+beq x28,x6,atom_function_table_id10
+addi x6,x0,11
+beq x28,x6,atom_function_table_id11
+addi x6,x0,12
+beq x28,x6,atom_function_table_id12
+addi x6,x0,13
+beq x28,x6,atom_function_table_id13
+addi x6,x0,14
+beq x28,x6,atom_function_table_id14
+addi x6,x0,15
+beq x28,x6,atom_function_table_id15
+addi x6,x0,16
+beq x28,x6,atom_function_table_id16
+addi x6,x0,17
+beq x28,x6,atom_function_table_id17
+jal x0,atom_dispatch
+atom_function_table_miss:
+addi x29,x29,1
+sltiu x6,x29,18
+bne x6,x0,atom_function_table_next
+jal x0,atom_dispatch
+atom_function_table_id1:
+jal x0,atom_len_function
+atom_function_table_id2:
+jal x0,atom_asc_function
+atom_function_table_id3:
+jal x0,atom_val_function
+atom_function_table_id4:
+jal x0,atom_instr_function
+atom_function_table_id5:
+jal x0,atom_cos_function
+atom_function_table_id6:
+jal x0,atom_abs_function
+atom_function_table_id7:
+jal x0,atom_atn_function
+atom_function_table_id8:
+jal x0,atom_exp_function
+atom_function_table_id9:
+jal x0,atom_log_function
+atom_function_table_id10:
+jal x0,atom_tan_function
+atom_function_table_id11:
+jal x0,atom_int_function
+atom_function_table_id12:
+jal x0,atom_sin_function
+atom_function_table_id13:
+jal x0,atom_sgn_function
+atom_function_table_id14:
+jal x0,atom_trunc_function
+atom_function_table_id15:
+jal x0,atom_frac_function
+atom_function_table_id16:
+jal x0,atom_mod_function
+atom_function_table_id17:
+jal x0,atom_sqr_function
 end
 symbols
 run-at 0x81000100

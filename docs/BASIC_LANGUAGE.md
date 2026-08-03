@@ -119,12 +119,13 @@ d’exécution, pas une énumération des combinaisons syntaxiques.
 
 Cette tranche stabilise le contrat commun, mais le source reste encore analysé
 en ASCII directement par des routines assembleur. La reconnaissance des
-fonctions `LEN`, `ASC`, `VAL` et `INSTR` passe désormais par une table
-target-side de descripteurs bornée ; leurs évaluateurs restent des routines
-indépendantes. Les autres mots-clés et fonctions utilisent encore le dispatch
-historique. Une future migration vers un flux de tokens et une table complète
-de fonctions devra conserver ce contrat et remplacer progressivement ces
-probes, sans changer la grammaire observable.
+fonctions chaîne et des fonctions numériques parenthésées passe désormais par
+une table target-side de descripteurs bornée ; leurs évaluateurs restent des
+routines indépendantes. Les autres mots-clés et fonctions utilisent encore le
+dispatch historique (`RND` conserve notamment sa forme sans parenthèses). Une
+future migration vers un flux de tokens et une table complète de mots-clés
+devra conserver ce contrat et remplacer progressivement ces probes, sans
+changer la grammaire observable.
 
 Les concaténations target-side disposent maintenant d’une pile statique de huit
 cadres. Chaque cadre possède son propre buffer source, son propre buffer de
