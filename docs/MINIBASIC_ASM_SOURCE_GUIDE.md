@@ -2,10 +2,24 @@
 
 ## Statut
 
-Le portage complet de MiniBASIC en assembleur reste en cours. Cette première
-organisation modulaire porte un chemin d’expression minimal : `2+3*4`. Elle
-sert de source de tutoriel et de contrat de migration, pas de déclaration que
-le parser BASIC complet est terminé.
+Le portage assembleur du runtime MiniBASIC est le chemin de référence du guest
+pour les tests QEMU. Il ne s’agit plus seulement du noyau `2+3*4` :
+`payload-repl.rv` fournit actuellement le REPL, le magasin de lignes jusqu’à
+256 lignes numérotées 10..2560, les expressions binary64 avec `fadd.d`,
+`fsub.d`, `fmul.d` et `fdiv.d`, les affectations, comparaisons, `IF`, `GOTO`,
+`FOR/NEXT`, `GOSUB/RETURN`, `INPUT`, `DATA/READ/RESTORE`, `TRACE`, `REM`, les
+chaînes, les tableaux numériques et les tableaux de chaînes 1D/2D, y compris
+les identifiants longs de 16 caractères. Ces fonctions sont exécutées dans le
+guest ; les tests QEMU n’utilisent pas l’interpréteur Rust comme substitut.
+
+Le fichier reste volontairement pédagogique : les modules de
+`examples/minibasic-asm/modules/` sont la vue de maintenance, tandis que
+`payload-repl.rv` reste leur miroir concaténé pour les outils existants. Les
+paragraphes qui suivent sont un journal chronologique du
+portage. Pour connaître le contrat actuel, utiliser `BASIC_LANGUAGE.md`, puis
+les tests `test-guest-runtime-asm-repl-*.sh` ; une ancienne phrase indiquant
+qu’une fonction est « à venir » décrit la tranche au moment de sa rédaction et
+non nécessairement une limitation actuelle.
 
 Le dialecte guest utilise `;` comme caractère unique de commentaire : tout ce
 qui suit le premier `;` est ignoré, après une instruction comme sur une ligne
@@ -24,11 +38,22 @@ Le test assemble les mêmes instructions dans deux formes :
 
 | Module | Responsabilité | Entrées | Sorties |
 |---|---|---|---|
-| `00_data.rv` | image des tokens et constantes | adresse de données | ASCII et binary64 en RAM cible |
-| `10_entry.rv` | entrée U-mode et premier token | `x8` = base data | branche vers le parseur du premier terme |
-| `20_parse_sum.rv` | niveau somme | `f1`, token `+` | second terme dans `f2` |
-| `30_parse_product.rv` | niveau produit et évaluation | `f2`, token `*`, `f3` | `f4=12`, `f5=14`, mémoire résultat |
-| `90_session.rv` | frontière source/moniteur | programme assemblé | run, registres et dump |
+| `00_data_bootstrap.rv` | données fixes, bootstrap et contrats d’état | adresse de données | état initial en RAM cible |
+| `10_repl_and_dispatch.rv` | REPL, commandes, lignes et dispatch | console et magasin | contrôle de session BASIC |
+| `20_expression.rv` | lexer, expressions et opérateurs | ligne BASIC | valeurs binary64 et fflags |
+| `30_arrays_and_functions.rv` | tableaux, appels et contrôle numérique | état BASIC | opérations target-side |
+| `40_strings_and_tables.rv` | chaînes, tables et routines de service | buffers | données et services BASIC |
+| `90_session.rv` | symboles et séance reproductible | programme assemblé | frontière moniteur/payload |
+
+La composition est ordonnée et vérifiable :
+
+```text
+bash scripts/check-minibasic-asm-modules.sh
+```
+
+Une modification pédagogique du payload vise donc un module, puis régénère le
+miroir avant assemblage. `payload-repl.rv` reste utile pour les adresses,
+listings et séances UART historiques.
 
 Les registres de travail sont documentés par convention locale : `x8` pointe
 la zone data, `x5/x6` servent aux tokens ASCII, `f1` porte le premier terme,
@@ -50,16 +75,16 @@ produit    := nombre "*" nombre
 `f5` et dans les huit octets écrits en RAM. La même observation est impossible
 si l’expression est évaluée silencieusement par l’hôte.
 
-La version actuelle reconnaît un corpus borné, non une grammaire générale.
-Les prochaines étapes remplaceront les séquences de sélection fixes par des
-boucles de lexer, une pile d’opérandes statique et des routines séparées pour
-`parse_factor`, `parse_product`, `parse_sum` et `parse_comparison`.
+Les fragments modulaires reconnaissent un corpus pédagogique borné, non la
+grammaire complète. Le payload intégré possède en revanche ses propres
+routines target-side de lexer, de résolution de noms, d’expression et de
+dispatch ; il est le sujet des tests d’intégration.
 
 ## Premier noyau REPL chargé par le moniteur
 
-[`payload-repl.rv`](../examples/minibasic-asm/payload-repl.rv) constitue la
-première tranche verticale assembleur intégrée. Le moniteur assemble directement
-la source, puis le payload U-mode assure lui-même :
+[`payload-repl.rv`](../examples/minibasic-asm/payload-repl.rv) constitue le
+miroir de la tranche verticale assembleur intégrée. Le moniteur assemble la
+composition des modules, puis le payload U-mode assure lui-même :
 
 - l’invite `READY> ` et la lecture UART d’une ligne ;
 - le stockage target-side de `10 PRINT X+Y` ;
@@ -121,9 +146,11 @@ Le résultat n’est plus seulement laissé dans `f3` : le payload le convertit
 dans la cible en forme fixe à six décimales, construit un buffer ASCII puis le
 transmet par `ecall 4`. Le breakpoint reste placé après cette émission pour
 permettre l’inspection simultanée de la sortie, des registres et de la RAM.
-La conversion est actuellement bornée aux valeurs finies représentables par
-la conversion entière utilisée par cette tranche ; NaN, infinis et grandes
-valeurs nécessitent encore une voie dédiée.
+La conversion du payload suit le format V1 documenté dans
+`BASIC_LANGUAGE.md` : six décimales pour les valeurs finies, et les diagnostics
+ou formes réservées pour les valeurs spéciales. Les fragments historiques
+ci-dessous peuvent encore montrer une conversion plus étroite ; ils ne
+redéfinissent pas le contrat du payload.
 
 Le cas négatif fractionnaire `PRINT -2.25+0` est couvert par
 `scripts/test-guest-runtime-asm-repl-format-negative-fraction.sh` et vérifie
@@ -148,8 +175,11 @@ la séance est vérifiée par :
 bash scripts/test-guest-runtime-asm-repl-goto.sh
 ```
 
-La capacité assembleur du moniteur est passée à 768 lignes pour absorber ce
-payload pédagogique.
+La capacité de source assembleur du moniteur est distincte du magasin BASIC :
+le payload complet peut dépasser la limite de rétention de l’éditeur, mais il
+est assemblé via le buffer scratch dédié. Les limites et le diagnostic de
+source non retenue sont documentés dans `GUEST_PAYLOAD_ABI.md` et vérifiés par
+`scripts/test-guest-source-capacity.sh`.
 
 Les comparaisons flottantes nécessaires au prochain dispatcher BASIC sont
 désormais disponibles dans le dialecte guest. `feq.d`, `flt.d` et `fle.d`
@@ -248,12 +278,16 @@ avec la capacité de stockage déjà généralisée. `GOTO` et les branches vrai
 de `IF ... THEN` résolvent désormais ces mêmes numéros ; les expressions
 composées dans la condition restent à généraliser.
 
-La table scalaire binary64 est maintenant adressable par toutes les lettres
-ASCII `A` à `Z`, avec l’index `(lettre - 'A') * 8` dans la RAM cible. Les
+La table scalaire binary64 est adressable par toutes les lettres ASCII `A` à
+`Z`, avec l’index `(lettre - 'A') * 8` dans la RAM cible. Le payload ajoute
+également 32 entrées de 32 octets à `data+3000` pour des identifiants de 2 à
+16 caractères : 16 octets de nom canonique ASCII suivis d’un binary64. Les
 affectations directes et les affectations dans une ligne suivent le même
-parseur d’expressions ; par exemple `P=95`, `Q=2`, puis `10 P=P+Q` produit
-`97.000000` sans calcul hôte. La preuve est
-`scripts/test-guest-runtime-asm-repl-scalars.sh`. Les noms longs et les
+résolveur target-side, insensible à la casse. Par exemple
+`LONGVARIABLE16=40`, puis `10 LONGVARIABLE16=longvariable16+2`, produit
+`42.000000` sans calcul hôte. Les preuves sont
+`scripts/test-guest-runtime-asm-repl-scalars.sh` et
+`scripts/test-guest-runtime-asm-repl-long-names.sh`. Les noms longs et les
 variables chaîne restent des représentations distinctes.
 
 Le caractère `A` est désambiguïsé sur la cible : `A=1000` accède à la variable

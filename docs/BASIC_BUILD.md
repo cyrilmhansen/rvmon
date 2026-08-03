@@ -57,7 +57,8 @@ plus 32 octets hexadécimaux par bloc.
 ## Statut du chargement
 
 La commande `basic` est maintenant le chemin assembleur : le build du guest
-génère le payload depuis `examples/minibasic-asm/payload-repl.rv`, l’embarque
+compose le payload depuis les modules de `examples/minibasic-asm/modules/`,
+vérifie le miroir `examples/minibasic-asm/payload-repl.rv`, puis l’embarque
 comme artefact binaire, puis le copie à chaque lancement dans le workspace
 `0x81000100` et dans la région de données `0x82000000` avant le saut U-mode.
 Le test dédié est :

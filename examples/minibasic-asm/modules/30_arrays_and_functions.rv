@@ -1,0 +1,2302 @@
+jal x0,atom_close_spaces
+atom_close_check:
+addi x6,x0,41
+bne x5,x6,atom_close_error
+addi x21,x21,1
+atom_paren_done:
+addi x27,x8,2047
+addi x27,x27,369
+fsd f4,0(x27)
+beq x22,x0,store_left_atom
+addi x27,x8,2047
+addi x27,x27,369
+fld f2,0(x27)
+jalr x0,0(x1)
+; Fonctions numériques target-side. Les zones 1184..1536 sont des scratch
+; distincts par fonction afin de permettre des appels imbriqués.
+;
+; INSTR$(source,needle) : les deux appels au résolveur d'expression chaîne
+; acceptent des concaténations et des parenthèses imbriquées ; x30=1 demande
+; l'arrêt sur la virgule de niveau zéro pour le premier opérande, x30=0 celui
+; sur la parenthèse externe pour le second.
+; chacun (x7=adresse,x11=longueur). La recherche naïve compare chaque fenêtre
+; de la source avec l'aiguille ; le résultat BASIC est la position 1-based,
+; ou zéro si elle est absente. Les littéraux sont copiés dans le buffer global
+; dédié à +0x730 avant le second appel : resolve_string_source réutilise son
+; buffer de littéral, qui ne peut donc pas conserver simultanément les deux
+; opérandes. f4 est ensuite publié par store_atom.
+atom_instr_function:
+sd x1,1648(x8)
+sd x22,1656(x8)
+sd x28,1664(x8)
+sd x29,1680(x8)
+sd x30,1808(x8)
+addi x21,x21,6
+addi x30,x0,1
+jal x1,resolve_string_expression
+sd x7,1944(x8)
+sd x11,1952(x8)
+lui x27,0x82060
+slli x27,x27,32
+srli x27,x27,32
+addi x27,x27,1840
+addi x9,x0,0
+atom_instr_copy_source:
+sltu x6,x9,x11
+beq x6,x0,atom_instr_copy_source_done
+add x6,x7,x9
+lbu x5,0(x6)
+add x6,x27,x9
+sb x5,0(x6)
+addi x9,x9,1
+jal x0,atom_instr_copy_source
+atom_instr_copy_source_done:
+lui x27,0x82060
+slli x27,x27,32
+srli x27,x27,32
+addi x27,x27,1840
+sd x27,1944(x8)
+lbu x5,0(x21)
+addi x6,x0,44
+bne x5,x6,atom_function_error
+addi x21,x21,1
+addi x30,x0,0
+jal x1,resolve_string_expression
+sd x7,1960(x8)
+sd x11,1976(x8)
+lbu x5,0(x21)
+addi x6,x0,41
+bne x5,x6,atom_function_error
+addi x21,x21,1
+ld x27,1952(x8)
+ld x28,1976(x8)
+beq x28,x0,atom_instr_empty_needle
+sltu x6,x27,x28
+bne x6,x0,atom_instr_not_found
+sub x29,x27,x28
+addi x29,x29,1
+addi x9,x0,0
+atom_instr_outer:
+sltu x6,x9,x29
+beq x6,x0,atom_instr_not_found
+addi x10,x0,0
+atom_instr_inner:
+sltu x6,x10,x28
+beq x6,x0,atom_instr_found
+add x7,x9,x10
+ld x27,1944(x8)
+add x27,x27,x7
+lbu x5,0(x27)
+ld x27,1960(x8)
+add x27,x27,x10
+lbu x6,0(x27)
+bne x5,x6,atom_instr_next
+addi x10,x10,1
+jal x0,atom_instr_inner
+atom_instr_next:
+addi x9,x9,1
+jal x0,atom_instr_outer
+atom_instr_found:
+addi x10,x9,1
+fcvt.d.l f4,x10,0
+jal x0,atom_instr_restore
+atom_instr_empty_needle:
+addi x10,x0,1
+fcvt.d.l f4,x10,0
+jal x0,atom_instr_restore
+atom_instr_not_found:
+fcvt.d.l f4,x0,0
+atom_instr_restore:
+ld x22,1656(x8)
+ld x28,1664(x8)
+ld x29,1680(x8)
+ld x30,1808(x8)
+ld x1,1648(x8)
+jal x0,store_atom
+; VAL$(texte) : copie le texte source dans le buffer de saisie réservé, puis
+; réutilise l'évaluateur binaire64 existant. Cette réutilisation est volontaire:
+; elle maintient une seule grammaire des nombres et une seule politique D/fcsr.
+; x21 est sauvegardé car l'évaluateur consomme un nouveau curseur de texte.
+atom_val_function:
+sd x1,1648(x8)
+sd x22,1656(x8)
+sd x28,1664(x8)
+sd x29,1680(x8)
+sd x30,1808(x8)
+; eval_expression utilise x31 comme adresse de retour. VAL l'appelle de façon
+; imbriquée et doit donc préserver le retour de l'évaluateur externe. L'offset
+; dépasse l'immédiat signé de ld/sd : l'adresse est construite explicitement.
+addi x27,x8,2047
+addi x27,x27,385
+sd x31,0(x27)
+addi x21,x21,4
+; parse_string_expression fournit toujours le couple {adresse,longueur} d'une
+; expression chaîne complète. VAL ne connaît donc ni les littéraux, ni les
+; variables, ni les concaténations : il ne fait que copier puis parser.
+addi x30,x0,0
+jal x1,resolve_string_expression
+beq x11,x0,atom_function_error
+lbu x5,0(x21)
+addi x6,x0,41
+bne x5,x6,atom_function_error
+addi x21,x21,1
+sd x21,1888(x8)
+addi x9,x0,0
+atom_val_copy:
+sltu x6,x9,x11
+beq x6,x0,atom_val_copy_done
+add x6,x7,x9
+lbu x5,0(x6)
+add x6,x18,x9
+sb x5,0(x6)
+addi x9,x9,1
+jal x0,atom_val_copy
+atom_val_copy_done:
+add x6,x18,x9
+sb x0,0(x6)
+addi x21,x18,0
+addi x22,x0,0
+jal x1,eval_expression
+lbu x5,0(x21)
+bne x5,x0,atom_function_error
+fmv.d.x f4,x0
+fadd.d f4,f3,f4
+ld x21,1888(x8)
+ld x22,1656(x8)
+ld x28,1664(x8)
+ld x29,1680(x8)
+addi x27,x8,2047
+addi x27,x27,385
+ld x31,0(x27)
+ld x30,1808(x8)
+ld x1,1648(x8)
+jal x0,store_atom
+; ASC(texte) : résout une valeur chaîne, vérifie la parenthèse fermante (ou la
+; fin déjà consommée par le résolveur), lit son premier octet et le convertit
+; en binary64. Une chaîne vide est rejetée par resolve_string_source.
+atom_asc_function:
+sd x1,1544(x8)
+sd x22,1552(x8)
+sd x28,1568(x8)
+sd x29,1576(x8)
+sd x30,1584(x8)
+addi x21,x21,4
+; Le parseur chaîne commun fournit toujours {adresse,longueur} dans la cible.
+addi x30,x0,0
+jal x1,resolve_string_expression
+beq x11,x0,atom_function_error
+lbu x5,0(x21)
+addi x6,x0,41
+beq x5,x6,atom_asc_close_present
+beq x5,x0,atom_asc_close_consumed
+jal x0,atom_function_error
+atom_asc_close_present:
+addi x21,x21,1
+jal x0,atom_asc_close_done
+atom_asc_close_consumed:
+addi x6,x21,-1
+lbu x5,0(x6)
+addi x6,x0,41
+bne x5,x6,atom_function_error
+atom_asc_close_done:
+lbu x6,0(x7)
+fcvt.d.l f4,x6,0
+ld x22,1552(x8)
+ld x28,1568(x8)
+ld x29,1576(x8)
+ld x30,1584(x8)
+ld x1,1544(x8)
+jal x0,store_atom
+atom_abs_function:
+sd x1,1376(x8)
+sd x22,1384(x8)
+sd x28,1392(x8)
+sd x29,1400(x8)
+sd x30,1408(x8)
+sd x31,1416(x8)
+addi x21,x21,4
+addi x22,x0,0
+jal x1,eval_expression
+lbu x5,0(x21)
+addi x6,x0,41
+beq x5,x6,atom_abs_close_present
+beq x5,x0,atom_abs_close_consumed
+jal x0,atom_function_error
+atom_abs_close_present:
+addi x21,x21,1
+jal x0,atom_abs_close_done
+atom_abs_close_consumed:
+addi x6,x21,-1
+lbu x5,0(x6)
+addi x6,x0,41
+bne x5,x6,atom_function_error
+atom_abs_close_done:
+fmv.x.d x10,f3
+addi x6,x0,1
+slli x6,x6,63
+xor x10,x10,x6
+fmv.d.x f4,x10
+ld x22,1384(x8)
+ld x28,1392(x8)
+ld x29,1400(x8)
+ld x30,1408(x8)
+ld x31,1416(x8)
+ld x1,1376(x8)
+jal x0,store_atom
+atom_int_function:
+sd x1,1432(x8)
+sd x22,1440(x8)
+sd x28,1448(x8)
+sd x29,1456(x8)
+sd x30,1464(x8)
+sd x31,1472(x8)
+addi x21,x21,4
+addi x22,x0,0
+jal x1,eval_expression
+lbu x5,0(x21)
+addi x6,x0,41
+beq x5,x6,atom_int_close_present
+beq x5,x0,atom_int_close_consumed
+jal x0,atom_function_error
+atom_int_close_present:
+addi x21,x21,1
+jal x0,atom_int_close_done
+atom_int_close_consumed:
+addi x6,x21,-1
+lbu x5,0(x6)
+addi x6,x0,41
+bne x5,x6,atom_function_error
+atom_int_close_done:
+fcvt.l.d x10,f3,1
+fcvt.d.l f4,x10,0
+fcvt.d.l f5,x0,0
+flt.d x7,f3,f5
+beq x7,x0,atom_int_restore
+feq.d x7,f3,f4
+bne x7,x0,atom_int_restore
+addi x6,x0,1
+sub x10,x10,x6
+fcvt.d.l f4,x10,0
+atom_int_restore:
+ld x22,1440(x8)
+ld x28,1448(x8)
+ld x29,1456(x8)
+ld x30,1464(x8)
+ld x31,1472(x8)
+ld x1,1432(x8)
+jal x0,store_atom
+atom_sgn_function:
+sd x1,1488(x8)
+sd x22,1496(x8)
+sd x28,1504(x8)
+sd x29,1512(x8)
+sd x30,1520(x8)
+sd x31,1528(x8)
+addi x21,x21,4
+addi x22,x0,0
+jal x1,eval_expression
+lbu x5,0(x21)
+addi x6,x0,41
+beq x5,x6,atom_sgn_close_present
+beq x5,x0,atom_sgn_close_consumed
+jal x0,atom_function_error
+atom_sgn_close_present:
+addi x21,x21,1
+jal x0,atom_sgn_close_done
+atom_sgn_close_consumed:
+addi x6,x21,-1
+lbu x5,0(x6)
+addi x6,x0,41
+bne x5,x6,atom_function_error
+atom_sgn_close_done:
+fcvt.d.l f5,x0,0
+feq.d x7,f3,f5
+bne x7,x0,atom_sgn_zero
+flt.d x7,f3,f5
+beq x7,x0,atom_sgn_positive
+addi x6,x0,-1
+fcvt.d.l f4,x6,0
+jal x0,atom_sgn_restore
+atom_sgn_positive:
+addi x6,x0,1
+fcvt.d.l f4,x6,0
+jal x0,atom_sgn_restore
+atom_sgn_zero:
+fmv.x.d x10,f5
+fmv.d.x f4,x10
+atom_sgn_restore:
+ld x22,1496(x8)
+ld x28,1504(x8)
+ld x29,1512(x8)
+ld x30,1520(x8)
+ld x31,1528(x8)
+ld x1,1488(x8)
+jal x0,store_atom
+atom_len_function:
+sd x1,1832(x8)
+sd x22,1840(x8)
+sd x24,1848(x8)
+sd x25,1856(x8)
+sd x26,1896(x8)
+sd x27,1904(x8)
+sd x28,1912(x8)
+sd x29,1920(x8)
+sd x30,1928(x8)
+sd x31,1936(x8)
+addi x21,x21,4
+; Toute source de chaîne passe par le même parseur d'expression et le même
+; résultat {adresse,longueur}; LEN ne connaît plus les formes particulières.
+addi x30,x0,0
+jal x1,resolve_string_expression
+atom_len_value:
+fcvt.d.l f4,x11,0
+lbu x5,0(x21)
+addi x6,x0,41
+beq x5,x6,atom_len_close_present
+beq x5,x0,atom_len_close_consumed
+jal x0,atom_function_error
+atom_len_close_present:
+addi x21,x21,1
+jal x0,atom_len_close_done
+atom_len_close_consumed:
+addi x6,x21,-1
+lbu x5,0(x6)
+addi x6,x0,41
+bne x5,x6,atom_function_error
+atom_len_close_done:
+ld x22,1840(x8)
+ld x24,1848(x8)
+ld x25,1856(x8)
+ld x26,1896(x8)
+ld x27,1904(x8)
+ld x28,1912(x8)
+ld x29,1920(x8)
+ld x30,1928(x8)
+ld x31,1936(x8)
+ld x1,1832(x8)
+jal x0,store_atom
+atom_trunc_function:
+sd x1,1184(x8)
+sd x22,1192(x8)
+sd x28,1200(x8)
+sd x29,1208(x8)
+sd x30,1216(x8)
+sd x31,1224(x8)
+addi x21,x21,6
+addi x22,x0,0
+jal x1,eval_expression
+lbu x5,0(x21)
+addi x6,x0,41
+beq x5,x6,atom_trunc_close_present
+beq x5,x0,atom_trunc_close_consumed
+jal x0,atom_function_error
+atom_trunc_close_present:
+addi x21,x21,1
+jal x0,atom_trunc_close_done
+atom_trunc_close_consumed:
+addi x6,x21,-1
+lbu x5,0(x6)
+addi x6,x0,41
+bne x5,x6,atom_function_error
+atom_trunc_close_done:
+fcvt.l.d x10,f3,1
+fcvt.d.l f4,x10,0
+ld x22,1192(x8)
+ld x28,1200(x8)
+ld x29,1208(x8)
+ld x30,1216(x8)
+ld x31,1224(x8)
+ld x1,1184(x8)
+jal x0,store_atom
+atom_frac_function:
+sd x1,1256(x8)
+sd x22,1264(x8)
+sd x28,1272(x8)
+sd x29,1280(x8)
+sd x30,1288(x8)
+sd x31,1296(x8)
+addi x21,x21,5
+addi x22,x0,0
+jal x1,eval_expression
+lbu x5,0(x21)
+addi x6,x0,41
+beq x5,x6,atom_frac_close_present
+beq x5,x0,atom_frac_close_consumed
+jal x0,atom_function_error
+atom_frac_close_present:
+addi x21,x21,1
+jal x0,atom_frac_close_done
+atom_frac_close_consumed:
+addi x6,x21,-1
+lbu x5,0(x6)
+addi x6,x0,41
+bne x5,x6,atom_function_error
+atom_frac_close_done:
+fmv.x.d x10,f3
+fmv.d.x f5,x10
+fcvt.l.d x10,f3,1
+fcvt.d.l f4,x10,0
+fsub.d f4,f5,f4
+ld x22,1264(x8)
+ld x28,1272(x8)
+ld x29,1280(x8)
+ld x30,1288(x8)
+ld x31,1296(x8)
+ld x1,1256(x8)
+jal x0,store_atom
+atom_mod_function:
+sd x1,1304(x8)
+sd x22,1312(x8)
+sd x28,1320(x8)
+sd x29,1328(x8)
+sd x30,1336(x8)
+sd x31,1344(x8)
+addi x21,x21,4
+addi x22,x0,0
+jal x1,eval_expression
+fsd f3,1352(x8)
+lbu x5,0(x21)
+addi x6,x0,44
+bne x5,x6,atom_function_error
+addi x21,x21,1
+addi x22,x0,0
+jal x1,eval_expression
+lbu x5,0(x21)
+addi x6,x0,41
+beq x5,x6,atom_mod_close_present
+beq x5,x0,atom_mod_close_consumed
+jal x0,atom_function_error
+atom_mod_close_present:
+addi x21,x21,1
+jal x0,atom_mod_close_done
+atom_mod_close_consumed:
+addi x6,x21,-1
+lbu x5,0(x6)
+addi x6,x0,41
+bne x5,x6,atom_function_error
+atom_mod_close_done:
+fcvt.d.l f6,x0,0
+feq.d x7,f3,f6
+beq x7,x0,atom_mod_nonzero
+jal x0,atom_function_error
+atom_mod_nonzero:
+fld f5,1352(x8)
+fdiv.d f4,f5,f3
+fcvt.l.d x10,f4,1
+fcvt.d.l f4,x10,0
+fmul.d f4,f4,f3
+fsub.d f4,f5,f4
+ld x22,1312(x8)
+ld x28,1320(x8)
+ld x29,1328(x8)
+ld x30,1336(x8)
+ld x31,1344(x8)
+ld x1,1304(x8)
+jal x0,store_atom
+atom_function_error:
+jal x0,error_line
+store_left_atom:
+addi x27,x8,2047
+addi x27,x27,369
+fld f1,0(x27)
+jalr x0,0(x1)
+atom_close_error:
+jal x0,error_line
+atom_x:
+addi x6,x0,23
+slli x6,x6,3
+add x7,x20,x6
+fld f4,0(x7)
+addi x21,x21,1
+jal x0,store_atom
+atom_y:
+addi x6,x0,24
+slli x6,x6,3
+add x7,x20,x6
+fld f4,0(x7)
+addi x21,x21,1
+jal x0,store_atom
+atom_a:
+addi x6,x0,40
+lbu x5,1(x21)
+beq x5,x6,array_open_generic
+addi x21,x21,1
+addi x6,x0,0
+add x7,x20,x6
+fld f4,0(x7)
+jal x0,store_atom
+array_open_generic:
+sd x1,1152(x8)
+sd x22,1776(x8)
+sd x30,1752(x8)
+sd x28,1760(x8)
+sd x29,1768(x8)
+sd x24,1800(x8)
+addi x22,x21,2
+array_open_probe:
+lbu x5,0(x22)
+addi x6,x0,44
+beq x5,x6,array_open_long
+addi x6,x0,41
+beq x5,x6,array_open_short
+bne x5,x0,array_open_nonzero
+jal x0,error_line
+array_open_nonzero:
+addi x22,x22,1
+jal x0,array_open_probe
+array_open_long:
+ld x22,1776(x8)
+sd x1,1152(x8)
+jal x1,resolve_long_num_array
+ld x30,1752(x8)
+ld x22,1776(x8)
+ld x28,1760(x8)
+ld x29,1768(x8)
+ld x1,1152(x8)
+fld f4,0(x7)
+jal x0,store_atom
+array_open_short:
+ld x22,1776(x8)
+ld x30,1752(x8)
+jal x1,resolve_array_name
+ld x1,1152(x8)
+addi x21,x21,2
+addi x24,x0,2
+addi x22,x0,0
+jal x0,lna_index
+array_index_done:
+beq x27,x0,array_index_error
+addi x6,x0,41
+bne x5,x6,array_index_error
+addi x6,x8,584
+slli x7,x26,3
+add x6,x6,x7
+ld x6,0(x6)
+sltu x7,x23,x6
+bne x7,x0,array_index_in_bounds
+jal x0,error_line_near
+array_index_in_bounds:
+addi x21,x21,1
+slli x6,x26,8
+addi x7,x8,2047
+addi x7,x7,2047
+addi x7,x7,2047
+addi x7,x7,2047
+addi x7,x7,4
+add x7,x7,x6
+slli x6,x23,3
+add x7,x7,x6
+fld f4,0(x7)
+ld x24,1800(x8)
+jal x0,store_atom
+atom_open_paren:
+addi x29,x0,1
+addi x21,x21,1
+jal x0,skip_atom_spaces
+atom_plus:
+addi x21,x21,1
+jal x0,skip_atom_spaces
+atom_minus:
+addi x28,x0,1
+addi x21,x21,1
+jal x0,skip_atom_spaces
+; Résolution d'un tableau : parse le nom puis chaque indice, vérifie les
+; bornes et calcule l'adresse par stride. Les variantes 1D/2D partagent cette
+; convention pour que l'édition et PRINT observent les mêmes cellules.
+resolve_array_name:
+lbu x5,0(x21)
+addi x6,x5,-97
+sltiu x7,x6,26
+beq x7,x0,array_name_upper
+addi x5,x5,-32
+sb x5,0(x21)
+array_name_upper:
+addi x6,x5,-65
+sltiu x7,x6,26
+beq x7,x0,array_index_error
+addi x26,x6,0
+lbu x5,1(x21)
+addi x7,x0,40
+beq x5,x7,array_name_is_array
+jal x0,error_line_near
+array_name_is_array:
+jalr x0,0(x1)
+array_index_error:
+jal x0,error_line
+; Résolution de LONGNAME(I), élément binary64 retourné dans x7.
+resolve_long_num_array:
+sd x22,1168(x8)
+sd x24,1120(x8)
+sd x25,1128(x8)
+sd x26,1136(x8)
+sd x27,1144(x8)
+addi x30,x21,0
+addi x25,x21,0
+addi x24,x0,0
+lbu x5,0(x25)
+addi x6,x5,-97
+sltiu x7,x6,26
+beq x7,x0,lna_first_upper
+addi x5,x5,-32
+sb x5,0(x25)
+lna_first_upper:
+addi x6,x5,-65
+sltiu x7,x6,26
+beq x7,x0,long_num_error
+lna_scan:
+lbu x5,0(x25)
+addi x6,x0,40
+beq x5,x6,lna_name_done
+beq x5,x0,long_num_error
+addi x6,x5,-97
+sltiu x7,x6,26
+beq x7,x0,lna_scan_upper
+addi x5,x5,-32
+sb x5,0(x25)
+lna_scan_upper:
+addi x6,x5,-65
+sltiu x7,x6,26
+bne x7,x0,lna_scan_char
+addi x6,x5,-48
+sltiu x7,x6,10
+bne x7,x0,lna_scan_char
+addi x6,x5,-95
+beq x6,x0,lna_scan_char
+jal x0,long_num_error
+lna_scan_char:
+addi x24,x24,1
+sltiu x7,x24,16
+beq x7,x0,long_num_error
+addi x25,x25,1
+jal x0,lna_scan
+lna_name_done:
+sltiu x7,x24,1
+bne x7,x0,long_num_error
+addi x28,x24,0
+addi x21,x25,1
+lui x26,0x82011
+slli x26,x26,32
+srli x26,x26,32
+addi x29,x0,0
+addi x27,x0,32
+lna_slot_loop:
+lbu x5,0(x26)
+beq x5,x0,long_num_error
+addi x22,x0,0
+lna_cmp_loop:
+sltiu x7,x22,16
+beq x7,x0,lna_slot_match
+sltu x7,x22,x28
+beq x7,x0,lna_src_zero
+add x6,x30,x22
+lbu x5,0(x6)
+jal x0,lna_cmp_table
+lna_src_zero:
+addi x5,x0,0
+lna_cmp_table:
+add x6,x26,x22
+lbu x6,0(x6)
+bne x5,x6,lna_slot_next
+addi x22,x22,1
+jal x0,lna_cmp_loop
+lna_slot_next:
+addi x26,x26,32
+addi x29,x29,1
+addi x27,x27,-1
+bne x27,x0,lna_slot_loop
+jal x0,long_num_error
+lna_slot_match:
+addi x22,x0,0
+addi x27,x0,0
+addi x24,x0,0
+lna_index:
+lbu x5,0(x21)
+addi x6,x5,-65
+sltiu x7,x6,26
+beq x7,x0,lna_index_digits
+sd x1,1576(x8)
+jal x1,resolve_variable
+ld x1,1576(x8)
+fld f4,0(x7)
+fcvt.l.d x22,f4
+addi x27,x0,1
+lbu x5,0(x21)
+jal x0,lna_index_operator
+lna_index_digits:
+addi x6,x0,48
+sltu x7,x5,x6
+bne x7,x0,lna_index_operator
+addi x6,x0,58
+sltu x7,x5,x6
+beq x7,x0,lna_index_operator
+addi x6,x0,48
+sub x5,x5,x6
+slli x6,x22,3
+slli x7,x22,1
+add x22,x6,x7
+add x22,x22,x5
+addi x27,x0,1
+addi x21,x21,1
+jal x0,lna_index
+lna_index_operator:
+addi x6,x0,43
+addi x30,x0,0
+beq x5,x6,lna_index_op_start
+addi x6,x0,45
+bne x5,x6,lna_index_done
+addi x30,x0,1
+jal x0,lna_index_op_start
+lna_index_op_start:
+addi x21,x21,1
+addi x23,x0,0
+lna_index_op_digits:
+lbu x5,0(x21)
+addi x6,x0,48
+sltu x7,x5,x6
+bne x7,x0,lna_index_op_done
+addi x6,x0,58
+sltu x7,x5,x6
+beq x7,x0,lna_index_op_done
+addi x6,x0,48
+sub x5,x5,x6
+slli x6,x23,3
+slli x7,x23,1
+add x23,x6,x7
+add x23,x23,x5
+addi x21,x21,1
+jal x0,lna_index_op_digits
+lna_index_op_done:
+beq x30,x0,lna_index_op_add
+sub x22,x22,x23
+lbu x5,0(x21)
+jal x0,lna_index_done
+lna_index_op_add:
+add x22,x22,x23
+lbu x5,0(x21)
+jal x0,lna_index_done
+lna_index_done:
+beq x27,x0,long_num_error
+addi x6,x0,44
+bne x5,x6,lna_index_not_comma
+addi x6,x24,-4
+beq x6,x0,resolve_long_string_2d_second
+jal x0,lna2_second
+lna_index_not_comma:
+addi x6,x0,41
+bne x5,x6,long_num_error
+addi x6,x24,-4
+beq x6,x0,resolve_long_string_index_mode
+addi x6,x24,-2
+beq x6,x0,lna_index_short
+addi x6,x24,-3
+beq x6,x0,assign_index_shared
+addi x6,x24,-5
+beq x6,x0,string_array_index_shared
+beq x24,x0,lna_index_1d
+addi x23,x22,0
+ld x22,1776(x8)
+jal x0,lna2_done
+lna_index_short:
+addi x23,x22,0
+ld x22,1776(x8)
+ld x30,1752(x8)
+jal x0,array_index_done
+string_array_index_shared:
+addi x23,x22,0
+ld x22,1776(x8)
+ld x30,1752(x8)
+jal x0,string_array_index_done
+resolve_long_string_index_mode:
+addi x6,x0,44
+beq x5,x6,resolve_long_string_2d_jump
+addi x6,x0,41
+bne x5,x6,string_index_error
+ld x6,16(x26)
+sltu x7,x22,x6
+beq x7,x0,string_index_error
+addi x21,x21,1
+lui x7,0x82020
+slli x7,x7,32
+srli x7,x7,32
+slli x6,x29,12
+add x7,x7,x6
+slli x6,x22,7
+add x7,x7,x6
+addi x7,x7,8
+ld x11,-8(x7)
+ld x22,1168(x8)
+ld x24,1120(x8)
+ld x25,1128(x8)
+ld x26,1136(x8)
+ld x27,1144(x8)
+ld x1,1152(x8)
+jalr x0,0(x1)
+string_index_error:
+jal x0,string_long_error
+resolve_long_string_2d_jump:
+jal x0,resolve_long_array_2d
+resolve_long_string_2d_second:
+jal x0,resolve_long_array_2d
+lna_index_1d:
+ld x6,16(x26)
+sltu x7,x22,x6
+beq x7,x0,long_num_error
+addi x21,x21,1
+lui x7,0x82040
+slli x7,x7,32
+srli x7,x7,32
+slli x6,x29,9
+add x7,x7,x6
+slli x6,x22,3
+add x7,x7,x6
+ld x22,1168(x8)
+ld x24,1120(x8)
+ld x25,1128(x8)
+ld x26,1136(x8)
+ld x27,1144(x8)
+jalr x0,0(x1)
+; Resolve LONGNAME(I,J) using row-major binary64 storage.
+lna2_second:
+sd x22,1776(x8)
+addi x21,x21,1
+addi x24,x0,1
+addi x22,x0,0
+jal x0,lna_index
+lna2_done:
+beq x27,x0,long_num_error
+addi x6,x0,41
+bne x5,x6,long_num_error
+ld x6,24(x26)
+sltu x7,x23,x6
+beq x7,x0,long_num_error
+mul x22,x22,x6
+add x22,x22,x23
+addi x21,x21,1
+lui x7,0x82050
+slli x7,x7,32
+srli x7,x7,32
+slli x6,x29,12
+add x7,x7,x6
+slli x6,x22,3
+add x7,x7,x6
+ld x22,1168(x8)
+ld x24,1120(x8)
+ld x25,1128(x8)
+ld x26,1136(x8)
+ld x27,1144(x8)
+jalr x0,0(x1)
+; DIM : crée un descripteur fixe et initialise chaque cellule à zéro/vide.
+; Les tableaux longs sont séparés du workspace local dans les régions 0x8201...
+; / 0x8202... ; les contrôles de dimension précèdent toute écriture.
+; DIM alloue dans le tas target-side à partir du descripteur fixe : la taille
+; est calculée en entiers, les éléments restent binary64 ou chaînes selon le
+; type. Une allocation dépassant la zone réservée produit une erreur BASIC.
+dim_array:
+addi x30,x1,0
+sd x1,1744(x8)
+lbu x5,0(x21)
+addi x6,x0,68
+bne x5,x6,dim_error
+lbu x5,1(x21)
+addi x6,x0,73
+bne x5,x6,dim_error
+lbu x5,2(x21)
+addi x6,x0,77
+bne x5,x6,dim_error
+lbu x5,3(x21)
+addi x6,x0,32
+bne x5,x6,dim_error
+addi x21,x21,4
+addi x22,x21,0
+dim_type_scan:
+lbu x5,0(x22)
+addi x6,x0,36
+beq x5,x6,dim_string_dispatch
+addi x6,x0,40
+beq x5,x6,dim_numeric_header
+beq x5,x0,dim_error
+addi x22,x22,1
+jal x0,dim_type_scan
+dim_error:
+jal x0,error_line
+dim_string_dispatch:
+jal x0,string_dim_array
+dim_numeric_header:
+lbu x5,1(x21)
+addi x7,x0,40
+beq x5,x7,dim_numeric_short_probe
+jal x0,dim_long_numeric
+dim_numeric_short_probe:
+addi x22,x21,2
+dim_numeric_probe:
+lbu x5,0(x22)
+addi x6,x0,44
+beq x5,x6,dim_long_numeric
+addi x6,x0,41
+beq x5,x6,dim_numeric_short
+beq x5,x0,dim_error
+addi x22,x22,1
+jal x0,dim_numeric_probe
+dim_numeric_short:
+jal x1,resolve_array_name
+addi x21,x21,2
+addi x23,x0,0
+addi x27,x0,0
+lbu x5,0(x21)
+addi x6,x5,-65
+sltiu x7,x6,26
+beq x7,x0,dim_index_digits
+sd x1,1152(x8)
+jal x1,resolve_variable
+ld x1,1152(x8)
+fld f4,0(x7)
+fcvt.l.d x23,f4,1
+addi x27,x0,1
+lbu x5,0(x21)
+jal x0,dim_index_done
+; DIM LONGNAME(N): numeric long-array descriptors at 0x82011000.
+; Elements are binary64 at 0x82040000 + slot*512 + index*8.
+long_num_error:
+jal x0,error_line
+dim_long_numeric:
+addi x23,x21,0
+addi x25,x21,0
+addi x24,x0,0
+lbu x5,0(x25)
+addi x6,x5,-97
+sltiu x7,x6,26
+beq x7,x0,long_num_first_upper
+addi x5,x5,-32
+sb x5,0(x25)
+long_num_first_upper:
+addi x6,x5,-65
+sltiu x7,x6,26
+beq x7,x0,long_num_error
+long_num_scan:
+lbu x5,0(x25)
+addi x6,x0,40
+beq x5,x6,long_num_name_done
+beq x5,x0,long_num_error
+addi x6,x5,-97
+sltiu x7,x6,26
+beq x7,x0,long_num_scan_upper
+addi x5,x5,-32
+sb x5,0(x25)
+long_num_scan_upper:
+addi x6,x5,-65
+sltiu x7,x6,26
+bne x7,x0,long_num_scan_char
+addi x6,x5,-48
+sltiu x7,x6,10
+bne x7,x0,long_num_scan_char
+addi x6,x5,-95
+beq x6,x0,long_num_scan_char
+jal x0,long_num_error
+long_num_scan_char:
+addi x24,x24,1
+sltiu x7,x24,16
+beq x7,x0,long_num_error
+addi x25,x25,1
+jal x0,long_num_scan
+long_num_name_done:
+sltiu x7,x24,1
+bne x7,x0,long_num_error
+addi x31,x23,0
+addi x28,x24,0
+addi x21,x25,1
+addi x23,x0,0
+addi x27,x0,0
+long_num_dim_digits:
+lbu x5,0(x21)
+addi x6,x0,48
+sltu x7,x5,x6
+bne x7,x0,long_num_dim_done
+addi x6,x0,58
+sltu x7,x5,x6
+beq x7,x0,long_num_dim_done
+addi x6,x0,48
+sub x5,x5,x6
+slli x6,x23,3
+slli x7,x23,1
+add x23,x6,x7
+add x23,x23,x5
+addi x27,x0,1
+addi x21,x21,1
+jal x0,long_num_dim_digits
+long_num_dim_done:
+beq x27,x0,long_num_error
+addi x6,x0,44
+beq x5,x6,long_num_dim_2d
+addi x6,x0,41
+bne x5,x6,long_num_error
+addi x24,x23,1
+lui x26,0x82011
+slli x26,x26,32
+srli x26,x26,32
+addi x29,x0,0
+addi x27,x0,32
+long_num_slot_loop:
+lbu x5,0(x26)
+beq x5,x0,long_num_slot_new
+addi x22,x0,0
+long_num_compare_loop:
+sltiu x7,x22,16
+beq x7,x0,long_num_slot_match
+sltu x7,x22,x28
+beq x7,x0,long_num_source_zero
+add x6,x31,x22
+jal x0,long_num_compare_table
+long_num_source_zero:
+addi x5,x0,0
+long_num_compare_table:
+add x6,x26,x22
+lbu x6,0(x6)
+bne x5,x6,long_num_slot_next
+addi x22,x22,1
+jal x0,long_num_compare_loop
+long_num_slot_match:
+sd x24,16(x26)
+jal x0,long_num_zero
+long_num_slot_next:
+addi x26,x26,32
+addi x29,x29,1
+addi x27,x27,-1
+bne x27,x0,long_num_slot_loop
+jal x0,long_num_error
+long_num_slot_new:
+addi x22,x0,0
+long_num_copy_loop:
+sltu x7,x22,x28
+beq x7,x0,long_num_copy_zero
+add x6,x31,x22
+lbu x5,0(x6)
+jal x0,long_num_copy_store
+long_num_copy_zero:
+addi x5,x0,0
+long_num_copy_store:
+add x6,x26,x22
+sb x5,0(x6)
+addi x22,x22,1
+sltiu x7,x22,16
+bne x7,x0,long_num_copy_loop
+sd x24,16(x26)
+long_num_zero:
+lui x7,0x82040
+slli x7,x7,32
+srli x7,x7,32
+slli x6,x29,9
+add x7,x7,x6
+addi x9,x0,0
+long_num_zero_loop:
+slli x6,x9,3
+add x6,x7,x6
+sd x0,0(x6)
+addi x9,x9,1
+ld x6,16(x26)
+bne x9,x6,long_num_zero_loop
+ld x1,1744(x8)
+jalr x0,0(x1)
+; DIM LONGNAME(N,M): two-dimensional numeric long array.
+; Descriptor fields are name[16], dim1:u64, dim2:u64. Cells use
+; row-major offset (i*dim2+j) in a 4-KiB slot at 0x82050000.
+long_num_dim_2d:
+addi x21,x21,1
+addi x24,x0,0
+addi x27,x0,0
+long_num_2d_digits:
+lbu x5,0(x21)
+addi x6,x0,48
+sltu x7,x5,x6
+bne x7,x0,long_num_2d_done
+addi x6,x0,58
+sltu x7,x5,x6
+beq x7,x0,long_num_2d_done
+addi x6,x0,48
+sub x5,x5,x6
+slli x6,x24,3
+slli x7,x24,1
+add x24,x6,x7
+add x24,x24,x5
+addi x27,x0,1
+addi x21,x21,1
+jal x0,long_num_2d_digits
+long_num_2d_done:
+beq x27,x0,long_num_error
+addi x6,x0,41
+bne x5,x6,long_num_error
+addi x6,x23,1
+addi x7,x24,1
+mul x9,x6,x7
+sltiu x7,x9,513
+beq x7,x0,long_num_error
+addi x23,x23,1
+addi x24,x24,1
+sd x9,1784(x8)
+lui x26,0x82011
+slli x26,x26,32
+srli x26,x26,32
+addi x29,x0,0
+addi x27,x0,32
+long_num_2d_slot:
+lbu x5,0(x26)
+beq x5,x0,long_num_2d_new
+addi x22,x0,0
+long_num_2d_cmp:
+sltiu x7,x22,16
+beq x7,x0,long_num_2d_match
+sltu x7,x22,x28
+beq x7,x0,long_num_2d_zero_src
+add x6,x31,x22
+lbu x5,0(x6)
+jal x0,long_num_2d_cmp_table
+long_num_2d_zero_src:
+addi x5,x0,0
+long_num_2d_cmp_table:
+add x6,x26,x22
+lbu x6,0(x6)
+bne x5,x6,long_num_2d_next
+addi x22,x22,1
+jal x0,long_num_2d_cmp
+long_num_2d_match:
+sd x23,16(x26)
+sd x24,24(x26)
+jal x0,long_num_2d_zero
+long_num_2d_next:
+addi x26,x26,32
+addi x29,x29,1
+addi x27,x27,-1
+bne x27,x0,long_num_2d_slot
+jal x0,long_num_error
+long_num_2d_new:
+addi x22,x0,0
+long_num_2d_copy:
+sltu x7,x22,x28
+beq x7,x0,long_num_2d_copy_zero
+add x6,x31,x22
+lbu x5,0(x6)
+jal x0,long_num_2d_copy_store
+long_num_2d_copy_zero:
+addi x5,x0,0
+long_num_2d_copy_store:
+add x6,x26,x22
+sb x5,0(x6)
+addi x22,x22,1
+sltiu x7,x22,16
+bne x7,x0,long_num_2d_copy
+sd x23,16(x26)
+sd x24,24(x26)
+long_num_2d_zero:
+lui x7,0x82050
+slli x7,x7,32
+srli x7,x7,32
+slli x6,x29,12
+add x7,x7,x6
+ld x6,1784(x8)
+addi x9,x0,0
+long_num_2d_zero_loop:
+slli x10,x9,3
+add x10,x7,x10
+sd x0,0(x10)
+addi x9,x9,1
+bne x9,x6,long_num_2d_zero_loop
+ld x1,1744(x8)
+jalr x0,0(x1)
+dim_index_digits:
+lbu x5,0(x21)
+addi x6,x0,48
+sltu x7,x5,x6
+bne x7,x0,dim_index_done
+addi x6,x0,58
+sltu x7,x5,x6
+beq x7,x0,dim_index_done
+addi x6,x0,48
+sub x5,x5,x6
+slli x6,x23,3
+slli x7,x23,1
+add x23,x6,x7
+add x23,x23,x5
+addi x27,x0,1
+addi x21,x21,1
+jal x0,dim_index_digits
+dim_index_done:
+beq x27,x0,long_num_error
+addi x6,x0,41
+bne x5,x6,long_num_error
+sltiu x7,x23,32
+beq x7,x0,long_num_error
+addi x6,x23,1
+addi x7,x8,584
+slli x5,x26,3
+add x7,x7,x5
+sd x6,0(x7)
+addi x31,x7,0
+addi x9,x0,0
+dim_array_loop:
+addi x7,x8,2047
+addi x7,x7,2047
+addi x7,x7,2047
+addi x7,x7,2047
+addi x7,x7,4
+slli x6,x26,8
+add x7,x7,x6
+slli x6,x9,3
+add x7,x7,x6
+sd x0,0(x7)
+addi x9,x9,1
+ld x6,0(x31)
+bne x9,x6,dim_array_loop
+jalr x0,0(x30)
+long_num_assign:
+sd x1,1600(x8)
+jal x1,resolve_long_num_array
+sd x7,1608(x8)
+lbu x5,0(x21)
+addi x6,x0,61
+bne x5,x6,long_num_error
+addi x21,x21,1
+addi x22,x0,0
+jal x1,eval_expression
+ld x6,1608(x8)
+fsd f3,0(x6)
+ld x1,1600(x8)
+jalr x0,0(x1)
+assign_array:
+ lbu x5,1(x21)
+ addi x7,x0,40
+ beq x5,x7,assign_array_probe
+ jal x0,long_num_assign
+assign_array_probe:
+addi x22,x21,2
+assign_array_scan:
+lbu x5,0(x22)
+addi x6,x0,44
+beq x5,x6,long_num_assign
+addi x6,x0,41
+beq x5,x6,assign_array_short
+beq x5,x0,long_num_error
+addi x22,x22,1
+jal x0,assign_array_scan
+assign_array_short:
+sd x1,1600(x8)
+sd x24,1800(x8)
+jal x1,resolve_array_name
+addi x21,x21,2
+addi x24,x0,3
+addi x22,x0,0
+jal x0,lna_index
+assign_index_shared:
+addi x23,x22,0
+jal x0,assign_index_done
+assign_index_done:
+beq x27,x0,long_num_error
+addi x6,x0,41
+bne x5,x6,long_num_error
+addi x21,x21,1
+lbu x5,0(x21)
+addi x6,x0,61
+bne x5,x6,long_num_error
+addi x6,x8,584
+slli x7,x26,3
+add x6,x6,x7
+ld x6,0(x6)
+sltu x7,x23,x6
+beq x7,x0,long_num_error
+addi x7,x8,2047
+addi x7,x7,2047
+addi x7,x7,2047
+addi x7,x7,2047
+addi x7,x7,4
+slli x6,x26,8
+add x7,x7,x6
+slli x6,x23,3
+add x7,x7,x6
+sd x7,1112(x8)
+ld x24,1800(x8)
+addi x21,x21,1
+addi x22,x0,0
+jal x1,parse_atom
+ld x1,1600(x8)
+ld x6,1112(x8)
+fsd f1,0(x6)
+jalr x0,0(x1)
+; Chaînes : une cellule contient une longueur u64 suivie d'octets ASCII.
+; Les sources et destinations sont toujours des adresses de la RAM cible.
+; Affectation chaîne : le dispatcher distingue variable scalaire, élément de
+; tableau et terme composé. Les routines ci-dessous évaluent d'abord le RHS
+; dans un scratch target-side, puis copient vers la destination seulement
+; après validation : une erreur ne laisse donc pas une chaîne partiellement
+; écrite. x7/x11 forment le couple adresse/longueur d'une source résolue.
+; Affectation chaîne : stocke longueur + octets, puis traite les formes
+; littérale, variable, concaténation et fonctions de découpe sans allocation
+; hôte. Les helpers utilisent les buffers temporaires de MEMORY_MAP.md.
+string_assign:
+sd x1,1152(x8)
+jal x1,resolve_string_variable
+ld x1,1152(x8)
+addi x27,x7,0
+sd x27,1976(x8)
+lbu x5,0(x21)
+addi x6,x0,61
+bne x5,x6,string_long_error
+addi x21,x21,1
+sd x21,2040(x8)
+lbu x5,0(x21)
+addi x6,x0,34
+beq x5,x6,string_literal_open_save
+addi x6,x0,76
+sd x21,1992(x8)
+beq x5,x6,string_assign_check_left
+addi x6,x0,82
+sd x21,1992(x8)
+beq x5,x6,string_assign_check_right
+addi x6,x0,77
+sd x21,1992(x8)
+bne x5,x6,string_assign_concat
+jal x0,string_assign_check_mid
+string_assign_concat:
+; Retour externe du wrapper : séparé des cadres de termes qui utilisent x8+2000.
+lui x27,0x82060
+slli x27,x27,32
+srli x27,x27,32
+addi x27,x27,1792
+sd x1,0(x27)
+jal x1,string_concat_assign
+lui x27,0x82060
+slli x27,x27,32
+srli x27,x27,32
+addi x27,x27,1792
+ld x1,0(x27)
+jalr x0,0(x1)
+string_assign_left:
+ lui x27,0x82060
+slli x27,x27,32
+srli x27,x27,32
+addi x27,x27,1832
+sd x1,0(x27)
+jal x1,string_left_assign
+ lui x27,0x82060
+slli x27,x27,32
+srli x27,x27,32
+addi x27,x27,1832
+ld x1,0(x27)
+jalr x0,0(x1)
+string_assign_right:
+ lui x27,0x82060
+slli x27,x27,32
+srli x27,x27,32
+addi x27,x27,1832
+sd x1,0(x27)
+jal x1,string_right_assign
+ lui x27,0x82060
+slli x27,x27,32
+srli x27,x27,32
+addi x27,x27,1832
+ld x1,0(x27)
+jalr x0,0(x1)
+string_literal_open_save:
+sd x21,2040(x8)
+jal x0,string_literal_open
+string_literal_open:
+addi x21,x21,1
+addi x9,x0,0
+string_copy:
+lbu x5,0(x21)
+addi x6,x0,34
+beq x5,x6,string_done
+addi x6,x0,120
+sltu x7,x9,x6
+beq x7,x0,string_long_error
+add x6,x27,x9
+sb x5,0(x6)
+addi x9,x9,1
+addi x21,x21,1
+jal x0,string_copy
+string_done:
+addi x6,x27,-8
+sd x9,0(x6)
+ lbu x5,1(x21)
+addi x6,x0,43
+bne x5,x6,string_done_return
+ld x21,2040(x8)
+jal x0,string_assign_concat
+string_done_return:
+jalr x0,0(x1)
+string_array_assign:
+sd x1,1584(x8)
+jal x1,resolve_string_array
+ld x1,1584(x8)
+addi x27,x7,0
+sd x27,1976(x8)
+lbu x5,0(x21)
+addi x6,x0,61
+bne x5,x6,string_long_error
+addi x21,x21,1
+sd x21,2040(x8)
+lbu x5,0(x21)
+addi x6,x0,34
+beq x5,x6,string_array_literal_open
+addi x6,x0,76
+beq x5,x6,string_assign_check_left
+addi x6,x0,82
+beq x5,x6,string_assign_check_right
+addi x6,x0,77
+bne x5,x6,string_array_assign_concat
+jal x0,string_assign_check_mid
+string_array_assign_concat:
+; Même séparation pour une destination de tableau de chaînes.
+lui x27,0x82060
+slli x27,x27,32
+srli x27,x27,32
+addi x27,x27,1792
+sd x1,0(x27)
+jal x1,string_concat_assign
+lui x27,0x82060
+slli x27,x27,32
+srli x27,x27,32
+addi x27,x27,1792
+ld x1,0(x27)
+jalr x0,0(x1)
+string_array_assign_left:
+ lui x27,0x82060
+slli x27,x27,32
+srli x27,x27,32
+addi x27,x27,1832
+sd x1,0(x27)
+jal x1,string_left_assign
+ lui x27,0x82060
+slli x27,x27,32
+srli x27,x27,32
+addi x27,x27,1832
+ld x1,0(x27)
+jalr x0,0(x1)
+string_array_assign_right:
+ lui x27,0x82060
+slli x27,x27,32
+srli x27,x27,32
+addi x27,x27,1832
+sd x1,0(x27)
+jal x1,string_right_assign
+ lui x27,0x82060
+slli x27,x27,32
+srli x27,x27,32
+addi x27,x27,1832
+ld x1,0(x27)
+jalr x0,0(x1)
+string_assign_check_left:
+lbu x5,1(x21)
+addi x6,x0,69
+bne x5,x6,string_assign_concat
+lbu x5,2(x21)
+addi x6,x0,70
+bne x5,x6,string_assign_concat
+lbu x5,3(x21)
+addi x6,x0,84
+bne x5,x6,string_assign_concat
+lbu x5,4(x21)
+addi x6,x0,36
+bne x5,x6,string_assign_concat
+lbu x5,5(x21)
+addi x6,x0,40
+bne x5,x6,string_assign_concat
+jal x0,string_assign_left
+string_assign_check_right:
+lbu x5,1(x21)
+addi x6,x0,73
+bne x5,x6,string_assign_concat
+lbu x5,2(x21)
+addi x6,x0,71
+bne x5,x6,string_assign_concat
+lbu x5,3(x21)
+addi x6,x0,72
+bne x5,x6,string_assign_concat
+lbu x5,4(x21)
+addi x6,x0,84
+bne x5,x6,string_assign_concat
+lbu x5,5(x21)
+addi x6,x0,36
+bne x5,x6,string_assign_concat
+lbu x5,6(x21)
+addi x6,x0,40
+bne x5,x6,string_assign_concat
+jal x0,string_assign_right
+string_assign_check_mid:
+lbu x5,1(x21)
+addi x6,x0,73
+bne x5,x6,string_assign_concat
+lbu x5,2(x21)
+addi x6,x0,68
+bne x5,x6,string_assign_concat
+lbu x5,3(x21)
+addi x6,x0,36
+bne x5,x6,string_assign_concat
+lbu x5,4(x21)
+addi x6,x0,40
+bne x5,x6,string_assign_concat
+string_assign_mid:
+ lui x27,0x82060
+slli x27,x27,32
+srli x27,x27,32
+addi x27,x27,1832
+sd x1,0(x27)
+jal x1,string_mid_assign
+ lui x27,0x82060
+slli x27,x27,32
+srli x27,x27,32
+addi x27,x27,1832
+ld x1,0(x27)
+jalr x0,0(x1)
+string_array_literal_open:
+addi x21,x21,1
+addi x9,x0,0
+string_array_copy:
+lbu x5,0(x21)
+addi x6,x0,34
+beq x5,x6,string_array_done
+addi x6,x0,120
+sltu x7,x9,x6
+beq x7,x0,string_long_error
+add x6,x27,x9
+sb x5,0(x6)
+addi x9,x9,1
+addi x21,x21,1
+jal x0,string_array_copy
+string_array_done:
+addi x6,x27,-8
+sd x9,0(x6)
+jalr x0,0(x1)
+; Résolution d'une variable chaîne : les noms longs sont copiés dans un
+; buffer borné puis comparés à la table target-side ; le retour x7 pointe la
+; cellule (longueur à -8, données à +0).
+resolve_string_variable:
+lbu x5,0(x21)
+addi x6,x5,-97
+sltiu x7,x6,26
+beq x7,x0,string_name_upper
+addi x5,x5,-32
+sb x5,0(x21)
+string_name_upper:
+addi x6,x5,-65
+sltiu x7,x6,26
+beq x7,x0,string_long_error
+lbu x5,1(x21)
+addi x7,x0,36
+beq x5,x7,string_short_variable
+; Noms chaînes longs: nom ASCII canonique suivi de $, 2..16 caractères.
+sd x22,1168(x8)
+sd x24,1120(x8)
+sd x25,1128(x8)
+sd x26,1136(x8)
+sd x27,1144(x8)
+addi x23,x21,0
+addi x25,x21,0
+addi x24,x0,0
+string_long_scan:
+lbu x5,0(x25)
+addi x6,x0,36
+beq x5,x6,string_long_scan_done
+beq x5,x0,string_long_error
+addi x6,x5,-97
+sltiu x7,x6,26
+beq x7,x0,string_long_scan_upper
+addi x5,x5,-32
+sb x5,0(x25)
+string_long_scan_upper:
+addi x6,x5,-65
+sltiu x7,x6,26
+bne x7,x0,string_long_scan_char
+addi x6,x5,-48
+sltiu x7,x6,10
+bne x7,x0,string_long_scan_char
+addi x6,x5,-95
+sltiu x7,x6,1
+beq x7,x0,string_long_error
+string_long_scan_char:
+addi x24,x24,1
+sltiu x7,x24,16
+beq x7,x0,string_long_error
+addi x25,x25,1
+jal x0,string_long_scan
+string_long_scan_done:
+sltiu x7,x24,2
+bne x7,x0,string_long_error
+addi x21,x25,1
+addi x26,x8,2047
+addi x26,x26,2047
+addi x26,x26,2047
+addi x26,x26,2047
+addi x26,x26,2047
+addi x26,x26,2047
+addi x26,x26,2047
+addi x26,x26,2047
+addi x26,x26,2047
+addi x26,x26,2047
+addi x26,x26,2047
+addi x26,x26,2047
+addi x26,x26,2047
+addi x26,x26,2047
+addi x26,x26,2047
+addi x26,x26,2047
+addi x26,x26,16
+addi x27,x0,32
+string_long_slot_loop:
+lbu x5,0(x26)
+beq x5,x0,string_long_slot_new
+addi x22,x0,0
+string_long_compare_loop:
+sltiu x7,x22,16
+beq x7,x0,string_long_slot_match
+sltu x7,x22,x24
+beq x7,x0,string_long_source_zero
+add x6,x23,x22
+lbu x5,0(x6)
+jal x0,string_long_compare_table
+string_long_source_zero:
+addi x5,x0,0
+string_long_compare_table:
+add x6,x26,x22
+lbu x6,0(x6)
+bne x5,x6,string_long_slot_next
+addi x22,x22,1
+jal x0,string_long_compare_loop
+string_long_slot_match:
+addi x7,x26,24
+jal x0,string_long_return
+string_long_slot_next:
+addi x26,x26,144
+addi x27,x27,-1
+bne x27,x0,string_long_slot_loop
+jal x0,error_line
+string_long_slot_new:
+addi x22,x0,0
+string_long_copy_loop:
+sltu x7,x22,x24
+beq x7,x0,string_long_copy_zero
+add x6,x23,x22
+lbu x5,0(x6)
+jal x0,string_long_copy_store
+string_long_copy_zero:
+addi x5,x0,0
+string_long_copy_store:
+add x6,x26,x22
+sb x5,0(x6)
+addi x22,x22,1
+sltiu x7,x22,16
+bne x7,x0,string_long_copy_loop
+addi x7,x26,24
+jal x0,string_long_return
+string_long_return:
+ld x11,-8(x7)
+ld x22,1168(x8)
+ld x24,1120(x8)
+ld x25,1128(x8)
+ld x26,1136(x8)
+ld x27,1144(x8)
+jalr x0,0(x1)
+string_short_variable:
+addi x7,x8,2047
+addi x7,x7,2047
+addi x7,x7,2
+slli x6,x6,7
+add x7,x7,x6
+addi x7,x7,8
+addi x21,x21,2
+ld x11,-8(x7)
+jalr x0,0(x1)
+string_dim_array:
+ lbu x5,1(x21)
+ addi x7,x0,36
+ beq x5,x7,string_dim_short_probe
+ jal x0,string_long_dim_array
+string_dim_short_probe:
+addi x22,x21,3
+string_dim_probe:
+lbu x5,0(x22)
+addi x6,x0,44
+beq x5,x6,string_long_dim_array
+addi x6,x0,41
+beq x5,x6,string_dim_short
+beq x5,x0,string_long_error
+addi x22,x22,1
+jal x0,string_dim_probe
+string_dim_short:
+; DIM A$(N): fixed-size ASCII buffers, one 128-byte cell per element.
+lbu x5,0(x21)
+addi x6,x5,-97
+sltiu x7,x6,26
+beq x7,x0,string_dim_upper
+addi x5,x5,-32
+sb x5,0(x21)
+string_dim_upper:
+addi x6,x5,-65
+sltiu x7,x6,26
+beq x7,x0,string_long_error
+addi x26,x6,0
+lbu x5,1(x21)
+addi x7,x0,36
+bne x5,x7,string_long_error
+lbu x5,2(x21)
+addi x7,x0,40
+bne x5,x7,string_long_error
+addi x21,x21,3
+addi x23,x0,0
+addi x27,x0,0
+string_dim_digits:
+lbu x5,0(x21)
+addi x6,x0,48
+sltu x7,x5,x6
+bne x7,x0,string_dim_done
+addi x6,x0,58
+sltu x7,x5,x6
+beq x7,x0,string_dim_done
+addi x6,x0,48
+sub x5,x5,x6
+slli x6,x23,3
+slli x7,x23,1
+add x23,x6,x7
+add x23,x23,x5
+addi x27,x0,1
+addi x21,x21,1
+jal x0,string_dim_digits
+string_dim_done:
+beq x27,x0,string_long_error
+addi x6,x0,41
+bne x5,x6,string_long_error
+sltiu x7,x23,32
+beq x7,x0,string_long_error
+addi x6,x23,1
+addi x7,x8,800
+slli x5,x26,3
+add x7,x7,x5
+sd x6,0(x7)
+addi x31,x7,0
+addi x9,x0,0
+string_dim_zero:
+addi x7,x8,2047
+addi x7,x7,2047
+addi x7,x7,2047
+addi x7,x7,2047
+addi x7,x7,2047
+addi x7,x7,2047
+addi x7,x7,2047
+addi x7,x7,2047
+addi x7,x7,8
+slli x6,x26,12
+add x7,x7,x6
+slli x6,x9,7
+add x7,x7,x6
+sd x0,0(x7)
+addi x9,x9,1
+ld x6,0(x31)
+bne x9,x6,string_dim_zero
+jalr x0,0(x30)
+; DIM NAME$(N): long string-array names use 32 target descriptors.
+; Each descriptor is {name[16], dimension:u64}; cells live at
+; 0x82020000 + slot*4096, with one {length:u64,data[120]} cell per index.
+string_long_error:
+addi x27,x8,2047
+addi x27,x27,441
+sd x0,0(x27)
+jal x0,error_line
+string_long_dim_array:
+sd x1,1152(x8)
+sd x22,1168(x8)
+sd x24,1120(x8)
+sd x25,1128(x8)
+sd x26,1136(x8)
+sd x27,1144(x8)
+addi x23,x21,0
+addi x25,x21,0
+addi x24,x0,0
+lbu x5,0(x25)
+addi x6,x5,-97
+sltiu x7,x6,26
+beq x7,x0,string_long_dim_first_upper
+addi x5,x5,-32
+sb x5,0(x25)
+string_long_dim_first_upper:
+addi x6,x5,-65
+sltiu x7,x6,26
+beq x7,x0,string_long_error
+string_long_dim_scan:
+lbu x5,0(x25)
+addi x6,x0,36
+beq x5,x6,string_long_dim_name_done
+beq x5,x0,string_long_error
+addi x6,x5,-97
+sltiu x7,x6,26
+beq x7,x0,string_long_dim_scan_upper
+addi x5,x5,-32
+sb x5,0(x25)
+string_long_dim_scan_upper:
+addi x6,x5,-65
+sltiu x7,x6,26
+bne x7,x0,string_long_dim_scan_char
+addi x6,x5,-48
+sltiu x7,x6,10
+bne x7,x0,string_long_dim_scan_char
+addi x6,x5,-95
+beq x6,x0,string_long_dim_scan_char
+jal x0,string_long_error
+string_long_dim_scan_char:
+addi x24,x24,1
+sltiu x7,x24,16
+beq x7,x0,string_long_error
+addi x25,x25,1
+jal x0,string_long_dim_scan
+string_long_dim_name_done:
+sltiu x7,x24,1
+bne x7,x0,string_long_error
+lbu x5,1(x25)
+addi x6,x0,40
+bne x5,x6,string_long_error
+addi x30,x23,0
+addi x28,x24,0
+addi x21,x25,2
+addi x23,x0,0
+addi x27,x0,0
+string_long_dim_digits:
+lbu x5,0(x21)
+addi x6,x0,48
+sltu x7,x5,x6
+bne x7,x0,string_long_dim_digits_done
+addi x6,x0,58
+sltu x7,x5,x6
+beq x7,x0,string_long_dim_digits_done
+addi x6,x0,48
+sub x5,x5,x6
+slli x6,x23,3
+slli x7,x23,1
+add x23,x6,x7
+add x23,x23,x5
+addi x27,x0,1
+addi x21,x21,1
+jal x0,string_long_dim_digits
+string_long_dim_digits_done:
+beq x27,x0,string_long_error
+addi x6,x0,44
+beq x5,x6,string_long_dim_2d
+addi x6,x0,41
+bne x5,x6,string_long_error
+addi x24,x23,1
+lui x26,0x82010
+slli x26,x26,32
+srli x26,x26,32
+addi x29,x0,0
+addi x27,x0,32
+string_long_dim_slot_loop:
+lbu x5,0(x26)
+beq x5,x0,string_long_dim_slot_new
+addi x22,x0,0
+string_long_dim_compare_loop:
+sltiu x7,x22,16
+beq x7,x0,string_long_dim_slot_match
+sltu x7,x22,x28
+beq x7,x0,string_long_dim_source_zero
+add x6,x30,x22
+lbu x5,0(x6)
+jal x0,string_long_dim_compare_table
+string_long_dim_source_zero:
+addi x5,x0,0
+string_long_dim_compare_table:
+add x6,x26,x22
+lbu x6,0(x6)
+bne x5,x6,string_long_dim_slot_next
+addi x22,x22,1
+jal x0,string_long_dim_compare_loop
+string_long_dim_slot_match:
+sd x24,16(x26)
+jal x0,string_long_dim_zero
+string_long_dim_slot_next:
+addi x26,x26,32
+addi x29,x29,1
+addi x27,x27,-1
+bne x27,x0,string_long_dim_slot_loop
+jal x0,string_long_error
+string_long_dim_slot_new:
+addi x22,x0,0
+string_long_dim_copy_loop:
+sltu x7,x22,x28
+beq x7,x0,string_long_dim_copy_zero
+add x6,x30,x22
+lbu x5,0(x6)
+jal x0,string_long_dim_copy_store
+string_long_dim_copy_zero:
+addi x5,x0,0
+string_long_dim_copy_store:
+add x6,x26,x22
+sb x5,0(x6)
+addi x22,x22,1
+sltiu x7,x22,16
+bne x7,x0,string_long_dim_copy_loop
+sd x24,16(x26)
+string_long_dim_zero:
+lui x7,0x82020
+slli x7,x7,32
+srli x7,x7,32
+slli x6,x29,12
+add x7,x7,x6
+addi x9,x0,0
+string_long_dim_zero_loop:
+slli x6,x9,7
+add x6,x7,x6
+sd x0,0(x6)
+addi x9,x9,1
+ld x6,16(x26)
+bne x9,x6,string_long_dim_zero_loop
+ld x22,1168(x8)
+ld x24,1120(x8)
+ld x25,1128(x8)
+ld x26,1136(x8)
+ld x27,1144(x8)
+ld x1,1152(x8)
+jalr x0,0(x1)
+; DIM LONGNAME$(N,M): two-dimensional long string array.
+; Cells remain fixed 128-byte records in row-major order, with at most
+; 32 cells per descriptor so one 4-KiB slot remains sufficient.
+string_long_dim_2d:
+addi x21,x21,1
+addi x24,x0,0
+addi x27,x0,0
+string_long_2d_digits:
+lbu x5,0(x21)
+addi x6,x0,48
+sltu x7,x5,x6
+bne x7,x0,string_long_2d_done
+addi x6,x0,58
+sltu x7,x5,x6
+beq x7,x0,string_long_2d_done
+addi x6,x0,48
+sub x5,x5,x6
+slli x6,x24,3
+slli x7,x24,1
+add x24,x6,x7
+add x24,x24,x5
+addi x27,x0,1
+addi x21,x21,1
+jal x0,string_long_2d_digits
+string_long_2d_done:
+beq x27,x0,string_long_error
+addi x6,x0,41
+bne x5,x6,string_long_error
+addi x23,x23,1
+addi x24,x24,1
+mul x9,x23,x24
+sltiu x7,x9,33
+beq x7,x0,string_long_error
+sd x9,1792(x8)
+lui x26,0x82010
+slli x26,x26,32
+srli x26,x26,32
+addi x29,x0,0
+addi x27,x0,32
+string_long_2d_slot:
+lbu x5,0(x26)
+beq x5,x0,string_long_2d_new
+addi x22,x0,0
+string_long_2d_cmp:
+sltiu x7,x22,16
+beq x7,x0,string_long_2d_match
+sltu x7,x22,x28
+beq x7,x0,string_long_2d_zero_src
+add x6,x30,x22
+lbu x5,0(x6)
+jal x0,string_long_2d_cmp_table
+string_long_2d_zero_src:
+addi x5,x0,0
+string_long_2d_cmp_table:
+add x6,x26,x22
+lbu x6,0(x6)
+bne x5,x6,string_long_2d_next
+addi x22,x22,1
+jal x0,string_long_2d_cmp
+string_long_2d_match:
+sd x23,16(x26)
+sd x24,24(x26)
+jal x0,string_long_2d_zero
+string_long_2d_next:
+addi x26,x26,32
+addi x29,x29,1
+addi x27,x27,-1
+bne x27,x0,string_long_2d_slot
+jal x0,string_long_error
+string_long_2d_new:
+addi x22,x0,0
+string_long_2d_copy:
+sltu x7,x22,x28
+beq x7,x0,string_long_2d_copy_zero
+add x6,x30,x22
+lbu x5,0(x6)
+jal x0,string_long_2d_copy_store
+string_long_2d_copy_zero:
+addi x5,x0,0
+string_long_2d_copy_store:
+add x6,x26,x22
+sb x5,0(x6)
+addi x22,x22,1
+sltiu x7,x22,16
+bne x7,x0,string_long_2d_copy
+sd x23,16(x26)
+sd x24,24(x26)
+string_long_2d_zero:
+lui x7,0x82020
+slli x7,x7,32
+srli x7,x7,32
+slli x6,x29,12
+add x7,x7,x6
+ld x6,1792(x8)
+addi x9,x0,0
+string_long_2d_zero_loop:
+slli x10,x9,7
+add x10,x7,x10
+sd x0,0(x10)
+addi x9,x9,1
+bne x9,x6,string_long_2d_zero_loop
+ld x22,1168(x8)
+ld x24,1120(x8)
+ld x25,1128(x8)
+ld x26,1136(x8)
+ld x27,1144(x8)
+ld x1,1152(x8)
+jalr x0,0(x1)
+; Résolution d'un élément de tableau chaîne. Le résultat conserve le même
+; contrat que resolve_string_variable afin que PRINT, INPUT et les fonctions
+; de chaîne puissent partager leurs chemins de sortie.
+resolve_string_array:
+lbu x5,1(x21)
+addi x7,x0,36
+beq x5,x7,r_sarr_short_probe
+jal x0,resolve_long_string_array
+r_sarr_short_probe:
+lbu x5,2(x21)
+addi x7,x0,40
+bne x5,x7,resolve_string_array_short
+addi x22,x21,3
+resolve_string_array_probe:
+lbu x5,0(x22)
+addi x6,x0,44
+beq x5,x6,resolve_long_string_array
+addi x6,x0,41
+beq x5,x6,resolve_string_array_short
+beq x5,x0,string_long_error
+addi x22,x22,1
+jal x0,resolve_string_array_probe
+resolve_string_array_short:
+sd x1,1152(x8)
+sd x22,1776(x8)
+sd x30,1752(x8)
+sd x24,1800(x8)
+lbu x5,0(x21)
+addi x6,x5,-97
+sltiu x7,x6,26
+beq x7,x0,string_array_name_upper
+addi x5,x5,-32
+sb x5,0(x21)
+string_array_name_upper:
+addi x6,x5,-65
+sltiu x7,x6,26
+beq x7,x0,string_long_error
+addi x26,x6,0
+lbu x5,1(x21)
+addi x7,x0,36
+bne x5,x7,string_long_error
+lbu x5,2(x21)
+addi x7,x0,40
+bne x5,x7,string_long_error
+addi x21,x21,3
+addi x24,x0,5
+addi x22,x0,0
+jal x0,lna_index
+string_array_index_done:
+beq x27,x0,string_long_error
+addi x6,x0,41
+bne x5,x6,string_long_error
+addi x6,x8,800
+slli x7,x26,3
+add x6,x6,x7
+ld x6,0(x6)
+sltu x7,x23,x6
+beq x7,x0,string_long_error
+addi x21,x21,1
+addi x7,x8,2047
+addi x7,x7,2047
+addi x7,x7,2047
+addi x7,x7,2047
+addi x7,x7,2047
+addi x7,x7,2047
+addi x7,x7,2047
+addi x7,x7,2047
+addi x7,x7,8
+slli x6,x26,12
+add x7,x7,x6
+slli x6,x23,7
+add x7,x7,x6
+addi x7,x7,8
+ld x11,-8(x7)
+ld x24,1800(x8)
+ld x1,1152(x8)
+jalr x0,0(x1)
+; Résolution de NAME$(I) pour les tableaux de chaînes nommés longs.
+resolve_long_string_array:
+sd x1,1152(x8)
+sd x22,1168(x8)
+sd x24,1120(x8)
+sd x25,1128(x8)
+sd x26,1136(x8)
+sd x27,1144(x8)
+addi x30,x21,0
+addi x25,x21,0
+addi x24,x0,0
+lbu x5,0(x25)
+addi x6,x5,-97
+sltiu x7,x6,26
+beq x7,x0,resolve_long_array_first_upper
+addi x5,x5,-32
+sb x5,0(x25)
+resolve_long_array_first_upper:
+addi x6,x5,-65
+sltiu x7,x6,26
+beq x7,x0,string_long_error
+resolve_long_array_scan:
+lbu x5,0(x25)
+addi x6,x0,36
+beq x5,x6,resolve_long_array_name_done
+beq x5,x0,string_long_error
+addi x6,x5,-97
+sltiu x7,x6,26
+beq x7,x0,resolve_long_array_scan_upper
+addi x5,x5,-32
+sb x5,0(x25)
+resolve_long_array_scan_upper:
+addi x6,x5,-65
+sltiu x7,x6,26
+bne x7,x0,resolve_long_array_scan_char
+addi x6,x5,-48
+sltiu x7,x6,10
+bne x7,x0,resolve_long_array_scan_char
+addi x6,x5,-95
+beq x6,x0,resolve_long_array_scan_char
+jal x0,string_long_error
+resolve_long_array_scan_char:
+addi x24,x24,1
+sltiu x7,x24,16
+beq x7,x0,string_long_error
+addi x25,x25,1
+jal x0,resolve_long_array_scan
+resolve_long_array_name_done:
+sltiu x7,x24,1
+bne x7,x0,string_long_error
+lbu x5,1(x25)
+addi x6,x0,40
+bne x5,x6,string_long_error
+addi x28,x24,0
+addi x21,x25,2
+lui x26,0x82010
+slli x26,x26,32
+srli x26,x26,32
+addi x29,x0,0
+addi x27,x0,32
+resolve_long_array_slot_loop:
+lbu x5,0(x26)
+beq x5,x0,string_long_error
+addi x22,x0,0
+resolve_long_array_compare_loop:
+sltiu x7,x22,16
+beq x7,x0,resolve_long_array_slot_match
+sltu x7,x22,x28
+beq x7,x0,resolve_long_array_source_zero
+add x6,x30,x22
+lbu x5,0(x6)
+jal x0,rla_compare_table
+resolve_long_array_source_zero:
+addi x5,x0,0
+rla_compare_table:
+add x6,x26,x22
+lbu x6,0(x6)
+bne x5,x6,resolve_long_array_slot_next
+addi x22,x22,1
+jal x0,resolve_long_array_compare_loop
+resolve_long_array_slot_next:
+addi x26,x26,32
+addi x29,x29,1
+addi x27,x27,-1
+bne x27,x0,resolve_long_array_slot_loop
+jal x0,string_long_error
+resolve_long_array_slot_match:
+addi x24,x0,4
+addi x22,x0,0
+jal x0,lna_index
+resolve_long_array_index:
+lbu x5,0(x21)
+addi x6,x5,-65
+sltiu x7,x6,26
+beq x7,x0,resolve_long_array_index_digits
+sd x1,1576(x8)
+jal x1,resolve_variable
+ld x1,1576(x8)
+fld f4,0(x7)
+fcvt.l.d x22,f4,1
+addi x27,x0,1
+lbu x5,0(x21)
+jal x0,resolve_long_array_index_done
+resolve_long_array_index_digits:
+addi x6,x0,48
+sltu x7,x5,x6
+bne x7,x0,resolve_long_array_index_done
+addi x6,x0,58
+sltu x7,x5,x6
+beq x7,x0,resolve_long_array_index_done
+addi x6,x0,48
+sub x5,x5,x6
+slli x6,x22,3
+slli x7,x22,1
+add x22,x6,x7
+add x22,x22,x5
+addi x27,x0,1
+addi x21,x21,1
+jal x0,resolve_long_array_index
+resolve_long_array_index_done:
+beq x27,x0,string_long_error
+addi x6,x0,44
+beq x5,x6,resolve_long_array_2d
+addi x6,x0,41
+bne x5,x6,string_long_error
+ld x6,16(x26)
+sltu x7,x22,x6
+beq x7,x0,string_long_error
+addi x21,x21,1
+lui x7,0x82020
+slli x7,x7,32
+srli x7,x7,32
+slli x6,x29,12
+add x7,x7,x6
+slli x6,x22,7
+add x7,x7,x6
+addi x7,x7,8
+ld x11,-8(x7)
+ld x22,1168(x8)
+ld x24,1120(x8)
+ld x25,1128(x8)
+ld x26,1136(x8)
+ld x27,1144(x8)
+ld x1,1152(x8)
+jalr x0,0(x1)
+; Resolve LONGNAME$(I,J), row-major, for the long string-array layout.
+resolve_long_array_2d:
+addi x21,x21,1
+addi x23,x0,0
+addi x27,x0,0
+resolve_long_array_2d_scan:
+lbu x5,0(x21)
+addi x6,x5,-65
+sltiu x7,x6,26
+beq x7,x0,resolve_long_array_2d_digits
+sd x1,1576(x8)
+jal x1,resolve_variable
+ld x1,1576(x8)
+fld f4,0(x7)
+fcvt.l.d x23,f4,1
+addi x27,x0,1
+lbu x5,0(x21)
+jal x0,resolve_long_array_2d_done
+resolve_long_array_2d_digits:
+addi x6,x0,48

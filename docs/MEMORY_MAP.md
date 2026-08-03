@@ -123,6 +123,9 @@ peuvent être réécrits.
 | `0x820622e0` | profondeur temporaire du lexer d'expressions | `u64`, non imbriqué pendant la validation | lexer target-side ; appel |
 | `0x820622f0` | nombre de tokens d'expression publiés | `u64`, 0..32 | lexer target-side ; appel |
 | `0x82062300..0x820625ff` | flux de tokens d'expression | 32 records de 24 octets : type, adresse source, longueur | lexer target-side ; appel |
+| `0x82062600..0x8206271f` | piles statiques du parseur tokenisé intégré | 32 valeurs binary64 à `+0`, 32 opérateurs à `+256` | parseur target-side ; appel |
+| `0x82062720` | marqueur de chemin tokenisé | `u64=1` après une expression entièrement réduite par le parseur intégré | diagnostic/test ; session |
+| `0x82062728` | sauvegarde du pointeur `x18` | une adresse du buffer d’entrée pendant le parseur tokenisé intégré | parseur target-side ; appel |
 
 Les cellules de retour globales sont nécessaires parce que les appels de
 découpe réutilisent des cellules relatives à `x8`. Elles ne doivent pas être

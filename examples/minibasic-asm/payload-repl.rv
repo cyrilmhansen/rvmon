@@ -4544,7 +4544,7 @@ resolve_first_upper:
 sltiu x6,x5,65
 bne x6,x0,error_line
 sltiu x6,x5,91
-beq x6,x0,error_line
+beq x6,x0,integrated_token_error
 addi x25,x25,1
 addi x24,x24,1
 resolve_name_loop:
@@ -4852,6 +4852,8 @@ eval_expression:
 addi x31,x1,0
 addi x22,x0,0
 jal x1,expression_lexer
+jal x1,integrated_token_try
+bne x6,x0,eval_expression_token_done
 jal x1,parse_product
 fmv.x.d x10,f1
 fmv.d.x f7,x10
@@ -4889,6 +4891,398 @@ fsub.d f3,f7,f1
 fmv.x.d x10,f3
 fmv.d.x f7,x10
 jal x0,sum_loop
+eval_expression_token_done:
+jalr x0,0(x31)
+
+; Tokenized expression bridge. This is deliberately a subset gate: only a
+; complete number/operator/parenthesis stream enters the new evaluator. Names,
+; function calls, strings, commas and unary operators return x6=0 and retain
+; the historical cursor parser. The gate is what makes the migration safe:
+; the token lexer is shared, but unsupported grammar is never half-consumed.
+integrated_token_try:
+lui x7,0x82062
+slli x7,x7,32
+srli x7,x7,32
+addi x7,x7,768
+; x18 is the persistent input-buffer pointer. The numeric reader uses it as
+; a digit counter, so preserve it across the target-side evaluator.
+lui x10,0x82062
+slli x10,x10,32
+srli x10,x10,32
+addi x10,x10,1832
+sd x18,0(x10)
+addi x10,x7,-16
+ld x9,0(x10)
+beq x9,x0,integrated_token_no
+addi x29,x0,0
+addi x30,x0,1
+addi x27,x0,0
+integrated_token_validate_loop:
+sltu x6,x29,x9
+beq x6,x0,integrated_token_validate_done
+slli x6,x29,4
+slli x10,x29,3
+add x28,x6,x10
+add x28,x7,x28
+ld x5,0(x28)
+addi x6,x0,1
+beq x5,x6,itok_val_num
+addi x6,x0,3
+beq x5,x6,itok_val_op
+addi x6,x0,4
+beq x5,x6,integrated_token_validate_open
+addi x6,x0,5
+beq x5,x6,integrated_token_validate_close
+jal x0,integrated_token_no
+itok_val_num:
+beq x30,x0,integrated_token_no
+addi x30,x0,0
+addi x29,x29,1
+jal x0,integrated_token_validate_loop
+itok_val_op:
+beq x30,x0,itok_val_opbyte
+jal x0,integrated_token_no
+itok_val_opbyte:
+ld x6,8(x28)
+lbu x5,0(x6)
+addi x6,x0,43
+beq x5,x6,integrated_token_operator_ok
+addi x6,x0,45
+beq x5,x6,integrated_token_operator_ok
+addi x6,x0,42
+beq x5,x6,integrated_token_operator_ok
+addi x6,x0,47
+bne x5,x6,integrated_token_no
+integrated_token_operator_ok:
+addi x30,x0,1
+addi x29,x29,1
+jal x0,integrated_token_validate_loop
+integrated_token_validate_open:
+beq x30,x0,integrated_token_no
+addi x6,x27,1
+sltiu x10,x6,32
+beq x10,x0,integrated_token_no
+addi x27,x6,0
+addi x29,x29,1
+jal x0,integrated_token_validate_loop
+integrated_token_validate_close:
+beq x30,x0,integrated_token_no
+beq x27,x0,integrated_token_no
+addi x27,x27,-1
+addi x30,x0,0
+addi x29,x29,1
+jal x0,integrated_token_validate_loop
+integrated_token_validate_done:
+bne x30,x0,integrated_token_no
+bne x27,x0,integrated_token_no
+jal x1,integrated_token_eval
+; Restore the REPL input-buffer pointer before returning to PRINT or the
+; command loop. The evaluator is otherwise free to use x18 as scratch.
+lui x10,0x82062
+slli x10,x10,32
+srli x10,x10,32
+addi x10,x10,1832
+ld x18,0(x10)
+fmv.x.d x10,f1
+fmv.d.x f3,x10
+; The evaluator reuses x7 for record and stack addresses; rebuild the token
+; base before advancing the historical source cursor.
+lui x7,0x82062
+slli x7,x7,32
+srli x7,x7,32
+addi x7,x7,768
+addi x29,x9,-1
+slli x6,x29,4
+slli x10,x29,3
+add x28,x6,x10
+add x28,x7,x28
+ld x21,8(x28)
+ld x6,16(x28)
+add x21,x21,x6
+; Audit marker: this expression completed through the token evaluator. It is
+; target memory, not host output, and is cleared by NEW in a later tranche.
+lui x10,0x82062
+slli x10,x10,32
+srli x10,x10,32
+addi x10,x10,1824
+addi x6,x0,1
+sd x6,0(x10)
+addi x6,x0,1
+jalr x0,0(x1)
+integrated_token_no:
+addi x6,x0,0
+jalr x0,0(x1)
+
+; The following evaluator is target-side and uses a 32-value/32-operator
+; static stack at 0x82062600. It mirrors the TBXL EXEXPR separation: token
+; reading, precedence reduction and operation execution are independent.
+integrated_token_eval:
+addi x31,x1,0
+addi x9,x0,0
+addi x10,x0,0
+addi x11,x0,0
+integrated_token_loop:
+lui x7,0x82062
+slli x7,x7,32
+srli x7,x7,32
+addi x7,x7,768
+addi x28,x7,-16
+ld x6,0(x28)
+sltu x6,x9,x6
+beq x6,x0,integrated_token_finish
+slli x6,x9,4
+slli x28,x9,3
+add x6,x6,x28
+add x28,x7,x6
+ld x5,0(x28)
+addi x6,x0,1
+beq x5,x6,integrated_token_number
+addi x6,x0,3
+beq x5,x6,integrated_token_operator
+addi x6,x0,4
+beq x5,x6,integrated_token_open
+addi x6,x0,5
+beq x5,x6,integrated_token_close
+jal x0,error_line
+integrated_token_number:
+jal x1,integrated_token_read_number
+jal x1,integrated_value_push
+jal x0,integrated_token_loop
+integrated_token_operator:
+ld x6,8(x28)
+lbu x5,0(x6)
+addi x14,x5,0
+addi x9,x9,1
+addi x6,x0,43
+beq x5,x6,integrated_token_plus
+addi x6,x0,45
+beq x5,x6,integrated_token_plus
+addi x6,x0,42
+beq x5,x6,integrated_token_mul
+addi x6,x0,47
+beq x5,x6,integrated_token_mul
+jal x0,error_line
+integrated_token_plus:
+addi x6,x0,1
+jal x1,integrated_operator_reduce
+jal x0,integrated_token_loop
+integrated_token_mul:
+addi x6,x0,2
+jal x1,integrated_operator_reduce
+jal x0,integrated_token_loop
+integrated_token_open:
+sltiu x6,x11,32
+beq x6,x0,integrated_token_error
+jal x1,integrated_operator_push_open
+addi x9,x9,1
+jal x0,integrated_token_loop
+integrated_token_close:
+addi x9,x9,1
+integrated_token_close_reduce:
+beq x11,x0,integrated_token_error
+lui x27,0x82062
+slli x27,x27,32
+srli x27,x27,32
+addi x27,x27,1792
+add x6,x27,x11
+addi x6,x6,-1
+lbu x5,0(x6)
+addi x6,x0,40
+beq x5,x6,integrated_token_close_pop
+jal x1,integrated_reduce_one
+jal x0,integrated_token_close_reduce
+integrated_token_close_pop:
+addi x11,x11,-1
+jal x0,integrated_token_loop
+integrated_operator_push_open:
+lui x27,0x82062
+slli x27,x27,32
+srli x27,x27,32
+addi x27,x27,1792
+add x6,x27,x11
+addi x5,x0,40
+sb x5,0(x6)
+addi x11,x11,1
+jalr x0,0(x1)
+integrated_operator_reduce:
+addi x15,x6,0
+beq x11,x0,integrated_operator_push
+lui x27,0x82062
+slli x27,x27,32
+srli x27,x27,32
+addi x27,x27,1792
+add x6,x27,x11
+addi x6,x6,-1
+lbu x5,0(x6)
+addi x6,x0,40
+beq x5,x6,integrated_operator_push
+addi x6,x0,43
+beq x5,x6,itok_op_add
+addi x6,x0,45
+beq x5,x6,itok_op_add
+addi x6,x0,42
+beq x5,x6,itok_op_mul
+addi x6,x0,47
+beq x5,x6,itok_op_mul
+jal x0,error_line
+itok_op_add:
+addi x6,x0,1
+sltu x6,x6,x15
+bne x6,x0,integrated_operator_push
+jal x1,integrated_reduce_one
+addi x6,x15,0
+jal x0,integrated_operator_reduce
+itok_op_mul:
+addi x6,x0,2
+sltu x6,x6,x15
+bne x6,x0,integrated_operator_push
+jal x1,integrated_reduce_one
+addi x6,x15,0
+jal x0,integrated_operator_reduce
+integrated_operator_push:
+sltiu x6,x11,32
+beq x6,x0,integrated_token_error
+lui x27,0x82062
+slli x27,x27,32
+srli x27,x27,32
+addi x27,x27,1792
+add x6,x27,x11
+sb x14,0(x6)
+addi x11,x11,1
+jalr x0,0(x1)
+integrated_reduce_one:
+addi x30,x1,0
+addi x11,x11,-1
+lui x27,0x82062
+slli x27,x27,32
+srli x27,x27,32
+addi x27,x27,1792
+add x6,x27,x11
+lbu x5,0(x6)
+jal x1,integrated_value_pop
+fmv.x.d x12,f1
+jal x1,integrated_value_pop
+fmv.x.d x13,f1
+fmv.d.x f1,x13
+fmv.d.x f2,x12
+addi x6,x0,43
+beq x5,x6,integrated_reduce_add
+addi x6,x0,45
+beq x5,x6,integrated_reduce_sub
+addi x6,x0,42
+beq x5,x6,integrated_reduce_mul
+addi x6,x0,47
+beq x5,x6,integrated_reduce_div
+jal x0,error_line
+integrated_reduce_add:
+fadd.d f1,f1,f2
+addi x1,x30,0
+jal x0,integrated_value_push
+integrated_reduce_sub:
+fsub.d f1,f1,f2
+addi x1,x30,0
+jal x0,integrated_value_push
+integrated_reduce_mul:
+fmul.d f1,f1,f2
+addi x1,x30,0
+jal x0,integrated_value_push
+integrated_reduce_div:
+fdiv.d f1,f1,f2
+addi x1,x30,0
+jal x0,integrated_value_push
+integrated_token_finish:
+beq x11,x0,integrated_token_last
+jal x1,integrated_reduce_one
+jal x0,integrated_token_finish
+integrated_token_last:
+jal x1,integrated_value_pop
+jalr x0,0(x31)
+
+integrated_token_read_number:
+lui x7,0x82062
+slli x7,x7,32
+srli x7,x7,32
+addi x7,x7,768
+slli x28,x9,4
+slli x27,x9,3
+add x7,x7,x28
+add x7,x7,x27
+ld x6,8(x7)
+ld x7,16(x7)
+addi x14,x0,0
+addi x15,x0,0
+addi x16,x0,1
+addi x17,x0,0
+addi x18,x0,0
+integrated_number_loop:
+beq x7,x0,integrated_number_done
+lbu x5,0(x6)
+addi x28,x0,46
+beq x5,x28,integrated_number_dot
+addi x5,x5,-48
+sltiu x28,x5,10
+beq x28,x0,integrated_token_error
+addi x18,x18,1
+beq x17,x0,integrated_number_integer
+slli x28,x15,3
+slli x13,x15,1
+add x15,x28,x13
+add x15,x15,x5
+slli x28,x16,3
+slli x13,x16,1
+add x16,x28,x13
+jal x0,integrated_number_next
+integrated_number_integer:
+slli x28,x14,3
+slli x13,x14,1
+add x14,x28,x13
+add x14,x14,x5
+integrated_number_next:
+addi x6,x6,1
+addi x7,x7,-1
+jal x0,integrated_number_loop
+integrated_number_dot:
+bne x17,x0,integrated_token_error
+addi x17,x0,1
+addi x6,x6,1
+addi x7,x7,-1
+jal x0,integrated_number_loop
+integrated_number_done:
+beq x18,x0,integrated_token_error
+fcvt.d.l f1,x14,0
+beq x17,x0,integrated_number_return
+fcvt.d.l f2,x15,0
+fcvt.d.l f3,x16,0
+fdiv.d f2,f2,f3
+fadd.d f1,f1,f2
+integrated_number_return:
+addi x9,x9,1
+jalr x0,0(x1)
+integrated_value_push:
+sltiu x6,x10,32
+beq x6,x0,integrated_token_error
+lui x27,0x82062
+slli x27,x27,32
+srli x27,x27,32
+addi x27,x27,1536
+slli x6,x10,3
+add x27,x27,x6
+fsd f1,0(x27)
+addi x10,x10,1
+jalr x0,0(x1)
+integrated_value_pop:
+beq x10,x0,integrated_token_error
+addi x10,x10,-1
+lui x27,0x82062
+slli x27,x27,32
+srli x27,x27,32
+addi x27,x27,1536
+slli x6,x10,3
+add x27,x27,x6
+fld f1,0(x27)
+jalr x0,0(x1)
+integrated_token_error:
+jal x0,error_line
 ; Produit/division : conserve le premier opérande dans le scratch dédié et
 ; boucle tant que '*' ou '/' est rencontré ; division par zéro est rejetée.
 parse_product:
@@ -5368,7 +5762,7 @@ addi x21,x21,1
 jal x0,atom_close_spaces
 atom_close_check:
 addi x6,x0,41
-bne x5,x6,error_line
+bne x5,x6,atom_close_error
 addi x21,x21,1
 atom_paren_done:
 addi x27,x8,2047
@@ -5867,6 +6261,8 @@ addi x27,x8,2047
 addi x27,x27,369
 fld f1,0(x27)
 jalr x0,0(x1)
+atom_close_error:
+jal x0,error_line
 atom_x:
 addi x6,x0,23
 slli x6,x6,3

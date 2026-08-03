@@ -1,0 +1,2314 @@
+sltu x7,x5,x6
+bne x7,x0,resolve_long_array_2d_done
+addi x6,x0,58
+sltu x7,x5,x6
+beq x7,x0,resolve_long_array_2d_done
+addi x6,x0,48
+sub x5,x5,x6
+slli x6,x23,3
+slli x7,x23,1
+add x23,x6,x7
+add x23,x23,x5
+addi x27,x0,1
+addi x21,x21,1
+jal x0,resolve_long_array_2d_scan
+resolve_long_array_2d_done:
+beq x27,x0,string_long_error
+addi x6,x0,41
+bne x5,x6,string_long_error
+ld x6,24(x26)
+sltu x7,x23,x6
+beq x7,x0,string_long_error
+mul x22,x22,x6
+add x22,x22,x23
+addi x21,x21,1
+lui x7,0x82020
+slli x7,x7,32
+srli x7,x7,32
+slli x6,x29,12
+add x7,x7,x6
+slli x6,x22,7
+add x7,x7,x6
+addi x7,x7,8
+ld x11,-8(x7)
+ld x22,1168(x8)
+ld x24,1120(x8)
+ld x25,1128(x8)
+ld x26,1136(x8)
+ld x27,1144(x8)
+ld x1,1152(x8)
+jalr x0,0(x1)
+print_left_string:
+addi x27,x8,2047
+addi x27,x27,401
+sd x21,0(x27)
+addi x21,x21,6
+jal x1,resolve_string_source
+sd x7,1944(x8)
+sd x11,1952(x8)
+lbu x5,0(x21)
+addi x6,x0,44
+bne x5,x6,print_left_error
+addi x21,x21,1
+addi x22,x0,0
+jal x1,eval_expression
+lbu x5,0(x21)
+addi x6,x0,41
+bne x5,x6,print_left_error
+addi x21,x21,1
+ lbu x5,0(x21)
+addi x6,x0,43
+beq x5,x6,print_slice_concat
+fcvt.l.d x10,f3,1
+srai x6,x10,63
+bne x6,x0,print_left_error
+sltiu x7,x10,121
+beq x7,x0,print_left_error
+ld x7,1952(x8)
+sltu x6,x7,x10
+beq x6,x0,print_left_count_ready
+addi x10,x7,0
+print_left_count_ready:
+ld x7,1944(x8)
+lui x27,0x82060
+slli x27,x27,32
+srli x27,x27,32
+addi x9,x0,0
+print_left_copy:
+sltu x6,x9,x10
+beq x6,x0,print_left_copy_done
+lbu x5,0(x7)
+sb x5,0(x27)
+addi x7,x7,1
+addi x27,x27,1
+addi x9,x9,1
+jal x0,print_left_copy
+print_left_copy_done:
+lui x27,0x82060
+slli x27,x27,32
+srli x27,x27,32
+addi x11,x10,0
+addi x10,x27,0
+addi x17,x0,4
+ecall
+addi x10,x0,10
+addi x17,x0,1
+ecall
+jal x0,if_false
+print_left_error:
+jal x0,error_line
+print_right_string:
+addi x27,x8,2047
+addi x27,x27,401
+sd x21,0(x27)
+addi x21,x21,7
+jal x1,resolve_string_source
+sd x7,1944(x8)
+sd x11,1952(x8)
+lbu x5,0(x21)
+addi x6,x0,44
+bne x5,x6,print_right_error
+addi x21,x21,1
+addi x22,x0,0
+jal x1,eval_expression
+lbu x5,0(x21)
+addi x6,x0,41
+bne x5,x6,print_right_error
+addi x21,x21,1
+ lbu x5,0(x21)
+addi x6,x0,43
+beq x5,x6,print_slice_concat
+fcvt.l.d x10,f3,1
+srai x6,x10,63
+bne x6,x0,print_right_error
+sltiu x7,x10,121
+beq x7,x0,print_right_error
+ld x7,1952(x8)
+sltu x6,x7,x10
+beq x6,x0,print_right_count_ready
+addi x10,x7,0
+print_right_count_ready:
+sub x6,x7,x10
+ld x7,1944(x8)
+add x7,x7,x6
+lui x27,0x82060
+slli x27,x27,32
+srli x27,x27,32
+addi x9,x0,0
+print_right_copy:
+sltu x6,x9,x10
+beq x6,x0,print_right_copy_done
+lbu x5,0(x7)
+sb x5,0(x27)
+addi x7,x7,1
+addi x27,x27,1
+addi x9,x9,1
+jal x0,print_right_copy
+print_right_copy_done:
+lui x27,0x82060
+slli x27,x27,32
+srli x27,x27,32
+addi x11,x10,0
+addi x10,x27,0
+addi x17,x0,4
+ecall
+addi x10,x0,10
+addi x17,x0,1
+ecall
+jal x0,if_false
+print_right_error:
+jal x0,error_line
+print_mid_string:
+addi x27,x8,2047
+addi x27,x27,401
+sd x21,0(x27)
+addi x21,x21,5
+jal x1,resolve_string_source
+sd x7,1944(x8)
+sd x11,1952(x8)
+lbu x5,0(x21)
+addi x6,x0,44
+bne x5,x6,print_mid_error
+addi x21,x21,1
+addi x22,x0,0
+jal x1,eval_expression
+lbu x5,0(x21)
+addi x6,x0,44
+bne x5,x6,print_mid_error
+fcvt.l.d x10,f3,1
+srai x6,x10,63
+bne x6,x0,print_mid_error
+beq x10,x0,print_mid_error
+sd x10,1960(x8)
+addi x21,x21,1
+addi x22,x0,0
+jal x1,eval_expression
+lbu x5,0(x21)
+addi x6,x0,41
+bne x5,x6,print_mid_error
+addi x21,x21,1
+ lbu x5,0(x21)
+addi x6,x0,43
+beq x5,x6,print_slice_concat
+fcvt.l.d x10,f3,1
+srai x6,x10,63
+bne x6,x0,print_mid_error
+sltiu x7,x10,121
+beq x7,x0,print_mid_error
+ld x7,1960(x8)
+addi x7,x7,-1
+ld x11,1952(x8)
+sltu x6,x7,x11
+beq x6,x0,print_mid_empty
+sub x6,x11,x7
+sltu x27,x6,x10
+beq x27,x0,print_mid_count_ready
+addi x10,x6,0
+print_mid_count_ready:
+ld x27,1944(x8)
+add x7,x27,x7
+jal x0,print_mid_copy_setup
+print_mid_empty:
+addi x10,x0,0
+ld x7,1944(x8)
+print_mid_copy_setup:
+lui x27,0x82060
+slli x27,x27,32
+srli x27,x27,32
+addi x9,x0,0
+print_mid_copy:
+sltu x6,x9,x10
+beq x6,x0,print_mid_copy_done
+lbu x5,0(x7)
+sb x5,0(x27)
+addi x7,x7,1
+addi x27,x27,1
+addi x9,x9,1
+jal x0,print_mid_copy
+print_mid_copy_done:
+lui x27,0x82060
+slli x27,x27,32
+srli x27,x27,32
+addi x11,x10,0
+addi x10,x27,0
+addi x17,x0,4
+ecall
+addi x10,x0,10
+addi x17,x0,1
+ecall
+jal x0,if_false
+print_mid_error:
+jal x0,error_line
+print_slice_concat:
+addi x27,x8,2047
+addi x27,x27,401
+ld x21,0(x27)
+jal x0,print_string_concat
+print_chr_string:
+addi x27,x8,2047
+addi x27,x27,401
+sd x21,0(x27)
+addi x21,x21,5
+addi x22,x0,0
+jal x1,eval_expression
+lbu x5,0(x21)
+addi x6,x0,41
+bne x5,x6,print_chr_error
+addi x21,x21,1
+ lbu x5,0(x21)
+addi x6,x0,43
+beq x5,x6,print_function_concat
+fcvt.l.d x10,f3,1
+srai x6,x10,63
+bne x6,x0,print_chr_error
+sltiu x7,x10,256
+beq x7,x0,print_chr_error
+addi x17,x0,1
+ecall
+addi x10,x0,10
+addi x17,x0,1
+ecall
+jal x0,if_false
+print_chr_error:
+jal x0,error_line
+print_str_string:
+addi x27,x8,2047
+addi x27,x27,401
+sd x21,0(x27)
+addi x21,x21,5
+ lbu x5,0(x21)
+addi x6,x0,41
+beq x5,x6,print_str_error
+addi x22,x0,0
+jal x1,eval_expression
+lbu x5,0(x21)
+addi x6,x0,41
+bne x5,x6,print_str_error
+addi x21,x21,1
+ lbu x5,0(x21)
+addi x6,x0,43
+beq x5,x6,print_function_concat
+jal x1,string_format_number
+addi x10,x7,0
+addi x17,x0,4
+ecall
+addi x10,x0,10
+addi x17,x0,1
+ecall
+jal x0,if_false
+print_str_error:
+jal x0,error_line
+print_function_concat:
+addi x27,x8,2047
+addi x27,x27,401
+ld x21,0(x27)
+jal x0,print_string_concat
+; Résolution de source chaîne : littéral, variable scalaire ou élément de
+; tableau. Retourne x7=data, x11=length et avance x21 après le terme.
+resolve_string_source:
+sd x1,2024(x8)
+ lbu x5,0(x21)
+addi x6,x0,34
+beq x5,x6,resolve_string_literal_source
+addi x22,x21,0
+resolve_string_source_scan:
+lbu x5,0(x22)
+addi x6,x0,36
+beq x5,x6,resolve_str_src_after_dollar
+beq x5,x0,string_long_error
+addi x22,x22,1
+jal x0,resolve_string_source_scan
+resolve_str_src_after_dollar:
+lbu x5,1(x22)
+addi x6,x0,40
+beq x5,x6,resolve_string_source_array
+jal x1,resolve_string_variable
+ld x1,2024(x8)
+jalr x0,0(x1)
+resolve_string_source_array:
+jal x1,resolve_string_array
+ld x1,2024(x8)
+jalr x0,0(x1)
+resolve_string_literal_source:
+; La copie est limitée à 120 octets et publiée par (x7,x11). La longueur est
+; la seule sentinelle contractuelle : les consommateurs n'accèdent jamais à
+; une chaîne au-delà de x7+x11 et ne dépendent pas d'un octet NUL.
+addi x21,x21,1
+lui x7,0x82060
+slli x7,x7,32
+srli x7,x7,32
+addi x7,x7,256
+addi x9,x0,0
+resolve_string_literal_copy:
+lbu x5,0(x21)
+addi x6,x0,34
+beq x5,x6,resolve_string_literal_done
+beq x5,x0,string_long_error
+sltiu x6,x9,120
+beq x6,x0,string_long_error
+add x6,x7,x9
+sb x5,0(x6)
+addi x9,x9,1
+addi x21,x21,1
+jal x0,resolve_string_literal_copy
+resolve_string_literal_done:
+addi x21,x21,1
+addi x11,x9,0
+sd x7,1992(x8)
+jalr x0,0(x1)
+; Résout une expression chaîne composée délimitée par une parenthèse fermante
+; externe. La copie source et la destination sont target-side et bornées à
+; 120 octets ; le concaténateur commun ne voit qu'un buffer terminé par NUL.
+; Retourne x7/x11 et laisse x21 sur la parenthèse externe afin que le
+; consommateur partagé la valide et l'absorbe.
+resolve_string_expression:
+; Les métadonnées du résolveur sont indexées par la profondeur de
+; concaténation courante. Les buffers de source des cadres concaténés sont
+; distincts, ce qui protège le texte englobant pendant un appel imbriqué.
+addi x6,x8,2047
+addi x6,x6,441
+ld x7,0(x6)
+sltiu x6,x7,8
+beq x6,x0,string_long_error
+slli x6,x7,4
+lui x27,0x82062
+slli x27,x27,32
+srli x27,x27,32
+addi x27,x27,-256
+add x27,x27,x6
+sd x1,0(x27)
+beq x7,x0,rse_global_source
+addi x6,x7,-1
+slli x10,x6,8
+slli x6,x6,5
+add x6,x6,x10
+lui x27,0x82061
+slli x27,x27,32
+srli x27,x27,32
+addi x27,x27,1536
+add x27,x27,x6
+addi x27,x27,32
+jal x0,rse_source_ready
+rse_global_source:
+lui x27,0x82060
+slli x27,x27,32
+srli x27,x27,32
+addi x27,x27,1968
+rse_source_ready:
+addi x24,x21,0
+addi x9,x0,0
+addi x29,x0,0
+addi x28,x0,0
+resolve_string_expression_copy:
+lbu x5,0(x24)
+beq x5,x0,string_long_error
+addi x6,x0,34
+beq x5,x6,rse_quote
+addi x6,x0,44
+beq x5,x6,rse_comma_probe
+addi x6,x0,40
+beq x5,x6,rse_open
+addi x6,x0,41
+beq x5,x6,rse_close_probe
+jal x0,rse_copy_char
+rse_close_probe:
+bne x29,x0,rse_copy_char
+bne x28,x0,rse_nested_close
+bne x30,x0,string_long_error
+jal x0,rse_close
+rse_nested_close:
+sltiu x6,x9,120
+beq x6,x0,string_long_error
+add x6,x27,x9
+sb x5,0(x6)
+addi x9,x9,1
+addi x24,x24,1
+addi x28,x28,-1
+jal x0,resolve_string_expression_copy
+rse_open:
+beq x29,x0,rse_open_char
+jal x0,rse_copy_char
+rse_open_char:
+sltiu x6,x28,8
+beq x6,x0,string_long_error
+sltiu x6,x9,120
+beq x6,x0,string_long_error
+add x6,x27,x9
+sb x5,0(x6)
+addi x9,x9,1
+addi x24,x24,1
+addi x28,x28,1
+jal x0,resolve_string_expression_copy
+rse_copy_char:
+sltiu x6,x9,120
+beq x6,x0,string_long_error
+add x6,x27,x9
+sb x5,0(x6)
+addi x9,x9,1
+addi x24,x24,1
+jal x0,resolve_string_expression_copy
+rse_comma_probe:
+bne x29,x0,rse_copy_char
+bne x28,x0,rse_copy_char
+bne x30,x0,rse_close
+jal x0,rse_copy_char
+rse_quote:
+sltiu x6,x9,120
+beq x6,x0,string_long_error
+add x6,x27,x9
+sb x5,0(x6)
+addi x9,x9,1
+xori x29,x29,1
+addi x24,x24,1
+jal x0,resolve_string_expression_copy
+rse_close:
+beq x29,x0,rse_close_ready
+jal x0,string_long_error
+rse_close_ready:
+addi x6,x8,2047
+addi x6,x6,441
+ld x7,0(x6)
+slli x6,x7,4
+lui x27,0x82062
+slli x27,x27,32
+srli x27,x27,32
+addi x27,x27,-256
+add x27,x27,x6
+sd x24,8(x27)
+beq x7,x0,rse_close_global_source
+addi x6,x7,-1
+slli x10,x6,8
+slli x6,x6,5
+add x6,x6,x10
+lui x27,0x82061
+slli x27,x27,32
+srli x27,x27,32
+addi x27,x27,1536
+add x27,x27,x6
+addi x27,x27,32
+jal x0,rse_close_source_ready
+rse_close_global_source:
+lui x27,0x82060
+slli x27,x27,32
+srli x27,x27,32
+addi x27,x27,1968
+rse_close_source_ready:
+add x6,x27,x9
+sb x0,0(x6)
+addi x21,x27,0
+lui x6,0x82060
+slli x6,x6,32
+srli x6,x6,32
+addi x6,x6,2040
+addi x6,x6,56
+sd x6,1976(x8)
+jal x1,string_concat_assign
+addi x6,x8,2047
+addi x6,x6,441
+ld x7,0(x6)
+slli x6,x7,4
+lui x27,0x82062
+slli x27,x27,32
+srli x27,x27,32
+addi x27,x27,-256
+add x27,x27,x6
+ld x21,8(x27)
+ld x1,0(x27)
+; Les consommateurs numériques ont besoin de l'adresse du résultat concaténé,
+; pas de l'adresse du dernier terme résolu. x11 reste la longueur totale.
+lui x7,0x82060
+slli x7,x7,32
+srli x7,x7,32
+addi x7,x7,2040
+addi x7,x7,56
+jalr x0,0(x1)
+; Concaténation : résout chaque terme, contrôle la longueur totale <=120,
+; copie dans le buffer temporaire cible, puis écrit la cellule destination.
+; Les retours globaux sont distincts des frames x8 réutilisés par les découpes.
+; Concaténation : string_concat_term parcourt les termes séparés par '+',
+; string_concat_copy ajoute chaque octet dans le buffer borné, et
+; string_concat_store publie le résultat atomiquement. Les buffers distincts
+; (littéral, slice, concaténation) permettent l'auto-affectation sans aliaser
+; la destination pendant l'évaluation.
+string_concat_assign:
+; Chaque invocation possède un cadre de 288 octets : retour, total, pointeur
+; de buffer et deux zones de 120 octets (source d'expression et concaténation).
+; La profondeur est bornée à huit et remise à zéro sur une erreur.
+addi x27,x8,2047
+addi x27,x27,441
+ld x6,0(x27)
+sltiu x7,x6,8
+beq x7,x0,string_concat_error
+slli x7,x6,8
+slli x10,x6,5
+add x7,x7,x10
+lui x27,0x82061
+slli x27,x27,32
+srli x27,x27,32
+addi x27,x27,1536
+add x27,x27,x7
+sd x1,0(x27)
+addi x7,x27,160
+sd x7,16(x27)
+ld x10,1976(x8)
+sd x10,24(x27)
+addi x6,x6,1
+addi x27,x8,2047
+addi x27,x27,441
+sd x6,0(x27)
+addi x9,x0,0
+string_concat_term:
+addi x27,x8,2047
+addi x27,x27,441
+ld x6,0(x27)
+addi x6,x6,-1
+slli x7,x6,8
+slli x10,x6,5
+add x7,x7,x10
+lui x27,0x82061
+slli x27,x27,32
+srli x27,x27,32
+addi x27,x27,1536
+add x27,x27,x7
+sd x9,8(x27)
+jal x1,resolve_string_concat_term
+addi x27,x8,2047
+addi x27,x27,441
+ld x6,0(x27)
+addi x6,x6,-1
+slli x7,x6,8
+slli x10,x6,5
+add x7,x7,x10
+lui x27,0x82061
+slli x27,x27,32
+srli x27,x27,32
+addi x27,x27,1536
+add x27,x27,x7
+ld x9,8(x27)
+add x6,x9,x11
+sltiu x6,x6,121
+beq x6,x0,string_concat_error
+addi x10,x9,0
+ld x27,16(x27)
+add x27,x27,x9
+ld x7,1992(x8)
+addi x10,x0,0
+string_concat_copy:
+sltu x6,x10,x11
+beq x6,x0,string_concat_term_done
+lbu x5,0(x7)
+sb x5,0(x27)
+addi x27,x27,1
+addi x7,x7,1
+addi x10,x10,1
+jal x0,string_concat_copy
+string_concat_term_done:
+add x9,x9,x11
+lbu x5,0(x21)
+addi x6,x0,43
+beq x5,x6,string_concat_next
+beq x5,x0,string_concat_store
+jal x0,string_concat_error
+string_concat_next:
+addi x21,x21,1
+jal x0,string_concat_term
+string_concat_store:
+; x9 contient la longueur totale de tous les termes ; x11 est le résultat
+; public de la routine, et doit donc être publié après chaque concaténation.
+addi x27,x8,2047
+addi x27,x27,441
+ld x7,0(x27)
+addi x7,x7,-1
+slli x6,x7,8
+slli x10,x7,5
+add x6,x6,x10
+lui x27,0x82061
+slli x27,x27,32
+srli x27,x27,32
+addi x27,x27,1536
+add x27,x27,x6
+ld x7,16(x27)
+ld x6,24(x27)
+addi x27,x7,0
+sd x9,-8(x6)
+addi x11,x9,0
+addi x10,x0,0
+string_concat_store_loop:
+sltu x7,x10,x9
+beq x7,x0,string_concat_done
+lbu x5,0(x27)
+sb x5,0(x6)
+addi x27,x27,1
+addi x6,x6,1
+addi x10,x10,1
+jal x0,string_concat_store_loop
+string_concat_done:
+addi x27,x8,2047
+addi x27,x27,441
+ld x6,0(x27)
+addi x6,x6,-1
+slli x7,x6,8
+slli x10,x6,5
+add x7,x7,x10
+lui x27,0x82061
+slli x27,x27,32
+srli x27,x27,32
+addi x27,x27,1536
+add x27,x27,x7
+ld x1,0(x27)
+addi x6,x6,0
+addi x7,x8,2047
+addi x7,x7,441
+sd x6,0(x7)
+jalr x0,0(x1)
+string_concat_error:
+addi x27,x8,2047
+addi x27,x27,441
+sd x0,0(x27)
+jal x0,error_line
+resolve_string_concat_term:
+lbu x5,0(x21)
+addi x6,x0,76
+bne x5,x6,string_concat_check_right
+lbu x5,1(x21)
+addi x6,x0,69
+bne x5,x6,string_concat_source
+lbu x5,2(x21)
+addi x6,x0,70
+bne x5,x6,string_concat_source
+lbu x5,3(x21)
+addi x6,x0,84
+bne x5,x6,string_concat_source
+lbu x5,4(x21)
+addi x6,x0,36
+bne x5,x6,string_concat_source
+lbu x5,5(x21)
+addi x6,x0,40
+beq x5,x6,string_concat_left_term
+jal x0,string_concat_source
+string_concat_check_right:
+addi x6,x0,82
+bne x5,x6,string_concat_check_mid
+lbu x5,1(x21)
+addi x6,x0,73
+bne x5,x6,string_concat_source
+lbu x5,2(x21)
+addi x6,x0,71
+bne x5,x6,string_concat_source
+lbu x5,3(x21)
+addi x6,x0,72
+bne x5,x6,string_concat_source
+lbu x5,4(x21)
+addi x6,x0,84
+bne x5,x6,string_concat_source
+lbu x5,5(x21)
+addi x6,x0,36
+bne x5,x6,string_concat_source
+lbu x5,6(x21)
+addi x6,x0,40
+beq x5,x6,string_concat_right_term
+jal x0,string_concat_source
+string_concat_check_mid:
+addi x6,x0,77
+bne x5,x6,string_concat_check_chr
+lbu x5,1(x21)
+addi x6,x0,73
+bne x5,x6,string_concat_source
+lbu x5,2(x21)
+addi x6,x0,68
+bne x5,x6,string_concat_source
+lbu x5,3(x21)
+addi x6,x0,36
+bne x5,x6,string_concat_source
+lbu x5,4(x21)
+addi x6,x0,40
+beq x5,x6,string_concat_mid_term
+jal x0,string_concat_source
+string_concat_check_chr:
+addi x6,x0,67
+bne x5,x6,string_concat_check_str
+lbu x5,1(x21)
+addi x6,x0,72
+bne x5,x6,string_concat_source
+lbu x5,2(x21)
+addi x6,x0,82
+bne x5,x6,string_concat_source
+lbu x5,3(x21)
+addi x6,x0,36
+bne x5,x6,string_concat_source
+lbu x5,4(x21)
+addi x6,x0,40
+beq x5,x6,string_concat_chr_term
+jal x0,string_concat_source
+string_concat_check_str:
+addi x6,x0,83
+bne x5,x6,string_concat_source
+lbu x5,1(x21)
+addi x6,x0,84
+bne x5,x6,string_concat_source
+lbu x5,2(x21)
+addi x6,x0,82
+bne x5,x6,string_concat_source
+lbu x5,3(x21)
+addi x6,x0,36
+bne x5,x6,string_concat_source
+lbu x5,4(x21)
+addi x6,x0,40
+beq x5,x6,string_concat_str_term
+jal x0,string_concat_source
+string_concat_source:
+sd x1,2040(x8)
+jal x1,resolve_string_source
+sd x7,1992(x8)
+ld x1,2040(x8)
+jalr x0,0(x1)
+string_concat_left_term:
+addi x28,x0,1
+addi x27,x8,2047
+addi x27,x27,25
+sd x28,0(x27)
+addi x21,x21,6
+jal x0,string_concat_slice_term
+string_concat_right_term:
+addi x28,x0,2
+addi x27,x8,2047
+addi x27,x27,25
+sd x28,0(x27)
+addi x21,x21,7
+jal x0,string_concat_slice_term
+string_concat_mid_term:
+addi x28,x0,3
+addi x27,x8,2047
+addi x27,x27,25
+sd x28,0(x27)
+addi x21,x21,5
+jal x0,string_concat_slice_term
+string_concat_chr_term:
+sd x1,2000(x8)
+addi x21,x21,5
+addi x22,x0,0
+jal x1,eval_expression
+lbu x5,0(x21)
+addi x6,x0,41
+bne x5,x6,string_concat_slice_error
+addi x21,x21,1
+fcvt.l.d x10,f3,1
+srai x6,x10,63
+bne x6,x0,string_concat_slice_error
+sltiu x7,x10,256
+beq x7,x0,string_concat_slice_error
+lui x7,0x82060
+slli x7,x7,32
+srli x7,x7,32
+addi x7,x7,1024
+sb x10,0(x7)
+addi x11,x0,1
+sd x7,1992(x8)
+ld x1,2000(x8)
+jalr x0,0(x1)
+string_concat_str_term:
+sd x1,2000(x8)
+addi x21,x21,5
+addi x22,x0,0
+jal x1,eval_expression
+lbu x5,0(x21)
+addi x6,x0,41
+bne x5,x6,string_concat_slice_error
+addi x21,x21,1
+jal x1,string_format_number
+sd x7,1992(x8)
+ld x1,2000(x8)
+jalr x0,0(x1)
+string_format_number:
+; Formatage pédagogique V1 : signe, partie entière, point et exactement six
+; chiffres fractionnaires. La conversion utilise le mode immédiat du payload ;
+; ce format est déterministe pour les démonstrations mais ne sérialise pas
+; toute la précision décimale possible d'un binary64 arbitraire.
+sd x1,1816(x8)
+fsd f3,1824(x8)
+fmv.x.d x10,f3
+srai x11,x10,63
+lui x12,0x82060
+slli x12,x12,32
+srli x12,x12,32
+addi x12,x12,1280
+addi x13,x12,0
+beq x11,x0,string_format_positive
+addi x6,x0,45
+sb x6,0(x13)
+addi x13,x13,1
+addi x6,x0,1
+slli x6,x6,63
+xor x10,x10,x6
+fmv.d.x f3,x10
+string_format_positive:
+addi x14,x13,0
+fcvt.l.d x10,f3,1
+fcvt.d.l f4,x10,0
+fsub.d f5,f3,f4
+lui x6,0xf4
+addi x6,x6,576
+fcvt.d.l f6,x6,0
+fmul.d f5,f5,f6
+fcvt.l.d x11,f5,1
+beq x10,x0,string_format_zero_integer
+string_format_integer:
+addi x6,x0,10
+remu x7,x10,x6
+addi x7,x7,48
+sb x7,0(x13)
+addi x13,x13,1
+divu x10,x10,x6
+bne x10,x0,string_format_integer
+addi x15,x14,0
+addi x16,x13,-1
+string_format_reverse:
+sltu x7,x15,x16
+beq x7,x0,string_format_integer_done
+lbu x5,0(x15)
+lbu x6,0(x16)
+sb x6,0(x15)
+sb x5,0(x16)
+addi x15,x15,1
+addi x16,x16,-1
+jal x0,string_format_reverse
+string_format_zero_integer:
+addi x6,x0,48
+sb x6,0(x13)
+addi x13,x13,1
+string_format_integer_done:
+addi x6,x0,46
+sb x6,0(x13)
+addi x13,x13,1
+lui x6,0x18
+addi x6,x6,1696
+addi x9,x0,6
+string_format_fraction:
+divu x7,x11,x6
+addi x7,x7,48
+sb x7,0(x13)
+addi x13,x13,1
+remu x11,x11,x6
+addi x7,x0,10
+divu x6,x6,x7
+addi x9,x9,-1
+bne x9,x0,string_format_fraction
+sub x11,x13,x12
+addi x7,x12,0
+ld x1,1816(x8)
+jalr x0,0(x1)
+string_concat_slice_term:
+; Dans un concaténateur imbriqué, le retour ne doit pas partager la cellule
+; historique x8+2000 avec un autre terme. Les 16 derniers octets du cadre
+; courant (offset +272) sont réservés au retour et +280 au x31 de
+; l'évaluateur englobant ; profondeur nulle utilise les cellules réservées
+; x8+2000 et x8+2464.
+addi x27,x8,2047
+addi x27,x27,441
+ld x6,0(x27)
+beq x6,x0,string_slice_save_global_return
+addi x6,x6,-1
+slli x7,x6,8
+slli x10,x6,5
+add x7,x7,x10
+lui x27,0x82061
+slli x27,x27,32
+srli x27,x27,32
+addi x27,x27,1536
+add x27,x27,x7
+addi x27,x27,272
+sd x1,0(x27)
+sd x31,8(x27)
+jal x0,string_slice_return_saved
+string_slice_save_global_return:
+sd x1,2000(x8)
+addi x27,x8,2047
+addi x27,x27,417
+sd x31,0(x27)
+string_slice_return_saved:
+jal x1,resolve_string_source
+sd x7,1944(x8)
+sd x11,1952(x8)
+addi x27,x8,2047
+addi x27,x27,25
+ld x28,0(x27)
+addi x6,x0,3
+beq x28,x6,string_concat_mid_arguments
+lbu x5,0(x21)
+addi x6,x0,44
+bne x5,x6,string_concat_slice_error
+addi x21,x21,1
+addi x22,x0,0
+jal x1,eval_expression
+lbu x5,0(x21)
+addi x6,x0,41
+bne x5,x6,string_concat_slice_error
+addi x21,x21,1
+jal x0,string_concat_slice_count
+string_concat_mid_arguments:
+lbu x5,0(x21)
+addi x6,x0,44
+bne x5,x6,string_concat_slice_error
+addi x21,x21,1
+addi x22,x0,0
+jal x1,eval_expression
+fcvt.l.d x10,f3,1
+srai x6,x10,63
+bne x6,x0,string_concat_slice_error
+beq x10,x0,string_concat_slice_error
+sd x10,1960(x8)
+lbu x5,0(x21)
+addi x6,x0,44
+bne x5,x6,string_concat_slice_error
+addi x21,x21,1
+addi x22,x0,0
+jal x1,eval_expression
+lbu x5,0(x21)
+addi x6,x0,41
+bne x5,x6,string_concat_slice_error
+addi x21,x21,1
+string_concat_slice_count:
+fcvt.l.d x10,f3,1
+srai x6,x10,63
+bne x6,x0,string_concat_slice_error
+sltiu x7,x10,121
+beq x7,x0,string_concat_slice_error
+ld x7,1952(x8)
+addi x27,x8,2047
+addi x27,x27,25
+ld x28,0(x27)
+addi x6,x0,1
+beq x28,x6,string_concat_slice_left
+addi x6,x0,2
+beq x28,x6,string_concat_slice_right
+ld x28,1960(x8)
+addi x28,x28,-1
+sltu x6,x28,x7
+beq x6,x0,string_concat_slice_empty
+sub x6,x7,x28
+sltu x27,x6,x10
+beq x27,x0,string_concat_slice_mid_count
+addi x10,x6,0
+string_concat_slice_mid_count:
+ld x27,1944(x8)
+add x7,x27,x28
+jal x0,string_concat_slice_copy_setup
+string_concat_slice_left:
+sltu x6,x7,x10
+beq x6,x0,string_concat_slice_left_count
+addi x10,x7,0
+string_concat_slice_left_count:
+ld x7,1944(x8)
+jal x0,string_concat_slice_copy_setup
+string_concat_slice_right:
+sltu x6,x7,x10
+beq x6,x0,string_concat_slice_right_count
+addi x10,x7,0
+string_concat_slice_right_count:
+sub x6,x7,x10
+ld x7,1944(x8)
+add x7,x7,x6
+jal x0,string_concat_slice_copy_setup
+string_concat_slice_empty:
+addi x10,x0,0
+ld x7,1944(x8)
+string_concat_slice_copy_setup:
+lui x27,0x82060
+slli x27,x27,32
+srli x27,x27,32
+addi x27,x27,768
+addi x9,x0,0
+string_concat_slice_copy:
+sltu x6,x9,x10
+beq x6,x0,string_concat_slice_done
+lbu x5,0(x7)
+sb x5,0(x27)
+addi x7,x7,1
+addi x27,x27,1
+addi x9,x9,1
+jal x0,string_concat_slice_copy
+string_concat_slice_done:
+lui x7,0x82060
+slli x7,x7,32
+srli x7,x7,32
+addi x7,x7,768
+addi x11,x10,0
+sd x7,1992(x8)
+addi x9,x7,0
+addi x27,x8,2047
+addi x27,x27,441
+ld x6,0(x27)
+beq x6,x0,string_slice_load_global_return
+addi x6,x6,-1
+slli x7,x6,8
+slli x10,x6,5
+add x7,x7,x10
+lui x27,0x82061
+slli x27,x27,32
+srli x27,x27,32
+addi x27,x27,1536
+add x27,x27,x7
+addi x27,x27,272
+ld x1,0(x27)
+ld x31,8(x27)
+addi x7,x9,0
+jalr x0,0(x1)
+string_slice_load_global_return:
+ld x1,2000(x8)
+addi x27,x8,2047
+addi x27,x27,417
+ld x31,0(x27)
+addi x7,x9,0
+jalr x0,0(x1)
+string_concat_slice_error:
+jal x0,error_line
+; LEFT$/RIGHT$/MID$ en affectation : calculent une fenêtre source, la copient
+; dans un scratch chaîne, puis la recopient vers la destination ; cette double
+; copie rend l'auto-affectation sûre.
+string_left_assign:
+sd x1,2016(x8)
+addi x21,x21,6
+jal x1,resolve_string_source
+sd x7,1944(x8)
+sd x11,1952(x8)
+lbu x5,0(x21)
+addi x6,x0,44
+bne x5,x6,string_left_assign_error
+addi x21,x21,1
+addi x22,x0,0
+jal x1,eval_expression
+lbu x5,0(x21)
+addi x6,x0,41
+bne x5,x6,string_left_assign_error
+addi x21,x21,1
+ lbu x5,0(x21)
+addi x6,x0,43
+beq x5,x6,string_left_assign_concat
+fcvt.l.d x10,f3,1
+srai x6,x10,63
+bne x6,x0,string_left_assign_error
+sltiu x7,x10,121
+beq x7,x0,string_left_assign_error
+ld x7,1952(x8)
+sltu x6,x7,x10
+beq x6,x0,string_left_assign_count_ready
+addi x10,x7,0
+string_left_assign_count_ready:
+ld x7,1944(x8)
+lui x27,0x82060
+slli x27,x27,32
+srli x27,x27,32
+addi x9,x0,0
+string_left_assign_to_scratch:
+sltu x6,x9,x10
+beq x6,x0,string_left_assign_copy_back
+lbu x5,0(x7)
+sb x5,0(x27)
+addi x7,x7,1
+addi x27,x27,1
+addi x9,x9,1
+jal x0,string_left_assign_to_scratch
+string_left_assign_copy_back:
+lui x27,0x82060
+slli x27,x27,32
+srli x27,x27,32
+ld x6,1976(x8)
+sd x10,-8(x6)
+addi x9,x0,0
+string_left_assign_store:
+sltu x7,x9,x10
+beq x7,x0,string_left_assign_done
+lbu x5,0(x27)
+sb x5,0(x6)
+addi x27,x27,1
+addi x6,x6,1
+addi x9,x9,1
+jal x0,string_left_assign_store
+string_left_assign_done:
+ld x1,2016(x8)
+jalr x0,0(x1)
+string_left_assign_concat:
+ld x1,2016(x8)
+ld x21,2040(x8)
+jal x0,string_assign_concat
+string_left_assign_error:
+jal x0,error_line
+string_right_assign:
+sd x1,2016(x8)
+addi x21,x21,7
+jal x1,resolve_string_source
+sd x7,1944(x8)
+sd x11,1952(x8)
+lbu x5,0(x21)
+addi x6,x0,44
+bne x5,x6,string_right_assign_error
+addi x21,x21,1
+addi x22,x0,0
+jal x1,eval_expression
+lbu x5,0(x21)
+addi x6,x0,41
+bne x5,x6,string_right_assign_error
+addi x21,x21,1
+ lbu x5,0(x21)
+addi x6,x0,43
+beq x5,x6,string_right_assign_concat
+fcvt.l.d x10,f3,1
+srai x6,x10,63
+bne x6,x0,string_right_assign_error
+sltiu x7,x10,121
+beq x7,x0,string_right_assign_error
+ld x7,1952(x8)
+sltu x6,x7,x10
+beq x6,x0,string_right_assign_count_ready
+addi x10,x7,0
+string_right_assign_count_ready:
+sub x6,x7,x10
+ld x7,1944(x8)
+add x7,x7,x6
+lui x27,0x82060
+slli x27,x27,32
+srli x27,x27,32
+addi x9,x0,0
+string_right_assign_to_scratch:
+sltu x6,x9,x10
+beq x6,x0,string_right_assign_copy_back
+lbu x5,0(x7)
+sb x5,0(x27)
+addi x7,x7,1
+addi x27,x27,1
+addi x9,x9,1
+jal x0,string_right_assign_to_scratch
+string_right_assign_copy_back:
+lui x27,0x82060
+slli x27,x27,32
+srli x27,x27,32
+ld x6,1976(x8)
+sd x10,-8(x6)
+addi x9,x0,0
+string_right_assign_store:
+sltu x7,x9,x10
+beq x7,x0,string_right_assign_done
+lbu x5,0(x27)
+sb x5,0(x6)
+addi x27,x27,1
+addi x6,x6,1
+addi x9,x9,1
+jal x0,string_right_assign_store
+string_right_assign_done:
+ld x1,2016(x8)
+jalr x0,0(x1)
+string_right_assign_concat:
+ld x1,2016(x8)
+ld x21,2040(x8)
+jal x0,string_assign_concat
+string_right_assign_error:
+jal x0,error_line
+string_mid_assign:
+sd x1,2016(x8)
+addi x21,x21,5
+jal x1,resolve_string_source
+sd x7,1944(x8)
+sd x11,1952(x8)
+lbu x5,0(x21)
+addi x6,x0,44
+bne x5,x6,string_mid_assign_error
+addi x21,x21,1
+addi x22,x0,0
+jal x1,eval_expression
+lbu x5,0(x21)
+addi x6,x0,44
+bne x5,x6,string_mid_assign_error
+fcvt.l.d x10,f3,1
+srai x6,x10,63
+bne x6,x0,string_mid_assign_error
+beq x10,x0,string_mid_assign_error
+sd x10,1960(x8)
+addi x21,x21,1
+addi x22,x0,0
+jal x1,eval_expression
+lbu x5,0(x21)
+addi x6,x0,41
+bne x5,x6,string_mid_assign_error
+addi x21,x21,1
+ lbu x5,0(x21)
+addi x6,x0,43
+beq x5,x6,string_mid_assign_concat
+fcvt.l.d x10,f3,1
+srai x6,x10,63
+bne x6,x0,string_mid_assign_error
+sltiu x7,x10,121
+beq x7,x0,string_mid_assign_error
+ld x7,1960(x8)
+addi x7,x7,-1
+ld x11,1952(x8)
+sltu x6,x7,x11
+beq x6,x0,string_mid_assign_empty
+sub x6,x11,x7
+sltu x27,x6,x10
+beq x27,x0,string_mid_assign_count_ready
+addi x10,x6,0
+string_mid_assign_count_ready:
+ld x27,1944(x8)
+add x7,x27,x7
+jal x0,string_mid_assign_copy_setup
+string_mid_assign_empty:
+addi x10,x0,0
+ld x7,1944(x8)
+string_mid_assign_copy_setup:
+lui x27,0x82060
+slli x27,x27,32
+srli x27,x27,32
+addi x9,x0,0
+string_mid_assign_to_scratch:
+sltu x6,x9,x10
+beq x6,x0,string_mid_assign_copy_back
+lbu x5,0(x7)
+sb x5,0(x27)
+addi x7,x7,1
+addi x27,x27,1
+addi x9,x9,1
+jal x0,string_mid_assign_to_scratch
+string_mid_assign_copy_back:
+lui x27,0x82060
+slli x27,x27,32
+srli x27,x27,32
+ld x6,1976(x8)
+sd x10,-8(x6)
+addi x9,x0,0
+string_mid_assign_store:
+sltu x7,x9,x10
+beq x7,x0,string_mid_assign_done
+lbu x5,0(x27)
+sb x5,0(x6)
+addi x27,x27,1
+addi x6,x6,1
+addi x9,x9,1
+jal x0,string_mid_assign_store
+string_mid_assign_done:
+ld x1,2016(x8)
+jalr x0,0(x1)
+string_mid_assign_concat:
+ld x1,2016(x8)
+ld x21,2040(x8)
+jal x0,string_assign_concat
+string_mid_assign_error:
+jal x0,error_line
+; Fonctions mathématiques transcendantes : chaque routine sauvegarde son
+; contexte dans une frame statique, réduit l'intervalle et évalue un polynôme
+; binary64 avec les instructions D. Aucun calcul ne vient de l'hôte.
+atom_sin_function:
+sd x29,1968(x8)
+addi x29,x8,2047
+addi x29,x29,257
+sd x29,1480(x8)
+sd x1,0(x29)
+sd x22,8(x29)
+sd x28,16(x29)
+sd x30,24(x29)
+sd x31,32(x29)
+lbu x5,1(x21)
+addi x6,x0,73
+bne x5,x6,atom_math_error
+lbu x5,2(x21)
+addi x6,x0,78
+bne x5,x6,atom_math_error
+lbu x5,3(x21)
+addi x6,x0,40
+bne x5,x6,atom_math_error
+addi x21,x21,4
+addi x22,x0,0
+jal x1,eval_expression
+lbu x5,0(x21)
+addi x6,x0,41
+beq x5,x6,atom_sin_close_present
+beq x5,x0,atom_sin_close_consumed
+jal x0,atom_math_error
+atom_sin_close_present:
+addi x21,x21,1
+jal x0,math_sin_core
+atom_sin_close_consumed:
+addi x6,x21,-1
+lbu x5,0(x6)
+addi x6,x0,41
+bne x5,x6,atom_math_error
+jal x0,math_sin_core
+atom_cos_function:
+sd x29,1632(x8)
+addi x29,x8,2047
+addi x29,x29,257
+addi x29,x29,64
+sd x29,1624(x8)
+sd x1,0(x29)
+sd x22,8(x29)
+sd x28,16(x29)
+sd x30,24(x29)
+sd x31,32(x29)
+lbu x5,1(x21)
+addi x6,x0,79
+bne x5,x6,atom_math_error
+lbu x5,2(x21)
+addi x6,x0,83
+bne x5,x6,atom_math_error
+lbu x5,3(x21)
+addi x6,x0,40
+bne x5,x6,atom_math_error
+addi x21,x21,4
+addi x22,x0,0
+jal x1,eval_expression
+lbu x5,0(x21)
+addi x6,x0,41
+beq x5,x6,atom_cos_close_present
+beq x5,x0,atom_cos_close_consumed
+jal x0,atom_math_error
+atom_cos_close_present:
+addi x21,x21,1
+jal x0,atom_cos_add_shift
+atom_cos_close_consumed:
+addi x6,x21,-1
+lbu x5,0(x6)
+addi x6,x0,41
+bne x5,x6,atom_math_error
+atom_cos_add_shift:
+lui x7,0x82010
+slli x7,x7,32
+srli x7,x7,32
+addi x7,x7,16
+fld f5,0(x7)
+fadd.d f3,f3,f5
+jal x0,math_cos_core
+math_sin_core:
+ld x29,1480(x8)
+jal x1,math_sin_core_body
+jal x0,math_sin_restore
+math_cos_core:
+ld x29,1624(x8)
+jal x1,math_sin_core_body
+jal x0,math_cos_restore
+math_sin_core_body:
+lui x7,0x82010
+slli x7,x7,32
+srli x7,x7,32
+addi x7,x7,0
+fld f4,0(x7)
+fld f6,8(x7)
+fcvt.d.l f7,x0,0
+fsub.d f7,f7,f4
+fdiv.d f5,f3,f6
+fcvt.l.d x22,f5,1
+fcvt.d.l f5,x22,0
+fmul.d f5,f5,f6
+fsub.d f3,f3,f5
+flt.d x7,f4,f3
+beq x7,x0,math_sin_low_pi
+fsub.d f3,f4,f3
+math_sin_low_pi:
+flt.d x7,f3,f7
+beq x7,x0,math_sin_symmetry
+fadd.d f3,f3,f6
+math_sin_symmetry:
+lui x7,0x82010
+slli x7,x7,32
+srli x7,x7,32
+addi x7,x7,16
+fld f5,0(x7)
+flt.d x7,f5,f3
+beq x7,x0,math_sin_check_negative
+fsub.d f3,f4,f3
+math_sin_check_negative:
+fcvt.d.l f2,x0,0
+fsub.d f2,f2,f5
+flt.d x7,f3,f2
+beq x7,x0,math_sin_exact_check
+fsub.d f3,f7,f3
+math_sin_exact_check:
+feq.d x7,f3,f5
+bne x7,x0,math_sin_exact_positive
+feq.d x7,f3,f2
+bne x7,x0,math_sin_exact_negative
+jal x0,math_sin_polynomial
+math_sin_polynomial:
+fmul.d f6,f3,f3
+lui x7,0x82010
+slli x7,x7,32
+srli x7,x7,32
+addi x7,x7,32
+fld f7,32(x7)
+fmul.d f7,f7,f6
+fld f5,24(x7)
+fadd.d f7,f5,f7
+fmul.d f7,f7,f6
+fld f5,16(x7)
+fadd.d f7,f5,f7
+fmul.d f7,f7,f6
+fld f5,8(x7)
+fadd.d f7,f5,f7
+fmul.d f7,f7,f6
+fld f5,0(x7)
+fadd.d f7,f5,f7
+fmul.d f7,f7,f6
+addi x10,x0,1
+fcvt.d.l f5,x10,0
+fadd.d f7,f5,f7
+fmul.d f4,f3,f7
+jalr x0,0(x1)
+math_sin_exact_positive:
+addi x10,x0,1
+fcvt.d.l f4,x10,0
+jalr x0,0(x1)
+math_sin_exact_negative:
+addi x10,x0,-1
+fcvt.d.l f4,x10,0
+jalr x0,0(x1)
+math_sin_restore:
+ld x1,0(x29)
+ld x22,8(x29)
+ld x28,16(x29)
+ld x30,24(x29)
+ld x31,32(x29)
+ld x29,1968(x8)
+jal x0,store_atom
+math_cos_restore:
+ld x1,0(x29)
+ld x22,8(x29)
+ld x28,16(x29)
+ld x30,24(x29)
+ld x31,32(x29)
+ld x29,1632(x8)
+jal x0,store_atom
+atom_log_function:
+sd x29,1424(x8)
+addi x29,x8,2047
+addi x29,x29,449
+sd x1,0(x29)
+sd x22,8(x29)
+sd x23,16(x29)
+sd x28,24(x29)
+sd x30,32(x29)
+sd x31,40(x29)
+lbu x5,1(x21)
+addi x6,x0,79
+bne x5,x6,atom_log_error
+lbu x5,2(x21)
+addi x6,x0,71
+bne x5,x6,atom_log_error
+lbu x5,3(x21)
+addi x6,x0,40
+bne x5,x6,atom_log_error
+addi x21,x21,4
+addi x22,x0,0
+jal x1,eval_expression
+lbu x5,0(x21)
+addi x6,x0,41
+beq x5,x6,atom_log_close_present
+beq x5,x0,atom_log_close_consumed
+jal x0,atom_log_error
+atom_log_close_present:
+addi x21,x21,1
+jal x0,math_log_prepare
+atom_log_close_consumed:
+addi x6,x21,-1
+lbu x5,0(x6)
+addi x6,x0,41
+bne x5,x6,atom_log_error
+math_log_prepare:
+addi x29,x8,2047
+addi x29,x29,449
+fcvt.d.l f5,x0,0
+feq.d x7,f3,f3
+beq x7,x0,atom_log_error
+fmv.x.d x10,f3
+srai x11,x10,63
+bne x11,x0,atom_log_error
+fle.d x7,f3,f5
+bne x7,x0,atom_log_error
+srli x22,x10,52
+andi x22,x22,2047
+beq x22,x0,atom_log_error
+addi x22,x22,-1023
+slli x10,x10,1
+srli x10,x10,1
+slli x10,x10,12
+srli x10,x10,12
+lui x23,0x3ff00
+slli x23,x23,32
+or x10,x10,x23
+fmv.d.x f4,x10
+addi x10,x0,1
+fcvt.d.l f5,x10,0
+fsub.d f6,f4,f5
+fadd.d f7,f4,f5
+fdiv.d f6,f6,f7
+fmul.d f7,f6,f6
+lui x7,0x82010
+slli x7,x7,32
+srli x7,x7,32
+addi x7,x7,80
+fld f1,32(x7)
+fmul.d f1,f1,f7
+fld f5,24(x7)
+fadd.d f1,f5,f1
+fmul.d f1,f1,f7
+fld f5,16(x7)
+fadd.d f1,f5,f1
+fmul.d f1,f1,f7
+fld f5,8(x7)
+fadd.d f1,f5,f1
+fmul.d f1,f1,f7
+fld f5,0(x7)
+fadd.d f1,f5,f1
+fmul.d f1,f1,f7
+addi x10,x0,1
+fcvt.d.l f5,x10,0
+fadd.d f1,f5,f1
+fmul.d f6,f6,f1
+addi x10,x0,2
+fcvt.d.l f5,x10,0
+fmul.d f6,f6,f5
+fcvt.d.l f5,x22,0
+lui x7,0x82010
+slli x7,x7,32
+srli x7,x7,32
+addi x7,x7,72
+fld f7,0(x7)
+fmul.d f5,f5,f7
+fadd.d f4,f6,f5
+ld x1,0(x29)
+ld x22,8(x29)
+ld x23,16(x29)
+ld x28,24(x29)
+ld x30,32(x29)
+ld x31,40(x29)
+ld x29,1424(x8)
+jal x0,store_atom
+atom_log_error:
+jal x0,error_line
+atom_atn_function:
+ld x6,912(x8)
+beq x6,x0,atom_atn_frame_zero
+addi x7,x6,-1
+bne x7,x0,atom_atn_error
+sd x29,928(x8)
+addi x6,x0,2
+sd x6,912(x8)
+addi x29,x8,2047
+addi x29,x29,705
+jal x0,atom_atn_frame_ready
+atom_atn_frame_zero:
+sd x29,920(x8)
+addi x6,x0,1
+sd x6,912(x8)
+addi x29,x8,2047
+addi x29,x29,641
+atom_atn_frame_ready:
+sd x1,0(x29)
+sd x22,8(x29)
+sd x28,16(x29)
+sd x30,24(x29)
+sd x31,32(x29)
+lbu x5,1(x21)
+addi x6,x0,84
+bne x5,x6,atom_atn_error
+lbu x5,2(x21)
+addi x6,x0,78
+bne x5,x6,atom_atn_error
+lbu x5,3(x21)
+addi x6,x0,40
+bne x5,x6,atom_atn_error
+addi x21,x21,4
+addi x22,x0,0
+jal x1,eval_expression
+lbu x5,0(x21)
+addi x6,x0,41
+beq x5,x6,atom_atn_close_present
+beq x5,x0,atom_atn_close_consumed
+jal x0,atom_atn_error
+atom_atn_close_present:
+addi x21,x21,1
+jal x0,math_atn_prepare
+atom_atn_close_consumed:
+addi x6,x21,-1
+lbu x5,0(x6)
+addi x6,x0,41
+bne x5,x6,atom_atn_error
+math_atn_prepare:
+ld x6,912(x8)
+addi x7,x6,-1
+beq x7,x0,math_atn_prepare_zero
+addi x29,x8,2047
+addi x29,x29,705
+jal x0,math_atn_prepare_ready
+math_atn_prepare_zero:
+addi x29,x8,2047
+addi x29,x29,641
+math_atn_prepare_ready:
+feq.d x7,f3,f3
+beq x7,x0,atom_atn_error
+addi x28,x0,0
+addi x30,x0,0
+addi x31,x0,0
+fmv.x.d x10,f3
+srai x11,x10,63
+beq x11,x0,math_atn_positive
+addi x28,x0,1
+addi x6,x0,1
+slli x6,x6,63
+xor x10,x10,x6
+fmv.d.x f3,x10
+math_atn_positive:
+addi x10,x0,1
+fcvt.d.l f5,x10,0
+flt.d x7,f5,f3
+beq x7,x0,math_atn_threshold
+addi x30,x0,1
+fdiv.d f3,f5,f3
+math_atn_threshold:
+lui x7,0x82010
+slli x7,x7,32
+srli x7,x7,32
+addi x7,x7,216
+fld f5,0(x7)
+flt.d x7,f5,f3
+beq x7,x0,math_atn_polynomial
+addi x31,x0,1
+addi x10,x0,1
+fcvt.d.l f5,x10,0
+fsub.d f6,f3,f5
+fadd.d f7,f3,f5
+fdiv.d f3,f6,f7
+math_atn_polynomial:
+fmul.d f6,f3,f3
+lui x7,0x82010
+slli x7,x7,32
+srli x7,x7,32
+addi x7,x7,80
+fld f1,32(x7)
+fmul.d f1,f1,f6
+fld f5,24(x7)
+fsub.d f1,f5,f1
+fmul.d f1,f1,f6
+fld f5,16(x7)
+fsub.d f1,f5,f1
+fmul.d f1,f1,f6
+fld f5,8(x7)
+fsub.d f1,f5,f1
+fmul.d f1,f1,f6
+fld f5,0(x7)
+fsub.d f1,f5,f1
+fmul.d f1,f1,f6
+addi x10,x0,1
+fcvt.d.l f5,x10,0
+fsub.d f1,f5,f1
+fmul.d f4,f3,f1
+beq x31,x0,math_atn_no_pi4
+lui x7,0x82010
+slli x7,x7,32
+srli x7,x7,32
+addi x7,x7,224
+fld f5,0(x7)
+fadd.d f4,f5,f4
+math_atn_no_pi4:
+beq x30,x0,math_atn_no_reciprocal
+lui x7,0x82010
+slli x7,x7,32
+srli x7,x7,32
+addi x7,x7,16
+fld f5,0(x7)
+fsub.d f4,f5,f4
+math_atn_no_reciprocal:
+beq x28,x0,math_atn_restore
+fmv.x.d x10,f4
+addi x6,x0,1
+slli x6,x6,63
+xor x10,x10,x6
+fmv.d.x f4,x10
+math_atn_restore:
+ld x1,0(x29)
+ld x22,8(x29)
+ld x28,16(x29)
+ld x30,24(x29)
+ld x31,32(x29)
+ld x6,912(x8)
+addi x7,x6,-1
+beq x7,x0,math_atn_restore_zero
+ld x29,928(x8)
+addi x6,x6,-1
+sd x6,912(x8)
+jal x0,store_atom
+math_atn_restore_zero:
+ld x29,920(x8)
+sd x0,912(x8)
+jal x0,store_atom
+atom_atn_error:
+sd x0,912(x8)
+jal x0,error_line
+atom_exp_function:
+sd x29,1232(x8)
+addi x29,x8,2047
+addi x29,x29,513
+sd x1,0(x29)
+sd x22,8(x29)
+sd x23,16(x29)
+sd x28,24(x29)
+sd x30,32(x29)
+sd x31,40(x29)
+lbu x5,1(x21)
+addi x6,x0,88
+bne x5,x6,atom_exp_error
+lbu x5,2(x21)
+addi x6,x0,80
+bne x5,x6,atom_exp_error
+lbu x5,3(x21)
+addi x6,x0,40
+bne x5,x6,atom_exp_error
+addi x21,x21,4
+addi x22,x0,0
+jal x1,eval_expression
+lbu x5,0(x21)
+addi x6,x0,41
+beq x5,x6,atom_exp_close_present
+beq x5,x0,atom_exp_close_consumed
+jal x0,atom_exp_error
+atom_exp_close_present:
+addi x21,x21,1
+jal x0,math_exp_prepare
+atom_exp_close_consumed:
+addi x6,x21,-1
+lbu x5,0(x6)
+addi x6,x0,41
+bne x5,x6,atom_exp_error
+math_exp_prepare:
+addi x29,x8,2047
+addi x29,x29,513
+lui x7,0x82010
+slli x7,x7,32
+srli x7,x7,32
+addi x7,x7,192
+fld f5,0(x7)
+flt.d x6,f5,f3
+bne x6,x0,atom_exp_error
+addi x7,x7,8
+fld f5,0(x7)
+flt.d x6,f3,f5
+bne x6,x0,atom_exp_error
+addi x7,x7,-128
+fld f7,0(x7)
+fdiv.d f5,f3,f7
+fcvt.l.d x22,f5,1
+fcvt.d.l f5,x22,0
+fmul.d f5,f5,f7
+fsub.d f3,f3,f5
+lui x7,0x82010
+slli x7,x7,32
+srli x7,x7,32
+addi x7,x7,120
+fld f1,64(x7)
+fmul.d f1,f1,f3
+fld f5,56(x7)
+fadd.d f1,f5,f1
+fmul.d f1,f1,f3
+fld f5,48(x7)
+fadd.d f1,f5,f1
+fmul.d f1,f1,f3
+fld f5,40(x7)
+fadd.d f1,f5,f1
+fmul.d f1,f1,f3
+fld f5,32(x7)
+fadd.d f1,f5,f1
+fmul.d f1,f1,f3
+fld f5,24(x7)
+fadd.d f1,f5,f1
+fmul.d f1,f1,f3
+fld f5,16(x7)
+fadd.d f1,f5,f1
+fmul.d f1,f1,f3
+fld f5,8(x7)
+fadd.d f1,f5,f1
+fmul.d f1,f1,f3
+fld f5,0(x7)
+fadd.d f1,f5,f1
+fmul.d f1,f1,f3
+addi x10,x0,1
+fcvt.d.l f5,x10,0
+fadd.d f1,f5,f1
+fmul.d f1,f1,f3
+fadd.d f1,f5,f1
+fmv.x.d x10,f1
+fmv.d.x f4,x10
+addi x23,x22,1023
+slli x23,x23,52
+fmv.d.x f5,x23
+fmul.d f4,f4,f5
+math_exp_result:
+ld x1,0(x29)
+ld x22,8(x29)
+ld x23,16(x29)
+ld x28,24(x29)
+ld x30,32(x29)
+ld x31,40(x29)
+ld x29,1232(x8)
+jal x0,store_atom
+atom_exp_error:
+jal x0,error_line
+atom_tan_function:
+sd x29,1536(x8)
+addi x29,x8,2047
+addi x29,x29,385
+sd x1,0(x29)
+sd x22,8(x29)
+sd x28,16(x29)
+sd x30,24(x29)
+sd x31,32(x29)
+lbu x5,1(x21)
+addi x6,x0,65
+bne x5,x6,atom_tan_error
+lbu x5,2(x21)
+addi x6,x0,78
+bne x5,x6,atom_tan_error
+lbu x5,3(x21)
+addi x6,x0,40
+bne x5,x6,atom_tan_error
+addi x21,x21,4
+addi x22,x0,0
+jal x1,eval_expression
+lbu x5,0(x21)
+addi x6,x0,41
+beq x5,x6,atom_tan_close_present
+beq x5,x0,atom_tan_close_consumed
+jal x0,atom_tan_error
+atom_tan_close_present:
+addi x21,x21,1
+jal x0,math_tan_prepare
+atom_tan_close_consumed:
+addi x6,x21,-1
+lbu x5,0(x6)
+addi x6,x0,41
+bne x5,x6,atom_tan_error
+math_tan_prepare:
+addi x29,x8,2047
+addi x29,x29,385
+fsd f3,40(x29)
+jal x1,math_sin_core_body
+math_tan_after_sin:
+fsd f4,48(x29)
+fld f3,40(x29)
+lui x7,0x82010
+slli x7,x7,32
+srli x7,x7,32
+addi x7,x7,16
+fld f5,0(x7)
+fadd.d f3,f3,f5
+jal x1,math_sin_core_body
+math_tan_after_cos:
+fcvt.d.l f2,x0,0
+feq.d x7,f4,f2
+bne x7,x0,atom_tan_error
+fld f5,48(x29)
+fdiv.d f4,f5,f4
+ld x1,0(x29)
+ld x22,8(x29)
+ld x28,16(x29)
+ld x30,24(x29)
+ld x31,32(x29)
+ld x29,1536(x8)
+jal x0,store_atom
+atom_tan_error:
+jal x0,error_line
+atom_math_error:
+jal x0,error_line
+atom_sqr_function:
+sd x1,1984(x8)
+sd x22,1992(x8)
+sd x28,2000(x8)
+sd x29,2008(x8)
+sd x30,2016(x8)
+sd x31,2024(x8)
+lbu x5,2(x21)
+addi x6,x0,82
+bne x5,x6,atom_sqr_error
+lbu x5,3(x21)
+addi x6,x0,40
+bne x5,x6,atom_sqr_error
+addi x21,x21,4
+addi x22,x0,0
+jal x1,eval_expression
+addi x29,x0,0
+lbu x5,0(x21)
+addi x6,x0,41
+beq x5,x6,atom_sqr_close_present
+beq x5,x0,atom_sqr_close_consumed
+jal x0,atom_sqr_error
+atom_sqr_close_present:
+addi x21,x21,1
+jal x0,atom_sqr_close_done
+atom_sqr_close_consumed:
+addi x6,x21,-1
+lbu x5,0(x6)
+addi x6,x0,41
+bne x5,x6,atom_sqr_error
+atom_sqr_close_done:
+fcvt.d.l f5,x0,0
+flt.d x7,f3,f5
+bne x7,x0,atom_sqr_error
+fsqrt.d f4,f3
+ld x22,1992(x8)
+ld x28,2000(x8)
+ld x29,2008(x8)
+ld x30,2016(x8)
+ld x31,2024(x8)
+ld x1,1984(x8)
+jal x0,store_atom
+atom_sqr_error:
+jal x0,error_line
+; Table-driven function recognizer. Upper- and lower-case alphabetic names
+; enter here; a miss falls back to the variable/array dispatcher. Kept after
+; the evaluator so adding entries
+; does not move the historical branches in eval_expression/parse_product.
+; IDs 1..17 correspond to the four string consumers and the parenthesized
+; numeric functions. Dispatch stubs use jal for the long handler transfers.
+atom_function_table_probe:
+addi x29,x0,0
+atom_function_table_next:
+lui x27,0x82062
+slli x27,x27,32
+srli x27,x27,32
+slli x6,x29,4
+add x27,x27,x6
+lbu x28,0(x27)
+bne x28,x0,atom_function_table_nonempty
+jal x0,atom_function_table_fallback
+atom_function_table_nonempty:
+addi x9,x0,0
+addi x7,x27,2
+atom_function_table_compare:
+sltu x6,x9,x28
+beq x6,x0,atom_function_table_boundary
+add x10,x21,x9
+lbu x5,0(x10)
+addi x6,x5,-97
+sltiu x11,x6,26
+beq x11,x0,atom_function_table_input_upper
+addi x5,x5,-32
+atom_function_table_input_upper:
+sb x5,0(x10)
+add x10,x7,x9
+lbu x10,0(x10)
+bne x5,x10,atom_function_table_miss
+addi x9,x9,1
+jal x0,atom_function_table_compare
+atom_function_table_boundary:
+add x10,x21,x28
+lbu x5,0(x10)
+addi x6,x0,40
+bne x5,x6,atom_function_table_miss
+lbu x28,1(x27)
+addi x29,x0,0
+addi x6,x0,1
+beq x28,x6,atom_function_table_id1
+addi x6,x0,2
+beq x28,x6,atom_function_table_id2
+addi x6,x0,3
+beq x28,x6,atom_function_table_id3
+addi x6,x0,4
+beq x28,x6,atom_function_table_id4
+addi x6,x0,5
+beq x28,x6,atom_function_table_id5
+addi x6,x0,6
+beq x28,x6,atom_function_table_id6
+addi x6,x0,7
+beq x28,x6,atom_function_table_id7
+addi x6,x0,8
+beq x28,x6,atom_function_table_id8
+addi x6,x0,9
+beq x28,x6,atom_function_table_id9
+addi x6,x0,10
+beq x28,x6,atom_function_table_id10
+addi x6,x0,11
+beq x28,x6,atom_function_table_id11
+addi x6,x0,12
+beq x28,x6,atom_function_table_id12
+addi x6,x0,13
+beq x28,x6,atom_function_table_id13
+addi x6,x0,14
+beq x28,x6,atom_function_table_id14
+addi x6,x0,15
+beq x28,x6,atom_function_table_id15
+addi x6,x0,16
+beq x28,x6,atom_function_table_id16
+addi x6,x0,17
+beq x28,x6,atom_function_table_id17
+jal x0,atom_function_table_fallback
+atom_function_table_miss:
+addi x29,x29,1
+sltiu x6,x29,18
+bne x6,x0,atom_function_table_next
+jal x0,atom_function_table_fallback
+atom_function_table_id1:
+addi x28,x0,0
+jal x0,atom_len_function
+atom_function_table_id2:
+addi x28,x0,0
+jal x0,atom_asc_function
+atom_function_table_id3:
+addi x28,x0,0
+jal x0,atom_val_function
+atom_function_table_id4:
+addi x28,x0,0
+jal x0,atom_instr_function
+atom_function_table_id5:
+addi x28,x0,0
+jal x0,atom_cos_function
+atom_function_table_id6:
+addi x28,x0,0
+jal x0,atom_abs_function
+atom_function_table_id7:
+addi x28,x0,0
+jal x0,atom_atn_function
+atom_function_table_id8:
+addi x28,x0,0
+jal x0,atom_exp_function
+atom_function_table_id9:
+addi x28,x0,0
+jal x0,atom_log_function
+atom_function_table_id10:
+addi x28,x0,0
+jal x0,atom_tan_function
+atom_function_table_id11:
+addi x28,x0,0
+jal x0,atom_int_function
+atom_function_table_id12:
+addi x28,x0,0
+jal x0,atom_sin_function
+atom_function_table_id13:
+addi x28,x0,0
+jal x0,atom_sgn_function
+atom_function_table_id14:
+addi x28,x0,0
+jal x0,atom_trunc_function
+atom_function_table_id15:
+addi x28,x0,0
+jal x0,atom_frac_function
+atom_function_table_id16:
+addi x28,x0,0
+jal x0,atom_mod_function
+atom_function_table_id17:
+addi x28,x0,0
+jal x0,atom_sqr_function
+atom_function_table_fallback:
+addi x28,x0,0
+addi x29,x0,0
+lbu x5,0(x21)
+jal x0,atom_dispatch
+; Table-driven statement recognizer. The record body starts at x24+16.
+; A miss restores the legacy dispatcher, preserving support for assignments
+; and ambiguous prefixes such as PRINT= or DIM variable forms.
+; On success it also publishes a bounded token record at x8+2648:
+;   +0  statement id (u64)
+;   +8  source start (u64)
+;   +16 source length (u64)
+;   +24 token kind (u64), 1 = statement
+; The legacy handlers still receive x24/x10 as before. Publishing the record
+; first makes the lexer contract explicit and lets later handlers consume the
+; same token without adding a branch for each argument combination.
+statement_table_probe:
+addi x10,x8,2047
+addi x10,x10,513
+sd x6,0(x10)
+sd x7,8(x10)
+sd x9,16(x10)
+sd x27,24(x10)
+sd x28,32(x10)
+sd x29,40(x10)
+addi x30,x0,0
+addi x10,x8,2047
+addi x10,x10,625
+sd x0,0(x10)
+addi x29,x0,0
+statement_table_next:
+lui x27,0x82062
+slli x27,x27,32
+srli x27,x27,32
+addi x27,x27,288
+slli x6,x29,4
+add x27,x27,x6
+lbu x28,0(x27)
+beq x28,x0,statement_table_fallback
+addi x9,x0,0
+addi x7,x27,2
+statement_table_compare:
+sltu x6,x9,x28
+beq x6,x0,statement_table_boundary
+addi x10,x24,16
+add x10,x10,x9
+lbu x5,0(x10)
+addi x6,x5,-97
+sltiu x11,x6,26
+beq x11,x0,statement_table_input_upper
+addi x5,x5,-32
+sb x5,0(x10)
+statement_table_input_upper:
+add x10,x7,x9
+lbu x10,0(x10)
+bne x5,x10,statement_table_miss
+addi x9,x9,1
+jal x0,statement_table_compare
+statement_table_boundary:
+addi x10,x24,16
+add x10,x10,x28
+lbu x5,0(x10)
+addi x6,x0,32
+beq x5,x6,statement_table_id
+addi x6,x0,58
+beq x5,x6,statement_table_id
+beq x5,x0,statement_table_id
+jal x0,statement_table_miss
+statement_table_id:
+lbu x28,1(x27)
+addi x10,x8,2047
+addi x10,x10,601
+sd x28,0(x10)
+addi x6,x24,16
+addi x10,x8,2047
+addi x10,x10,609
+sd x6,0(x10)
+addi x10,x8,2047
+addi x10,x10,617
+sd x28,0(x10)
+addi x6,x0,1
+addi x10,x8,2047
+addi x10,x10,625
+sd x6,0(x10)
+addi x6,x0,2
+beq x28,x6,statement_table_goto
+addi x6,x0,10
+beq x28,x6,statement_table_goto
+addi x6,x0,19
+beq x28,x6,statement_table_do
+addi x6,x0,20
+beq x28,x6,statement_table_loop
+addi x6,x0,4
+beq x28,x6,statement_table_until
+addi x6,x0,13
+beq x28,x6,statement_table_repeat
+addi x6,x0,3
+beq x28,x6,statement_table_while
+addi x6,x0,14
+beq x28,x6,statement_table_wend
+addi x6,x0,6
+beq x28,x6,statement_table_for
+addi x6,x0,7
+beq x28,x6,statement_table_next_handler
+addi x6,x0,24
+beq x28,x6,statement_table_end
+addi x6,x0,16
+beq x28,x6,statement_table_else
+addi x6,x0,17
+beq x28,x6,statement_table_endif
+addi x6,x0,15
+beq x28,x6,statement_table_if
+addi x6,x0,1
+beq x28,x6,statement_table_goto
+addi x6,x0,23
+addi x6,x0,8
+bne x28,x6,statement_table_fallback
+; PRINT est le premier handler de données migré : son contrat d'entrée est le
+; record x24 avec les registres de contexte restaurés comme dans l'historique.
+statement_table_print:
+addi x30,x0,1
+jal x1,statement_table_fallback
+lbu x10,16(x24)
+jal x0,print_dispatch
+statement_table_goto:
+; GOTO/GOSUB sont distingués par goto_dispatch après restauration du contexte.
+addi x30,x0,1
+jal x1,statement_table_fallback
+addi x10,x8,2047
+addi x10,x10,601
+ld x5,0(x10)
+addi x6,x0,10
+beq x5,x6,statement_table_input
+lbu x10,16(x24)
+jal x0,goto_dispatch
+statement_table_if:
+; IF conserve son expression générique et ses branches dans if_statement.
+addi x30,x0,1
+jal x1,statement_table_fallback
+lbu x10,16(x24)
+jal x0,if_statement
+statement_table_else:
+; ELSE reprend le contrôle de bloc sans changer son contrat historique.
+addi x30,x0,1
+jal x1,statement_table_fallback
+jal x0,else_statement
+statement_table_endif:
+; ENDIF dépile le contexte de bloc dans endif_statement.
+addi x30,x0,1
+jal x1,statement_table_fallback
+jal x0,endif_statement
+statement_table_input:
+; Veneer local de RETURN ; INPUT utilise le fallback legacy sans changement.
+jal x0,return_statement
+statement_table_for:
+; FOR et NEXT partagent les frames target-side, mais gardent leurs handlers.
+addi x30,x0,1
+jal x1,statement_table_fallback
+lbu x10,16(x24)
+jal x0,for_statement
+statement_table_next_handler:
+addi x30,x0,1
+jal x1,statement_table_fallback
+lbu x10,16(x24)
+jal x0,next_statement
+statement_table_while:
+; WHILE garde son analyse de comparaison et sa frame de continuation.
+addi x30,x0,1
+jal x1,statement_table_fallback
+lbu x10,16(x24)
+jal x0,while_dispatch
+statement_table_wend:
+; WEND reprend directement la continuation de la frame WHILE.
+addi x30,x0,1
+jal x1,statement_table_fallback
+lbu x10,16(x24)
+jal x0,wend_statement
+statement_table_until:
+; UNTIL évalue sa condition et dépile/reprend la frame REPEAT côté cible.
+addi x30,x0,1
+jal x1,statement_table_fallback
+jal x0,until_statement
+statement_table_repeat:
+; REPEAT marque ou réutilise la continuation target-side.
+addi x30,x0,1
+jal x1,statement_table_fallback
+jal x0,repeat_statement
+statement_table_do:
+; DO pose une frame de contrôle et vérifie la forme V1 sans suffixe.
+addi x30,x0,1
+jal x1,statement_table_fallback
+jal x0,do_statement
+statement_table_loop:
+; LOOP reprend la continuation de la frame DO target-side.
+addi x30,x0,1
+jal x1,statement_table_fallback
+jal x0,loop_statement
+statement_table_miss:
+addi x29,x29,1
+sltiu x6,x29,25
+bne x6,x0,statement_table_next
+jal x0,statement_table_fallback
+statement_table_fallback:
+addi x10,x8,2047
+addi x10,x10,513
+ld x6,0(x10)
+ld x7,8(x10)
+ld x9,16(x10)
+ld x27,24(x10)
+ld x28,32(x10)
+ld x29,40(x10)
+lbu x10,16(x24)
+ bne x30,x0,statement_table_legacy
+jal x0,statement_dispatch_legacy
+statement_table_legacy:
+jalr x0,0(x1)
+statement_table_end:
+; Veneer local d'ON ; END utilise le fallback legacy sans changement.
+jal x0,on_statement

@@ -13,6 +13,13 @@ mkdir -p "$output_dir"
 temporary_dir="$(mktemp -d)"
 trap 'rm -rf "$temporary_dir"' EXIT
 
+bash "$repo_root/scripts/compose-minibasic-asm.sh" \
+    "$temporary_dir/payload-repl.rv"
+cmp -s "$temporary_dir/payload-repl.rv" "$payload_source" || {
+    printf 'MiniBASIC assembly modules are out of sync with payload-repl.rv\n' >&2
+    exit 1
+}
+
 assembly_source="$temporary_dir/minibasic-payload.s"
 object_file="$temporary_dir/minibasic-payload.o"
 binary_file="$output_dir/minibasic-payload-asm.bin"
@@ -25,7 +32,7 @@ awk '
     /^assemble-program / { active = 1; next }
     active && /^end$/ { exit }
     active { print }
-' "$payload_source" |
+' "$temporary_dir/payload-repl.rv" |
     sed 's/;.*/\n/' |
     sed -E \
         -e 's/^(fcvt[.]d[.]l [^,]+,[^,]+),0$/\1,rne/' \
@@ -45,7 +52,7 @@ awk '
     while read -r _ address directive value; do
         offset=$((address - 0x82000000))
         printf '.org 0x%x\n%s %s\n' "$offset" "$directive" "$value"
-    done < <(awk '$1 == "data" { print }' "$payload_source" | sort -k2,2)
+    done < <(awk '$1 == "data" { print }' "$temporary_dir/payload-repl.rv" | sort -k2,2)
 } > "$data_source"
 "$assembler" -march=rv64imafd_zicsr_zifencei -mabi=lp64d -o "$data_object" "$data_source"
 "$objcopy" -O binary --only-section=.data "$data_object" "$data_binary"

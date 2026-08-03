@@ -1,0 +1,4203 @@
+command_loop:
+; REPL target-side : affiche READY>, lit une ligne ASCII terminée par LF,
+; puis choisit commande directe, record numéroté ou erreur récupérable.
+addi x10,x8,0
+addi x11,x0,7
+addi x17,x0,4
+ecall
+addi x9,x0,0
+read_line:
+addi x17,x0,2
+ecall
+addi x7,x0,10
+beq x10,x7,line_done
+add x6,x18,x9
+sb x10,0(x6)
+addi x9,x9,1
+jal x0,read_line
+line_done:
+add x6,x18,x9
+sb x0,0(x6)
+lbu x10,0(x18)
+addi x7,x0,63
+beq x10,x7,question_print
+addi x7,x0,88
+beq x10,x7,assign_x
+addi x7,x0,89
+beq x10,x7,assign_y
+addi x7,x0,68
+beq x10,x7,check_d_command
+addi x7,x0,65
+beq x10,x7,assign_array_direct
+addi x7,x0,83
+beq x10,x7,string_assign_direct
+addi x7,x0,76
+beq x10,x7,check_l_command
+addi x7,x0,80
+beq x10,x7,check_p_command
+jal x0,check_generic_assignment
+command_number_check:
+addi x7,x0,48
+sltu x6,x10,x7
+bne x6,x0,command_after_number_check
+addi x7,x0,58
+sltu x6,x10,x7
+beq x6,x0,command_after_number_check
+jal x0,store_line_generic
+command_after_number_check:
+addi x7,x0,76
+beq x10,x7,check_l_command
+addi x7,x0,84
+beq x10,x7,trace_command
+addi x7,x0,82
+beq x10,x7,check_r_command
+addi x7,x0,78
+bne x10,x7,command_not_new
+jal x0,new_program
+command_not_new:
+command_not_numbered:
+jal x0,error_line
+check_l_command:
+lbu x5,1(x18)
+addi x7,x0,73
+bne x5,x7,let_direct_command
+lbu x5,2(x18)
+addi x7,x0,83
+bne x5,x7,let_direct_command
+lbu x5,3(x18)
+addi x7,x0,84
+bne x5,x7,let_direct_command
+jal x0,list_line
+let_direct_command:
+lbu x5,1(x18)
+addi x7,x0,69
+bne x5,x7,long_direct_scan
+lbu x5,2(x18)
+addi x7,x0,84
+bne x5,x7,let_error
+lbu x5,3(x18)
+addi x7,x0,32
+bne x5,x7,let_error
+addi x21,x18,4
+addi x22,x21,0
+let_direct_target_scan:
+lbu x5,0(x22)
+addi x7,x0,40
+beq x5,x7,let_direct_array
+addi x7,x0,36
+beq x5,x7,let_direct_string
+addi x7,x0,61
+beq x5,x7,let_direct_scalar
+beq x5,x0,let_error
+addi x22,x22,1
+jal x0,let_direct_target_scan
+let_direct_scalar:
+jal x1,resolve_variable
+sd x7,1112(x8)
+lbu x5,0(x21)
+addi x7,x0,61
+bne x5,x7,let_error
+addi x21,x21,1
+addi x22,x0,0
+jal x1,eval_expression
+ld x6,1112(x8)
+fsd f3,0(x6)
+jal x0,command_loop
+long_direct_scan:
+addi x22,x18,0
+long_direct_target_scan:
+lbu x5,0(x22)
+addi x7,x0,40
+beq x5,x7,array_assign_direct_generic
+addi x7,x0,36
+beq x5,x7,long_direct_string
+addi x7,x0,61
+beq x5,x7,check_generic_assignment
+beq x5,x0,check_generic_assignment
+addi x22,x22,1
+jal x0,long_direct_target_scan
+long_direct_string:
+lbu x5,1(x22)
+addi x7,x0,40
+beq x5,x7,string_array_assign_direct
+jal x0,string_assign_direct
+let_direct_array:
+jal x1,assign_array
+jal x0,command_loop
+let_direct_string:
+lbu x5,1(x22)
+addi x7,x0,40
+beq x5,x7,let_direct_string_array
+jal x1,string_assign
+jal x0,command_loop
+let_direct_string_array:
+jal x1,string_array_assign
+jal x0,command_loop
+let_error:
+jal x0,error_line_near
+early_error:
+jal x0,error_line_near
+check_p_command:
+lbu x5,1(x18)
+addi x7,x0,82
+beq x5,x7,direct_print
+jal x0,check_generic_assignment
+check_d_command:
+lbu x5,1(x18)
+addi x7,x0,73
+beq x5,x7,dim_direct
+addi x7,x0,69
+beq x5,x7,check_del_command
+jal x0,check_generic_assignment
+check_del_command:
+lbu x5,2(x18)
+addi x7,x0,76
+bne x5,x7,check_generic_assignment
+lbu x5,3(x18)
+addi x7,x0,32
+bne x5,x7,check_generic_assignment
+jal x0,delete_range_command
+trace_command:
+lbu x5,1(x18)
+addi x7,x0,82
+bne x5,x7,trace_error
+lbu x5,2(x18)
+addi x7,x0,65
+bne x5,x7,trace_error
+lbu x5,3(x18)
+addi x7,x0,67
+bne x5,x7,trace_error
+lbu x5,4(x18)
+addi x7,x0,69
+bne x5,x7,trace_error
+lbu x5,5(x18)
+addi x7,x0,32
+bne x5,x7,trace_error
+lbu x5,6(x18)
+addi x7,x0,79
+beq x5,x7,trace_on
+addi x7,x0,79
+bne x5,x7,trace_error
+trace_on:
+lbu x5,7(x18)
+addi x7,x0,78
+beq x5,x7,trace_enable
+lbu x5,7(x18)
+addi x7,x0,70
+bne x5,x7,trace_error
+lbu x5,8(x18)
+addi x7,x0,70
+bne x5,x7,trace_error
+sd x0,544(x8)
+jal x0,command_loop
+trace_enable:
+addi x10,x0,1
+sd x10,544(x8)
+jal x0,command_loop
+trace_error:
+jal x0,error_line
+check_r_command:
+lbu x5,1(x18)
+addi x7,x0,69
+bne x5,x7,run_command
+lbu x5,2(x18)
+addi x7,x0,78
+bne x5,x7,run_command
+lbu x5,3(x18)
+addi x7,x0,85
+bne x5,x7,run_command
+lbu x5,4(x18)
+addi x7,x0,77
+bne x5,x7,run_command
+lbu x5,5(x18)
+addi x7,x0,32
+bne x5,x7,run_command
+jal x0,renum_command
+; Compatibilité des anciens labels conservée pour les symboles historiques.
+; Magasin de programme : parse le numéro et copie le corps dans un record
+; fixe. Le remplacement et la suppression ne déplacent jamais les autres
+; records ; LIST les parcourt ensuite par index croissant.
+; ---------------------------------------------------------------------------
+; Magasin de programme numéroté
+; Un record reste à son index (N/10)-1 : aucune compaction n'est nécessaire.
+; `store_line_generic` parse le numéro, puis copie le corps ; un numéro seul
+; efface la longueur. Cette invariance rend LIST et les sauts déterministes.
+; ---------------------------------------------------------------------------
+store_line_generic:
+; Parse un numéro décimal, puis le convertit en index de ligne (N/10)-1.
+; V1 de cette tranche : numéros 10..640 multiples de dix, corps <=111 octets.
+addi x6,x0,0
+addi x26,x0,0
+addi x27,x0,0
+store_number_loop:
+add x7,x18,x6
+lbu x5,0(x7)
+addi x7,x0,48
+sltu x28,x5,x7
+bne x28,x0,store_number_done
+addi x7,x0,58
+sltu x28,x5,x7
+beq x28,x0,store_number_done
+addi x7,x0,48
+sub x5,x5,x7
+addi x7,x0,10
+mul x26,x26,x7
+add x26,x26,x5
+addi x6,x6,1
+addi x27,x27,1
+jal x0,store_number_loop
+store_number_done:
+beq x27,x0,store_line_error
+addi x7,x0,10
+remu x5,x26,x7
+bne x5,x0,store_line_error
+sltiu x7,x26,10
+bne x7,x0,store_line_error
+lui x7,1
+addi x7,x7,-1535
+sltu x7,x26,x7
+beq x7,x0,store_line_error
+addi x29,x26,0
+addi x26,x26,-10
+addi x7,x0,10
+divu x26,x26,x7
+; x26 est maintenant l'index, x24 le record et x25 sa longueur.
+slli x7,x26,7
+add x24,x19,x7
+slli x7,x26,3
+ld x25,480(x8)
+add x25,x25,x7
+add x7,x18,x6
+lbu x5,0(x7)
+beq x5,x0,delete_line_generic
+addi x7,x0,32
+bne x5,x7,store_line_error
+addi x6,x6,1
+sub x28,x9,x6
+sltiu x7,x28,112
+beq x7,x0,store_line_error
+sd x29,0(x24)
+sd x0,8(x24)
+sd x28,0(x25)
+addi x27,x0,0
+store_body_generic:
+add x7,x18,x6
+add x7,x7,x27
+lbu x5,0(x7)
+addi x7,x24,16
+add x7,x7,x27
+sb x5,0(x7)
+addi x27,x27,1
+bne x27,x28,store_body_generic
+jal x0,command_loop
+delete_line_generic:
+sd x0,0(x25)
+jal x0,command_loop
+store_line_error:
+jal x0,error_line
+
+; DEL start[,end] : suppression target-side d'un intervalle inclusif de lignes.
+; Les numéros suivent la même politique que le magasin : 10..2560, pas de dix.
+; DEL : prévalide les deux bornes avant d'effacer la table des longueurs.
+; L'effacement est donc atomique du point de vue du programme utilisateur.
+delete_range_command:
+addi x21,x18,4
+addi x26,x0,0
+addi x27,x0,0
+delete_range_start_digits:
+lbu x5,0(x21)
+addi x7,x0,48
+sltu x28,x5,x7
+bne x28,x0,delete_range_start_done
+addi x7,x0,58
+sltu x28,x5,x7
+beq x28,x0,delete_range_start_done
+addi x7,x0,48
+sub x5,x5,x7
+addi x7,x0,10
+mul x26,x26,x7
+add x26,x26,x5
+addi x27,x27,1
+addi x21,x21,1
+jal x0,delete_range_start_digits
+delete_range_start_done:
+beq x27,x0,delete_range_error
+addi x28,x5,0
+addi x7,x0,10
+remu x5,x26,x7
+bne x5,x0,delete_range_error
+sltiu x7,x26,10
+bne x7,x0,delete_range_error
+lui x7,1
+addi x7,x7,-1535
+sltu x7,x26,x7
+beq x7,x0,delete_range_error
+addi x7,x0,44
+bne x28,x7,delete_range_single
+addi x21,x21,1
+addi x27,x0,0
+delete_range_end_digits:
+lbu x5,0(x21)
+addi x7,x0,48
+sltu x28,x5,x7
+bne x28,x0,delete_range_end_done
+addi x7,x0,58
+sltu x28,x5,x7
+beq x28,x0,delete_range_end_done
+addi x7,x0,48
+sub x5,x5,x7
+addi x7,x0,10
+mul x27,x27,x7
+add x27,x27,x5
+addi x21,x21,1
+jal x0,delete_range_end_digits
+delete_range_end_done:
+beq x27,x0,delete_range_error
+addi x7,x0,10
+remu x5,x27,x7
+bne x5,x0,delete_range_error
+sltiu x7,x27,10
+bne x7,x0,delete_range_error
+lui x7,1
+addi x7,x7,-1535
+sltu x7,x27,x7
+beq x7,x0,delete_range_error
+jal x0,delete_range_indexes
+delete_range_single:
+addi x27,x26,0
+delete_range_indexes:
+addi x7,x26,0
+addi x26,x26,-10
+addi x6,x0,10
+divu x26,x26,x6
+addi x27,x27,-10
+divu x27,x27,x6
+sltu x7,x27,x26
+bne x7,x0,delete_range_error
+delete_range_loop:
+slli x7,x26,3
+ld x10,480(x8)
+add x10,x10,x7
+sd x0,0(x10)
+beq x26,x27,delete_range_done
+addi x26,x26,1
+jal x0,delete_range_loop
+delete_range_done:
+jal x0,command_loop
+delete_range_error:
+jal x0,error_line
+
+; RENUM new_start,old_start,step.
+; Les records restent dans leur slot physique ; leur numéro courant est écrit
+; en +0 et l'ancien en +8. Deux passes valident puis renumérotent les records.
+; renum_rewrite_all réécrit ensuite les cibles numériques dans le scratch cible,
+; ce qui rend les références GOTO/GOSUB/THEN/ON robustes après plusieurs RENUM.
+renum_command:
+addi x6,x8,2040
+addi x6,x6,416
+sd x0,0(x6)
+addi x21,x18,6
+addi x26,x0,0
+addi x27,x0,0
+addi x28,x0,0
+addi x29,x0,0
+renum_new_digits:
+lbu x5,0(x21)
+addi x7,x0,48
+sltu x6,x5,x7
+bne x6,x0,renum_new_done
+addi x7,x0,58
+sltu x6,x5,x7
+beq x6,x0,renum_new_done
+addi x7,x0,48
+sub x5,x5,x7
+addi x7,x0,10
+mul x26,x26,x7
+add x26,x26,x5
+addi x29,x29,1
+addi x21,x21,1
+jal x0,renum_new_digits
+renum_new_done:
+beq x29,x0,renum_error
+addi x7,x0,44
+bne x5,x7,renum_error
+addi x7,x0,10
+remu x5,x26,x7
+bne x5,x0,renum_error
+sltiu x7,x26,10
+bne x7,x0,renum_error
+lui x7,1
+addi x7,x7,-1535
+sltu x7,x26,x7
+beq x7,x0,renum_error
+addi x21,x21,1
+addi x29,x0,0
+renum_old_digits:
+lbu x5,0(x21)
+addi x7,x0,48
+sltu x6,x5,x7
+bne x6,x0,renum_old_done
+addi x7,x0,58
+sltu x6,x5,x7
+beq x6,x0,renum_old_done
+addi x7,x0,48
+sub x5,x5,x7
+addi x7,x0,10
+mul x27,x27,x7
+add x27,x27,x5
+addi x29,x29,1
+addi x21,x21,1
+jal x0,renum_old_digits
+renum_old_done:
+beq x29,x0,renum_error
+addi x7,x0,44
+bne x5,x7,renum_error
+addi x7,x0,10
+remu x5,x27,x7
+bne x5,x0,renum_error
+sltiu x7,x27,10
+bne x7,x0,renum_error
+lui x7,1
+addi x7,x7,-1535
+sltu x7,x27,x7
+beq x7,x0,renum_error
+addi x21,x21,1
+addi x29,x0,0
+renum_step_digits:
+lbu x5,0(x21)
+addi x7,x0,48
+sltu x6,x5,x7
+bne x6,x0,renum_step_done
+addi x7,x0,58
+sltu x6,x5,x7
+beq x6,x0,renum_step_done
+addi x7,x0,48
+sub x5,x5,x7
+addi x7,x0,10
+mul x28,x28,x7
+add x28,x28,x5
+addi x29,x29,1
+addi x21,x21,1
+jal x0,renum_step_digits
+renum_step_done:
+beq x29,x0,renum_error
+bne x5,x0,renum_error
+addi x7,x0,10
+remu x5,x28,x7
+bne x5,x0,renum_error
+sltiu x7,x28,10
+bne x7,x0,renum_error
+lui x7,1
+addi x7,x7,-1535
+sltu x7,x28,x7
+beq x7,x0,renum_error
+sltu x7,x26,x27
+bne x7,x0,renum_error
+; Conserver les numéros actuels hors des records : en cas de dépassement du
+; scratch de réécriture, RENUM pourra restaurer exactement l'état précédent.
+lui x22,0x82061
+slli x22,x22,32
+srli x22,x22,32
+addi x22,x22,-512
+addi x30,x0,0
+renum_snapshot_numbers:
+sltiu x7,x30,256
+beq x7,x0,renum_snapshot_done
+slli x7,x30,7
+add x24,x19,x7
+ld x6,0(x24)
+sd x6,0(x22)
+addi x22,x22,8
+addi x30,x30,1
+jal x0,renum_snapshot_numbers
+renum_snapshot_done:
+; Les records ne changent pas de slot physique après RENUM. Le parcours doit
+; inspecter le numéro courant du record, et non indexer line_lengths avec
+; old_start ; cette distinction rend les RENUM successifs possibles.
+addi x30,x0,0
+addi x31,x26,0
+addi x22,x0,0
+renum_preflight_line:
+sltiu x7,x30,256
+beq x7,x0,renum_preflight_done
+slli x7,x30,7
+add x24,x19,x7
+ld x6,0(x24)
+beq x6,x0,renum_preflight_empty
+sltu x7,x6,x27
+bne x7,x0,renum_preflight_empty
+lui x7,1
+addi x7,x7,-1535
+sltu x7,x31,x7
+beq x7,x0,renum_error
+addi x22,x0,1
+; La prévalidation vérifie uniquement les bornes et la présence d'au moins
+; une ligne. Les cibles textuelles sont résolues par alias au moment du RUN.
+jal x0,renum_preflight_next
+renum_preflight_next:
+addi x30,x30,1
+add x31,x31,x28
+jal x0,renum_preflight_line
+renum_preflight_empty:
+addi x30,x30,1
+jal x0,renum_preflight_line
+renum_preflight_done:
+beq x22,x0,renum_error
+addi x30,x0,0
+addi x31,x26,0
+renum_write_line:
+sltiu x7,x30,256
+beq x7,x0,renum_done
+slli x7,x30,7
+add x24,x19,x7
+ld x6,0(x24)
+beq x6,x0,renum_write_empty
+sltu x7,x6,x27
+bne x7,x0,renum_write_empty
+sd x6,8(x24)
+sd x31,0(x24)
+add x31,x31,x28
+renum_write_empty:
+addi x30,x30,1
+jal x0,renum_write_line
+renum_done:
+addi x6,x8,2040
+addi x6,x6,416
+addi x7,x0,1
+sd x7,0(x6)
+; Le texte des sauts reste dans les records ; réécrire ces numéros après la
+; seconde passe évite de dépendre d'un alias unique lors d'un RENUM ultérieur.
+jal x0,renum_rewrite_all
+renum_error:
+addi x7,x8,2040
+addi x7,x7,416
+ld x6,0(x7)
+bne x6,x0,renum_rollback_numbers
+jal x0,error_line
+
+; La réécriture de texte est prévalidée avant toute publication. Si elle
+; dépasse 111 octets, restaurer les numéros depuis la copie de transaction et
+; laisser les corps de lignes intacts.
+renum_rollback_numbers:
+lui x22,0x82061
+slli x22,x22,32
+srli x22,x22,32
+addi x22,x22,-512
+addi x30,x0,0
+renum_rollback_loop:
+sltiu x7,x30,256
+beq x7,x0,renum_rollback_done
+slli x7,x30,7
+add x24,x19,x7
+ld x6,0(x22)
+sd x6,0(x24)
+addi x22,x22,8
+addi x30,x30,1
+jal x0,renum_rollback_loop
+renum_rollback_done:
+addi x6,x8,2040
+addi x6,x6,416
+sd x0,0(x6)
+addi x18,x8,1024
+jal x0,error_line
+
+; Réécriture target-side des cibles GOTO/GOSUB/THEN/ON après RENUM.
+; x23=slot, x24=record, x25=longueur, x26=curseur source, x27=sortie,
+; x29=état (bit0 guillemets, bit1 prochain nombre cible, bit2 ON), x22=scratch.
+; Les mots-clés sont reconnus hors chaînes ; les nombres sont résolus par
+; record+0/record+8 et émis en décimal dans un scratch avant publication.
+renum_rewrite_all:
+lui x22,0x82061
+slli x22,x22,32
+srli x22,x22,32
+addi x22,x22,-1024
+addi x23,x0,0
+; x18=1 signifie prévalidation : le scratch est rempli et mesuré, mais jamais
+; copié dans le record. La seconde passe remet x18 à zéro pour publier.
+addi x18,x0,1
+renum_rewrite_record:
+sltiu x7,x23,256
+beq x7,x0,renum_rewrite_done
+slli x7,x23,7
+add x24,x19,x7
+slli x7,x23,3
+ld x6,480(x8)
+add x6,x6,x7
+ld x25,0(x6)
+beq x25,x0,renum_rewrite_skip_record
+addi x26,x0,0
+addi x27,x0,0
+addi x29,x0,0
+renum_rewrite_scan:
+sltu x7,x26,x25
+beq x7,x0,renum_rewrite_publish
+addi x7,x24,16
+add x7,x7,x26
+lbu x5,0(x7)
+addi x6,x0,34
+beq x5,x6,renum_rewrite_quote
+andi x6,x29,1
+bne x6,x0,renum_rewrite_copy
+addi x6,x0,58
+beq x5,x6,renum_rewrite_colon
+andi x6,x29,2
+bne x6,x0,renum_rewrite_target
+jal x0,renum_rewrite_keyword
+renum_rewrite_quote:
+xori x29,x29,1
+jal x0,renum_rewrite_copy
+renum_rewrite_colon:
+addi x29,x0,0
+jal x0,renum_rewrite_copy
+renum_rewrite_target:
+addi x6,x0,48
+sltu x7,x5,x6
+bne x7,x0,renum_rewrite_target_done
+addi x6,x0,58
+sltu x7,x5,x6
+beq x7,x0,renum_rewrite_target_done
+addi x28,x0,0
+addi x31,x0,0
+renum_rw_digits:
+addi x7,x24,16
+add x7,x7,x26
+lbu x5,0(x7)
+addi x6,x0,48
+sltu x7,x5,x6
+ bne x7,x0,renum_rw_digits_done
+addi x6,x0,58
+sltu x7,x5,x6
+beq x7,x0,renum_rw_digits_done
+addi x6,x0,48
+sub x5,x5,x6
+addi x6,x0,10
+mul x28,x28,x6
+add x28,x28,x5
+addi x26,x26,1
+addi x31,x31,1
+jal x0,renum_rw_digits
+renum_rw_digits_done:
+beq x31,x0,renum_rewrite_target_done
+; Recherche du numéro courant ou de l'ancien alias dans les 256 records.
+addi x31,x0,0
+renum_rewrite_map:
+sltiu x7,x31,256
+beq x7,x0,renum_rewrite_emit_number
+slli x7,x31,7
+add x30,x19,x7
+ld x6,0(x30)
+beq x6,x28,renum_rewrite_map_found
+ld x6,8(x30)
+beq x6,x28,renum_rewrite_map_found
+addi x31,x31,1
+jal x0,renum_rewrite_map
+renum_rewrite_map_found:
+ld x28,0(x30)
+renum_rewrite_emit_number:
+; Émet le nombre sans zéros de tête ; x20 sert de drapeau temporaire.
+addi x20,x0,0
+addi x30,x0,1000
+divu x31,x28,x30
+beq x31,x0,renum_rewrite_no_thousands
+addi x20,x0,1
+addi x6,x31,48
+add x7,x22,x27
+sb x6,0(x7)
+addi x27,x27,1
+remu x28,x28,x30
+renum_rewrite_no_thousands:
+addi x30,x0,100
+divu x31,x28,x30
+beq x31,x0,renum_rewrite_no_hundreds
+addi x20,x0,1
+addi x6,x31,48
+add x7,x22,x27
+sb x6,0(x7)
+addi x27,x27,1
+remu x28,x28,x30
+jal x0,renum_rewrite_tens
+renum_rewrite_no_hundreds:
+beq x20,x0,renum_rewrite_tens
+addi x6,x0,48
+add x7,x22,x27
+sb x6,0(x7)
+addi x27,x27,1
+renum_rewrite_tens:
+addi x30,x0,10
+divu x31,x28,x30
+beq x31,x0,renum_rewrite_no_tens
+addi x20,x0,1
+addi x6,x31,48
+add x7,x22,x27
+sb x6,0(x7)
+addi x27,x27,1
+remu x28,x28,x30
+jal x0,renum_rewrite_ones
+renum_rewrite_no_tens:
+beq x20,x0,renum_rewrite_ones
+addi x6,x0,48
+add x7,x22,x27
+sb x6,0(x7)
+addi x27,x27,1
+renum_rewrite_ones:
+addi x6,x28,48
+add x7,x22,x27
+sb x6,0(x7)
+addi x27,x27,1
+andi x29,x29,4
+jal x0,renum_rewrite_scan
+renum_rewrite_target_done:
+andi x29,x29,4
+jal x0,renum_rewrite_scan
+renum_rewrite_keyword:
+; GOTO, GOSUB, THEN et ON sont reconnus avec leur espace terminal.
+addi x7,x24,16
+add x7,x7,x26
+addi x6,x0,71
+bne x5,x6,renum_rewrite_check_then
+lbu x6,1(x7)
+addi x5,x0,79
+bne x6,x5,renum_rewrite_check_then
+lbu x6,2(x7)
+addi x5,x0,84
+beq x6,x5,renum_rewrite_keyword_goto
+addi x5,x0,83
+bne x6,x5,renum_rewrite_copy
+lbu x6,3(x7)
+addi x5,x0,85
+bne x6,x5,renum_rewrite_copy
+lbu x6,4(x7)
+addi x5,x0,66
+bne x6,x5,renum_rewrite_copy
+lbu x6,5(x7)
+addi x5,x0,32
+bne x6,x5,renum_rewrite_copy
+addi x31,x0,6
+addi x20,x0,2
+jal x0,renum_rewrite_copy_keyword
+renum_rewrite_keyword_goto:
+lbu x6,3(x7)
+addi x5,x0,79
+bne x6,x5,renum_rewrite_copy
+lbu x6,4(x7)
+addi x5,x0,32
+bne x6,x5,renum_rewrite_copy
+addi x31,x0,5
+addi x20,x0,2
+jal x0,renum_rewrite_copy_keyword
+renum_rewrite_check_then:
+addi x6,x0,84
+bne x5,x6,renum_rewrite_check_on
+lbu x6,1(x7)
+addi x5,x0,72
+bne x6,x5,renum_rewrite_copy
+lbu x6,2(x7)
+addi x5,x0,69
+bne x6,x5,renum_rewrite_copy
+lbu x6,3(x7)
+addi x5,x0,78
+bne x6,x5,renum_rewrite_copy
+lbu x6,4(x7)
+addi x5,x0,32
+bne x6,x5,renum_rewrite_copy
+addi x31,x0,5
+addi x20,x0,2
+jal x0,renum_rewrite_copy_keyword
+renum_rewrite_check_on:
+addi x6,x0,79
+bne x5,x6,renum_rewrite_copy
+lbu x6,1(x7)
+addi x5,x0,78
+bne x6,x5,renum_rewrite_copy
+lbu x6,2(x7)
+addi x5,x0,32
+bne x6,x5,renum_rewrite_copy
+addi x31,x0,3
+addi x20,x0,4
+jal x0,renum_rewrite_copy_keyword
+renum_rewrite_copy_keyword:
+beq x31,x0,renum_rewrite_keyword_done
+addi x7,x24,16
+add x7,x7,x26
+lbu x5,0(x7)
+add x6,x22,x27
+sb x5,0(x6)
+addi x26,x26,1
+addi x27,x27,1
+addi x31,x31,-1
+jal x0,renum_rewrite_copy_keyword
+renum_rewrite_keyword_done:
+or x29,x29,x20
+jal x0,renum_rewrite_scan
+renum_rewrite_copy:
+addi x6,x0,44
+bne x5,x6,renum_rewrite_copy_byte
+andi x6,x29,4
+beq x6,x0,renum_rewrite_copy_byte
+addi x6,x0,2
+add x29,x29,x6
+renum_rewrite_copy_byte:
+addi x7,x24,16
+add x7,x7,x26
+lbu x5,0(x7)
+add x6,x22,x27
+sb x5,0(x6)
+addi x26,x26,1
+addi x27,x27,1
+jal x0,renum_rewrite_scan
+renum_rewrite_publish:
+sltiu x6,x27,112
+beq x6,x0,renum_error
+bne x18,x0,renum_rewrite_skip_record
+addi x26,x0,0
+renum_rewrite_publish_loop:
+sltu x7,x26,x27
+beq x7,x0,renum_rewrite_next_record
+add x6,x22,x26
+lbu x5,0(x6)
+addi x7,x24,16
+add x7,x7,x26
+sb x5,0(x7)
+addi x26,x26,1
+jal x0,renum_rewrite_publish_loop
+renum_rewrite_next_record:
+slli x7,x23,3
+ld x6,480(x8)
+add x6,x6,x7
+sd x27,0(x6)
+renum_rewrite_skip_record:
+addi x23,x23,1
+jal x0,renum_rewrite_record
+renum_rewrite_done:
+ bne x18,x0,renum_rewrite_second_pass
+addi x6,x8,2040
+addi x6,x6,416
+sd x0,0(x6)
+addi x18,x8,1024
+addi x20,x8,768
+jal x0,command_loop
+renum_rewrite_second_pass:
+addi x18,x0,0
+addi x23,x0,0
+jal x0,renum_rewrite_record
+store_line_ten_command:
+addi x26,x0,1
+jal x0,store_line
+store_line_twenty_command:
+addi x26,x0,2
+jal x0,store_line
+store_line_thirty_command:
+addi x26,x0,3
+jal x0,store_line_extended
+store_line_forty_command:
+addi x26,x0,4
+jal x0,store_line_extended
+assign_x:
+lbu x5,1(x18)
+addi x7,x0,61
+bne x5,x7,early_error
+lbu x5,2(x18)
+sltiu x6,x5,48
+bne x6,x0,early_error
+sltiu x6,x5,58
+beq x6,x0,early_error
+addi x6,x0,48
+sub x10,x5,x6
+fcvt.d.l f1,x10,0
+addi x6,x0,23
+slli x6,x6,3
+add x7,x20,x6
+fsd f1,0(x7)
+jal x0,command_loop
+assign_y:
+lbu x5,1(x18)
+addi x7,x0,61
+bne x5,x7,early_error
+lbu x5,2(x18)
+sltiu x6,x5,48
+bne x6,x0,early_error
+sltiu x6,x5,58
+beq x6,x0,early_error
+addi x6,x0,48
+sub x10,x5,x6
+fcvt.d.l f1,x10,0
+addi x6,x0,24
+slli x6,x6,3
+add x7,x20,x6
+fsd f1,0(x7)
+jal x0,command_loop
+dim_direct:
+addi x21,x18,0
+jal x1,dim_array
+jal x0,command_loop
+assign_array_direct:
+addi x21,x18,0
+ lbu x5,1(x18)
+ addi x7,x0,36
+ bne x5,x7,assign_array_numeric_direct
+ lbu x5,2(x18)
+ addi x7,x0,40
+ bne x5,x7,early_error
+ jal x0,string_array_assign_direct
+assign_array_numeric_direct:
+jal x1,assign_array
+jal x0,command_loop
+string_assign_direct:
+addi x21,x18,0
+jal x1,string_assign
+jal x0,command_loop
+string_array_assign_direct:
+addi x21,x18,0
+jal x1,string_array_assign
+jal x0,command_loop
+question_print:
+addi x5,x9,-1
+addi x10,x9,5
+sd x10,520(x8)
+addi x9,x0,0
+copy_question_prefix:
+addi x6,x8,80
+add x6,x6,x9
+lbu x10,0(x6)
+addi x7,x19,16
+add x7,x7,x9
+sb x10,0(x7)
+addi x9,x9,1
+addi x7,x0,6
+bne x9,x7,copy_question_prefix
+addi x9,x0,0
+copy_question_body:
+add x6,x18,x9
+addi x6,x6,1
+lbu x10,0(x6)
+addi x7,x19,22
+add x7,x7,x9
+sb x10,0(x7)
+addi x9,x9,1
+bne x9,x5,copy_question_body
+addi x10,x0,1
+sd x10,512(x8)
+sd x0,536(x8)
+jal x0,run_line
+direct_print:
+lbu x10,1(x18)
+addi x7,x0,82
+bne x10,x7,direct_print_error
+lbu x10,2(x18)
+addi x7,x0,73
+bne x10,x7,direct_print_error
+lbu x10,3(x18)
+addi x7,x0,78
+bne x10,x7,direct_print_error
+lbu x10,4(x18)
+addi x7,x0,84
+bne x10,x7,direct_print_error
+lbu x10,5(x18)
+addi x7,x0,32
+bne x10,x7,direct_print_error
+sd x9,520(x8)
+addi x9,x0,0
+copy_direct:
+add x6,x18,x9
+lbu x10,0(x6)
+add x6,x19,x9
+sb x10,16(x6)
+addi x9,x9,1
+ld x7,520(x8)
+bne x9,x7,copy_direct
+addi x10,x0,1
+sd x10,512(x8)
+sd x0,536(x8)
+jal x0,run_line
+direct_print_error:
+jal x0,error_line_near
+; Affectation directe des autres variables scalaires A..Z.
+check_generic_assignment:
+addi x7,x0,40
+lbu x5,1(x18)
+beq x5,x7,array_assign_direct_generic
+addi x7,x0,36
+lbu x5,1(x18)
+beq x5,x7,string_name_or_array_direct
+jal x0,check_generic_name
+string_name_or_array_direct:
+lbu x5,2(x18)
+addi x7,x0,40
+beq x5,x7,string_array_assign_direct
+jal x0,string_assign_direct
+addi x7,x0,76
+bne x10,x7,check_generic_name
+lbu x5,1(x18)
+addi x7,x0,73
+bne x5,x7,check_generic_name
+lbu x5,2(x18)
+addi x7,x0,83
+bne x5,x7,check_generic_name
+lbu x5,3(x18)
+addi x7,x0,84
+bne x5,x7,check_generic_name
+jal x0,command_number_check
+check_generic_name:
+addi x7,x0,82
+bne x10,x7,check_generic_new
+lbu x5,1(x18)
+addi x7,x0,85
+bne x5,x7,check_generic_new
+lbu x5,2(x18)
+addi x7,x0,78
+bne x5,x7,check_generic_new
+lbu x5,3(x18)
+addi x7,x0,61
+beq x5,x7,assign_generic_direct
+jal x0,command_number_check
+check_generic_new:
+addi x7,x0,78
+bne x10,x7,check_generic_trace
+lbu x5,1(x18)
+addi x7,x0,69
+bne x5,x7,check_generic_trace
+lbu x5,2(x18)
+addi x7,x0,87
+bne x5,x7,check_generic_trace
+lbu x5,3(x18)
+addi x7,x0,61
+beq x5,x7,assign_generic_direct
+jal x0,command_number_check
+check_generic_trace:
+addi x7,x0,84
+bne x10,x7,check_generic_name_range
+lbu x5,1(x18)
+addi x7,x0,82
+bne x5,x7,check_generic_name_range
+lbu x5,2(x18)
+addi x7,x0,61
+beq x5,x7,assign_generic_direct
+jal x0,command_number_check
+check_generic_name_range:
+addi x7,x0,82
+bne x10,x7,check_generic_name_range_other
+lbu x5,1(x18)
+addi x7,x0,85
+beq x5,x7,command_number_check
+addi x7,x0,69
+beq x5,x7,command_number_check
+addi x7,x0,61
+beq x5,x7,assign_generic_direct
+jal x0,assign_generic_direct
+check_generic_name_range_other:
+addi x7,x0,65
+sltu x6,x10,x7
+bne x6,x0,command_number_check
+addi x7,x0,91
+sltu x6,x10,x7
+beq x6,x0,command_number_check
+jal x0,assign_generic_direct
+array_assign_direct_generic:
+addi x21,x18,0
+jal x1,assign_array
+jal x0,command_loop
+assign_generic_direct:
+addi x21,x18,0
+jal x1,resolve_variable
+sd x7,1112(x8)
+addi x6,x21,0
+lbu x5,0(x6)
+addi x7,x0,61
+bne x5,x7,assignment_error
+addi x21,x21,1
+addi x22,x0,0
+jal x1,eval_expression
+ld x6,1112(x8)
+fsd f3,0(x6)
+jal x0,command_loop
+store_line:
+lbu x10,1(x18)
+addi x7,x0,48
+beq x10,x7,store_line_digit
+jal x0,error_line_near
+store_line_digit:
+lbu x10,2(x18)
+addi x7,x0,32
+beq x10,x7,store_line_space
+jal x0,error_line_near
+store_line_space:
+addi x7,x0,1
+beq x26,x7,store_line_ten
+addi x24,x19,1024
+addi x25,x8,528
+jal x0,store_line_selected
+store_line_ten:
+addi x24,x19,0
+addi x25,x8,520
+store_line_selected:
+addi x10,x9,-3
+sd x10,0(x25)
+addi x9,x0,0
+copy_body:
+add x6,x18,x9
+lbu x10,3(x6)
+add x6,x24,x9
+sb x10,16(x6)
+addi x9,x9,1
+ld x7,0(x25)
+bne x9,x7,copy_body
+ld x10,512(x8)
+or x10,x10,x26
+sd x10,512(x8)
+jal x0,command_loop
+store_line_extended:
+lbu x10,1(x18)
+addi x7,x0,48
+beq x10,x7,store_line_extended_digit
+jal x0,error_line_near
+store_line_extended_digit:
+lbu x10,2(x18)
+addi x7,x0,32
+beq x10,x7,store_line_extended_space
+jal x0,error_line_near
+store_line_extended_space:
+addi x7,x26,-1
+slli x6,x7,10
+add x24,x19,x6
+slli x6,x7,3
+ld x25,480(x8)
+add x25,x25,x6
+addi x10,x26,-1
+addi x6,x0,10
+mul x10,x10,x6
+sd x10,0(x24)
+sd x0,8(x24)
+addi x10,x9,-3
+sd x10,0(x25)
+addi x9,x0,0
+copy_extended_body:
+add x6,x18,x9
+lbu x10,3(x6)
+add x6,x24,x9
+sb x10,16(x6)
+addi x9,x9,1
+ld x7,0(x25)
+bne x9,x7,copy_extended_body
+addi x7,x26,-1
+addi x6,x0,1
+sll x6,x6,x7
+ld x10,512(x8)
+or x10,x10,x6
+sd x10,512(x8)
+jal x0,command_loop
+; LIST : sélectionne les records non vides, reconstruit leur numéro et émet
+; le corps via le service guest de sortie ; aucun texte n'est fabriqué par
+; l'hôte.
+; ---------------------------------------------------------------------------
+; LIST / NEW / RUN
+; LIST parcourt line_lengths dans l'ordre des indices et émet le record associé.
+; NEW vide les longueurs et les piles ; RUN initialise current_line et délègue
+; l'exécution d'une ligne à run_line.
+; ---------------------------------------------------------------------------
+list_line:
+jal x0,list_line_generic
+list_line_generic:
+addi x26,x0,0
+list_scan_generic:
+ slli x7,x26,3
+ld x12,480(x8)
+ add x12,x12,x7
+ ld x13,0(x12)
+ beq x13,x0,list_next_generic
+slli x7,x26,7
+add x24,x19,x7
+ld x10,0(x24)
+sltiu x7,x10,100
+beq x7,x0,list_three_digits
+addi x13,x8,208
+addi x6,x0,10
+divu x7,x10,x6
+addi x7,x7,48
+sb x7,0(x13)
+addi x13,x13,1
+addi x7,x0,48
+sb x7,0(x13)
+addi x13,x13,1
+jal x0,list_number_done
+list_three_digits:
+sltiu x7,x10,1000
+beq x7,x0,list_four_digits
+addi x13,x8,208
+addi x6,x0,100
+divu x7,x10,x6
+addi x7,x7,48
+sb x7,0(x13)
+addi x13,x13,1
+remu x10,x10,x6
+addi x6,x0,10
+divu x7,x10,x6
+addi x7,x7,48
+sb x7,0(x13)
+addi x13,x13,1
+addi x7,x0,48
+sb x7,0(x13)
+addi x13,x13,1
+jal x0,list_number_done
+list_four_digits:
+addi x13,x8,208
+addi x6,x0,1000
+divu x7,x10,x6
+addi x7,x7,48
+sb x7,0(x13)
+addi x13,x13,1
+remu x10,x10,x6
+addi x6,x0,100
+divu x7,x10,x6
+addi x7,x7,48
+sb x7,0(x13)
+addi x13,x13,1
+remu x10,x10,x6
+addi x6,x0,10
+divu x7,x10,x6
+addi x7,x7,48
+sb x7,0(x13)
+addi x13,x13,1
+remu x10,x10,x6
+addi x7,x10,48
+sb x7,0(x13)
+addi x13,x13,1
+list_number_done:
+addi x7,x0,32
+sb x7,0(x13)
+addi x13,x13,1
+addi x10,x8,208
+sub x11,x13,x10
+addi x17,x0,4
+ecall
+addi x10,x24,16
+slli x7,x26,3
+ld x11,480(x8)
+add x11,x11,x7
+ld x11,0(x11)
+addi x17,x0,4
+ecall
+addi x10,x8,192
+addi x11,x0,1
+addi x17,x0,4
+ecall
+list_next_generic:
+addi x26,x26,1
+sltiu x7,x26,256
+bne x7,x0,list_scan_generic
+jal x0,command_loop
+
+list_line_legacy:
+ld x12,512(x8)
+andi x13,x12,1
+beq x13,x0,list_line_twenty
+addi x10,x8,16
+addi x11,x0,3
+addi x17,x0,4
+ecall
+addi x10,x19,16
+ld x11,520(x8)
+addi x17,x0,4
+ecall
+addi x10,x8,192
+addi x11,x0,1
+addi x17,x0,4
+ecall
+list_line_twenty:
+andi x13,x12,2
+beq x13,x0,list_line_thirty
+addi x10,x8,20
+addi x11,x0,3
+addi x17,x0,4
+ecall
+addi x10,x19,1040
+ld x11,528(x8)
+addi x17,x0,4
+ecall
+addi x10,x8,192
+addi x11,x0,1
+addi x17,x0,4
+ecall
+list_line_thirty:
+andi x13,x12,4
+beq x13,x0,list_line_forty
+addi x10,x8,128
+addi x10,x10,32
+addi x11,x0,3
+addi x17,x0,4
+ecall
+addi x10,x19,1024
+addi x10,x10,1024
+addi x10,x10,16
+ld x11,1816(x8)
+addi x17,x0,4
+ecall
+addi x10,x8,192
+addi x11,x0,1
+addi x17,x0,4
+ecall
+list_line_forty:
+andi x13,x12,8
+bne x13,x0,list_line_forty_continue
+jal x0,command_loop
+list_line_forty_continue:
+addi x10,x8,128
+addi x10,x10,48
+addi x11,x0,3
+addi x17,x0,4
+ecall
+addi x10,x19,1024
+addi x10,x10,1024
+addi x10,x10,1024
+addi x10,x10,16
+ld x11,1824(x8)
+addi x17,x0,4
+ecall
+addi x10,x8,192
+addi x11,x0,1
+addi x17,x0,4
+ecall
+jal x0,command_loop
+; NEW : remet à zéro les longueurs, variables et piles de contrôle sans
+; toucher au code du payload ni à la mémoire du moniteur.
+new_program:
+addi x10,x0,0
+addi x11,x0,1
+sd x11,1360(x8)
+sd x10,512(x8)
+sd x10,520(x8)
+sd x10,528(x8)
+addi x26,x0,0
+new_clear_lengths:
+slli x7,x26,3
+ld x12,480(x8)
+add x12,x12,x7
+sd x0,0(x12)
+addi x26,x26,1
+sltiu x7,x26,256
+bne x7,x0,new_clear_lengths
+sd x10,1160(x8)
+sd x10,1240(x8)
+addi x29,x8,2047
+addi x29,x29,1
+sd x10,0(x29)
+addi x29,x8,2047
+addi x29,x29,81
+sd x0,0(x29)
+addi x29,x8,2047
+addi x29,x29,153
+sd x0,0(x29)
+addi x10,x8,32
+addi x11,x0,4
+addi x17,x0,4
+ecall
+jal x0,command_loop
+; RUN : initialise le curseur de ligne et le contexte de contrôle, puis
+; délègue chaque record à run_line jusqu'à END, erreur ou Ctrl-C.
+; RUN choisit le premier record occupé ; run_line charge ensuite le corps,
+; gère TRACE et redirige les erreurs avec le numéro de ligne courant.
+run_command:
+jal x0,run_command_generic
+run_command_generic:
+sd x0,1616(x8)
+sd x0,1704(x8)
+sd x0,1712(x8)
+addi x29,x8,2047
+addi x29,x29,1
+sd x0,0(x29)
+addi x29,x8,2047
+addi x29,x29,81
+sd x0,0(x29)
+addi x29,x8,2047
+addi x29,x29,153
+sd x0,0(x29)
+addi x26,x0,0
+run_find_first_generic:
+slli x7,x26,3
+ld x10,480(x8)
+add x10,x10,x7
+ld x11,0(x10)
+bne x11,x0,run_first_found_generic
+addi x26,x26,1
+sltiu x7,x26,256
+bne x7,x0,run_find_first_generic
+jal x0,error_line
+run_first_found_generic:
+sd x26,536(x8)
+jal x0,run_line
+
+run_command_legacy:
+ld x10,512(x8)
+andi x11,x10,1
+beq x11,x0,run_command_legacy_no_ten
+jal x0,run_command_ten
+run_command_legacy_no_ten:
+andi x11,x10,2
+beq x11,x0,run_check_thirty
+addi x10,x0,1
+sd x10,536(x8)
+jal x0,run_line
+run_check_thirty:
+andi x11,x10,4
+beq x11,x0,run_check_forty
+addi x10,x0,2
+sd x10,536(x8)
+jal x0,run_line
+run_check_forty:
+andi x11,x10,8
+beq x11,x0,run_line_error
+addi x10,x0,3
+sd x10,536(x8)
+jal x0,run_line
+run_command_ten:
+addi x10,x0,0
+sd x10,536(x8)
+jal x0,run_line
+; Exécuteur de ligne : trace éventuellement le numéro, positionne x21 sur le
+; corps du record et distribue les statements séparés par ':'.
+run_line:
+jal x0,run_line_generic
+run_line_generic:
+addi x17,x0,5
+ecall
+addi x7,x0,3
+bne x10,x7,run_line_not_break
+jal x0,break_statement
+run_line_not_break:
+slli x7,x26,3
+ld x10,480(x8)
+add x10,x10,x7
+ld x11,0(x10)
+beq x11,x0,run_line_check_direct
+slli x7,x26,7
+add x24,x19,x7
+jal x0,dispatch_statement
+run_line_check_direct:
+addi x7,x0,1
+sll x7,x7,x26
+ld x10,512(x8)
+and x11,x10,x7
+beq x11,x0,run_line_error
+slli x7,x26,7
+add x24,x19,x7
+jal x0,dispatch_statement
+
+run_line_error:
+jal x0,error_line
+
+run_line_legacy:
+addi x17,x0,5
+ecall
+addi x7,x0,3
+bne x10,x7,legacy_not_break
+jal x0,break_statement
+legacy_not_break:
+ld x10,512(x8)
+beq x10,x0,run_line_error
+ld x10,536(x8)
+beq x10,x0,run_line_ten
+addi x7,x0,1
+beq x10,x7,run_line_twenty
+addi x7,x0,2
+beq x10,x7,run_line_thirty
+addi x7,x0,3
+beq x10,x7,run_line_forty
+jal x0,error_line
+run_line_twenty:
+addi x24,x19,1024
+jal x0,dispatch_statement
+run_line_thirty:
+ld x11,512(x8)
+andi x11,x11,4
+beq x11,x0,run_line_error
+addi x24,x19,1024
+addi x24,x24,1024
+jal x0,dispatch_statement
+run_line_forty:
+ld x11,512(x8)
+andi x11,x11,8
+beq x11,x0,run_line_error
+addi x24,x19,1024
+addi x24,x24,1024
+addi x24,x24,1024
+jal x0,dispatch_statement
+run_line_ten:
+ld x11,512(x8)
+andi x11,x11,1
+beq x11,x0,run_line_error
+addi x24,x19,0
+; ---------------------------------------------------------------------------
+; Dispatch d'instructions BASIC
+; Les mots-clés sont reconnus directement sur les octets du record. Les
+; sous-dispatchers séparent expressions, chaînes et structures de contrôle ;
+; cette séparation garde les conventions de curseur explicites au débogueur.
+; ---------------------------------------------------------------------------
+dispatch_statement:
+sd x24,1864(x8)
+sd x26,1872(x8)
+ld x10,544(x8)
+beq x10,x0,trace_done
+ld x10,536(x8)
+beq x10,x0,trace_ten
+addi x10,x8,128
+addi x11,x0,5
+addi x17,x0,4
+ecall
+jal x0,trace_done
+trace_ten:
+addi x10,x8,112
+addi x11,x0,5
+addi x17,x0,4
+ecall
+trace_done:
+jal x0,statement_table_probe
+statement_dispatch_legacy:
+lbu x10,16(x24)
+addi x7,x0,71
+beq x10,x7,goto_dispatch
+addi x7,x0,79
+bne x10,x7,dispatch_not_on
+lbu x5,17(x24)
+addi x7,x0,78
+beq x5,x7,on_statement
+jal x0,assignment_statement
+dispatch_not_on:
+addi x7,x0,87
+bne x10,x7,dispatch_not_while
+jal x0,while_dispatch
+dispatch_not_while:
+addi x7,x0,85
+bne x10,x7,dispatch_not_until
+jal x0,until_statement
+dispatch_not_until:
+addi x7,x0,69
+beq x10,x7,end_statement
+addi x7,x0,70
+bne x10,x7,dispatch_not_for
+jal x0,for_statement
+dispatch_not_for:
+addi x7,x0,78
+bne x10,x7,dispatch_not_next
+jal x0,next_statement
+dispatch_not_next:
+addi x7,x0,68
+beq x10,x7,dim_dispatch
+addi x7,x0,65
+beq x10,x7,array_dispatch
+addi x7,x0,83
+beq x10,x7,string_statement
+addi x7,x0,73
+bne x10,x7,dispatch_not_i
+jal x0,statement_i
+dispatch_not_i:
+addi x7,x0,80
+beq x10,x7,print_dispatch
+addi x7,x0,82
+beq x10,x7,rem_or_assignment
+addi x7,x0,76
+beq x10,x7,let_or_assignment
+lbu x5,17(x24)
+addi x7,x0,61
+beq x5,x7,assignment_statement
+lbu x5,17(x24)
+addi x7,x0,40
+beq x5,x7,array_statement
+lbu x5,17(x24)
+addi x7,x0,36
+beq x5,x7,program_string_name_or_array
+addi x7,x0,36
+beq x5,x7,string_statement
+lbu x5,16(x24)
+addi x7,x0,65
+sltu x6,x5,x7
+bne x6,x0,statement_expression
+addi x7,x0,91
+sltu x6,x5,x7
+bne x6,x0,assignment_statement
+statement_expression:
+addi x21,x24,22
+jal x1,eval_expression
+jal x0,run_save
+rem_or_assignment:
+lbu x5,17(x24)
+addi x7,x0,69
+bne x5,x7,assignment_statement
+lbu x5,18(x24)
+addi x7,x0,77
+beq x5,x7,rem_statement
+addi x7,x0,80
+bne x5,x7,rem_not_repeat
+jal x0,repeat_statement
+rem_not_repeat:
+addi x7,x0,84
+bne x5,x7,dispatch_not_return
+jal x0,return_statement
+dispatch_not_return:
+addi x7,x0,65
+beq x5,x7,read_statement
+addi x7,x0,83
+beq x5,x7,restore_statement
+jal x0,assignment_statement
+rem_statement:
+jal x0,if_false
+restore_statement:
+lbu x5,19(x24)
+addi x7,x0,84
+bne x5,x7,restore_error
+lbu x5,20(x24)
+addi x7,x0,79
+bne x5,x7,restore_error
+lbu x5,21(x24)
+addi x7,x0,82
+bne x5,x7,restore_error
+ lbu x5,22(x24)
+addi x7,x0,69
+bne x5,x7,restore_error
+addi x7,x0,0
+sd x7,1704(x8)
+sd x7,1712(x8)
+jal x0,if_false
+restore_error:
+jal x0,error_line
+read_statement:
+lbu x5,19(x24)
+addi x7,x0,68
+beq x5,x7,read_statement_keyword_ok
+jal x0,early_error
+read_statement_keyword_ok:
+lbu x5,20(x24)
+addi x7,x0,32
+beq x5,x7,read_statement_space_ok
+jal x0,early_error
+read_statement_space_ok:
+addi x21,x24,21
+lbu x5,1(x21)
+addi x7,x0,36
+beq x5,x7,read_string_statement
+jal x1,resolve_variable
+sd x7,1112(x8)
+ld x26,1704(x8)
+ld x27,1712(x8)
+read_find_line:
+ sltiu x7,x26,256
+ bne x7,x0,read_find_valid
+ jal x0,error_line
+read_find_valid:
+ slli x7,x26,3
+ld x6,480(x8)
+ add x6,x6,x7
+ ld x7,0(x6)
+beq x7,x0,read_next_line
+slli x7,x26,7
+add x24,x19,x7
+lbu x5,16(x24)
+addi x7,x0,68
+bne x5,x7,read_next_line
+lbu x5,17(x24)
+addi x7,x0,65
+bne x5,x7,read_next_line
+lbu x5,18(x24)
+addi x7,x0,84
+bne x5,x7,read_next_line
+lbu x5,19(x24)
+addi x7,x0,65
+bne x5,x7,read_next_line
+lbu x5,20(x24)
+addi x7,x0,32
+bne x5,x7,read_next_line
+beq x27,x0,read_data_start
+add x21,x24,x27
+jal x0,read_data_value
+read_data_start:
+addi x21,x24,21
+read_data_value:
+sd x26,1720(x8)
+sd x24,1736(x8)
+sub x30,x21,x24
+sd x30,1728(x8)
+addi x22,x0,0
+jal x1,parse_atom
+ld x26,1720(x8)
+ld x27,1728(x8)
+ld x24,1736(x8)
+read_data_separator:
+lbu x5,0(x21)
+addi x7,x0,32
+bne x5,x7,read_data_separator_check
+addi x21,x21,1
+jal x0,read_data_separator
+read_data_separator_check:
+addi x7,x0,44
+beq x5,x7,read_data_more
+addi x26,x26,1
+sd x26,1704(x8)
+sd x0,1712(x8)
+jal x0,read_store_value
+read_data_more:
+addi x21,x21,1
+sub x27,x21,x24
+sd x27,1712(x8)
+read_store_value:
+ld x6,1112(x8)
+fsd f1,0(x6)
+jal x0,if_false
+read_next_line:
+addi x26,x26,1
+sd x26,1704(x8)
+sd x0,1712(x8)
+jal x0,read_find_line
+read_string_statement:
+jal x1,resolve_string_variable
+sd x7,1112(x8)
+ld x26,1704(x8)
+ld x27,1712(x8)
+read_string_find_line:
+ sltiu x7,x26,256
+ beq x7,x0,read_string_error
+ slli x7,x26,3
+ld x6,480(x8)
+ add x6,x6,x7
+ ld x7,0(x6)
+beq x7,x0,read_string_next_line
+slli x7,x26,7
+add x24,x19,x7
+lbu x5,16(x24)
+addi x7,x0,68
+bne x5,x7,read_string_next_line
+lbu x5,17(x24)
+addi x7,x0,65
+bne x5,x7,read_string_next_line
+lbu x5,18(x24)
+addi x7,x0,84
+bne x5,x7,read_string_next_line
+lbu x5,19(x24)
+addi x7,x0,65
+bne x5,x7,read_string_next_line
+lbu x5,20(x24)
+addi x7,x0,32
+bne x5,x7,read_string_next_line
+beq x27,x0,read_string_data_start
+add x21,x24,x27
+jal x0,read_string_data_value
+read_string_data_start:
+addi x21,x24,21
+read_string_data_value:
+lbu x5,0(x21)
+addi x7,x0,32
+bne x5,x7,read_string_quote_check
+addi x21,x21,1
+jal x0,read_string_data_value
+read_string_quote_check:
+addi x7,x0,34
+bne x5,x7,read_string_error
+addi x21,x21,1
+ld x30,1112(x8)
+addi x9,x0,0
+read_string_copy:
+lbu x5,0(x21)
+addi x7,x0,34
+beq x5,x7,read_string_done
+sltiu x7,x9,120
+beq x7,x0,read_string_error
+add x6,x30,x9
+sb x5,0(x6)
+addi x9,x9,1
+addi x21,x21,1
+jal x0,read_string_copy
+read_string_done:
+addi x6,x30,-8
+sd x9,0(x6)
+read_string_separator:
+addi x21,x21,1
+lbu x5,0(x21)
+addi x7,x0,32
+bne x5,x7,read_string_separator_check
+jal x0,read_string_separator
+read_string_separator_check:
+addi x7,x0,44
+beq x5,x7,read_string_more
+addi x26,x26,1
+sd x26,1704(x8)
+sd x0,1712(x8)
+jal x0,read_string_store
+read_string_more:
+addi x21,x21,1
+sub x27,x21,x24
+sd x27,1712(x8)
+read_string_store:
+jal x0,if_false
+read_string_next_line:
+addi x26,x26,1
+sd x26,1704(x8)
+sd x0,1712(x8)
+jal x0,read_string_find_line
+read_string_error:
+jal x0,error_line_near
+let_or_assignment:
+lbu x5,17(x24)
+addi x7,x0,79
+beq x5,x7,loop_statement
+addi x7,x0,69
+bne x5,x7,assignment_statement
+lbu x5,18(x24)
+addi x7,x0,84
+bne x5,x7,assignment_statement
+lbu x5,19(x24)
+addi x7,x0,32
+bne x5,x7,assignment_statement
+addi x21,x24,20
+addi x30,x21,0
+addi x5,x0,1
+sd x5,1592(x8)
+let_target_common:
+addi x30,x21,0
+let_target_scan:
+lbu x5,0(x21)
+bne x5,x0,let_target_scan_continue
+jal x0,error_line
+let_target_scan_continue:
+addi x7,x0,36
+beq x5,x7,let_string_target
+addi x7,x0,40
+beq x5,x7,let_numeric_array_target
+addi x7,x0,61
+beq x5,x7,let_numeric_target
+addi x21,x21,1
+jal x0,let_target_scan
+let_numeric_target:
+addi x21,x30,0
+jal x1,resolve_variable
+sd x7,1112(x8)
+lbu x5,0(x21)
+addi x7,x0,61
+beq x5,x7,let_numeric_target_continue
+jal x0,error_line
+let_numeric_target_continue:
+addi x21,x21,1
+addi x22,x0,0
+jal x1,eval_expression
+ld x6,1112(x8)
+fsd f3,0(x6)
+jal x0,let_target_done
+let_numeric_array_target:
+addi x21,x30,0
+jal x1,assign_array
+jal x0,let_target_done
+let_string_target:
+lbu x5,1(x21)
+addi x7,x0,40
+beq x5,x7,let_string_array_target
+addi x21,x30,0
+jal x1,string_assign
+jal x0,let_target_done
+let_string_array_target:
+addi x21,x30,0
+jal x1,string_array_assign
+jal x0,let_target_done
+let_target_done:
+ld x5,1592(x8)
+bne x5,x0,let_target_continue
+jal x0,command_loop
+let_target_continue:
+jal x0,if_false
+; ---------------------------------------------------------------------------
+; PRINT et chaînes
+; Le chemin numérique retourne f3 ; les chemins chaîne émettent les octets
+; présents dans les cellules target-side. Les fonctions LEFT$/RIGHT$/MID$,
+; CHR$/STR$/ASC$/VAL$/INSTR ont chacune un parseur borné et réutilisent les
+; buffers décrits dans MEMORY_MAP.md.
+; ---------------------------------------------------------------------------
+print_statement:
+lbu x5,22(x24)
+addi x7,x0,34
+beq x5,x7,print_string
+lbu x5,23(x24)
+addi x7,x0,36
+beq x5,x7,print_string_or_array
+addi x21,x24,22
+addi x22,x21,0
+lbu x5,0(x22)
+addi x7,x0,77
+beq x5,x7,print_mid_probe
+addi x7,x0,82
+beq x5,x7,print_right_probe
+addi x7,x0,67
+beq x5,x7,print_chr_probe
+addi x7,x0,65
+beq x5,x7,print_asc_probe
+addi x7,x0,86
+beq x5,x7,print_val_probe
+addi x7,x0,73
+beq x5,x7,print_instr_probe
+addi x7,x0,83
+beq x5,x7,print_str_probe
+addi x7,x0,76
+bne x5,x7,print_statement_string_scan
+lbu x5,1(x22)
+addi x7,x0,69
+bne x5,x7,print_statement_string_scan
+lbu x5,2(x22)
+addi x7,x0,78
+beq x5,x7,print_len_probe
+addi x7,x0,70
+bne x5,x7,print_statement_string_scan
+lbu x5,3(x22)
+addi x7,x0,84
+bne x5,x7,print_statement_string_scan
+lbu x5,4(x22)
+addi x7,x0,36
+bne x5,x7,print_statement_string_scan
+lbu x5,5(x22)
+addi x7,x0,40
+bne x5,x7,print_statement_string_scan
+jal x0,print_left_string
+print_mid_probe:
+lbu x5,1(x22)
+addi x7,x0,73
+bne x5,x7,print_statement_string_scan
+lbu x5,2(x22)
+addi x7,x0,68
+bne x5,x7,print_statement_string_scan
+lbu x5,3(x22)
+addi x7,x0,36
+bne x5,x7,print_statement_string_scan
+lbu x5,4(x22)
+addi x7,x0,40
+bne x5,x7,print_statement_string_scan
+jal x0,print_mid_string
+print_len_probe:
+lbu x5,3(x22)
+addi x7,x0,40
+beq x5,x7,print_numeric_statement
+jal x0,print_statement_string_scan
+print_right_probe:
+lbu x5,1(x22)
+addi x7,x0,73
+bne x5,x7,print_statement_string_scan
+lbu x5,2(x22)
+addi x7,x0,71
+bne x5,x7,print_statement_string_scan
+lbu x5,3(x22)
+addi x7,x0,72
+bne x5,x7,print_statement_string_scan
+lbu x5,4(x22)
+addi x7,x0,84
+bne x5,x7,print_statement_string_scan
+lbu x5,5(x22)
+addi x7,x0,36
+bne x5,x7,print_statement_string_scan
+lbu x5,6(x22)
+addi x7,x0,40
+bne x5,x7,print_statement_string_scan
+jal x0,print_right_string
+print_chr_probe:
+lbu x5,1(x22)
+addi x7,x0,72
+bne x5,x7,print_statement_string_scan
+lbu x5,2(x22)
+addi x7,x0,82
+bne x5,x7,print_statement_string_scan
+lbu x5,3(x22)
+addi x7,x0,36
+bne x5,x7,print_statement_string_scan
+lbu x5,4(x22)
+addi x7,x0,40
+bne x5,x7,print_statement_string_scan
+jal x0,print_chr_string
+print_str_probe:
+lbu x5,1(x22)
+addi x7,x0,84
+bne x5,x7,print_statement_string_scan
+lbu x5,2(x22)
+addi x7,x0,82
+bne x5,x7,print_statement_string_scan
+lbu x5,3(x22)
+addi x7,x0,36
+bne x5,x7,print_statement_string_scan
+lbu x5,4(x22)
+addi x7,x0,40
+bne x5,x7,print_statement_string_scan
+jal x0,print_str_string
+; Numeric string-consuming functions must enter eval_expression directly.
+; A generic '$' scan is unsafe here because it would mistake the '$' inside
+; ASC(TEXT$), VAL(TEXT$) or INSTR(TEXT$,"X") for a top-level string value.
+print_asc_probe:
+lbu x5,1(x22)
+addi x7,x0,83
+bne x5,x7,print_statement_string_scan
+lbu x5,2(x22)
+addi x7,x0,67
+bne x5,x7,print_statement_string_scan
+lbu x5,3(x22)
+addi x7,x0,40
+bne x5,x7,print_statement_string_scan
+jal x0,print_numeric_statement
+print_val_probe:
+lbu x5,1(x22)
+addi x7,x0,65
+bne x5,x7,print_statement_string_scan
+lbu x5,2(x22)
+addi x7,x0,76
+bne x5,x7,print_statement_string_scan
+lbu x5,3(x22)
+addi x7,x0,40
+bne x5,x7,print_statement_string_scan
+jal x0,print_numeric_statement
+print_instr_probe:
+lbu x5,1(x22)
+addi x7,x0,78
+bne x5,x7,print_statement_string_scan
+lbu x5,2(x22)
+addi x7,x0,83
+bne x5,x7,print_statement_string_scan
+lbu x5,3(x22)
+addi x7,x0,84
+bne x5,x7,print_statement_string_scan
+lbu x5,4(x22)
+addi x7,x0,82
+bne x5,x7,print_statement_string_scan
+lbu x5,5(x22)
+addi x7,x0,40
+bne x5,x7,print_statement_string_scan
+jal x0,print_numeric_statement
+print_statement_string_scan:
+lbu x5,0(x22)
+addi x7,x0,36
+beq x5,x7,print_str_long
+addi x7,x0,0
+beq x5,x7,print_numeric_statement
+addi x7,x0,44
+beq x5,x7,print_numeric_statement
+addi x22,x22,1
+jal x0,print_statement_string_scan
+print_str_long:
+lbu x5,1(x22)
+addi x7,x0,40
+beq x5,x7,print_string_array_variable
+jal x0,print_string_variable
+print_numeric_statement:
+addi x21,x24,22
+jal x1,eval_expression
+jal x0,run_save
+print_string:
+addi x21,x24,23
+addi x22,x21,1
+print_string_probe:
+lbu x5,0(x22)
+addi x7,x0,34
+beq x5,x7,print_string_probe_close
+addi x22,x22,1
+jal x0,print_string_probe
+print_string_probe_close:
+lbu x5,1(x22)
+addi x7,x0,43
+beq x5,x7,print_string_concat_literal
+print_string_loop:
+lbu x10,0(x21)
+addi x7,x0,34
+beq x10,x7,print_string_done
+addi x17,x0,1
+ecall
+addi x21,x21,1
+jal x0,print_string_loop
+print_string_done:
+addi x21,x21,1
+lbu x5,0(x21)
+addi x7,x0,44
+beq x5,x7,print_string_more
+addi x10,x0,10
+addi x17,x0,1
+ecall
+jal x0,if_false
+print_string_or_array:
+lbu x5,24(x24)
+addi x7,x0,40
+beq x5,x7,print_string_array_variable
+jal x0,print_string_variable
+print_string_more:
+addi x10,x0,3
+sd x10,568(x8)
+sd x21,1176(x8)
+jal x0,print_more
+print_string_concat_literal:
+addi x21,x21,-1
+jal x0,print_string_concat
+print_string_concat:
+addi x27,x8,2047
+addi x27,x27,393
+sd x31,0(x27)
+lui x27,0x82060
+slli x27,x27,32
+srli x27,x27,32
+addi x27,x27,1536
+sd x27,1976(x8)
+jal x1,string_concat_assign
+addi x27,x8,2047
+addi x27,x27,393
+ld x31,0(x27)
+lui x27,0x82060
+slli x27,x27,32
+srli x27,x27,32
+addi x27,x27,1536
+ld x11,-8(x27)
+addi x10,x27,0
+addi x17,x0,4
+ecall
+lbu x5,0(x21)
+addi x7,x0,44
+beq x5,x7,print_string_concat_more
+addi x10,x0,10
+addi x17,x0,1
+ecall
+jal x0,if_false
+print_string_concat_more:
+addi x10,x0,3
+sd x10,568(x8)
+sd x21,1176(x8)
+jal x0,print_more
+; ---------------------------------------------------------------------------
+; DATA, tableaux et affectations
+; Les descripteurs mémorisent dimensions, limites et adresse de stockage.
+; Les variantes courtes A(…) et longues sont résolues dans la cible ; aucun
+; tableau n'est matérialisé par l'hôte.
+; ---------------------------------------------------------------------------
+dim_statement:
+addi x21,x24,16
+jal x1,dim_array
+jal x0,if_false
+dim_dispatch:
+lbu x5,17(x24)
+addi x7,x0,61
+beq x5,x7,assignment_statement
+addi x7,x0,65
+beq x5,x7,data_statement
+addi x7,x0,79
+beq x5,x7,do_statement
+jal x0,dim_statement
+data_statement:
+lbu x5,18(x24)
+addi x7,x0,84
+bne x5,x7,data_error
+lbu x5,19(x24)
+addi x7,x0,65
+bne x5,x7,data_error
+lbu x5,20(x24)
+addi x7,x0,32
+bne x5,x7,data_error
+jal x0,if_false
+data_error:
+jal x0,error_line_near
+array_statement:
+addi x21,x24,16
+jal x1,assign_array
+jal x0,if_false
+array_dispatch:
+lbu x5,17(x24)
+addi x7,x0,61
+beq x5,x7,assignment_statement
+addi x7,x0,36
+beq x5,x7,program_string_name_or_array
+jal x0,array_statement
+program_string_name_or_array:
+lbu x5,18(x24)
+addi x7,x0,40
+beq x5,x7,program_string_array_dispatch
+jal x0,string_statement
+program_string_array_dispatch:
+jal x0,string_array_statement
+assignment_statement:
+addi x21,x24,16
+jal x1,resolve_variable
+sd x7,1112(x8)
+lbu x5,0(x21)
+addi x7,x0,61
+bne x5,x7,assignment_error
+addi x21,x21,1
+addi x22,x0,0
+jal x1,eval_expression
+ld x6,1112(x8)
+fsd f3,0(x6)
+jal x0,if_false
+assignment_error:
+jal x0,error_line_near
+print_dispatch:
+lbu x5,17(x24)
+addi x7,x0,82
+beq x5,x7,print_statement
+addi x7,x0,79
+beq x5,x7,pop_statement
+addi x7,x0,61
+beq x5,x7,assignment_statement
+jal x0,error_line
+pop_statement:
+lbu x5,18(x24)
+addi x7,x0,80
+bne x5,x7,error_line_near
+lbu x5,19(x24)
+beq x5,x0,pop_statement_valid
+addi x7,x0,58
+bne x5,x7,error_line_near
+pop_statement_valid:
+addi x21,x24,19
+jal x1,control_pop_any
+addi x7,x0,1
+beq x10,x7,pop_for
+addi x7,x0,2
+beq x10,x7,pop_gosub
+addi x7,x0,3
+beq x10,x7,pop_while
+addi x7,x0,4
+beq x10,x7,pop_repeat
+addi x7,x0,5
+beq x10,x7,pop_do
+jal x0,error_line_near
+pop_for:
+ld x27,1240(x8)
+beq x27,x0,error_line_near
+addi x27,x27,-1
+sd x27,1240(x8)
+jal x0,if_false
+pop_gosub:
+ld x27,1616(x8)
+beq x27,x0,error_line_near
+addi x27,x27,-1
+sd x27,1616(x8)
+jal x0,if_false
+pop_while:
+addi x29,x8,2047
+addi x29,x29,1
+ld x27,0(x29)
+beq x27,x0,error_line_near
+addi x27,x27,-1
+sd x27,0(x29)
+jal x0,if_false
+pop_repeat:
+addi x29,x8,2047
+addi x29,x29,81
+ld x27,0(x29)
+beq x27,x0,error_line_near
+addi x27,x27,-1
+sd x27,0(x29)
+jal x0,if_false
+pop_do:
+jal x0,if_false
+; x10 = kind (1 FOR, 2 GOSUB, 3 WHILE, 4 REPEAT, 5 DO, 6 block IF).
+; The unified frame stores the originating line for future EXIT support.
+; ---------------------------------------------------------------------------
+; Pile logique de contrôle
+; Chaque cadre contient un type et une ligne de reprise. FOR possède en plus
+; une frame flottante ; GOSUB, WHILE, REPEAT et DO partagent le même protocole
+; borné de push/peek/pop afin de produire des erreurs structurées.
+; ---------------------------------------------------------------------------
+control_push:
+addi x29,x8,2047
+addi x29,x29,153
+ld x27,0(x29)
+sltiu x7,x27,8
+beq x7,x0,error_line_near
+slli x7,x27,4
+addi x30,x8,2047
+addi x30,x30,161
+add x30,x30,x7
+sd x10,0(x30)
+sd x26,8(x30)
+addi x27,x27,1
+sd x27,0(x29)
+jalr x0,0(x1)
+control_peek:
+addi x29,x8,2047
+addi x29,x29,153
+ld x27,0(x29)
+beq x27,x0,error_line_near
+addi x27,x27,-1
+slli x7,x27,4
+addi x30,x8,2047
+addi x30,x30,161
+add x30,x30,x7
+ld x10,0(x30)
+ld x11,8(x30)
+jalr x0,0(x1)
+control_pop_expected:
+addi x29,x8,2047
+addi x29,x29,153
+ld x27,0(x29)
+beq x27,x0,error_line_near
+addi x27,x27,-1
+slli x7,x27,4
+addi x30,x8,2047
+addi x30,x30,161
+add x30,x30,x7
+ld x6,0(x30)
+bne x6,x10,error_line_near
+sd x27,0(x29)
+jalr x0,0(x1)
+control_pop_any:
+addi x29,x8,2047
+addi x29,x29,153
+ld x27,0(x29)
+beq x27,x0,error_line_near
+addi x27,x27,-1
+slli x7,x27,4
+addi x30,x8,2047
+addi x30,x30,161
+add x30,x30,x7
+ld x10,0(x30)
+sd x27,0(x29)
+jalr x0,0(x1)
+string_statement:
+ lbu x5,17(x24)
+ addi x7,x0,61
+ beq x5,x7,assignment_statement
+addi x21,x24,16
+jal x1,string_assign
+jal x0,if_false
+string_array_statement:
+addi x21,x24,16
+jal x1,string_array_assign
+jal x0,if_false
+print_string_variable:
+sd x21,2040(x8)
+addi x21,x24,22
+jal x1,resolve_string_variable
+addi x10,x7,0
+addi x17,x0,4
+ecall
+jal x0,print_string_value_cont
+print_string_array_variable:
+sd x21,2040(x8)
+addi x21,x24,22
+jal x1,resolve_string_array
+addi x10,x7,0
+addi x17,x0,4
+ecall
+jal x0,print_string_value_cont
+print_string_value_cont:
+lbu x5,0(x21)
+addi x7,x0,44
+beq x5,x7,print_string_value_more
+addi x7,x0,43
+beq x5,x7,print_string_value_concat
+addi x10,x0,10
+addi x17,x0,1
+ecall
+jal x0,if_false
+print_string_value_more:
+addi x10,x0,3
+sd x10,568(x8)
+sd x21,1176(x8)
+jal x0,print_more
+print_string_value_concat:
+ld x21,2040(x8)
+jal x0,print_string_concat
+; ---------------------------------------------------------------------------
+; Transferts de contrôle
+; GOTO/IF/ON résolvent un numéro par recherche dans line_lengths. GOSUB pousse
+; la continuation ; RETURN la dépile. `next_line` est le seul état de saut
+; partagé avec run_line.
+; ---------------------------------------------------------------------------
+goto_dispatch:
+lbu x5,17(x24)
+addi x7,x0,61
+beq x5,x7,assignment_statement
+lbu x5,18(x24)
+addi x7,x0,83
+beq x5,x7,gosub_statement
+jal x0,goto_statement
+goto_statement:
+addi x21,x24,21
+sd x0,1608(x8)
+jal x0,goto_generic
+gosub_statement:
+sd x26,1640(x8)
+lbu x5,17(x24)
+addi x7,x0,79
+bne x5,x7,error_line_near
+lbu x5,19(x24)
+addi x7,x0,85
+bne x5,x7,error_line_near
+lbu x5,20(x24)
+addi x7,x0,66
+bne x5,x7,error_line_near
+lbu x5,21(x24)
+addi x7,x0,32
+bne x5,x7,error_line_near
+addi x21,x24,22
+addi x30,x0,1
+sd x30,1608(x8)
+jal x0,goto_generic
+goto_generic:
+addi x26,x0,0
+addi x27,x0,0
+goto_number_loop:
+lbu x5,0(x21)
+addi x6,x0,48
+sltu x28,x5,x6
+bne x28,x0,goto_number_done
+addi x6,x0,58
+sltu x28,x5,x6
+beq x28,x0,goto_number_done
+addi x6,x0,48
+sub x5,x5,x6
+addi x6,x0,10
+mul x26,x26,x6
+add x26,x26,x5
+addi x21,x21,1
+addi x27,x27,1
+jal x0,goto_number_loop
+goto_number_done:
+beq x27,x0,error_line_near
+addi x6,x0,10
+remu x5,x26,x6
+bne x5,x0,error_line_near
+sltiu x6,x26,10
+bne x6,x0,error_line_near
+jal x1,resolve_target_number
+ld x30,1608(x8)
+beq x30,x0,goto_save_target
+ld x27,1616(x8)
+sltiu x7,x27,8
+beq x7,x0,error_line_near
+ld x6,1640(x8)
+addi x6,x6,1
+slli x7,x27,3
+addi x30,x8,1624
+add x30,x30,x7
+sd x6,0(x30)
+addi x27,x27,1
+sd x27,1616(x8)
+addi x10,x0,2
+jal x1,control_push
+sd x0,1608(x8)
+goto_save_target:
+sd x26,536(x8)
+jal x0,run_line
+
+on_statement:
+; ON expression GOTO/GOSUB line[,line...], with a 1-based selector.
+lbu x5,18(x24)
+addi x7,x0,32
+bne x5,x7,error_line_near
+sd x26,1696(x8)
+addi x21,x24,19
+addi x22,x0,0
+jal x1,eval_expression
+fcvt.l.d x27,f3,1
+srai x7,x27,63
+bne x7,x0,error_line_near
+beq x27,x0,error_line_near
+on_keyword_spaces:
+lbu x5,0(x21)
+addi x7,x0,32
+bne x5,x7,on_keyword
+addi x21,x21,1
+jal x0,on_keyword_spaces
+on_keyword:
+addi x7,x0,71
+bne x5,x7,error_line_near
+lbu x5,1(x21)
+addi x7,x0,79
+bne x5,x7,error_line_near
+lbu x6,2(x21)
+addi x7,x0,84
+beq x6,x7,on_goto_keyword
+addi x7,x0,83
+beq x6,x7,on_gosub_keyword
+jal x0,error_line_near
+on_goto_keyword:
+lbu x5,3(x21)
+addi x7,x0,79
+bne x5,x7,error_line_near
+lbu x5,4(x21)
+addi x7,x0,32
+bne x5,x7,error_line_near
+addi x10,x0,0
+sd x10,1672(x8)
+addi x21,x21,5
+jal x0,on_target_loop
+on_gosub_keyword:
+lbu x5,3(x21)
+addi x7,x0,85
+bne x5,x7,error_line_near
+lbu x5,4(x21)
+addi x7,x0,66
+bne x5,x7,error_line_near
+lbu x5,5(x21)
+addi x7,x0,32
+bne x5,x7,error_line_near
+addi x10,x0,1
+sd x10,1672(x8)
+addi x21,x21,6
+on_target_loop:
+; x27 = remaining selector, x21 = current target text.
+on_target_spaces:
+lbu x5,0(x21)
+addi x7,x0,32
+bne x5,x7,on_target_start
+addi x21,x21,1
+jal x0,on_target_spaces
+on_target_start:
+addi x26,x0,0
+addi x29,x0,0
+on_target_digits:
+lbu x5,0(x21)
+addi x6,x0,48
+sltu x28,x5,x6
+bne x28,x0,on_target_done
+addi x6,x0,58
+sltu x28,x5,x6
+beq x28,x0,on_target_done
+addi x6,x0,48
+sub x5,x5,x6
+addi x6,x0,10
+mul x26,x26,x6
+add x26,x26,x5
+addi x21,x21,1
+addi x29,x29,1
+jal x0,on_target_digits
+on_target_done:
+beq x29,x0,error_line_near
+addi x6,x0,10
+remu x5,x26,x6
+bne x5,x0,error_line_near
+sltiu x6,x26,10
+bne x6,x0,error_line_near
+lui x6,1
+addi x6,x6,-1535
+sltu x6,x26,x6
+beq x6,x0,error_line_near
+addi x6,x0,1
+bne x27,x6,on_target_skip
+jal x0,on_target_selected
+on_target_skip:
+addi x27,x27,-1
+lbu x5,0(x21)
+addi x6,x0,44
+beq x5,x6,on_target_more
+jal x0,error_line_near
+on_target_more:
+addi x21,x21,1
+jal x0,on_target_loop
+on_target_selected:
+jal x1,resolve_target_number
+ld x30,1672(x8)
+beq x30,x0,on_goto_target
+ld x27,1616(x8)
+sltiu x7,x27,8
+beq x7,x0,error_line_near
+ld x6,1696(x8)
+addi x6,x6,1
+slli x7,x27,3
+addi x30,x8,1624
+add x30,x30,x7
+sd x6,0(x30)
+addi x27,x27,1
+sd x27,1616(x8)
+addi x10,x0,2
+jal x1,control_push
+on_goto_target:
+sd x26,536(x8)
+jal x0,run_line
+
+goto_statement_legacy:
+lbu x10,21(x24)
+addi x7,x0,49
+beq x10,x7,goto_ten
+addi x7,x0,50
+beq x10,x7,goto_twenty
+addi x7,x0,51
+beq x10,x7,goto_thirty
+addi x7,x0,52
+beq x10,x7,goto_forty
+jal x0,error_line
+goto_ten:
+lbu x10,22(x24)
+addi x7,x0,48
+bne x10,x7,error_line_near
+addi x10,x0,0
+sd x10,536(x8)
+jal x0,run_line
+goto_twenty:
+lbu x10,22(x24)
+addi x7,x0,48
+bne x10,x7,error_line_near
+addi x10,x0,1
+sd x10,536(x8)
+jal x0,run_line
+goto_thirty:
+lbu x10,22(x24)
+addi x7,x0,48
+bne x10,x7,error_line_near
+addi x10,x0,2
+sd x10,536(x8)
+jal x0,run_line
+goto_forty:
+lbu x10,22(x24)
+addi x7,x0,48
+bne x10,x7,error_line_near
+addi x10,x0,3
+sd x10,536(x8)
+jal x0,run_line
+end_statement:
+ lbu x5,17(x24)
+ addi x7,x0,61
+ beq x5,x7,assignment_statement
+addi x7,x0,76
+beq x5,x7,else_statement
+addi x7,x0,78
+bne x5,x7,end_or_endif
+lbu x5,18(x24)
+lbu x5,19(x24)
+addi x7,x0,73
+beq x5,x7,endif_statement
+end_or_endif:
+addi x7,x0,88
+beq x5,x7,exit_statement
+addi x10,x8,64
+addi x11,x0,4
+addi x17,x0,4
+ecall
+ebreak
+exit_statement:
+lbu x5,18(x24)
+addi x7,x0,73
+bne x5,x7,error_line_near
+lbu x5,19(x24)
+addi x7,x0,84
+bne x5,x7,error_line_near
+lbu x5,20(x24)
+beq x5,x0,exit_statement_valid
+addi x7,x0,58
+bne x5,x7,error_line_near
+exit_statement_valid:
+jal x1,control_peek
+addi x7,x0,1
+beq x10,x7,exit_pop_for
+addi x7,x0,3
+beq x10,x7,exit_pop_while
+addi x7,x0,4
+beq x10,x7,exit_pop_repeat
+addi x7,x0,5
+beq x10,x7,exit_pop_do
+jal x0,error_line_near
+exit_pop_for:
+ld x27,1240(x8)
+beq x27,x0,error_line_near
+addi x27,x27,-1
+sd x27,1240(x8)
+jal x0,exit_pop_and_scan
+exit_pop_while:
+addi x29,x8,2047
+addi x29,x29,1
+ld x27,0(x29)
+beq x27,x0,error_line_near
+addi x27,x27,-1
+sd x27,0(x29)
+jal x0,exit_pop_and_scan
+exit_pop_repeat:
+addi x29,x8,2047
+addi x29,x29,81
+ld x27,0(x29)
+beq x27,x0,error_line_near
+addi x27,x27,-1
+sd x27,0(x29)
+jal x0,exit_pop_and_scan
+exit_pop_do:
+exit_pop_and_scan:
+; x10 = loop kind, x26 = current line. Pop before searching the
+; corresponding terminator so the skipped loop cannot remain active.
+jal x1,control_pop_expected
+addi x27,x0,1
+addi x28,x26,1
+exit_scan_line:
+sltiu x7,x28,256
+beq x7,x0,error_line_near
+slli x7,x28,7
+add x31,x19,x7
+ld x6,480(x8)
+slli x7,x28,3
+add x6,x6,x7
+ld x6,0(x6)
+beq x6,x0,exit_scan_next
+addi x7,x0,1
+beq x10,x7,exit_scan_for
+addi x7,x0,3
+beq x10,x7,exit_scan_while
+addi x7,x0,5
+beq x10,x7,exit_scan_do
+jal x0,exit_scan_repeat
+exit_scan_for:
+lbu x5,16(x31)
+addi x7,x0,70
+beq x5,x7,exit_scan_for_open
+addi x7,x0,78
+bne x5,x7,exit_scan_next
+lbu x5,17(x31)
+addi x7,x0,69
+bne x5,x7,exit_scan_next
+lbu x5,18(x31)
+addi x7,x0,88
+bne x5,x7,exit_scan_next
+lbu x5,19(x31)
+addi x7,x0,84
+bne x5,x7,exit_scan_next
+jal x0,exit_scan_match
+exit_scan_for_open:
+lbu x5,17(x31)
+addi x7,x0,79
+bne x5,x7,exit_scan_next
+lbu x5,18(x31)
+addi x7,x0,82
+bne x5,x7,exit_scan_next
+lbu x5,19(x31)
+addi x7,x0,32
+bne x5,x7,exit_scan_next
+addi x27,x27,1
+jal x0,exit_scan_next
+exit_scan_while:
+lbu x5,16(x31)
+addi x7,x0,87
+bne x5,x7,exit_scan_next
+lbu x5,17(x31)
+addi x7,x0,72
+beq x5,x7,exit_scan_while_open
+addi x7,x0,69
+bne x5,x7,exit_scan_next
+lbu x5,18(x31)
+addi x7,x0,78
+bne x5,x7,exit_scan_next
+lbu x5,19(x31)
+addi x7,x0,68
+bne x5,x7,exit_scan_next
+jal x0,exit_scan_match
+exit_scan_while_open:
+lbu x5,18(x31)
+addi x7,x0,73
+bne x5,x7,exit_scan_next
+lbu x5,19(x31)
+addi x7,x0,76
+bne x5,x7,exit_scan_next
+lbu x5,20(x31)
+addi x7,x0,69
+bne x5,x7,exit_scan_next
+addi x27,x27,1
+jal x0,exit_scan_next
+exit_scan_repeat:
+lbu x5,16(x31)
+addi x7,x0,82
+beq x5,x7,exit_scan_repeat_open
+addi x7,x0,85
+bne x5,x7,exit_scan_next
+lbu x5,17(x31)
+addi x7,x0,78
+bne x5,x7,exit_scan_next
+lbu x5,18(x31)
+addi x7,x0,84
+bne x5,x7,exit_scan_next
+lbu x5,19(x31)
+addi x7,x0,73
+bne x5,x7,exit_scan_next
+lbu x5,20(x31)
+addi x7,x0,76
+bne x5,x7,exit_scan_next
+jal x0,exit_scan_match
+exit_scan_repeat_open:
+lbu x5,17(x31)
+addi x7,x0,69
+bne x5,x7,exit_scan_next
+lbu x5,18(x31)
+addi x7,x0,80
+bne x5,x7,exit_scan_next
+lbu x5,19(x31)
+addi x7,x0,69
+bne x5,x7,exit_scan_next
+addi x27,x27,1
+jal x0,exit_scan_next
+exit_scan_do:
+lbu x5,16(x31)
+addi x7,x0,68
+bne x5,x7,exit_scan_do_loop
+lbu x5,17(x31)
+addi x7,x0,79
+bne x5,x7,exit_scan_next
+lbu x5,18(x31)
+addi x7,x0,0
+beq x5,x7,exit_scan_do_open
+addi x7,x0,76
+bne x5,x7,exit_scan_next
+lbu x5,19(x31)
+addi x7,x0,79
+bne x5,x7,exit_scan_next
+lbu x5,20(x31)
+addi x7,x0,80
+bne x5,x7,exit_scan_next
+jal x0,exit_scan_match
+exit_scan_do_open:
+addi x27,x27,1
+jal x0,exit_scan_next
+exit_scan_do_loop:
+addi x7,x0,76
+bne x5,x7,exit_scan_next
+lbu x5,17(x31)
+addi x7,x0,79
+bne x5,x7,exit_scan_next
+lbu x5,18(x31)
+addi x7,x0,79
+bne x5,x7,exit_scan_next
+lbu x5,19(x31)
+addi x7,x0,80
+bne x5,x7,exit_scan_next
+jal x0,exit_scan_match
+exit_scan_match:
+addi x27,x27,-1
+beq x27,x0,exit_scan_found
+exit_scan_next:
+addi x28,x28,1
+jal x0,exit_scan_line
+exit_scan_found:
+addi x26,x28,1
+sd x26,536(x8)
+jal x0,run_line
+do_statement:
+; V1 accepts the unconditional DO/LOOP pair. Conditional variants are
+; intentionally kept for a later syntax tranche.
+lbu x5,18(x24)
+beq x5,x0,do_statement_valid
+jal x0,error_line_near
+do_statement_valid:
+addi x29,x8,2047
+addi x29,x29,153
+ld x27,0(x29)
+beq x27,x0,do_push
+addi x27,x27,-1
+slli x7,x27,4
+addi x30,x8,2047
+addi x30,x30,161
+add x30,x30,x7
+ld x6,0(x30)
+addi x7,x0,5
+bne x6,x7,do_push
+ld x6,8(x30)
+beq x6,x26,do_continue
+do_push:
+addi x10,x0,5
+jal x1,control_push
+do_continue:
+addi x21,x24,18
+jal x0,if_false
+loop_statement:
+lbu x5,18(x24)
+addi x7,x0,79
+bne x5,x7,error_line_near
+lbu x5,19(x24)
+addi x7,x0,80
+bne x5,x7,error_line_near
+lbu x5,20(x24)
+beq x5,x0,loop_statement_valid
+jal x0,error_line_near
+loop_statement_valid:
+jal x1,control_peek
+addi x7,x0,5
+bne x10,x7,error_line_near
+addi x26,x11,0
+jal x1,control_pop_expected
+sd x26,536(x8)
+jal x0,run_line
+return_statement:
+lbu x5,17(x24)
+addi x7,x0,69
+bne x5,x7,error_line_near
+lbu x5,18(x24)
+addi x7,x0,84
+bne x5,x7,error_line_near
+lbu x5,19(x24)
+addi x7,x0,85
+bne x5,x7,error_line_near
+lbu x5,20(x24)
+addi x7,x0,82
+bne x5,x7,error_line_near
+lbu x5,21(x24)
+addi x7,x0,78
+bne x5,x7,error_line_near
+ld x27,1616(x8)
+beq x27,x0,error_line_near
+sd x27,1688(x8)
+addi x10,x0,2
+jal x1,control_pop_expected
+ld x27,1688(x8)
+addi x27,x27,-1
+slli x7,x27,3
+addi x30,x8,1624
+add x30,x30,x7
+ld x26,0(x30)
+sd x27,1616(x8)
+sd x26,536(x8)
+jal x0,run_line
+break_statement:
+addi x10,x8,144
+addi x11,x0,6
+addi x17,x0,4
+ecall
+ebreak
+statement_i:
+lbu x5,17(x24)
+addi x7,x0,61
+beq x5,x7,assignment_statement
+addi x7,x0,70
+beq x5,x7,if_statement
+addi x7,x0,78
+beq x5,x7,input_statement
+jal x0,error_line
+; INPUT : lit la ligne par ecall, parse le nombre dans le guest et écrit la
+; variable cible après validation ; la chaîne éventuelle est copiée dans sa
+; cellule fixe avec contrôle de capacité.
+; ---------------------------------------------------------------------------
+; INPUT et boucles
+; INPUT lit dans input_buffer puis parse dans la cible. FOR/NEXT utilise D
+; pour l'incrément et la comparaison ; WHILE et REPEAT/UNTIL recherchent leur
+; terminator en parcourant les records, avec profondeur bornée à huit.
+; ---------------------------------------------------------------------------
+input_statement:
+addi x10,x8,96
+addi x11,x0,2
+addi x17,x0,4
+ecall
+addi x9,x0,0
+input_read:
+addi x17,x0,2
+ecall
+addi x7,x0,10
+beq x10,x7,input_done
+add x6,x18,x9
+sb x10,0(x6)
+addi x9,x9,1
+jal x0,input_read
+input_done:
+add x6,x18,x9
+sb x0,0(x6)
+addi x30,x24,0
+addi x21,x24,22
+addi x22,x21,0
+input_target_scan:
+lbu x5,0(x22)
+addi x7,x0,36
+beq x5,x7,input_string_target
+beq x5,x0,input_numeric_target
+addi x22,x22,1
+jal x0,input_target_scan
+input_numeric_target:
+sd x24,1112(x8)
+addi x21,x18,0
+addi x22,x0,0
+jal x1,parse_atom
+ld x30,1112(x8)
+addi x21,x30,22
+jal x1,resolve_variable
+fsd f1,0(x7)
+jal x0,if_false
+input_string_target:
+addi x21,x30,22
+jal x1,resolve_string_variable
+addi x27,x7,0
+addi x23,x18,0
+addi x9,x0,0
+input_string_copy:
+lbu x5,0(x23)
+beq x5,x0,input_string_done
+addi x6,x0,120
+sltu x7,x9,x6
+beq x7,x0,error_line_near
+add x6,x27,x9
+sb x5,0(x6)
+addi x9,x9,1
+addi x23,x23,1
+jal x0,input_string_copy
+input_string_done:
+addi x6,x27,-8
+sd x9,0(x6)
+jal x0,if_false
+error_line_near:
+jal x0,error_line
+; FOR/NEXT : un frame statique contient variable, limite, pas et continuation.
+; Le signe du STEP choisit la comparaison terminale ; huit frames maximum.
+for_statement:
+ lbu x5,17(x24)
+ addi x7,x0,61
+ beq x5,x7,assignment_statement
+ld x27,1240(x8)
+sltiu x7,x27,8
+beq x7,x0,error_line
+addi x6,x8,2047
+addi x6,x6,561
+sd x27,0(x6)
+slli x6,x27,5
+addi x31,x8,1280
+add x31,x31,x6
+sd x31,1560(x8)
+addi x10,x26,1
+sd x10,24(x31)
+addi x21,x24,20
+jal x1,resolve_variable
+ld x31,1560(x8)
+sd x7,0(x31)
+lbu x5,0(x21)
+addi x7,x0,61
+bne x5,x7,error_line_near
+addi x21,x21,1
+addi x22,x0,0
+jal x1,parse_atom
+ld x31,1560(x8)
+ld x7,0(x31)
+fsd f1,0(x7)
+for_to_skip_spaces:
+lbu x5,0(x21)
+addi x6,x0,32
+bne x5,x6,for_to_check
+addi x21,x21,1
+jal x0,for_to_skip_spaces
+for_to_check:
+addi x6,x0,84
+bne x5,x6,error_line
+addi x21,x21,1
+lbu x5,0(x21)
+addi x6,x0,79
+bne x5,x6,error_line
+addi x21,x21,1
+addi x22,x0,1
+jal x1,parse_atom
+ld x31,1560(x8)
+fsd f2,8(x31)
+addi x6,x0,1
+fcvt.d.l f6,x6,0
+fsd f6,16(x31)
+for_step_skip_spaces:
+lbu x5,0(x21)
+addi x6,x0,32
+bne x5,x6,for_step_check
+addi x21,x21,1
+jal x0,for_step_skip_spaces
+for_step_check:
+addi x7,x0,83
+bne x5,x7,for_step_done
+addi x21,x21,5
+addi x22,x0,1
+jal x1,parse_atom
+ld x31,1560(x8)
+fsd f2,16(x31)
+for_step_done:
+addi x6,x8,2047
+addi x6,x6,561
+ld x27,0(x6)
+addi x27,x27,1
+sd x27,1240(x8)
+addi x10,x0,1
+jal x1,control_push
+sd x0,568(x8)
+jal x0,if_false
+next_statement:
+ lbu x5,17(x24)
+ addi x7,x0,61
+ beq x5,x7,assignment_statement
+ld x27,1240(x8)
+beq x27,x0,error_line_near
+addi x27,x27,-1
+slli x6,x27,5
+addi x31,x8,1280
+add x31,x31,x6
+ld x7,0(x31)
+addi x30,x7,0
+fld f1,0(x7)
+fld f2,16(x31)
+fmv.x.d x10,f1
+fmv.d.x f3,x10
+fadd.d f4,f1,f2
+fsd f4,0(x30)
+fld f5,8(x31)
+fcvt.d.l f7,x0,0
+feq.d x10,f2,f7
+bne x10,x0,error_line
+flt.d x10,f2,f7
+bne x10,x0,next_negative
+fle.d x10,f4,f5
+bne x10,x0,next_loop_flag
+addi x10,x0,2
+jal x0,next_loop_flag
+next_negative:
+fle.d x10,f5,f4
+bne x10,x0,next_loop_flag
+addi x10,x0,2
+next_loop_flag:
+addi x7,x0,1
+bne x10,x7,next_loop_done
+sd x10,568(x8)
+ld x10,24(x31)
+sd x10,1248(x8)
+addi x6,x27,1
+sd x6,1240(x8)
+jal x0,print_result
+next_loop_done:
+sd x0,568(x8)
+addi x10,x0,1
+jal x1,control_pop_expected
+addi x27,x27,0
+sd x27,1240(x8)
+addi x10,x26,1
+sd x10,1248(x8)
+slli x7,x10,3
+ld x6,480(x8)
+add x6,x6,x7
+ld x7,0(x6)
+beq x7,x0,next_loop_stop
+addi x10,x0,1
+sd x10,568(x8)
+jal x0,print_result
+next_loop_stop:
+addi x10,x0,2
+sd x10,568(x8)
+jal x0,print_result
+; WHILE/WEND et REPEAT/UNTIL utilisent des piles statiques distinctes pour
+; retrouver le record de reprise et sauter les blocs faux sans récursion hôte.
+while_dispatch:
+lbu x5,17(x24)
+addi x7,x0,72
+beq x5,x7,while_statement
+addi x7,x0,69
+beq x5,x7,wend_statement
+jal x0,assignment_statement
+while_statement:
+; WHILE accepte une expression numérique ou une comparaison binary64.
+lbu x5,18(x24)
+addi x7,x0,73
+bne x5,x7,error_line_near
+lbu x5,19(x24)
+addi x7,x0,76
+bne x5,x7,error_line_near
+lbu x5,20(x24)
+addi x7,x0,69
+bne x5,x7,error_line_near
+lbu x5,21(x24)
+addi x7,x0,32
+bne x5,x7,error_line_near
+addi x21,x24,22
+addi x22,x0,0
+jal x1,eval_expression
+fmv.x.d x10,f3
+fmv.d.x f1,x10
+fsd f1,1016(x8)
+while_operator_spaces:
+lbu x27,0(x21)
+addi x6,x0,32
+bne x27,x6,while_operator
+addi x21,x21,1
+jal x0,while_operator_spaces
+while_operator:
+beq x27,x0,while_truth_value
+addi x6,x0,60
+beq x27,x6,while_less
+addi x6,x0,61
+beq x27,x6,while_equal
+addi x6,x0,62
+beq x27,x6,while_greater
+jal x0,error_line
+while_less:
+addi x21,x21,1
+lbu x5,0(x21)
+addi x6,x0,61
+beq x5,x6,while_less_equal
+addi x6,x0,62
+beq x5,x6,while_not_equal
+addi x22,x0,1
+jal x1,eval_expression
+fld f1,1016(x8)
+fmv.x.d x10,f3
+fmv.d.x f2,x10
+flt.d x10,f1,f2
+jal x0,while_condition_result
+while_less_equal:
+addi x21,x21,1
+addi x22,x0,1
+jal x1,eval_expression
+fld f1,1016(x8)
+fmv.x.d x10,f3
+fmv.d.x f2,x10
+fle.d x10,f1,f2
+jal x0,while_condition_result
+while_not_equal:
+addi x21,x21,1
+addi x22,x0,1
+jal x1,eval_expression
+fld f1,1016(x8)
+fmv.x.d x10,f3
+fmv.d.x f2,x10
+feq.d x10,f1,f2
+xori x10,x10,1
+jal x0,while_condition_result
+while_equal:
+addi x21,x21,1
+addi x22,x0,1
+jal x1,eval_expression
+fld f1,1016(x8)
+fmv.x.d x10,f3
+fmv.d.x f2,x10
+feq.d x10,f1,f2
+jal x0,while_condition_result
+while_greater:
+addi x21,x21,1
+lbu x5,0(x21)
+addi x6,x0,61
+beq x5,x6,while_greater_equal
+addi x22,x0,1
+jal x1,eval_expression
+fld f1,1016(x8)
+fmv.x.d x10,f3
+fmv.d.x f2,x10
+flt.d x10,f2,f1
+jal x0,while_condition_result
+while_greater_equal:
+addi x21,x21,1
+addi x22,x0,1
+jal x1,eval_expression
+fld f1,1016(x8)
+fmv.x.d x10,f3
+fmv.d.x f2,x10
+fle.d x10,f2,f1
+jal x0,while_condition_result
+while_truth_value:
+fcvt.d.l f2,x0,0
+fld f1,1016(x8)
+feq.d x10,f1,f2
+xori x10,x10,1
+while_condition_result:
+ld x26,1872(x8)
+bne x10,x0,while_condition_true
+jal x0,while_condition_false
+while_condition_true:
+addi x29,x8,2047
+addi x29,x29,1
+ld x27,0(x29)
+sltiu x7,x27,8
+beq x7,x0,error_line_near
+beq x27,x0,while_push
+addi x7,x27,-1
+slli x7,x7,3
+addi x30,x8,2047
+addi x30,x30,9
+add x30,x30,x7
+ld x31,0(x30)
+beq x31,x26,while_continue
+while_push:
+slli x7,x27,3
+addi x30,x8,2047
+addi x30,x30,9
+add x30,x30,x7
+sd x26,0(x30)
+addi x27,x27,1
+addi x29,x8,2047
+addi x29,x29,1
+sd x27,0(x29)
+addi x10,x0,3
+jal x1,control_push
+while_continue:
+jal x0,if_false
+while_condition_false:
+addi x29,x8,2047
+addi x29,x29,1
+ld x27,0(x29)
+beq x27,x0,while_skip_scan
+addi x7,x27,-1
+slli x7,x7,3
+addi x30,x8,2047
+addi x30,x30,9
+add x30,x30,x7
+ld x31,0(x30)
+bne x31,x26,while_skip_scan
+addi x27,x27,-1
+addi x29,x8,2047
+addi x29,x29,1
+sd x27,0(x29)
+addi x10,x0,3
+jal x1,control_pop_expected
+while_skip_scan:
+addi x27,x0,1
+addi x28,x26,1
+while_skip_find:
+sltiu x7,x28,256
+beq x7,x0,error_line_near
+slli x7,x28,7
+add x31,x19,x7
+lbu x5,16(x31)
+addi x6,x0,87
+bne x5,x6,while_skip_next
+lbu x5,17(x31)
+addi x6,x0,72
+beq x5,x6,while_skip_nested
+addi x6,x0,69
+bne x5,x6,while_skip_next
+lbu x5,18(x31)
+addi x6,x0,78
+bne x5,x6,while_skip_next
+lbu x5,19(x31)
+addi x6,x0,68
+bne x5,x6,while_skip_next
+addi x27,x27,-1
+beq x27,x0,while_skip_found
+jal x0,while_skip_next
+while_skip_nested:
+addi x27,x27,1
+while_skip_next:
+addi x28,x28,1
+jal x0,while_skip_find
+while_skip_found:
+addi x26,x28,1
+sltiu x7,x26,256
+beq x7,x0,run_stop
+sd x26,536(x8)
+jal x0,run_line
+repeat_statement:
+; REPEAT marque la ligne courante. Une réentrée depuis UNTIL ne repousse
+; pas le même indice, ce qui permet huit niveaux d'imbrication réels.
+lbu x5,19(x24)
+addi x7,x0,69
+bne x5,x7,error_line_near
+lbu x5,20(x24)
+addi x7,x0,65
+bne x5,x7,error_line_near
+lbu x5,21(x24)
+addi x7,x0,84
+bne x5,x7,error_line_near
+lbu x5,22(x24)
+addi x7,x0,0
+bne x5,x7,error_line_near
+ld x26,1872(x8)
+addi x29,x8,2047
+addi x29,x29,81
+ld x27,0(x29)
+sltiu x7,x27,8
+beq x7,x0,error_line_near
+beq x27,x0,repeat_push
+addi x7,x27,-1
+slli x7,x7,3
+addi x30,x8,2047
+addi x30,x30,89
+add x30,x30,x7
+ld x31,0(x30)
+beq x31,x26,repeat_continue
+repeat_push:
+slli x7,x27,3
+addi x30,x8,2047
+addi x30,x30,89
+add x30,x30,x7
+sd x26,0(x30)
+addi x27,x27,1
+addi x29,x8,2047
+addi x29,x29,81
+sd x27,0(x29)
+addi x10,x0,4
+jal x1,control_push
+repeat_continue:
+jal x0,if_false
+until_statement:
+lbu x5,17(x24)
+addi x7,x0,78
+bne x5,x7,error_line_near
+lbu x5,18(x24)
+addi x7,x0,84
+bne x5,x7,error_line_near
+lbu x5,19(x24)
+addi x7,x0,73
+bne x5,x7,error_line_near
+lbu x5,20(x24)
+addi x7,x0,76
+bne x5,x7,error_line_near
+lbu x5,21(x24)
+addi x7,x0,32
+bne x5,x7,error_line_near
+addi x21,x24,22
+addi x22,x0,0
+jal x1,eval_expression
+fmv.x.d x10,f3
+fmv.d.x f1,x10
+fsd f1,1016(x8)
+until_operator_spaces:
+lbu x27,0(x21)
+addi x6,x0,32
+bne x27,x6,until_operator
+addi x21,x21,1
+jal x0,until_operator_spaces
+until_operator:
+beq x27,x0,until_truth_value
+addi x6,x0,60
+beq x27,x6,until_less
+addi x6,x0,61
+beq x27,x6,until_equal
+addi x6,x0,62
+beq x27,x6,until_greater
+jal x0,error_line
+until_less:
+addi x21,x21,1
+lbu x5,0(x21)
+addi x6,x0,61
+beq x5,x6,until_less_equal
+addi x6,x0,62
+beq x5,x6,until_not_equal
+addi x22,x0,1
+jal x1,eval_expression
+fld f1,1016(x8)
+fmv.x.d x10,f3
+fmv.d.x f2,x10
+flt.d x10,f1,f2
+jal x0,until_condition_result
+until_less_equal:
+addi x21,x21,1
+addi x22,x0,1
+jal x1,eval_expression
+fld f1,1016(x8)
+fmv.x.d x10,f3
+fmv.d.x f2,x10
+fle.d x10,f1,f2
+jal x0,until_condition_result
+until_not_equal:
+addi x21,x21,1
+addi x22,x0,1
+jal x1,eval_expression
+fld f1,1016(x8)
+fmv.x.d x10,f3
+fmv.d.x f2,x10
+feq.d x10,f1,f2
+xori x10,x10,1
+jal x0,until_condition_result
+until_equal:
+addi x21,x21,1
+addi x22,x0,1
+jal x1,eval_expression
+fld f1,1016(x8)
+fmv.x.d x10,f3
+fmv.d.x f2,x10
+feq.d x10,f1,f2
+jal x0,until_condition_result
+until_greater:
+addi x21,x21,1
+lbu x5,0(x21)
+addi x6,x0,61
+beq x5,x6,until_greater_equal
+addi x22,x0,1
+jal x1,eval_expression
+fld f1,1016(x8)
+fmv.x.d x10,f3
+fmv.d.x f2,x10
+flt.d x10,f2,f1
+jal x0,until_condition_result
+until_greater_equal:
+addi x21,x21,1
+addi x22,x0,1
+jal x1,eval_expression
+fld f1,1016(x8)
+fmv.x.d x10,f3
+fmv.d.x f2,x10
+fle.d x10,f2,f1
+jal x0,until_condition_result
+until_truth_value:
+fcvt.d.l f2,x0,0
+fld f1,1016(x8)
+feq.d x10,f1,f2
+xori x10,x10,1
+until_condition_result:
+ld x26,1872(x8)
+addi x29,x8,2047
+addi x29,x29,81
+ld x27,0(x29)
+beq x27,x0,error_line_near
+bne x10,x0,until_done
+addi x7,x27,-1
+slli x7,x7,3
+addi x30,x8,2047
+addi x30,x30,89
+add x30,x30,x7
+ld x26,0(x30)
+sd x26,536(x8)
+jal x0,run_line
+until_done:
+addi x27,x27,-1
+addi x29,x8,2047
+addi x29,x29,81
+sd x27,0(x29)
+addi x10,x0,4
+jal x1,control_pop_expected
+jal x0,if_false
+wend_statement:
+lbu x5,17(x24)
+addi x7,x0,69
+bne x5,x7,error_line_near
+lbu x5,18(x24)
+addi x7,x0,78
+bne x5,x7,error_line_near
+lbu x5,19(x24)
+addi x7,x0,68
+bne x5,x7,error_line_near
+addi x29,x8,2047
+addi x29,x29,1
+ld x27,0(x29)
+beq x27,x0,error_line_near
+addi x7,x27,-1
+slli x7,x7,3
+addi x30,x8,2047
+addi x30,x30,9
+add x30,x30,x7
+ld x26,0(x30)
+sd x26,536(x8)
+jal x0,run_line
+; IF : compare deux binary64, puis branche soit vers une cible numérique,
+; soit vers le scanner de blocs IF/ELSE/ENDIF (terminateurs sur lignes dédiées).
+if_statement:
+addi x21,x24,19
+addi x22,x0,0
+jal x1,eval_expression
+fmv.x.d x10,f3
+fmv.d.x f1,x10
+fsd f1,1016(x8)
+if_skip_operator_spaces:
+lbu x27,0(x21)
+addi x6,x0,32
+bne x27,x6,if_operator
+addi x21,x21,1
+jal x0,if_skip_operator_spaces
+if_operator:
+addi x6,x0,60
+beq x27,x6,if_less
+addi x6,x0,61
+beq x27,x6,if_equal
+addi x6,x0,62
+beq x27,x6,if_greater
+jal x0,error_line
+if_less:
+addi x21,x21,1
+lbu x5,0(x21)
+addi x6,x0,61
+beq x5,x6,if_less_equal
+addi x6,x0,62
+beq x5,x6,if_not_equal
+addi x27,x0,60
+addi x22,x0,1
+jal x1,eval_expression
+fmv.x.d x10,f3
+fmv.d.x f2,x10
+jal x0,if_compare_less
+if_less_equal:
+addi x27,x0,76
+addi x21,x21,1
+addi x22,x0,1
+jal x1,eval_expression
+fmv.x.d x10,f3
+fmv.d.x f2,x10
+jal x0,if_compare_less_equal
+if_not_equal:
+addi x27,x0,78
+addi x21,x21,1
+addi x22,x0,1
+jal x1,eval_expression
+fmv.x.d x10,f3
+fmv.d.x f2,x10
+jal x0,if_compare_not_equal
+if_equal:
+addi x21,x21,1
+addi x22,x0,1
+jal x1,eval_expression
+fmv.x.d x10,f3
+fmv.d.x f2,x10
+jal x0,if_compare_equal
+if_greater:
+addi x21,x21,1
+lbu x5,0(x21)
+addi x6,x0,61
+beq x5,x6,if_greater_equal
+addi x27,x0,71
+addi x22,x0,1
+jal x1,eval_expression
+fmv.x.d x10,f3
+fmv.d.x f2,x10
+jal x0,if_compare_greater
+if_greater_equal:
+addi x27,x0,74
+addi x21,x21,1
+addi x22,x0,1
+jal x1,eval_expression
+fmv.x.d x10,f3
+fmv.d.x f2,x10
+jal x0,if_compare_greater_equal
+if_compare_less:
+fld f1,1016(x8)
+flt.d x10,f1,f2
+jal x0,if_parse_then
+if_compare_less_equal:
+fld f1,1016(x8)
+fle.d x10,f1,f2
+jal x0,if_parse_then
+if_compare_equal:
+fld f1,1016(x8)
+feq.d x10,f1,f2
+jal x0,if_parse_then
+if_compare_not_equal:
+fld f1,1016(x8)
+feq.d x10,f1,f2
+xori x10,x10,1
+jal x0,if_parse_then
+if_compare_greater:
+fld f1,1016(x8)
+flt.d x10,f2,f1
+jal x0,if_parse_then
+if_compare_greater_equal:
+fld f1,1016(x8)
+fle.d x10,f2,f1
+if_parse_then:
+if_then_spaces:
+lbu x5,0(x21)
+addi x6,x0,32
+bne x5,x6,if_then_word
+addi x21,x21,1
+jal x0,if_then_spaces
+if_then_word:
+addi x6,x0,84
+bne x5,x6,if_block_error
+lbu x5,1(x21)
+addi x6,x0,72
+bne x5,x6,if_block_error
+lbu x5,2(x21)
+addi x6,x0,69
+bne x5,x6,if_block_error
+lbu x5,3(x21)
+addi x6,x0,78
+bne x5,x6,if_block_error
+lbu x5,4(x21)
+beq x5,x0,if_then_no_trailing_space
+addi x6,x0,32
+bne x5,x6,if_block_error
+addi x21,x21,1
+if_then_no_trailing_space:
+addi x21,x21,4
+lbu x5,0(x21)
+beq x5,x0,if_block_decide
+beq x10,x0,if_false
+jal x0,if_target_generic
+if_block_decide:
+ld x26,1872(x8)
+beq x10,x0,if_block_false
+addi x10,x0,6
+jal x1,control_push
+jal x0,if_false
+if_block_false:
+addi x10,x0,0
+jal x0,if_block_scan
+else_statement:
+lbu x5,17(x24)
+addi x7,x0,76
+bne x5,x7,if_block_error
+lbu x5,18(x24)
+addi x7,x0,83
+bne x5,x7,if_block_error
+lbu x5,19(x24)
+addi x7,x0,69
+bne x5,x7,if_block_error
+lbu x5,20(x24)
+addi x7,x0,0
+bne x5,x7,if_block_error
+addi x10,x0,1
+jal x0,if_block_scan
+endif_statement:
+lbu x5,17(x24)
+addi x7,x0,78
+bne x5,x7,if_block_error
+lbu x5,18(x24)
+addi x7,x0,68
+bne x5,x7,if_block_error
+lbu x5,19(x24)
+addi x7,x0,73
+bne x5,x7,if_block_error
+lbu x5,20(x24)
+addi x7,x0,70
+bne x5,x7,if_block_error
+lbu x5,21(x24)
+bne x5,x0,if_block_error
+addi x10,x0,6
+jal x1,control_pop_expected
+jal x0,if_false
+if_block_scan:
+; x10 = 0 when a false IF searches ELSE/ENDIF, 1 when ELSE skips
+; its true branch. The scan is line-oriented and bounded to 256 records.
+; A block opener/terminator must be the first statement of its line.
+addi x27,x0,1
+addi x28,x26,1
+if_block_scan_line:
+sltiu x7,x28,256
+beq x7,x0,if_block_error
+slli x7,x28,7
+add x31,x19,x7
+slli x7,x28,3
+ld x6,480(x8)
+add x6,x6,x7
+ld x6,0(x6)
+beq x6,x0,if_block_scan_next
+lbu x5,16(x31)
+addi x7,x0,73
+beq x5,x7,if_block_scan_if
+addi x7,x0,69
+beq x5,x7,if_block_scan_e
+jal x0,if_block_scan_next
+if_block_scan_if:
+lbu x5,17(x31)
+addi x7,x0,70
+bne x5,x7,if_block_scan_next
+addi x27,x27,1
+jal x0,if_block_scan_next
+if_block_scan_e:
+lbu x5,17(x31)
+addi x7,x0,76
+beq x5,x7,if_block_scan_else
+addi x7,x0,78
+bne x5,x7,if_block_scan_next
+lbu x5,18(x31)
+addi x7,x0,68
+bne x5,x7,if_block_scan_next
+lbu x5,19(x31)
+addi x7,x0,73
+bne x5,x7,if_block_scan_next
+lbu x5,20(x31)
+addi x7,x0,70
+bne x5,x7,if_block_scan_next
+lbu x5,21(x31)
+bne x5,x0,if_block_scan_next
+jal x0,if_block_scan_endif
+if_block_scan_else:
+lbu x5,18(x31)
+addi x7,x0,83
+bne x5,x7,if_block_scan_next
+lbu x5,19(x31)
+addi x7,x0,69
+bne x5,x7,if_block_scan_next
+lbu x5,20(x31)
+addi x7,x0,0
+bne x5,x7,if_block_scan_next
+addi x7,x27,-1
+bne x7,x0,if_block_scan_next
+beq x10,x0,if_block_scan_else_false
+jal x0,if_block_scan_next
+if_block_scan_else_false:
+addi x10,x0,6
+jal x1,control_push
+addi x26,x28,1
+sd x26,536(x8)
+jal x0,run_line
+if_block_scan_endif:
+addi x6,x27,-1
+bne x6,x0,if_block_scan_nested_endif
+beq x10,x0,if_block_scan_endif_false
+addi x10,x0,6
+jal x1,control_pop_expected
+if_block_scan_endif_false:
+addi x26,x28,1
+sd x26,536(x8)
+jal x0,run_line
+if_block_scan_nested_endif:
+addi x27,x27,-1
+jal x0,if_block_scan_next
+if_block_scan_next:
+addi x28,x28,1
+jal x0,if_block_scan_line
+if_block_error:
+jal x0,error_line_near
+if_target_generic:
+addi x26,x0,0
+addi x27,x0,0
+if_target_number_loop:
+lbu x5,0(x21)
+addi x6,x0,48
+sltu x28,x5,x6
+bne x28,x0,if_target_number_done
+addi x6,x0,58
+sltu x28,x5,x6
+beq x28,x0,if_target_number_done
+addi x6,x0,48
+sub x5,x5,x6
+addi x6,x0,10
+mul x26,x26,x6
+add x26,x26,x5
+addi x21,x21,1
+addi x27,x27,1
+jal x0,if_target_number_loop
+if_target_number_done:
+beq x27,x0,if_block_error
+addi x6,x0,10
+remu x5,x26,x6
+bne x5,x0,if_block_error
+sltiu x6,x26,10
+bne x6,x0,if_block_error
+jal x1,resolve_target_number
+sd x26,536(x8)
+jal x0,run_line
+
+; Résout un numéro BASIC vers l'index de record.
+; Entrée : x26 = numéro (multiple de dix).
+; Sortie : x26 = index [0,255].
+; Un record renuméroté garde son numéro précédent en +8 ; cet alias est
+; volontairement limité au dernier RENUM pour conserver un état compact.
+resolve_target_number:
+lui x6,1
+addi x6,x6,-1535
+sltu x6,x26,x6
+beq x6,x0,error_line_near
+addi x6,x0,10
+remu x7,x26,x6
+bne x7,x0,error_line_near
+addi x30,x0,0
+resolve_target_scan:
+sltiu x7,x30,256
+beq x7,x0,error_line_near
+slli x7,x30,3
+ld x6,480(x8)
+add x6,x6,x7
+ld x7,0(x6)
+beq x7,x0,resolve_target_next
+slli x7,x30,7
+add x24,x19,x7
+ld x7,0(x24)
+beq x7,x26,resolve_target_found
+ld x7,8(x24)
+beq x7,x26,resolve_target_found
+resolve_target_next:
+addi x30,x30,1
+jal x0,resolve_target_scan
+resolve_target_found:
+addi x26,x30,0
+jalr x0,0(x1)
+
+if_target_legacy:
+lbu x5,0(x21)
+addi x6,x0,49
+beq x5,x6,if_true_ten
+addi x6,x0,50
+beq x5,x6,if_true_twenty
+jal x0,error_line
+if_true_ten:
+lbu x5,1(x21)
+addi x6,x0,48
+bne x5,x6,if_block_error
+sd x0,536(x8)
+jal x0,run_line
+if_true_twenty:
+lbu x5,1(x21)
+addi x6,x0,48
+bne x5,x6,if_block_error
+addi x10,x0,1
+sd x10,536(x8)
+jal x0,run_line
+if_false:
+jal x0,if_false_generic
+if_false_generic:
+ld x31,1864(x8)
+addi x7,x8,1900
+beq x31,x7,colon_scratch_bound
+ld x10,1872(x8)
+slli x6,x10,3
+ld x7,480(x8)
+add x7,x7,x6
+ld x6,0(x7)
+addi x7,x31,16
+add x7,x7,x6
+sltu x6,x21,x7
+beq x6,x0,no_colon
+lbu x5,0(x21)
+addi x6,x0,58
+beq x5,x6,colon_statement
+jal x0,no_colon
+colon_scratch_bound:
+ld x7,1880(x8)
+sltu x6,x21,x7
+beq x6,x0,no_colon
+lbu x5,0(x21)
+addi x6,x0,58
+beq x5,x6,colon_statement
+jal x0,no_colon
+no_colon:
+ld x10,536(x8)
+addi x26,x10,1
+if_find_next_generic:
+sltiu x7,x26,256
+beq x7,x0,run_stop
+ slli x7,x26,3
+ld x12,480(x8)
+ add x12,x12,x7
+ ld x11,0(x12)
+bne x11,x0,set_next_generic
+addi x26,x26,1
+jal x0,if_find_next_generic
+set_next_generic:
+sd x26,536(x8)
+jal x0,run_line
+; Continue a line after ':' through a fixed target-side scratch record.
+; The source record remains untouched; the next statement is copied from
+; the byte after the separator before re-entering the normal dispatcher.
+colon_statement:
+ld x31,1864(x8)
+addi x24,x8,1900
+ld x10,0(x31)
+sd x10,0(x24)
+addi x6,x24,16
+addi x21,x21,1
+colon_copy:
+lbu x5,0(x21)
+sb x5,0(x6)
+beq x5,x0,colon_copy_done
+addi x21,x21,1
+addi x6,x6,1
+jal x0,colon_copy
+colon_copy_done:
+sd x6,1880(x8)
+colon_dispatch:
+jal x0,dispatch_statement
+
+if_false_legacy:
+ld x10,536(x8)
+beq x10,x0,after_line_ten
+addi x7,x0,1
+beq x10,x7,after_line_twenty
+addi x7,x0,2
+beq x10,x7,after_line_thirty
+jal x0,run_stop
+after_line_ten:
+ld x12,512(x8)
+andi x11,x12,2
+bne x11,x0,set_next_twenty
+andi x11,x12,4
+bne x11,x0,set_next_thirty
+andi x11,x12,8
+bne x11,x0,set_next_forty
+jal x0,run_stop
+set_next_twenty:
+addi x10,x0,1
+sd x10,536(x8)
+jal x0,run_line
+set_next_thirty:
+addi x10,x0,2
+sd x10,536(x8)
+jal x0,run_line
+set_next_forty:
+addi x10,x0,3
+sd x10,536(x8)
+jal x0,run_line
+after_line_twenty:
+ld x12,512(x8)
+andi x11,x12,4
+bne x11,x0,set_next_thirty
+andi x11,x12,8
+bne x11,x0,set_next_forty
+jal x0,run_stop
+after_line_thirty:
+ld x12,512(x8)
+andi x11,x12,8
+bne x11,x0,set_next_forty
+jal x0,run_stop
+; ---------------------------------------------------------------------------
+; Diagnostics et formatage
+; error_line construit le message dans la cible, affiche le numéro de ligne
+; et remet l'état d'exécution dans un état sûr avant de revenir au REPL.
+; print_result convertit ensuite le résultat binary64 en forme décimale V1.
+; ---------------------------------------------------------------------------
+error_line:
+addi x10,x8,48
+addi x11,x0,4
+addi x17,x0,4
+ecall
+jal x0,command_loop
+run_save:
+ld x24,1864(x8)
+addi x27,x8,2047
+addi x27,x27,353
+fsd f3,0(x27)
+sd x21,1176(x8)
+lbu x5,0(x21)
+addi x7,x0,44
+beq x5,x7,print_more_flag
+sd x0,568(x8)
+jal x0,print_result
+print_more_flag:
+addi x10,x0,3
+sd x10,568(x8)
+jal x0,print_result
+print_result:
+; Publie f3 dans le buffer de sortie, puis choisit la continuation selon le
+; contexte : 0 = fin d'expression, 1 = boucle d'émission, 3 = élément après
+; une virgule. f3 est restauré après l'ecall car il reste le résultat public
+; de l'évaluateur pour l'affectation et le débogueur.
+addi x27,x8,2047
+addi x27,x27,361
+fsd f3,0(x27)
+addi x12,x18,32
+addi x13,x12,0
+fmv.x.d x10,f3
+srai x11,x10,63
+beq x11,x0,format_positive
+addi x6,x0,45
+sb x6,0(x13)
+addi x13,x13,1
+addi x6,x0,1
+slli x6,x6,63
+xor x10,x10,x6
+fmv.d.x f3,x10
+format_positive:
+addi x14,x13,0
+fcvt.l.d x10,f3,1
+fcvt.d.l f4,x10,0
+fsub.d f5,f3,f4
+lui x6,0xf4
+addi x6,x6,576
+fcvt.d.l f6,x6,0
+fmul.d f5,f5,f6
+fcvt.l.d x11,f5,1
+beq x10,x0,format_zero_integer
+format_integer:
+addi x6,x0,10
+remu x7,x10,x6
+addi x7,x7,48
+sb x7,0(x13)
+addi x13,x13,1
+divu x10,x10,x6
+bne x10,x0,format_integer
+addi x15,x14,0
+addi x16,x13,-1
+reverse_digits:
+sltu x7,x15,x16
+beq x7,x0,format_integer_done
+lbu x5,0(x15)
+lbu x6,0(x16)
+sb x6,0(x15)
+sb x5,0(x16)
+addi x15,x15,1
+addi x16,x16,-1
+jal x0,reverse_digits
+format_zero_integer:
+addi x6,x0,48
+sb x6,0(x13)
+addi x13,x13,1
+format_integer_done:
+addi x6,x0,46
+sb x6,0(x13)
+addi x13,x13,1
+lui x6,0x18
+addi x6,x6,1696
+addi x9,x0,6
+format_fraction:
+divu x7,x11,x6
+addi x7,x7,48
+sb x7,0(x13)
+addi x13,x13,1
+remu x11,x11,x6
+addi x7,x0,10
+divu x6,x6,x7
+addi x9,x9,-1
+bne x9,x0,format_fraction
+addi x6,x0,10
+sb x6,0(x13)
+addi x13,x13,1
+sub x11,x13,x12
+addi x10,x12,0
+addi x17,x0,4
+ecall
+addi x27,x8,2047
+addi x27,x27,361
+fld f3,0(x27)
+ld x11,568(x8)
+beq x11,x0,print_normal_continuation
+sd x0,568(x8)
+addi x10,x0,1
+beq x11,x10,print_loop_continue
+addi x10,x0,3
+beq x11,x10,print_more
+jal x0,run_stop
+print_loop_continue:
+ld x10,1248(x8)
+addi x26,x10,0
+sd x10,536(x8)
+jal x0,run_line
+print_more:
+ld x21,1176(x8)
+addi x21,x21,1
+addi x10,x0,32
+addi x17,x0,1
+ecall
+print_more_spaces:
+lbu x5,0(x21)
+addi x7,x0,32
+bne x5,x7,print_more_item
+addi x21,x21,1
+jal x0,print_more_spaces
+print_more_item:
+; PRINT choisit le type de l'élément en regardant le début du terme. Une
+; chaîne est un littéral, un nom en `$` ou une fonction chaîne ; le reste est
+; renvoyé à eval_expression. Ce choix évite de confondre le `$` interne de
+; ASC/VAL/INSTR avec un séparateur de liste PRINT.
+addi x7,x0,34
+beq x5,x7,print_more_string
+lbu x6,1(x21)
+addi x7,x0,36
+beq x6,x7,print_more_string_variable
+addi x22,x21,0
+print_more_string_scan:
+lbu x6,0(x22)
+addi x7,x0,36
+beq x6,x7,print_more_str_long
+addi x7,x0,0
+beq x6,x7,print_more_numeric
+addi x7,x0,44
+beq x6,x7,print_more_numeric
+addi x22,x22,1
+jal x0,print_more_string_scan
+print_more_str_long:
+lbu x6,1(x22)
+addi x7,x0,40
+beq x6,x7,print_more_str_array
+jal x0,print_more_string_variable
+print_more_numeric:
+addi x22,x0,0
+jal x1,eval_expression
+jal x0,run_save
+print_more_string:
+addi x21,x21,1
+jal x0,print_string_loop
+print_more_string_variable:
+lbu x6,2(x21)
+addi x7,x0,40
+beq x6,x7,print_more_str_array
+jal x1,resolve_string_variable
+addi x10,x7,0
+addi x17,x0,4
+ecall
+jal x0,print_string_value_cont
+print_more_str_array:
+jal x1,resolve_string_array
+addi x10,x7,0
+addi x17,x0,4
+ecall
+jal x0,print_string_value_cont
+print_normal_continuation:
+jal x0,if_false
+run_stop:
+ebreak
+; ---------------------------------------------------------------------------
+; ABI interne des valeurs chaîne
+; Une routine reçoit x21 au début du terme et rend x7=adresse des octets
+; target-side, x11=longueur sans NUL, et x21=caractère suivant le terme.
+; Un littéral est copié dans 0x82060100. Un appel qui doit conserver deux
+; opérandes copie le premier avant de résoudre le second, car les résolveurs
+; partagent sinon leur buffer temporaire.
+; ---------------------------------------------------------------------------
+; Résolution d'un identifiant target-side.
+; Entrée : x21 pointe sur le premier caractère du nom.
+; Sorties : x7 pointe sur la valeur binary64, x21 sur le caractère suivant.
+; Les noms de 1 caractère restent dans la table A..Z historique ; les autres
+; sont conservés dans 32 entrées de 32 octets à data+3000 (nom[16], valeur).
+; Résolution des variables numériques : x21 désigne le nom, x7 retourne
+; l'adresse de la cellule binary64 et x24 conserve le contexte de l'appel.
+; ---------------------------------------------------------------------------
+; Résolution des noms et évaluation numérique
+; Les identifiants courts sont indexés par leur lettre ; les noms longs sont
+; recherchés dans une table compacte par comparaison ASCII insensible à la
+; casse. eval_expression est une descente récursive aplatie par niveaux de
+; priorité et parse_atom est le point d'entrée des littéraux/fonctions.
+; ---------------------------------------------------------------------------

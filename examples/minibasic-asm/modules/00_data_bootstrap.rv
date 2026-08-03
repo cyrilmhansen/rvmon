@@ -1,0 +1,323 @@
+data 0x82000000 .byte 0x52
+data 0x82000001 .byte 0x45
+data 0x82000002 .byte 0x41
+data 0x82000003 .byte 0x44
+data 0x82000004 .byte 0x59
+data 0x82000005 .byte 0x3e
+data 0x82000006 .byte 0x20
+data 0x82000010 .byte 0x31
+data 0x82000011 .byte 0x30
+data 0x82000012 .byte 0x20
+data 0x82000014 .byte 0x32
+data 0x82000015 .byte 0x30
+data 0x82000016 .byte 0x20
+data 0x82000020 .byte 0x4e
+data 0x82000021 .byte 0x45
+data 0x82000022 .byte 0x57
+data 0x82000023 .byte 0x20
+data 0x82000024 .byte 0x4f
+data 0x82000025 .byte 0x4b
+data 0x82000026 .byte 0x0a
+data 0x82000030 .byte 0x45
+data 0x82000031 .byte 0x52
+data 0x82000032 .byte 0x52
+data 0x82000033 .byte 0x0a
+data 0x82000040 .byte 0x45
+data 0x82000041 .byte 0x4e
+data 0x82000042 .byte 0x44
+data 0x82000043 .byte 0x0a
+data 0x82000050 .byte 0x50
+data 0x82000051 .byte 0x52
+data 0x82000052 .byte 0x49
+data 0x82000053 .byte 0x4e
+data 0x82000054 .byte 0x54
+data 0x82000055 .byte 0x20
+data 0x82000060 .byte 0x3f
+data 0x82000061 .byte 0x20
+data 0x82000070 .byte 0x5b
+data 0x82000071 .byte 0x31
+data 0x82000072 .byte 0x30
+data 0x82000073 .byte 0x5d
+data 0x82000074 .byte 0x0a
+data 0x82000080 .byte 0x5b
+data 0x82000081 .byte 0x32
+data 0x82000082 .byte 0x30
+data 0x82000083 .byte 0x5d
+data 0x82000084 .byte 0x0a
+data 0x82000090 .byte 0x42
+data 0x82000091 .byte 0x52
+data 0x82000092 .byte 0x45
+data 0x82000093 .byte 0x41
+data 0x82000094 .byte 0x4b
+data 0x82000095 .byte 0x0a
+data 0x820000a0 .byte 0x33
+data 0x820000a1 .byte 0x30
+data 0x820000a2 .byte 0x20
+data 0x820000b0 .byte 0x34
+data 0x820000b1 .byte 0x30
+data 0x820000b2 .byte 0x20
+data 0x820000c0 .byte 0x0a
+data 0x820003b8 .dword 0x4014000000000000
+data 0x820003c0 .dword 0x4008000000000000
+data 0x820003c8 .dword 0x41f0000000000000
+data 0x820003d0 .dword 0x41e0000000000000
+data 0x82010000 .dword 0x400921fb54442d18
+data 0x82010008 .dword 0x401921fb54442d18
+data 0x82010010 .dword 0x3ff921fb54442d18
+data 0x82010018 .dword 0x3ff0000000000000
+data 0x82010020 .dword 0xbfc5555555555555
+data 0x82010028 .dword 0x3f81111111111111
+data 0x82010030 .dword 0xbf2a01a01a01a01a
+data 0x82010038 .dword 0x3ec71de3a556c734
+data 0x82010040 .dword 0xbe5ae64567f544e4
+data 0x82010048 .dword 0x3fe62e42fefa39ef
+data 0x82010050 .dword 0x3fd5555555555555
+data 0x82010058 .dword 0x3fc999999999999a
+data 0x82010060 .dword 0x3fc2492492492492
+data 0x82010068 .dword 0x3fbc71c71c71c71c
+data 0x82010070 .dword 0x3fb745d1745d1746
+data 0x82010078 .dword 0x3fe0000000000000
+data 0x82010080 .dword 0x3fc5555555555555
+data 0x82010088 .dword 0x3fa5555555555555
+data 0x82010090 .dword 0x3f81111111111111
+data 0x82010098 .dword 0x3f56c16c16c16c17
+data 0x820100a0 .dword 0x3f2a01a01a01a01a
+data 0x820100a8 .dword 0x3efa01a01a01a01a
+data 0x820100b0 .dword 0x3ec71de3a556c734
+data 0x820100b8 .dword 0x3e927e4fb7789f5c
+data 0x820100c0 .dword 0x4086200000000000
+data 0x820100c8 .dword 0xc086200000000000
+data 0x820100d0 .dword 0x4086280000000000
+data 0x820100d8 .dword 0x3fda827999fcef34
+data 0x820100e0 .dword 0x3fe921fb54442d18
+data 0x82000200 .dword 0x0000000000000000
+data 0x82000218 .dword 0x0000000000000000
+; Table de reconnaissance des fonctions numériques déjà migrées vers le
+; résolveur chaîne commun. Chaque entrée fait 16 octets : longueur, identifiant,
+; nom ASCII majuscule puis remplissage nul. Les identifiants sont dispatchés
+; par atom_function_table_probe ; les évaluateurs restent des sous-routines
+; séparées et ne dépendent pas de l’ordre de cette table.
+data 0x82062000 .dword 0x0000004e454c0103
+data 0x82062008 .dword 0x0000000000000000
+data 0x82062010 .dword 0x0000004353410203
+data 0x82062018 .dword 0x0000000000000000
+data 0x82062020 .dword 0x0000004c41560303
+data 0x82062028 .dword 0x0000000000000000
+data 0x82062030 .dword 0x005254534e490405
+data 0x82062038 .dword 0x0000000000000000
+data 0x82062040 .dword 0x000000534f430503
+data 0x82062048 .dword 0x0000000000000000
+data 0x82062050 .dword 0x0000005342410603
+data 0x82062058 .dword 0x0000000000000000
+data 0x82062060 .dword 0x0000004e54410703
+data 0x82062068 .dword 0x0000000000000000
+data 0x82062070 .dword 0x0000005058450803
+data 0x82062078 .dword 0x0000000000000000
+data 0x82062080 .dword 0x000000474f4c0903
+data 0x82062088 .dword 0x0000000000000000
+data 0x82062090 .dword 0x0000004e41540a03
+data 0x82062098 .dword 0x0000000000000000
+data 0x820620a0 .dword 0x000000544e490b03
+data 0x820620a8 .dword 0x0000000000000000
+data 0x820620b0 .dword 0x0000004e49530c03
+data 0x820620b8 .dword 0x0000000000000000
+data 0x820620c0 .dword 0x0000004e47530d03
+data 0x820620c8 .dword 0x0000000000000000
+data 0x820620d0 .dword 0x00004e5552540e04
+data 0x820620d8 .dword 0x0000000000000000
+data 0x820620e0 .dword 0x0000434152460f04
+data 0x820620e8 .dword 0x0000000000000000
+data 0x820620f0 .dword 0x000000444f4d1003
+data 0x820620f8 .dword 0x0000000000000000
+data 0x82062100 .dword 0x0000005251531103
+data 0x82062108 .dword 0x0000000000000000
+; Table des mots-clés statement : {longueur:u8, id:u8, nom ASCII, padding}.
+; Les IDs sont résolus par statement_table_probe ; les formes ambiguës
+; retombent dans dispatch_statement_legacy.
+data 0x82062120 .dword 0x00004f544f470104
+data 0x82062128 .dword 0x0000000000000000
+data 0x82062130 .dword 0x004255534f470205
+data 0x82062138 .dword 0x0000000000000000
+data 0x82062140 .dword 0x00454c4948570305
+data 0x82062148 .dword 0x0000000000000000
+data 0x82062150 .dword 0x004c49544e550405
+data 0x82062158 .dword 0x0000000000000000
+data 0x82062160 .dword 0x000000444e450503
+data 0x82062168 .dword 0x0000000000000000
+data 0x82062170 .dword 0x000000524f460603
+data 0x82062178 .dword 0x0000000000000000
+data 0x82062180 .dword 0x00005458454e0704
+data 0x82062188 .dword 0x0000000000000000
+data 0x82062190 .dword 0x00544e4952500805
+data 0x82062198 .dword 0x0000000000000000
+data 0x820621a0 .dword 0x005455504e490905
+data 0x820621a8 .dword 0x0000000000000000
+data 0x820621b0 .dword 0x4e52555445520a06
+data 0x820621b8 .dword 0x0000000000000000
+data 0x820621c0 .dword 0x0000444145520b04
+data 0x820621c8 .dword 0x0000000000000000
+data 0x820621d0 .dword 0x524f545345520c07
+data 0x820621d8 .dword 0x0000000000000045
+data 0x820621e0 .dword 0x5441455045520d06
+data 0x820621e8 .dword 0x0000000000000000
+data 0x820621f0 .dword 0x0000444e45570e04
+data 0x820621f8 .dword 0x0000000000000000
+data 0x82062200 .dword 0x0000000046490f02
+data 0x82062208 .dword 0x0000000000000000
+data 0x82062210 .dword 0x000045534c451004
+data 0x82062218 .dword 0x0000000000000000
+data 0x82062220 .dword 0x004649444e451105
+data 0x82062228 .dword 0x0000000000000000
+data 0x82062230 .dword 0x0000415441441204
+data 0x82062238 .dword 0x0000000000000000
+data 0x82062240 .dword 0x000000004f441302
+data 0x82062248 .dword 0x0000000000000000
+data 0x82062250 .dword 0x0000504f4f4c1404
+data 0x82062258 .dword 0x0000000000000000
+data 0x82062260 .dword 0x0000544958451504
+data 0x82062268 .dword 0x0000000000000000
+data 0x82062270 .dword 0x000000504f501603
+data 0x82062278 .dword 0x0000000000000000
+data 0x82062280 .dword 0x0000004d45521703
+data 0x82062288 .dword 0x0000000000000000
+data 0x82062290 .dword 0x000000004e4f1802
+data 0x82062298 .dword 0x0000000000000000
+data 0x820622a0 .dword 0x0000004d49441903
+data 0x820622a8 .dword 0x0000000000000000
+assemble-program 0x81000100
+; ---------------------------------------------------------------------------
+; Image de données initiale
+; Les octets bas sont les messages de REPL/diagnostic ; les mots à partir de
+; 0x82010000 sont des constantes binary64 little-endian utilisées par les
+; fonctions mathématiques. Les zones de travail allouées à l'exécution sont
+; séparées : voir docs/MEMORY_MAP.md, notamment variables, records et tas.
+; ---------------------------------------------------------------------------
+; ============================================================================
+; MiniBASIC-RV — guide de lecture du payload
+; ============================================================================
+;
+; Ce fichier est un programme utilisateur U-mode : le moniteur assemble les
+; lignes ci-dessous, les charge dans le workspace code et saute à `entry`.
+; Aucun lexer, parseur, calcul BASIC ou résultat de démonstration ne vient de
+; l'hôte. Les appels ecall sont limités à la console du guest.
+;
+; Registres persistants (convention locale, pas une ABI GNU) :
+;   x8  = base des données MiniBASIC ; toutes les cellules x8+N sont décrites
+;         dans docs/MEMORY_MAP.md.
+;   x18 = buffer de saisie courant (x8+1024).
+;   x19 = magasin des records de lignes (x8+12288), 256 records * 128 octets.
+;   x20 = table des variables numériques courtes (x8+768).
+;   x21 = curseur source/curseur d'exécution ; il pointe toujours le prochain
+;         caractère à consommer, sauf dans les routines qui documentent une
+;         sauvegarde locale.
+;   x22 = mode de l'évaluateur : 0 pour le premier opérande, 1 pour un
+;         opérande suivant ; les routines qui l'empruntent le sauvegardent.
+;   x23..x31 = contexte temporaire : pointeurs, index, longueurs, retours et
+;         cadres de contrôle. Une sous-routine qui appelle une autre routine
+;         doit sauvegarder les registres/cellules qu'elle veut conserver.
+;   f1/f2 = opérandes intermédiaires ; f3 = résultat numérique public entre
+;         l'évaluateur et PRINT/affectation ; f4..f7 = fonctions numériques.
+;
+; Représentation des lignes :
+;   record = { line_number:u64 @+0, previous_number:u64 @+8,
+;              body[112] @+16 } dans x19 + index*128.
+;   la table des longueurs est pointée par x8+480 et contient 256 u64.
+;   un numéro N est valide si 10 <= N <= 2560 et N % 10 == 0.
+;
+; Pipeline d'une ligne :
+;   command_loop -> store/list/new/run dispatcher -> run_line
+;   -> statement dispatcher -> expression/string/control-flow routine.
+; Les fonctions retournent soit par `jalr` avec x1 restauré, soit par un saut
+; direct vers le label de continuation lorsqu'elles sont des tail-routines.
+;
+; Conventions pédagogiques : les commentaires de section expliquent
+; l'algorithme et l'invariant ; les commentaires d'une instruction isolée
+; signalent seulement un piège (largeur, signe, sauvegarde ou alias mémoire).
+; ============================================================================
+; Noms logiques utilisés dans le reste du fichier
+; -----------------------------------------------
+; `program_lines`      = x19, base des records BASIC de 128 octets.
+; `line_lengths`       = [x8+480], table u64 indexée par (N/10)-1.
+; `variables`          = x20, 26 cellules binary64 pour A..Z.
+; `input_buffer`       = x18, ligne ASCII courante terminée par NUL.
+; `source_cursor`      = x21, prochain caractère à consommer dans une ligne.
+; `current_line`       = x26, index du record courant pendant RUN.
+; `next_line`          = [x8+536], index choisi par les sauts et les boucles.
+; `expression_value`   = f3, résultat public de eval_expression.
+; `temp_number`        = f1/f2, opérandes des opérations et comparaisons D.
+; `for_frame`          = x8+1280 + depth*32 : variable, borne, STEP, reprise.
+; `control_stack`      = x8+2200/2208 : types et lignes des cadres imbriqués.
+; `string_table`       = x8+1344 et cellules réservées : longueur puis octets.
+; `array_descriptors`  = tables de descripteurs ; chaque entrée pointe vers
+;                         une zone et décrit ses bornes et sa dimension.
+;
+; Algorithme de haut niveau
+; -------------------------
+; 1. command_loop lit une ligne dans la machine cible.
+; 2. Une commande directe est exécutée immédiatement ; une ligne numérotée
+;    est copiée dans un record fixe (insertion/remplacement/suppression).
+; 3. RUN recherche le premier record non vide et appelle run_line.
+; 4. dispatch_statement reconnaît le mot-clé ; les parseurs consomment le
+;    texte target-side et n'appellent jamais l'interpréteur Rust de l'hôte.
+; 5. Les nombres suivent expression -> somme -> produit -> atome ; chaque
+;    opération arithmétique binaire passe par l'extension RISC-V D.
+; 6. Les structures de contrôle utilisent des cadres statiques bornés ; les
+;    sauts modifient next_line ou reviennent via if_false.
+; ============================================================================
+; MiniBASIC-RV payload assembleur : noyau REPL target-side.
+; Contrat de cette tranche : une ligne 10 PRINT X+Y, LIST, NEW, RUN.
+; Les variables X/Y sont déjà dans la table cible ; le résultat est f3 et RAM.
+entry:
+; Bootstrap : x8 est reconstruit à partir du PC pour éviter toute adresse ELF
+; hôte ; le reste de l'état BASIC est initialisé dans les zones réservées.
+auipc x8,0x1000
+addi x8,x8,-256
+; Buffer de saisie historique. Les scratchs numériques sont placés après la
+; pile de contrôle (x8+2400..2424) afin de ne jamais recouvrir cette entrée.
+addi x18,x8,1024
+; 256 enregistrements de 128 octets, lignes 10..2560 par pas de 10.
+; Le magasin est séparé de la table des variables et des tableaux.
+addi x19,x8,2047
+addi x19,x19,2047
+addi x19,x19,2047
+addi x19,x19,2047
+addi x19,x19,4
+addi x19,x19,2047
+addi x19,x19,2047
+addi x19,x19,2
+addi x20,x8,768
+addi x21,x8,2047
+addi x21,x21,2047
+addi x21,x21,2
+; x8+480 : pointeur vers la table des longueurs de lignes.
+; x8+584 : descripteurs des tableaux numériques courts.
+; x8+800 : descripteurs des tableaux de chaînes courts.
+; x8+1024 : buffer de saisie ; x8+2400..2424 sont les scratchs numériques.
+sd x21,480(x8)
+sd x0,1160(x8)
+sd x0,1616(x8)
+; profondeur de la pile des contextes chaîne (8 cadres maximum)
+addi x29,x8,2047
+addi x29,x29,441
+sd x0,0(x29)
+sd x0,1704(x8)
+sd x0,1712(x8)
+addi x10,x0,1
+sd x10,1360(x8)
+; Pile WHILE/WEND : profondeur à 2048, huit indices de lignes à 2056.
+addi x29,x8,2047
+addi x29,x29,1
+sd x0,0(x29)
+; Pile REPEAT/UNTIL : profondeur à 2128, huit indices de lignes à 2136.
+addi x29,x8,2047
+addi x29,x29,81
+sd x0,0(x29)
+; Pile de contrôle unifiée : profondeur à 2200, cadres de 16 octets à 2208.
+addi x29,x8,2047
+addi x29,x29,153
+sd x0,0(x29)
+; ---------------------------------------------------------------------------
+; REPL et commandes directes
+; `read_line` remplit input_buffer ; le dispatch initial distingue numéro,
+; commande et affectation. Les erreurs retournent toujours à command_loop.
+; ---------------------------------------------------------------------------

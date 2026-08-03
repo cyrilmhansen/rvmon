@@ -10,10 +10,24 @@ fn main() {
         .unwrap();
     let source = repository_root.join("examples/minibasic-asm/payload-repl.rv");
     let builder = repository_root.join("scripts/build-minibasic-asm-payload.sh");
+    let modules = [
+        "examples/minibasic-asm/modules/00_data_bootstrap.rv",
+        "examples/minibasic-asm/modules/10_repl_and_dispatch.rv",
+        "examples/minibasic-asm/modules/20_expression.rv",
+        "examples/minibasic-asm/modules/30_arrays_and_functions.rv",
+        "examples/minibasic-asm/modules/40_strings_and_tables.rv",
+        "examples/minibasic-asm/modules/90_session.rv",
+    ];
     let output_dir = PathBuf::from(env::var_os("OUT_DIR").unwrap()).join("minibasic-payload");
 
     println!("cargo:rerun-if-changed={}", source.display());
     println!("cargo:rerun-if-changed={}", builder.display());
+    for module in modules {
+        println!(
+            "cargo:rerun-if-changed={}",
+            repository_root.join(module).display()
+        );
+    }
 
     let output = Command::new(&builder)
         .current_dir(repository_root)
