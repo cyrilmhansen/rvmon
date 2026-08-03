@@ -361,3 +361,11 @@ de buffer dans le contrat concaténateur et produisait `HE!`; après ajout de
 `sd x7,1992(x8)`, QEMU valide `0`, `FF`, `1234ABCD`, l’affectation concaténée
 et les erreurs négative/fractionnaire/hors-borne. Le comptage reproductible est
 maintenant de 122 scripts QEMU assembleur.
+2026-08-04 — J’ai ajouté les comparaisons de chaînes dans `IF` avec les six
+opérateurs. Le premier chargement QEMU a échoué sur une branche conditionnelle
+hors portée B après la croissance du payload ; deux branches lointaines vers
+`ELSE` et `ENDIF` ont été remplacées par le motif portable branche locale +
+`jal`. Le test a ensuite confirmé l’assemblage réel du payload, l’ordre
+lexicographique ASCII target-side et les six branches correctes. Le harnais a
+également été rendu synchronisé sur `READY>` et ralenti pour éviter la perte de
+caractères UART pendant l’injection du payload de plus de 10 000 lignes.

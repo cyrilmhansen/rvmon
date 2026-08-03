@@ -429,6 +429,14 @@ addi x6,x0,34
 beq x5,x6,rse_quote
 addi x6,x0,44
 beq x5,x6,rse_comma_probe
+addi x6,x0,32
+beq x5,x6,rse_compare_probe
+addi x6,x0,61
+beq x5,x6,rse_compare_probe
+addi x6,x0,60
+beq x5,x6,rse_compare_probe
+addi x6,x0,62
+beq x5,x6,rse_compare_probe
 addi x6,x0,40
 beq x5,x6,rse_open
 addi x6,x0,41
@@ -475,6 +483,12 @@ bne x29,x0,rse_copy_char
 bne x28,x0,rse_copy_char
 bne x30,x0,rse_close
 jal x0,rse_copy_char
+rse_compare_probe:
+bne x29,x0,rse_copy_char
+bne x28,x0,rse_copy_char
+addi x6,x0,2
+bne x30,x6,rse_copy_char
+jal x0,rse_close
 rse_quote:
 sltiu x6,x9,120
 beq x6,x0,string_long_error

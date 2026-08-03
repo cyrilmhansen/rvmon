@@ -19,8 +19,8 @@ statement     = "REM" , text
               | "INPUT" , variable
               | [ "LET" , space ] , string-target , "=" , string-assignment-rhs
               | [ "LET" , space ] , variable , "=" , expression
-              | "IF" , expression , "THEN" , number
-              | "IF" , expression , "THEN" , end-of-line , block-body , "ENDIF"
+              | "IF" , if-condition , "THEN" , number
+              | "IF" , if-condition , "THEN" , end-of-line , block-body , "ENDIF"
               | "GOTO" , number
               | "GOSUB" , number
               | "ON" , expression , ( "GOTO" | "GOSUB" ) , number , { "," , number }
@@ -52,6 +52,7 @@ string-constructor = "CHR$" , "(" , expression , ")"
                    | "HEX$" , "(" , expression , ")" ;
 expression    = comparison ;
 comparison    = sum , [ ( "=" | "<>" | "<" | "<=" | ">" | ">=" ) , sum ] ;
+if-condition  = expression | string-source , ( "=" | "<>" | "<" | "<=" | ">" | ">=" ) , string-source ;
 sum           = product , { ( "+" | "-" ) , product } ;
 product       = factor , { ( "*" | "/" ) , factor } ;
 factor        = number | variable | "(" , expression , ")"
@@ -304,6 +305,18 @@ effectuées dans le guest ; le chemin `/` contient réellement une instruction
 après conversion binary64 ; les
 valeurs infinies et NaN sont affichées `INF`, `-INF` et `NAN`. Une division par
 zéro produit `BASIC-ARITH-001`.
+
+`IF` accepte aussi une comparaison de deux `string-source`. Elle est évaluée
+entièrement dans la cible, par comparaison lexicographique des octets ASCII
+non signés, puis par longueur si le préfixe commun est identique. Les six
+opérateurs ont leur sens usuel (`=`, `<>`, `<`, `<=`, `>`, `>=`) et produisent
+la même condition booléenne que les comparaisons numériques. Cette forme est
+délibérément limitée à `IF` : elle ne transforme pas `string-source` en valeur
+numérique et ne promet pas encore des comparaisons chaîne dans toutes les
+expressions ou dans `PRINT`. Les sources peuvent être des littéraux, variables,
+éléments de tableaux et fonctions chaîne composées dans la profondeur et la
+capacité documentées ; une syntaxe invalide ou une expression hors borne
+produit le diagnostic chaîne correspondant avant toute mutation.
 
 Les fonctions numériques `ABS(expr)`, `SGN(expr)`, `INT(expr)`,
 `TRUNC(expr)`, `FRAC(expr)`, `MOD(a,b)`, `SQR(expr)`, `SIN(expr)`,

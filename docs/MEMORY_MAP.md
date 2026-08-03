@@ -52,7 +52,10 @@ possède.
 | `2072..2127` | `0x82000818..0x8200084f` | mode et cadres auxiliaires des découpes/concaténations | chaînes ; appel |
 | `2128..2199` | `0x82000850..0x820008b7` | profondeur et index de la pile `REPEAT/UNTIL` | contrôle de flot ; session |
 | `2200..2399` | `0x82000898..0x8200095f` | profondeur et cadres de la pile unifiée (`IF`, `FOR`, `GOSUB`, etc.) | contrôle de flot ; session |
-| `2400..2431` | `0x82000960..0x8200097f` | quatre cellules binary64 temporaires : sauvegarde `PRINT`, sauvegarde de résultat, atome et premier opérande | évaluateur/PRINT ; appel, non persistantes |
+| `2400..2407` | `0x82000960..0x82000967` | pointeur de la copie gauche d'une comparaison chaîne `IF` | contrôle `IF` chaîne ; appel |
+| `2408..2415` | `0x82000968..0x8200096f` | longueur de la copie gauche d'une comparaison chaîne `IF` | contrôle `IF` chaîne ; appel |
+| `2416..2423` | `0x82000970..0x82000977` | opérateur de comparaison chaîne (`1..6`) | contrôle `IF` chaîne ; appel |
+| `2424..2431` | `0x82000978..0x8200097f` | cellule binary64 temporaire conservée pour l'évaluateur/`PRINT` | évaluateur/PRINT ; appel, non persistante |
 | `2432..4095` | `0x82000980..0x82000fff` | réserve non allouée dans V1, sauf `x8+2432` pour le retour `x31` de `VAL`, `x8+2440` pour le contexte de `PRINT` concaténé, `x8+2448` pour le début d'une expression `PRINT LEFT$/RIGHT$/MID$` concaténée, `x8+2456` pour le drapeau de transaction `RENUM`, `x8+2464` pour le retour `x31` d'une découpe directe, `x8+2488` pour la profondeur de la pile de contextes chaîne, `x8+2560..2600` pour la sauvegarde transactionnelle du reconnaisseur de statements, `x8+2608` pour la profondeur temporaire de `FOR` pendant l'analyse de `TO/STEP`, `x8+2648` pour l'ID du handler partagé `GOTO/GOSUB/RETURN`, `x8+2656` pour le début source du token statement, `x8+2664` pour sa longueur et `x8+2672` pour son type (`1=statement`) | réservé ; les cellules du reconnaisseur sont restaurées avant le dispatch legacy et la profondeur FOR est publiée après analyse ; le token est invalidé au début d'une nouvelle reconnaissance |
 | `4096..12287` | `0x82001000..0x82002fff` | table des longueurs et cellules de variables/chaînes courtes selon le payload | MiniBASIC ; session |
 | `12288..` | `0x82003000..` | magasin fixe des 256 records de lignes, 128 octets chacun | éditeur ; session |
@@ -113,7 +116,8 @@ peuvent être réécrits.
 | `0x820607b0..0x82060827` | source temporaire d’expression chaîne | 120 octets maximum plus NUL, fourni au concaténateur target-side | fonctions chaîne |
 | `0x82060828..0x8206082f` | longueur de sortie d’expression chaîne | cellule `u64` du descripteur temporaire | fonctions chaîne |
 | `0x82060830..0x820608a7` | sortie temporaire d’expression chaîne | 120 octets maximum | fonctions chaîne |
-| `0x820608a8..0x82060bff` | réserve globale chaîne | non allouée dans V1 | réservé |
+| `0x820608a8..0x8206091f` | copie gauche de comparaison chaîne `IF` | 120 octets maximum, ASCII et NUL logique hors longueur | contrôle `IF` chaîne ; appel |
+| `0x82060920..0x82060bff` | réserve globale chaîne | non allouée dans V1 | réservé |
 | `0x82060c00..0x82060dff` | scratch de réécriture des cibles après `RENUM` | 512 octets ; un record à la fois, avant publication dans le record source | commande `RENUM` |
 | `0x82060e00..0x820615ff` | copie transactionnelle des 256 numéros de lignes | 256 valeurs `u64`, utilisée pour restaurer `RENUM` avant publication en cas de dépassement de record | commande `RENUM` |
 | `0x82061600..0x82061eff` | pile des concaténateurs chaîne | 8 cadres de 288 octets : retour, total, pointeurs de buffers et destination, buffer de concaténation, buffer source d'expression et retour de découpe à `+272` | appel target-side ; profondeur maximale 8 |
@@ -160,6 +164,9 @@ fusionnées, même si deux chemins semblent non imbriqués dans un exemple.
   d’entrée courant (`x8+1024..`) ;
 - une concaténation imbriquée ne modifie ni le retour du wrapper, ni le retour
   de `string_concat_assign` ;
+- une comparaison chaîne `IF` copie au plus 120 octets dans
+  `0x820608a8..0x8206091f`, puis compare dans la cible sans modifier le texte
+  source ;
 - une affectation `RIGHT$`, `LEFT$` ou `MID$` conserve son retour même si elle
   délègue à la concaténation ;
 - les tables `0x82011000`, `0x82020000`, `0x82040000` et `0x82050000` restent

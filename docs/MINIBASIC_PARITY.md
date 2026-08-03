@@ -17,7 +17,7 @@ expressions, données, chaînes, tableaux et diagnostics. Elle ne signifie ni
 compatibilité Atari, ni compatibilité binaire, ni compatibilité des tokens,
 des nombres historiques, des périphériques, du DOS ou des graphismes.
 
-État de l’audit au 4 août 2026 : **122 scripts QEMU assembleur MiniBASIC
+État de l’audit au 4 août 2026 : **123 scripts QEMU assembleur MiniBASIC
 recensés**. Les scénarios récents fournissent notamment la preuve nominale et
 d’erreur de `ATN` après exécution QEMU verte. Ce nombre
 est contrôlable par :
@@ -74,6 +74,7 @@ entièrement dans le guest.
 | `INPUT` | lecture et conversion target-side de valeurs numériques et chaînes | VERT | `input.sh`, `long-input.sh`, `long-string-input.sh` |
 | Arithmétique | `+`, `-`, `*`, `/` en binary64 par `fadd.d`, `fsub.d`, `fmul.d`, `fdiv.d` | VERT | `precedence.sh`, `mul.sh`, `expression-div.sh` |
 | Comparaisons | `=`, `<>`, `<`, `<=`, `>`, `>=`, résultat `0.0` ou `1.0` | VERT | `if.sh`, `if-false.sh`, `precedence.sh` |
+| Comparaisons chaîne dans `IF` | six opérateurs, ordre lexicographique ASCII target-side, littéraux/variables/fonctions chaîne composées | VERT | `test-guest-runtime-asm-repl-string-compare.sh` sous QEMU |
 | Fonctions numériques | `ABS`, `SGN`, `INT`, `TRUNC`, `FRAC`, `MOD`, `SQR`, `SIN`, `COS`, `TAN`, `LOG`, `EXP`, appels target-side et imbrication documentée | VERT | `numeric-rounding.sh`, `numeric-rounding-error.sh`, `numeric-functions.sh`, `sqr.sh`, `sqr-error.sh`, `trig.sh`, `tan.sh`, `tan-error.sh`, `log-exp.sh`, `log-exp-error.sh` |
 | `ATN` | Fonction en radians, résultat binary64 target-side et imbrication bornée | VERT | `atn.sh` et `atn-error.sh` ; cas nominaux, appel imbriqué et diagnostic QEMU |
 | Conversion caractère | `ASC(string-source)` numérique et `CHR$(expression)` chaîne, exécutés dans le guest avec bornes explicites ; `ASC` accepte l'expression chaîne commune, y compris concaténation et parenthèses imbriquées | PARTIEL | `test-guest-runtime-asm-repl-string-asc-concat*.sh`, `test-guest-runtime-asm-repl-string-concat.sh`, `test-guest-runtime-asm-repl-string-concat-error.sh`; `CHR$` est disponible en affectation, concaténation et `PRINT`, tandis que les conversions implicites restent différées |
@@ -253,7 +254,7 @@ sortie BASIC préenregistrée.
 - **Décisions de parité figées :** mode direct, lignes, contrôle de flot,
   chaînes, tableaux, binary64 target-side, interruption et périmètre Atari
   rejeté ;
-- **Preuve automatisée :** 122 scripts QEMU assembleur recensés au moment de
+- **Preuve automatisée :** 123 scripts QEMU assembleur recensés au moment de
   cet audit, avec des cas nominaux et négatifs dédiés aux chaînes, tableaux,
   conversions, fonctions de recherche, formatage et blocs structurés ;
 - **Écart important restant :** `ELSE`/`ENDIF` doivent rester en lignes dédiées ;
@@ -294,8 +295,9 @@ sortie BASIC préenregistrée.
 | 2026-08-04 | Validation des consommateurs numériques avec sources chaîne imbriquées | `test-guest-runtime-asm-repl-string-consumer-nested.sh` sous QEMU : `LEN(LEFT$(...))`, `ASC(RIGHT$(...))`, `VAL(LEFT$(...))` et `INSTR(RIGHT$(...),...)`, résultats `4`, `82`, `12.5` et `1` | `LEN`, `ASC`, `VAL` et `INSTR` partagent effectivement le résolveur `{adresse,longueur}` target-side ; la profondeur et la capacité des buffers restent les limites explicites |
 | 2026-08-03 | `ASC` évalue des concaténations chaîne simples dans le guest | `test-guest-runtime-asm-repl-string-asc-concat.sh` et `string-asc-concat-error.sh` sous QEMU ; littéral + littéral, variable + littéral et chaîne vide | `ASC` rejoint `LEN` comme consommateur d’expression chaîne ; `VAL`, `INSTR`, `LEFT$`, `RIGHT$` et `MID$` restent à généraliser séparément |
 | 2026-08-03 | Validation de la concaténation dans `PRINT` | `test-guest-runtime-asm-repl-string-print-concat.sh` sous QEMU : `"RV "+TEXT$`, `TEXT$+"!"`, `LEFT$(TEXT$,4)+"!"`, `"A"+"B"+"C"`, `CHR$(65)+"B"` et `STR$(12.5)+"!"` | la sortie concaténée, les découpes et les conversions chaîne sont calculées dans le payload ; l’affectation concaténée reste PARTIELLE pour les conversions numériques |
-| 2026-08-04 | Audit de cohérence du registre | comptage reproductible : `find scripts -maxdepth 1 -type f -name 'test-guest-runtime-asm-repl*.sh' \| wc -l` → `122` | l’inventaire courant est distingué des comptes historiques ; les preuves de fonctions chaîne imbriquées et `HEX$` sont incluses |
+| 2026-08-04 | Audit de cohérence du registre | comptage reproductible : `find scripts -maxdepth 1 -type f -name 'test-guest-runtime-asm-repl*.sh' \| wc -l` → `123` | l’inventaire courant est distingué des comptes historiques ; les preuves de fonctions chaîne imbriquées et `HEX$` sont incluses |
 | 2026-08-04 | Ajout de `HEX$(expression)` target-side | `test-guest-runtime-asm-repl-string-hex.sh` sous QEMU : `0`, `FF`, `1234ABCD`, concaténation/affectation et trois erreurs de domaine | une fonction historique de conversion est reprise sans hôte, avec format ASCII majuscule déterministe et borne RV explicite |
+| 2026-08-04 | Ajout des comparaisons chaîne dans `IF` | `test-guest-runtime-asm-repl-string-compare.sh` sous QEMU : les six opérateurs, variables/littéraux, résultat de branche et absence de `BAD-*`/fault | l’ordre lexicographique ASCII et les longueurs sont comparés dans la cible ; la forme reste limitée à `IF` et n’élargit pas silencieusement toutes les expressions |
 | 2026-08-03 | Intégration de l’évaluateur tokenisé pour signes unaires devant littéraux | `test-guest-runtime-asm-repl-unary-paren.sh` sous QEMU : `(-2.5)+(+3.5)`, sortie `1.000000`, motifs binaires finaux et marqueur `0x82062720=1` | les signes sont traités dans le guest sans écraser la profondeur de pile ; un signe devant un groupe parenthésé revient volontairement au parseur historique |
 | 2026-08-04 | Les découpes d’affichage et leurs affectations consomment une expression chaîne composée | `test-guest-runtime-asm-repl-string-slice-expression.sh` sous QEMU : affichages `LEFT$(TEXT$+"X",5)`, `RIGHT$("0"+TEXT$,4)`, `MID$(TEXT$+"X",2,4)` et variables `LEFTOUT$`, `RIGHTOUT$`, `MIDOUT$` | le résolveur target-side commun s’arrête à la virgule de niveau zéro ; le probe lexical choisit le concaténateur pour les affectations composées |
 | 2026-08-04 | Sélection target-side du concaténateur pour les affectations de découpes composées | même test QEMU, avec `LEFTOUT$`, `RIGHTOUT$` et `MIDOUT$` composés, plus `string-right-assignment-concat.sh` et les scénarios d’erreur | un probe lexical ignore les `+` entre guillemets ou parenthèses imbriquées ; les sources simples gardent le handler spécialisé et les expressions composées utilisent le résolveur commun |

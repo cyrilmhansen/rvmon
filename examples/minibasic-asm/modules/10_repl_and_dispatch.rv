@@ -2657,13 +2657,17 @@ end_statement:
  addi x7,x0,61
  beq x5,x7,assignment_statement
 addi x7,x0,76
-beq x5,x7,else_statement
+bne x5,x7,end_statement_not_else
+jal x0,else_statement
+end_statement_not_else:
 addi x7,x0,78
 bne x5,x7,end_or_endif
 lbu x5,18(x24)
 lbu x5,19(x24)
 addi x7,x0,73
-beq x5,x7,endif_statement
+bne x5,x7,end_or_endif_not_endif
+jal x0,endif_statement
+end_or_endif_not_endif:
 end_or_endif:
 addi x7,x0,88
 beq x5,x7,exit_statement
@@ -3562,7 +3566,175 @@ sd x26,536(x8)
 jal x0,run_line
 ; IF : compare deux binary64, puis branche soit vers une cible numérique,
 ; soit vers le scanner de blocs IF/ELSE/ENDIF (terminateurs sur lignes dédiées).
+if_string_probe:
+lbu x5,0(x22)
+beq x5,x0,if_string_numeric
+addi x6,x0,36
+beq x5,x6,if_string_statement
+addi x6,x0,34
+beq x5,x6,if_string_statement
+addi x22,x22,1
+jal x0,if_string_probe
+if_string_numeric:
+jal x0,if_statement_numeric
+if_string_statement:
+addi x30,x0,2
+jal x1,resolve_string_expression
+addi x29,x8,2047
+addi x29,x29,361
+sd x11,0(x29)
+lui x6,0x82060
+slli x6,x6,32
+srli x6,x6,32
+addi x6,x6,2047
+addi x6,x6,169
+addi x9,x0,0
+if_string_copy_left:
+sltu x7,x9,x11
+beq x7,x0,if_string_copy_done
+add x7,x6,x9
+add x5,x7,x0
+ld x7,1992(x8)
+add x7,x7,x9
+lbu x7,0(x7)
+sb x7,0(x5)
+addi x9,x9,1
+jal x0,if_string_copy_left
+if_string_copy_done:
+addi x29,x8,2047
+addi x29,x29,353
+sd x6,0(x29)
+lbu x5,0(x21)
+addi x6,x0,61
+beq x5,x6,if_string_op_equal
+addi x6,x0,60
+beq x5,x6,if_string_op_less
+addi x6,x0,62
+beq x5,x6,if_string_op_greater
+jal x0,error_line
+if_string_op_equal:
+addi x27,x0,1
+addi x21,x21,1
+jal x0,if_string_op_ready
+if_string_op_less:
+addi x21,x21,1
+lbu x5,0(x21)
+addi x6,x0,61
+beq x5,x6,if_string_op_less_equal
+addi x6,x0,62
+beq x5,x6,if_string_op_not_equal
+addi x27,x0,4
+jal x0,if_string_op_ready
+if_string_op_less_equal:
+addi x27,x0,2
+addi x21,x21,1
+jal x0,if_string_op_ready
+if_string_op_not_equal:
+addi x27,x0,3
+addi x21,x21,1
+jal x0,if_string_op_ready
+if_string_op_greater:
+addi x21,x21,1
+lbu x5,0(x21)
+addi x6,x0,61
+beq x5,x6,if_string_op_greater_equal
+addi x27,x0,6
+jal x0,if_string_op_ready
+if_string_op_greater_equal:
+addi x27,x0,5
+addi x21,x21,1
+if_string_op_ready:
+addi x29,x8,2047
+addi x29,x29,369
+sd x27,0(x29)
+addi x30,x0,2
+jal x1,resolve_string_expression
+addi x12,x11,0
+addi x14,x0,0
+addi x29,x8,2047
+addi x29,x29,353
+ld x6,0(x29)
+addi x29,x8,2047
+addi x29,x29,361
+ld x13,0(x29)
+sltu x15,x13,x12
+bne x15,x0,if_string_min_left
+addi x15,x12,0
+jal x0,if_string_min_ready
+if_string_min_left:
+addi x15,x13,0
+if_string_min_ready:
+sltu x16,x14,x15
+beq x16,x0,if_string_length_relation
+add x16,x6,x14
+lbu x5,0(x16)
+add x16,x7,x14
+lbu x16,0(x16)
+sltu x17,x5,x16
+bne x17,x0,if_string_relation_less
+sltu x17,x16,x5
+bne x17,x0,if_string_relation_greater
+addi x14,x14,1
+jal x0,if_string_min_ready
+if_string_relation_less:
+addi x10,x0,1
+jal x0,if_string_relation_eval
+if_string_relation_greater:
+addi x10,x0,2
+jal x0,if_string_relation_eval
+if_string_length_relation:
+sltu x16,x13,x12
+bne x16,x0,if_string_relation_less
+sltu x16,x12,x13
+bne x16,x0,if_string_relation_greater
+addi x10,x0,0
+if_string_relation_eval:
+addi x29,x8,2047
+addi x29,x29,369
+ld x27,0(x29)
+addi x16,x0,1
+beq x27,x16,if_string_eq_result
+addi x16,x0,2
+beq x27,x16,if_string_le_result
+addi x16,x0,3
+beq x27,x16,if_string_ne_result
+addi x16,x0,4
+beq x27,x16,if_string_lt_result
+addi x16,x0,5
+beq x27,x16,if_string_ge_result
+addi x16,x0,2
+beq x10,x16,if_string_true
+jal x0,if_string_false
+if_string_eq_result:
+beq x10,x0,if_string_true
+jal x0,if_string_false
+if_string_le_result:
+addi x16,x0,2
+sltu x7,x10,x16
+bne x7,x0,if_string_true
+jal x0,if_string_false
+if_string_ne_result:
+beq x10,x0,if_string_false
+jal x0,if_string_true
+if_string_lt_result:
+addi x16,x0,1
+beq x10,x16,if_string_true
+jal x0,if_string_false
+if_string_ge_result:
+addi x16,x0,1
+bne x10,x16,if_string_true
+jal x0,if_string_false
+if_string_true:
+addi x10,x0,1
+jal x0,if_parse_then
+if_string_false:
+addi x10,x0,0
+jal x0,if_parse_then
 if_statement:
+addi x21,x24,19
+addi x22,x21,0
+jal x0,if_string_probe
+if_statement_numeric:
 addi x21,x24,19
 addi x22,x0,0
 jal x1,eval_expression
