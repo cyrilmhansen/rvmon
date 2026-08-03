@@ -11,38 +11,48 @@
 ;
 ; L’implémentation utilise l’algorithme de réduction de précédence : un
 ; opérateur est empilé, puis les opérateurs de précédence supérieure ou égale
-; sont réduits avant l’empilement suivant. Cette tranche accepte les tokens
-; nombre et + - * / ; les parenthèses sont refusées explicitement ici.
+; sont réduits avant l’empilement suivant. Les parenthèses sont empilées comme
+; barrières de réduction et ne sont jamais transmises à une opération D.
 ; Les nombres sont des suites de chiffres ASCII, converties dans la cible
 ; avant passage par l’extension D. Aucun résultat n’est fourni par l’hôte.
 
 data 0x82000000 .byte 0x32
-data 0x82000001 .byte 0x2b
-data 0x82000002 .byte 0x33
-data 0x82000003 .byte 0x2a
-data 0x82000004 .byte 0x34
+data 0x82000001 .byte 0x2a
+data 0x82000002 .byte 0x28
+data 0x82000003 .byte 0x33
+data 0x82000004 .byte 0x2b
+data 0x82000005 .byte 0x34
+data 0x82000006 .byte 0x29
 
 ; token 0: number "2"
 data 0x82000020 .dword 1
 data 0x82000028 .dword 0x82000000
 data 0x82000030 .dword 1
-; token 1: operator "+"
+; token 1: operator "*"
 data 0x82000038 .dword 3
 data 0x82000040 .dword 0x82000001
 data 0x82000048 .dword 1
-; token 2: number "3"
-data 0x82000050 .dword 1
+; token 2: open parenthesis "("
+data 0x82000050 .dword 4
 data 0x82000058 .dword 0x82000002
 data 0x82000060 .dword 1
-; token 3: operator "*"
-data 0x82000068 .dword 3
+; token 3: number "3"
+data 0x82000068 .dword 1
 data 0x82000070 .dword 0x82000003
 data 0x82000078 .dword 1
-; token 4: number "4"
-data 0x82000080 .dword 1
+; token 4: operator "+"
+data 0x82000080 .dword 3
 data 0x82000088 .dword 0x82000004
 data 0x82000090 .dword 1
-data 0x820000f0 .dword 5
+; token 5: number "4"
+data 0x82000098 .dword 1
+data 0x820000a0 .dword 0x82000005
+data 0x820000a8 .dword 1
+; token 6: close parenthesis ")"
+data 0x820000b0 .dword 5
+data 0x820000b8 .dword 0x82000006
+data 0x820000c0 .dword 1
+data 0x820000f0 .dword 7
 
 assemble-program 0x81000100
 entry:
@@ -78,6 +88,10 @@ addi x6,x0,1
 beq x5,x6,token_number
 addi x6,x0,3
 beq x5,x6,token_operator
+addi x6,x0,4
+beq x5,x6,token_open
+addi x6,x0,5
+beq x5,x6,token_close
 jal x0,fail
 
 token_number:
@@ -107,6 +121,31 @@ token_mul:
 addi x6,x0,2
 jal x0,operator_reduce
 jal x0,token_loop
+token_open:
+sltiu x6,x11,8
+beq x6,x0,fail
+addi x7,x8,320
+add x7,x7,x11
+addi x27,x0,40
+sb x27,0(x7)
+addi x11,x11,1
+addi x9,x9,1
+jal x0,token_loop
+token_close:
+addi x9,x9,1
+token_close_reduce:
+beq x11,x0,fail
+addi x7,x8,320
+add x7,x7,x11
+addi x7,x7,-1
+lbu x5,0(x7)
+addi x6,x0,40
+beq x5,x6,token_close_pop
+jal x1,reduce_one
+jal x0,token_close_reduce
+token_close_pop:
+addi x11,x11,-1
+jal x0,token_loop
 
 ; x6 = precedence of the incoming operator. Reduce while the existing top
 ; has at least that precedence, then save the incoming operator.
@@ -117,6 +156,8 @@ addi x7,x8,320
 add x7,x7,x11
 addi x7,x7,-1
 lbu x5,0(x7)
+addi x28,x0,40
+beq x5,x28,operator_push
 addi x28,x0,43
 beq x5,x28,operator_existing_plus
 addi x28,x0,45
