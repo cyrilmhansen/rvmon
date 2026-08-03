@@ -204,6 +204,10 @@ addi x21,x21,2
 sd x21,480(x8)
 sd x0,1160(x8)
 sd x0,1616(x8)
+; profondeur de la pile des contextes chaîne (8 cadres maximum)
+addi x29,x8,2047
+addi x29,x29,441
+sd x0,0(x29)
 sd x0,1704(x8)
 sd x0,1712(x8)
 addi x10,x0,1
@@ -5194,6 +5198,7 @@ addi x21,x21,4
 ; parse_string_expression fournit toujours le couple {adresse,longueur} d'une
 ; expression chaîne complète. VAL ne connaît donc ni les littéraux, ni les
 ; variables, ni les concaténations : il ne fait que copier puis parser.
+addi x30,x0,0
 jal x1,resolve_string_expression
 beq x11,x0,atom_function_error
 lbu x5,0(x21)
@@ -5242,6 +5247,7 @@ sd x29,1576(x8)
 sd x30,1584(x8)
 addi x21,x21,4
 ; Le parseur chaîne commun fournit toujours {adresse,longueur} dans la cible.
+addi x30,x0,0
 jal x1,resolve_string_expression
 beq x11,x0,atom_function_error
 lbu x5,0(x21)
@@ -5405,6 +5411,7 @@ sd x31,1936(x8)
 addi x21,x21,4
 ; Toute source de chaîne passe par le même parseur d'expression et le même
 ; résultat {adresse,longueur}; LEN ne connaît plus les formes particulières.
+addi x30,x0,0
 jal x1,resolve_string_expression
 atom_len_value:
 fcvt.d.l f4,x11,0
@@ -6849,6 +6856,9 @@ jalr x0,0(x30)
 ; Each descriptor is {name[16], dimension:u64}; cells live at
 ; 0x82020000 + slot*4096, with one {length:u64,data[120]} cell per index.
 string_long_error:
+addi x27,x8,2047
+addi x27,x27,441
+sd x0,0(x27)
 jal x0,error_line
 string_long_dim_array:
 sd x1,1152(x8)
@@ -7717,16 +7727,39 @@ jalr x0,0(x1)
 ; Retourne x7/x11 et laisse x21 sur la parenthèse externe afin que le
 ; consommateur partagé la valide et l'absorbe.
 resolve_string_expression:
-addi x6,x8,2040
-addi x6,x6,432
-sd x1,0(x6)
-addi x6,x8,2040
-addi x6,x6,424
-sd x21,0(x6)
+; Les métadonnées du résolveur sont indexées par la profondeur de
+; concaténation courante. Les buffers de source des cadres concaténés sont
+; distincts, ce qui protège le texte englobant pendant un appel imbriqué.
+addi x6,x8,2047
+addi x6,x6,441
+ld x7,0(x6)
+sltiu x6,x7,8
+beq x6,x0,string_long_error
+slli x6,x7,4
+lui x27,0x82062
+slli x27,x27,32
+srli x27,x27,32
+addi x27,x27,-256
+add x27,x27,x6
+sd x1,0(x27)
+beq x7,x0,rse_global_source
+addi x6,x7,-1
+slli x10,x6,8
+slli x6,x6,5
+add x6,x6,x10
+lui x27,0x82061
+slli x27,x27,32
+srli x27,x27,32
+addi x27,x27,1536
+add x27,x27,x6
+addi x27,x27,32
+jal x0,rse_source_ready
+rse_global_source:
 lui x27,0x82060
 slli x27,x27,32
 srli x27,x27,32
 addi x27,x27,1968
+rse_source_ready:
 addi x24,x21,0
 addi x9,x0,0
 addi x29,x0,0
@@ -7797,9 +7830,34 @@ rse_close:
 beq x29,x0,rse_close_ready
 jal x0,string_long_error
 rse_close_ready:
-addi x6,x8,2040
-addi x6,x6,424
-sd x24,0(x6)
+addi x6,x8,2047
+addi x6,x6,441
+ld x7,0(x6)
+slli x6,x7,4
+lui x27,0x82062
+slli x27,x27,32
+srli x27,x27,32
+addi x27,x27,-256
+add x27,x27,x6
+sd x24,8(x27)
+beq x7,x0,rse_close_global_source
+addi x6,x7,-1
+slli x10,x6,8
+slli x6,x6,5
+add x6,x6,x10
+lui x27,0x82061
+slli x27,x27,32
+srli x27,x27,32
+addi x27,x27,1536
+add x27,x27,x6
+addi x27,x27,32
+jal x0,rse_close_source_ready
+rse_close_global_source:
+lui x27,0x82060
+slli x27,x27,32
+srli x27,x27,32
+addi x27,x27,1968
+rse_close_source_ready:
 add x6,x27,x9
 sb x0,0(x6)
 addi x21,x27,0
@@ -7810,12 +7868,17 @@ addi x6,x6,2040
 addi x6,x6,56
 sd x6,1976(x8)
 jal x1,string_concat_assign
-addi x6,x8,2040
-addi x6,x6,424
-ld x21,0(x6)
-addi x6,x8,2040
-addi x6,x6,432
-ld x1,0(x6)
+addi x6,x8,2047
+addi x6,x6,441
+ld x7,0(x6)
+slli x6,x7,4
+lui x27,0x82062
+slli x27,x27,32
+srli x27,x27,32
+addi x27,x27,-256
+add x27,x27,x6
+ld x21,8(x27)
+ld x1,0(x27)
 ; Les consommateurs numériques ont besoin de l'adresse du résultat concaténé,
 ; pas de l'adresse du dernier terme résolu. x11 reste la longueur totale.
 lui x7,0x82060
@@ -7833,25 +7896,63 @@ jalr x0,0(x1)
 ; (littéral, slice, concaténation) permettent l'auto-affectation sans aliaser
 ; la destination pendant l'évaluation.
 string_concat_assign:
-; Retour persistant du concaténateur : les termes peuvent réutiliser les cadres x8+.
- lui x27,0x82060
+; Chaque invocation possède un cadre de 288 octets : retour, total, pointeur
+; de buffer et deux zones de 120 octets (source d'expression et concaténation).
+; La profondeur est bornée à huit et remise à zéro sur une erreur.
+addi x27,x8,2047
+addi x27,x27,441
+ld x6,0(x27)
+sltiu x7,x6,8
+beq x7,x0,string_concat_error
+slli x7,x6,8
+slli x10,x6,5
+add x7,x7,x10
+lui x27,0x82061
 slli x27,x27,32
 srli x27,x27,32
-addi x27,x27,1808
+addi x27,x27,1536
+add x27,x27,x7
 sd x1,0(x27)
+addi x7,x27,160
+sd x7,16(x27)
+addi x6,x6,1
+addi x27,x8,2047
+addi x27,x27,441
+sd x6,0(x27)
 addi x9,x0,0
 string_concat_term:
-sd x9,2032(x8)
+addi x27,x8,2047
+addi x27,x27,441
+ld x6,0(x27)
+addi x6,x6,-1
+slli x7,x6,8
+slli x10,x6,5
+add x7,x7,x10
+lui x27,0x82061
+slli x27,x27,32
+srli x27,x27,32
+addi x27,x27,1536
+add x27,x27,x7
+sd x9,8(x27)
 jal x1,resolve_string_concat_term
-ld x9,2032(x8)
+addi x27,x8,2047
+addi x27,x27,441
+ld x6,0(x27)
+addi x6,x6,-1
+slli x7,x6,8
+slli x10,x6,5
+add x7,x7,x10
+lui x27,0x82061
+slli x27,x27,32
+srli x27,x27,32
+addi x27,x27,1536
+add x27,x27,x7
+ld x9,8(x27)
 add x6,x9,x11
 sltiu x6,x6,121
 beq x6,x0,string_concat_error
 addi x10,x9,0
-lui x27,0x82060
-slli x27,x27,32
-srli x27,x27,32
-addi x27,x27,512
+ld x27,16(x27)
 add x27,x27,x9
 ld x7,1992(x8)
 addi x10,x0,0
@@ -7877,10 +7978,19 @@ jal x0,string_concat_term
 string_concat_store:
 ; x9 contient la longueur totale de tous les termes ; x11 est le résultat
 ; public de la routine, et doit donc être publié après chaque concaténation.
-lui x27,0x82060
+addi x27,x8,2047
+addi x27,x27,441
+ld x7,0(x27)
+addi x7,x7,-1
+slli x6,x7,8
+slli x10,x7,5
+add x6,x6,x10
+lui x27,0x82061
 slli x27,x27,32
 srli x27,x27,32
-addi x27,x27,512
+addi x27,x27,1536
+add x27,x27,x6
+ld x27,16(x27)
 ld x6,1976(x8)
 sd x9,-8(x6)
 addi x11,x9,0
@@ -7895,13 +8005,28 @@ addi x6,x6,1
 addi x10,x10,1
 jal x0,string_concat_store_loop
 string_concat_done:
- lui x27,0x82060
+addi x27,x8,2047
+addi x27,x27,441
+ld x6,0(x27)
+addi x6,x6,-1
+slli x7,x6,8
+slli x10,x6,5
+add x7,x7,x10
+lui x27,0x82061
 slli x27,x27,32
 srli x27,x27,32
-addi x27,x27,1808
+addi x27,x27,1536
+add x27,x27,x7
 ld x1,0(x27)
+addi x6,x6,0
+addi x7,x8,2047
+addi x7,x7,441
+sd x6,0(x7)
 jalr x0,0(x1)
 string_concat_error:
+addi x27,x8,2047
+addi x27,x27,441
+sd x0,0(x27)
 jal x0,error_line
 resolve_string_concat_term:
 lbu x5,0(x21)

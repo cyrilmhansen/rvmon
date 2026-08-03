@@ -122,6 +122,14 @@ en ASCII directement par des routines assembleur et les dispatchs de noms de
 fonctions ne sont pas encore une table de descripteurs. Une future migration
 vers un lexer à tokens et une table de fonctions devra conserver ce contrat.
 
+Les concaténations target-side disposent maintenant d’une pile statique de huit
+cadres. Chaque cadre possède son propre buffer source et son propre buffer de
+concaténation ; les retours et curseurs des résolutions imbriquées sont séparés.
+Cette pile est un mécanisme d’exécution, non une limite de grammaire : un
+dépassement produit une erreur cible explicite. Les fonctions de découpe
+appelées comme sous-expression d’un autre consommateur restent toutefois à
+intégrer à ce mécanisme et sont donc encore partielles.
+
 ## Sémantique numérique
 
 Les identifiants sont 64 variables binary64 au maximum dans le langage ; la
