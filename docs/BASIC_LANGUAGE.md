@@ -196,7 +196,7 @@ les arguments manquants sont rejetés.
 que `PRINT` et produit un terme chaîne réutilisable dans une affectation ou une
 concaténation. Le format conserve le signe et les zéros de fraction ; les
 valeurs particulières suivent la limite du formateur V1. `PRINT STR$(...)`
-direct reste différé.
+émet directement ce buffer target-side puis un saut de ligne.
 
 `RND` et `RND()` renvoient un nombre pseudo-aléatoire binary64 dans `[0,1)`.
 Le générateur est un LCG 32 bits target-side de paramètres `1664525` et
