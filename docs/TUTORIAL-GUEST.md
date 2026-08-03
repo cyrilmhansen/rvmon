@@ -334,7 +334,7 @@ label, éventuellement suivi de `+offset` ou `-offset`; `jalr` utilise la forme
 `fadd.[s|d] fd,fs1,fs2` et acceptent éventuellement un mode d’arrondi numérique
 `0..7` en quatrième opérande.
 Le document source persistant accepte 4096 lignes de 128 caractères ; la
-commande `assemble-program` accepte 9216 lignes, avec 1024 labels. Cette
+commande `assemble-program` accepte 9216 lignes, avec 2048 labels. Cette
 capacité permet désormais d’assembler le payload MiniBASIC complet dans le
 guest, sans augmenter la capacité du document édité ni consommer la pile M-mode.
 Les

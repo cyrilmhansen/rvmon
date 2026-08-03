@@ -75,7 +75,7 @@ sections atomiquement.
 
 `run-at` est un lanceur de payload, pas encore un chargeur de fichier : le
 source est toujours saisi par `assemble-program`. Le chemin d’assemblage
-accepte maintenant jusqu’à 9216 lignes d’instructions/directives et 1024
+accepte maintenant jusqu’à 9216 lignes d’instructions/directives et 2048
 symboles dans son scratch de payload ; le document source persistant reste
 limité séparément à 4096 lignes. La commande
 valide l’adresse et réinitialise le contexte avant le saut ; une entrée hors

@@ -40,9 +40,11 @@ const MAX_SOURCE_LINES: usize = 4096;
 // Keep the persistent editor/snapshot contract at 4096 lines while allowing
 // generated target programs such as MiniBASIC-RV to be assembled in one pass.
 const MAX_ASSEMBLY_LINES: usize = 9216;
-// Standalone payloads may contain hundreds of local control-flow labels.
-// Keep this scratch capacity independent from the editable source document.
-const MAX_SYMBOLS: usize = 1024;
+// Standalone payloads may contain hundreds of local control-flow labels. Keep
+// this scratch capacity independent from the editable source document and
+// leave room for target-side lexer/parser veneers without special-casing them
+// to save labels. The larger tables are static RAM, not M-mode stack usage.
+const MAX_SYMBOLS: usize = 2048;
 const SYMBOL_NAME_CAPACITY: usize = 32;
 // Target service ABI: a7 selects the service; a0/a1 carry arguments/results.
 const ECALL_WRITE_CHAR: u64 = 1;
