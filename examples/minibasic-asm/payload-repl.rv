@@ -620,6 +620,9 @@ jal x0,error_line
 ; renum_rewrite_all réécrit ensuite les cibles numériques dans le scratch cible,
 ; ce qui rend les références GOTO/GOSUB/THEN/ON robustes après plusieurs RENUM.
 renum_command:
+addi x6,x8,2040
+addi x6,x6,416
+sd x0,0(x6)
 addi x21,x18,6
 addi x26,x0,0
 addi x27,x0,0
@@ -717,6 +720,24 @@ sltu x7,x28,x7
 beq x7,x0,renum_error
 sltu x7,x26,x27
 bne x7,x0,renum_error
+; Conserver les numéros actuels hors des records : en cas de dépassement du
+; scratch de réécriture, RENUM pourra restaurer exactement l'état précédent.
+lui x22,0x82061
+slli x22,x22,32
+srli x22,x22,32
+addi x22,x22,-512
+addi x30,x0,0
+renum_snapshot_numbers:
+sltiu x7,x30,256
+beq x7,x0,renum_snapshot_done
+slli x7,x30,7
+add x24,x19,x7
+ld x6,0(x24)
+sd x6,0(x22)
+addi x22,x22,8
+addi x30,x30,1
+jal x0,renum_snapshot_numbers
+renum_snapshot_done:
 ; Les records ne changent pas de slot physique après RENUM. Le parcours doit
 ; inspecter le numéro courant du record, et non indexer line_lengths avec
 ; old_start ; cette distinction rend les RENUM successifs possibles.
@@ -767,10 +788,44 @@ renum_write_empty:
 addi x30,x30,1
 jal x0,renum_write_line
 renum_done:
+addi x6,x8,2040
+addi x6,x6,416
+addi x7,x0,1
+sd x7,0(x6)
 ; Le texte des sauts reste dans les records ; réécrire ces numéros après la
 ; seconde passe évite de dépendre d'un alias unique lors d'un RENUM ultérieur.
 jal x0,renum_rewrite_all
 renum_error:
+addi x7,x8,2040
+addi x7,x7,416
+ld x6,0(x7)
+bne x6,x0,renum_rollback_numbers
+jal x0,error_line
+
+; La réécriture de texte est prévalidée avant toute publication. Si elle
+; dépasse 111 octets, restaurer les numéros depuis la copie de transaction et
+; laisser les corps de lignes intacts.
+renum_rollback_numbers:
+lui x22,0x82061
+slli x22,x22,32
+srli x22,x22,32
+addi x22,x22,-512
+addi x30,x0,0
+renum_rollback_loop:
+sltiu x7,x30,256
+beq x7,x0,renum_rollback_done
+slli x7,x30,7
+add x24,x19,x7
+ld x6,0(x22)
+sd x6,0(x24)
+addi x22,x22,8
+addi x30,x30,1
+jal x0,renum_rollback_loop
+renum_rollback_done:
+addi x6,x8,2040
+addi x6,x6,416
+sd x0,0(x6)
+addi x18,x8,1024
 jal x0,error_line
 
 ; Réécriture target-side des cibles GOTO/GOSUB/THEN/ON après RENUM.
@@ -784,6 +839,9 @@ slli x22,x22,32
 srli x22,x22,32
 addi x22,x22,-1024
 addi x23,x0,0
+; x18=1 signifie prévalidation : le scratch est rempli et mesuré, mais jamais
+; copié dans le record. La seconde passe remet x18 à zéro pour publier.
+addi x18,x0,1
 renum_rewrite_record:
 sltiu x7,x23,256
 beq x7,x0,renum_rewrite_done
@@ -1015,6 +1073,9 @@ addi x26,x26,1
 addi x27,x27,1
 jal x0,renum_rewrite_scan
 renum_rewrite_publish:
+sltiu x6,x27,112
+beq x6,x0,renum_error
+bne x18,x0,renum_rewrite_skip_record
 addi x26,x0,0
 renum_rewrite_publish_loop:
 sltu x7,x26,x27
@@ -1035,9 +1096,17 @@ renum_rewrite_skip_record:
 addi x23,x23,1
 jal x0,renum_rewrite_record
 renum_rewrite_done:
+ bne x18,x0,renum_rewrite_second_pass
+addi x6,x8,2040
+addi x6,x6,416
+sd x0,0(x6)
+addi x18,x8,1024
 addi x20,x8,768
 jal x0,command_loop
-
+renum_rewrite_second_pass:
+addi x18,x0,0
+addi x23,x0,0
+jal x0,renum_rewrite_record
 store_line_ten_command:
 addi x26,x0,1
 jal x0,store_line

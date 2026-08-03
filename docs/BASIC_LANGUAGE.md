@@ -364,7 +364,10 @@ le guest réécrit dans un scratch target-side les cibles numériques de `GOTO`,
 courant ou l’alias `record+8`. Cette réécriture rend les références stables
 après plusieurs `RENUM` ; les chaînes littérales ne sont jamais modifiées.
 Un numéro cible absent reste inchangé et produit une erreur à l’exécution.
-La capacité de sortie d’un record reste limitée à 111 octets.
+La capacité de sortie d’un record reste limitée à 111 octets. La réécriture
+est prévalidée dans une première passe sans publication ; si un corps réécrit
+dépasse cette capacité, `RENUM` restaure les numéros et les corps originaux et
+retourne une erreur sans mutation partielle.
 Ctrl-C est capturé par le pilote UART interrupt-driven puis consommé par
 polling coopératif pendant `RUN`.
 
