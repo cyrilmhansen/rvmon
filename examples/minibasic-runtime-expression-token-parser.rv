@@ -1,0 +1,254 @@
+; MiniBASIC-RV — évaluateur tokenisé indépendant.
+;
+; Contrat target-side de cette tranche :
+;   token record = {type:u64, source:u64, length:u64}, 24 octets ;
+;   x8 = base du flux de tokens ;
+;   [x8+0xf0] = nombre de tokens ;
+;   [x8+0xf8] = résultat binary64 ;
+;   [x8+0x100] = pile de valeurs, huit cellules binary64 ;
+;   [x8+0x140] = pile d’opérateurs, huit octets ;
+;   [x8+0x148] = profondeur de chaque pile.
+;
+; L’implémentation utilise l’algorithme de réduction de précédence : un
+; opérateur est empilé, puis les opérateurs de précédence supérieure ou égale
+; sont réduits avant l’empilement suivant. Cette tranche accepte les tokens
+; nombre et + - * / ; les parenthèses sont refusées explicitement ici.
+; Les nombres sont des suites de chiffres ASCII, converties dans la cible
+; avant passage par l’extension D. Aucun résultat n’est fourni par l’hôte.
+
+data 0x82000000 .byte 0x32
+data 0x82000001 .byte 0x2b
+data 0x82000002 .byte 0x33
+data 0x82000003 .byte 0x2a
+data 0x82000004 .byte 0x34
+
+; token 0: number "2"
+data 0x82000020 .dword 1
+data 0x82000028 .dword 0x82000000
+data 0x82000030 .dword 1
+; token 1: operator "+"
+data 0x82000038 .dword 3
+data 0x82000040 .dword 0x82000001
+data 0x82000048 .dword 1
+; token 2: number "3"
+data 0x82000050 .dword 1
+data 0x82000058 .dword 0x82000002
+data 0x82000060 .dword 1
+; token 3: operator "*"
+data 0x82000068 .dword 3
+data 0x82000070 .dword 0x82000003
+data 0x82000078 .dword 1
+; token 4: number "4"
+data 0x82000080 .dword 1
+data 0x82000088 .dword 0x82000004
+data 0x82000090 .dword 1
+data 0x820000f0 .dword 5
+
+assemble-program 0x81000100
+entry:
+auipc x8,0x1000
+addi x8,x8,-256
+jal x1,token_eval
+fsd f1,248(x8)
+ebreak
+
+; x8 is stable, x9 is the token index, x10 is the value-stack depth and
+; x11 is the operator-stack depth. The current number is pushed on the value
+; stack; reductions consume two values and one operator.
+token_eval:
+addi x31,x1,0
+addi x9,x0,0
+addi x10,x0,0
+addi x11,x0,0
+jal x1,token_read_number
+jal x1,value_push
+jal x0,token_loop
+
+token_loop:
+ld x6,240(x8)
+sltu x6,x9,x6
+beq x6,x0,token_finish
+slli x7,x9,4
+slli x6,x9,3
+add x7,x7,x6
+addi x7,x7,32
+add x7,x8,x7
+ld x5,0(x7)
+addi x6,x0,1
+beq x5,x6,token_number
+addi x6,x0,3
+beq x5,x6,token_operator
+jal x0,fail
+
+token_number:
+jal x1,token_read_number
+jal x1,value_push
+jal x0,token_loop
+
+token_operator:
+ld x6,8(x7)
+lbu x5,0(x6)
+addi x27,x5,0
+addi x9,x9,1
+addi x6,x0,43
+beq x5,x6,token_plus
+addi x6,x0,45
+beq x5,x6,token_plus
+addi x6,x0,42
+beq x5,x6,token_mul
+addi x6,x0,47
+beq x5,x6,token_mul
+jal x0,fail
+token_plus:
+addi x6,x0,1
+jal x0,operator_reduce
+jal x0,token_loop
+token_mul:
+addi x6,x0,2
+jal x0,operator_reduce
+jal x0,token_loop
+
+; x6 = precedence of the incoming operator. Reduce while the existing top
+; has at least that precedence, then save the incoming operator.
+operator_reduce:
+addi x15,x6,0
+beq x11,x0,operator_push
+addi x7,x8,320
+add x7,x7,x11
+addi x7,x7,-1
+lbu x5,0(x7)
+addi x28,x0,43
+beq x5,x28,operator_existing_plus
+addi x28,x0,45
+beq x5,x28,operator_existing_plus
+addi x28,x0,42
+beq x5,x28,operator_existing_mul
+addi x28,x0,47
+beq x5,x28,operator_existing_mul
+jal x0,fail
+operator_existing_plus:
+addi x28,x0,1
+sltu x6,x28,x15
+bne x6,x0,operator_push
+jal x1,reduce_one
+addi x6,x15,0
+jal x0,operator_reduce
+operator_existing_mul:
+addi x28,x0,2
+sltu x6,x28,x15
+bne x6,x0,operator_push
+jal x1,reduce_one
+addi x6,x15,0
+jal x0,operator_reduce
+operator_push:
+addi x7,x8,320
+add x7,x7,x11
+; x27 contains the operator byte from the current token record.
+sb x27,0(x7)
+addi x11,x11,1
+jalr x0,0(x1)
+
+; Reduce the top operator. f1/f2 are transient operands; the value stack is
+; kept in target RAM so nested reductions do not depend on host state.
+reduce_one:
+addi x30,x1,0
+addi x11,x11,-1
+addi x7,x8,320
+add x7,x7,x11
+lbu x5,0(x7)
+jal x1,value_pop
+fmv.x.d x12,f1
+jal x1,value_pop
+fmv.x.d x13,f1
+fmv.d.x f1,x13
+fmv.d.x f2,x12
+addi x6,x0,43
+beq x5,x6,reduce_add
+addi x6,x0,45
+beq x5,x6,reduce_sub
+addi x6,x0,42
+beq x5,x6,reduce_mul
+addi x6,x0,47
+beq x5,x6,reduce_div
+jal x0,fail
+reduce_add:
+fadd.d f1,f1,f2
+addi x1,x30,0
+jal x0,value_push
+reduce_sub:
+fsub.d f1,f1,f2
+addi x1,x30,0
+jal x0,value_push
+reduce_mul:
+fmul.d f1,f1,f2
+addi x1,x30,0
+jal x0,value_push
+reduce_div:
+fdiv.d f1,f1,f2
+addi x1,x30,0
+jal x0,value_push
+
+token_finish:
+beq x11,x0,token_last_value
+jal x1,reduce_one
+jal x0,token_finish
+token_last_value:
+jal x1,value_pop
+jalr x0,0(x31)
+
+; Read the number at token index x9. This first contract handles integer
+; decimal tokens; decimal point and exponent support will be added only after
+; this evaluator’s stack ABI is independently stable.
+token_read_number:
+slli x7,x9,4
+slli x28,x9,3
+add x7,x7,x28
+addi x7,x7,32
+add x7,x8,x7
+ld x6,8(x7)
+ld x7,16(x7)
+addi x14,x0,0
+token_digit_loop:
+beq x7,x0,token_digit_done
+lbu x5,0(x6)
+addi x5,x5,-48
+sltiu x28,x5,10
+beq x28,x0,fail
+slli x28,x14,3
+slli x13,x14,1
+add x14,x28,x13
+add x14,x14,x5
+addi x6,x6,1
+addi x7,x7,-1
+jal x0,token_digit_loop
+token_digit_done:
+fcvt.d.l f1,x14,0
+addi x9,x9,1
+jalr x0,0(x1)
+
+value_push:
+addi x7,x8,256
+slli x6,x10,3
+add x7,x7,x6
+fsd f1,0(x7)
+addi x10,x10,1
+jalr x0,0(x1)
+value_pop:
+beq x10,x0,fail
+addi x10,x10,-1
+addi x7,x8,256
+slli x6,x10,3
+add x7,x7,x6
+fld f1,0(x7)
+jalr x0,0(x1)
+
+fail:
+addi x10,x0,1
+addi x17,x0,3
+ecall
+end
+symbols
+run-at 0x81000100
+regs
+memory 0x820000f8 8
+q

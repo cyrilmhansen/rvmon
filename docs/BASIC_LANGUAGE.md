@@ -233,7 +233,14 @@ numérique, mais seulement partiellement au lexer et au dispatch :
    numérique conserve encore `x21` comme curseur de compatibilité pendant cette
    étape ; le flux de tokens est donc un oracle lexical interne et non encore
    l'entrée du calcul.
-6. Les handlers historiques consomment encore directement le texte. Le plan
+6. Un évaluateur tokenisé indépendant est maintenant prouvé dans
+   `examples/minibasic-runtime-expression-token-parser.rv`. Il consomme le
+   même format de records, utilise une pile de valeurs et une pile
+   d'opérateurs en RAM cible, réduit `2+3*4` avec la précédence correcte et
+   produit le motif binary64 de `14.0` sous QEMU. Il ne supporte encore que
+   les nombres entiers décimaux et les quatre opérateurs binaires ; il n'est
+   pas encore raccordé au payload principal.
+7. Les handlers historiques consomment encore directement le texte. Le plan
    de migration est de faire produire au lexer des tokens bornés, puis de
    faire partager le parseur de précédence et les descripteurs aux fonctions,
    tableaux, comparaisons et arguments de statements. Les handlers cible et
