@@ -3158,10 +3158,14 @@ release. Elles n’ajoutent aucune extension ISA.
   layout du record target-side.
 - **Fichiers/modules :** `payload-repl.rv`, test QEMU unary/parenthesis et docs.
 - **Dépendances :** BASIC-LOAD-005W/V, `fmv.x.d`, `fmv.d.x` et opérations D.
-- **Tests :** `PRINT (-2.5) + (+3.5)`, breakpoint, `f1=-2.5`, `f2=3.5`,
-  `f3=1.0` et dump exact en RAM sous QEMU.
-- **Critères de sortie :** le signe est appliqué dans le guest ; aucune
-  valeur négative ni aucun résultat n’est injecté par le harnais.
+- **Tests :** `PRINT (-2.5) + (+3.5)`, breakpoint, valeur intermédiaire
+  négative puis valeurs finales `f1=1.0`, `f2=3.5`, `f3=1.0`, marqueur du
+  chemin tokenisé `0x82062720=1` et dump exact en RAM sous QEMU.
+- **Critères de sortie :** le signe est appliqué dans le guest par
+  `fmv.x.d`/`fmv.d.x` sans écraser la profondeur de pile ; aucune valeur
+  négative ni aucun résultat n’est injecté par le harnais. Les signes devant
+  un littéral sont pris par l’évaluateur tokenisé ; un signe devant un groupe
+  parenthésé revient explicitement au parseur historique sans mutation.
 - **Cas limites :** signe isolé, parenthèse vide/non fermée, double signe,
   imbrication, NaN et débordement syntaxique restent à diagnostiquer.
 - **Taille :** 3 points / 1,5 journée-agent, incertitude moyenne.

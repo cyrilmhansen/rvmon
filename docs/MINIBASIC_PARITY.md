@@ -17,7 +17,7 @@ expressions, données, chaînes, tableaux et diagnostics. Elle ne signifie ni
 compatibilité Atari, ni compatibilité binaire, ni compatibilité des tokens,
 des nombres historiques, des périphériques, du DOS ou des graphismes.
 
-État de l’audit au 3 août 2026 : **114 scripts QEMU assembleur MiniBASIC
+État de l’audit au 3 août 2026 : **118 scripts QEMU assembleur MiniBASIC
 recensés**. Les scénarios récents fournissent notamment la preuve nominale et
 d’erreur de `ATN` après exécution QEMU verte. Ce nombre
 est contrôlable par :
@@ -123,7 +123,7 @@ refusée.
 | Mode direct et invite | Conservée sous `READY>` | VERT | invite et commandes exécutées dans le guest |
 | Programme à lignes, insertion, remplacement, suppression | Conservée | VERT | limites de numéros et de capacité RV explicites |
 | `LIST`, `RUN`, `TRACE` | Conservée, avec diagnostics structurés | VERT | pas de compatibilité d’écran ou de tokens Atari |
-| Expressions numériques | Modernisée vers binary64/RISC-V D | VERT | pas de BCD ni de résultats numériques Atari bit à bit |
+| Expressions numériques | Modernisée vers binary64/RISC-V D ; littéraux décimaux, espaces, signes unaires devant littéraux, parenthèses simples et précédence | VERT | `test-guest-runtime-asm-repl-unary-paren.sh`, `precedence.sh`, `expression-tokens.sh` ; le marqueur target-side `0x82062720=1` prouve le chemin tokenisé ; pas de BCD ni de résultats numériques Atari bit à bit |
 | `IF`, `GOTO`, `FOR/NEXT`, `WHILE/WEND`, `REPEAT/UNTIL`, `DO/LOOP` | Contrôle de flot conservé et borné | VERT | blocs `IF` avec `ELSE`/`ENDIF` sur lignes dédiées |
 | `GOSUB/RETURN`, `POP`, `EXIT`, `ON GOTO/GOSUB` | Sous-programmes et sorties structurées conservés | VERT | piles statiques de huit niveaux, pas de layout TBXL |
 | `DATA/READ/RESTORE` | Conservée dans une représentation target-side | VERT | types et stockage propres à MiniBASIC |
@@ -135,7 +135,7 @@ refusée.
 | `DEL n,m` | Extension target-side bornée, suppression inclusive | VERT | `test-guest-runtime-asm-repl-del.sh`; formes simple, plage et erreur |
 | `RENUM new,old,step` | Reprise target-side bornée, avec prévalidation et réécriture des cibles de flot | PARTIEL | `test-guest-runtime-asm-repl-renum*.sh`, `renum-repeat-control.sh`; `GOTO`, `GOSUB`, `THEN` et les listes `ON` sont réécrits après plusieurs renumérotations |
 | Autres fonctions mathématiques historiques non retenues dans la grammaire | Différées, pas implicitement supportées | DIFFÉRÉ | aucune syntaxe n’est promise sans décision et test dédiés |
-| Chaînes complètes et tableaux complets | Conservés comme trajectoire produit | PLANIFIÉ | concaténation et découpes sont présentes ; opérations restantes à auditer |
+| Chaînes complètes et tableaux complets | Conservés comme trajectoire produit | PARTIEL | concaténation, découpes, variables et tableaux sont présents ; opérations restantes et limites de composition sont encore à auditer |
 | Fichiers, DOS, graphismes, sons, périphériques Atari | Rejetés | REJETÉ | ne font pas partie du modèle de services cible |
 | Tokens et représentation mémoire TBXL | Rejetés | REJETÉ | le source est ASCII et le payload est relogeable RV |
 
@@ -252,7 +252,7 @@ sortie BASIC préenregistrée.
 - **Décisions de parité figées :** mode direct, lignes, contrôle de flot,
   chaînes, tableaux, binary64 target-side, interruption et périmètre Atari
   rejeté ;
-- **Preuve automatisée :** 117 scripts QEMU assembleur recensés au moment de
+- **Preuve automatisée :** 118 scripts QEMU assembleur recensés au moment de
   cet audit, avec des cas nominaux et négatifs dédiés aux chaînes, tableaux,
   conversions, fonctions de recherche, formatage et blocs structurés ;
 - **Écart important restant :** `ELSE`/`ENDIF` doivent rester en lignes dédiées ;
@@ -289,7 +289,8 @@ sortie BASIC préenregistrée.
 | 2026-08-03 | `LEN` évalue des concaténations chaîne simples dans le guest | `test-guest-runtime-asm-repl-string-len-concat.sh` et régression `string-len.sh` sous QEMU ; littéraux, variables et longueur totale après plusieurs appels `LEN` | le premier consommateur de fonctions chaîne accepte une expression composée ; fonctions imbriquées et généralisation aux autres fonctions restent partielles |
 | 2026-08-03 | `ASC` évalue des concaténations chaîne simples dans le guest | `test-guest-runtime-asm-repl-string-asc-concat.sh` et `string-asc-concat-error.sh` sous QEMU ; littéral + littéral, variable + littéral et chaîne vide | `ASC` rejoint `LEN` comme consommateur d’expression chaîne ; `VAL`, `INSTR`, `LEFT$`, `RIGHT$` et `MID$` restent à généraliser séparément |
 | 2026-08-03 | Validation de la concaténation dans `PRINT` | `test-guest-runtime-asm-repl-string-print-concat.sh` sous QEMU : `"RV "+TEXT$`, `TEXT$+"!"`, `LEFT$(TEXT$,4)+"!"`, `"A"+"B"+"C"`, `CHR$(65)+"B"` et `STR$(12.5)+"!"` | la sortie concaténée, les découpes et les conversions chaîne sont calculées dans le payload ; l’affectation concaténée reste PARTIELLE pour les conversions numériques |
-| 2026-08-03 | Audit de cohérence du registre | comptage reproductible : `find scripts -maxdepth 1 -type f -name 'test-guest-runtime-asm-repl*.sh' \| wc -l` → `107` | l’inventaire courant est distingué des comptes historiques ; la concaténation `PRINT` est maintenant validée par un scénario QEMU dédié |
+| 2026-08-03 | Audit de cohérence du registre | comptage reproductible : `find scripts -maxdepth 1 -type f -name 'test-guest-runtime-asm-repl*.sh' \| wc -l` → `118` | l’inventaire courant est distingué des comptes historiques ; la concaténation `PRINT` est maintenant validée par un scénario QEMU dédié |
+| 2026-08-03 | Intégration de l’évaluateur tokenisé pour signes unaires devant littéraux | `test-guest-runtime-asm-repl-unary-paren.sh` sous QEMU : `(-2.5)+(+3.5)`, sortie `1.000000`, motifs binaires finaux et marqueur `0x82062720=1` | les signes sont traités dans le guest sans écraser la profondeur de pile ; un signe devant un groupe parenthésé revient volontairement au parseur historique |
 | 2026-08-03 | Correction de la résolution des tableaux courts nommés `C` | `test-guest-runtime-asm-repl-array-table.sh` sous QEMU : `DIM B(3)`, `DIM C(2)`, affectations et `PRINT B(1)+C(2)` produisent `16.000000` | `C(...)` ne tombe plus dans le résolveur de tableaux longs ; le test de la fonction `COS(...)` doit rester vert |
 | 2026-08-03 | `LEN` accepte les littéraux ASCII | `test-guest-runtime-asm-repl-string-len.sh` sous QEMU, avec `LEN("RV64")` en plus des variables et tableaux | la résolution reste target-side ; les expressions chaîne générales restent différées |
 | 2026-08-03 | Correction de `RIGHT$` concaténé dans une affectation et preuve d’une destination tableau | `test-guest-runtime-asm-repl-string-right-assignment-concat.sh` et `test-guest-runtime-asm-repl-string-array-assignment-concat.sh` sous QEMU ; `RABI<` et `RABI!` sans fault | les trois découpes d’affectation rejoignent leur concaténateur target-side propre, y compris pour un élément de tableau ; la composition générale reste PARTIELLE |
