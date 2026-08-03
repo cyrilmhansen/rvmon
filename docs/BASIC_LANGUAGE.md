@@ -348,14 +348,20 @@ de flot. `RESTORE` remet ce curseur au début des lignes `DATA`.
 
 ## Commandes directes
 
-`NEW`, `LIST`, `RUN`, `TRACE ON`, `TRACE OFF`, `DUMP`, `PRINT`/`?`, `DEL` et
+`NEW`, `LIST`, `RUN`, `RENUM`, `TRACE ON`, `TRACE OFF`, `DUMP`, `PRINT`/`?`, `DEL` et
 `BYE` sont disponibles ; `EXIT` est une instruction du programme. Une ligne
 numérotée est insérée ou remplacée ; un numéro seul la supprime. `DEL n`
 supprime une ligne et `DEL n,m` supprime l’intervalle inclusif de lignes
 numérotées `n` à `m`. Les bornes doivent être comprises entre 10 et 2560 et
 être des multiples de dix ; une borne finale inférieure à la borne initiale
 est rejetée sans écriture partielle. `TRACE ON` affiche `[numéro]` avant chaque
-ligne.
+ligne. `RENUM new,old,step` renumérote les lignes actives à partir de `old`
+vers `new`, avec l’incrément `step`. V1 exige des paramètres décimaux
+multiples de dix dans 10..2560, `new >= old` et une ligne finale dans la plage.
+L’opération est prévalidée avant écriture et refuse les programmes contenant
+des références textuelles `GOTO`, `GOSUB`, `THEN` ou `ON` : leur réécriture
+atomique n’est pas encore implémentée. Cette restriction est volontairement
+conservatrice et évite de laisser des sauts obsolètes.
 Ctrl-C est capturé par le pilote UART interrupt-driven puis consommé par
 polling coopératif pendant `RUN`.
 

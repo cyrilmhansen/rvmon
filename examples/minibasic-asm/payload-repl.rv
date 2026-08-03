@@ -187,7 +187,7 @@ beq x10,x7,check_l_command
 addi x7,x0,84
 beq x10,x7,trace_command
 addi x7,x0,82
-beq x10,x7,run_command
+beq x10,x7,check_r_command
 addi x7,x0,78
 beq x10,x7,new_program
 command_not_numbered:
@@ -331,6 +331,23 @@ sd x10,544(x8)
 jal x0,command_loop
 trace_error:
 jal x0,error_line
+check_r_command:
+lbu x5,1(x18)
+addi x7,x0,69
+bne x5,x7,run_command
+lbu x5,2(x18)
+addi x7,x0,78
+bne x5,x7,run_command
+lbu x5,3(x18)
+addi x7,x0,85
+bne x5,x7,run_command
+lbu x5,4(x18)
+addi x7,x0,77
+bne x5,x7,run_command
+lbu x5,5(x18)
+addi x7,x0,32
+bne x5,x7,run_command
+jal x0,renum_command
 ; Compatibilité des anciens labels conservée pour les symboles historiques.
 store_line_generic:
 ; Parse un numéro décimal, puis le convertit en index de ligne (N/10)-1.
@@ -491,6 +508,201 @@ jal x0,delete_range_loop
 delete_range_done:
 jal x0,command_loop
 delete_range_error:
+jal x0,error_line
+
+; RENUM new_start,old_start,step.
+; V1 conserve l'ordre des records et refuse les références de contrôle de flot
+; afin de ne jamais laisser un programme partiellement renuméroté.
+renum_command:
+addi x21,x18,6
+addi x26,x0,0
+addi x27,x0,0
+addi x28,x0,0
+addi x29,x0,0
+renum_new_digits:
+lbu x5,0(x21)
+addi x7,x0,48
+sltu x6,x5,x7
+bne x6,x0,renum_new_done
+addi x7,x0,58
+sltu x6,x5,x7
+beq x6,x0,renum_new_done
+addi x7,x0,48
+sub x5,x5,x7
+addi x7,x0,10
+mul x26,x26,x7
+add x26,x26,x5
+addi x29,x29,1
+addi x21,x21,1
+jal x0,renum_new_digits
+renum_new_done:
+beq x29,x0,renum_error
+addi x7,x0,44
+bne x5,x7,renum_error
+addi x7,x0,10
+remu x5,x26,x7
+bne x5,x0,renum_error
+sltiu x7,x26,10
+bne x7,x0,renum_error
+lui x7,1
+addi x7,x7,-1535
+sltu x7,x26,x7
+beq x7,x0,renum_error
+addi x21,x21,1
+addi x29,x0,0
+renum_old_digits:
+lbu x5,0(x21)
+addi x7,x0,48
+sltu x6,x5,x7
+bne x6,x0,renum_old_done
+addi x7,x0,58
+sltu x6,x5,x7
+beq x6,x0,renum_old_done
+addi x7,x0,48
+sub x5,x5,x7
+addi x7,x0,10
+mul x27,x27,x7
+add x27,x27,x5
+addi x29,x29,1
+addi x21,x21,1
+jal x0,renum_old_digits
+renum_old_done:
+beq x29,x0,renum_error
+addi x7,x0,44
+bne x5,x7,renum_error
+addi x7,x0,10
+remu x5,x27,x7
+bne x5,x0,renum_error
+sltiu x7,x27,10
+bne x7,x0,renum_error
+lui x7,1
+addi x7,x7,-1535
+sltu x7,x27,x7
+beq x7,x0,renum_error
+addi x21,x21,1
+addi x29,x0,0
+renum_step_digits:
+lbu x5,0(x21)
+addi x7,x0,48
+sltu x6,x5,x7
+bne x6,x0,renum_step_done
+addi x7,x0,58
+sltu x6,x5,x7
+beq x6,x0,renum_step_done
+addi x7,x0,48
+sub x5,x5,x7
+addi x7,x0,10
+mul x28,x28,x7
+add x28,x28,x5
+addi x29,x29,1
+addi x21,x21,1
+jal x0,renum_step_digits
+renum_step_done:
+beq x29,x0,renum_error
+bne x5,x0,renum_error
+addi x7,x0,10
+remu x5,x28,x7
+bne x5,x0,renum_error
+sltiu x7,x28,10
+bne x7,x0,renum_error
+lui x7,1
+addi x7,x7,-1535
+sltu x7,x28,x7
+beq x7,x0,renum_error
+sltu x7,x26,x27
+bne x7,x0,renum_error
+addi x30,x27,-10
+addi x7,x0,10
+divu x30,x30,x7
+addi x31,x26,0
+addi x22,x0,0
+renum_preflight_line:
+sltiu x7,x30,256
+beq x7,x0,renum_preflight_done
+slli x7,x30,3
+ld x6,480(x8)
+add x6,x6,x7
+ld x6,0(x6)
+beq x6,x0,renum_preflight_empty
+lui x7,1
+addi x7,x7,-1535
+sltu x7,x31,x7
+beq x7,x0,renum_error
+addi x22,x0,1
+slli x7,x30,7
+add x24,x19,x7
+addi x21,x24,16
+addi x9,x0,0
+renum_reference_scan:
+sltu x7,x9,x6
+beq x7,x0,renum_preflight_next
+add x7,x21,x9
+lbu x5,0(x7)
+addi x7,x0,71
+beq x5,x7,renum_reject_goto
+addi x7,x0,84
+beq x5,x7,renum_reject_then
+addi x7,x0,79
+beq x5,x7,renum_reject_on
+addi x9,x9,1
+jal x0,renum_reference_scan
+renum_reject_goto:
+addi x7,x21,0
+add x7,x7,x9
+lbu x5,1(x7)
+addi x7,x0,79
+beq x5,x7,renum_error
+jal x0,renum_reference_scan_next
+renum_reject_then:
+add x7,x21,x9
+lbu x5,1(x7)
+addi x7,x0,72
+bne x5,x7,renum_reference_scan_next
+add x7,x21,x9
+lbu x5,2(x7)
+addi x7,x0,69
+beq x5,x7,renum_error
+jal x0,renum_reference_scan_next
+renum_reject_on:
+add x7,x21,x9
+lbu x5,1(x7)
+addi x7,x0,78
+beq x5,x7,renum_error
+jal x0,renum_reference_scan_next
+renum_reference_scan_next:
+addi x9,x9,1
+jal x0,renum_reference_scan
+renum_preflight_next:
+addi x30,x30,1
+add x31,x31,x28
+jal x0,renum_preflight_line
+renum_preflight_empty:
+addi x30,x30,1
+jal x0,renum_preflight_line
+renum_preflight_done:
+beq x22,x0,renum_error
+addi x30,x27,-10
+addi x7,x0,10
+divu x30,x30,x7
+addi x31,x26,0
+renum_write_line:
+sltiu x7,x30,256
+beq x7,x0,renum_done
+slli x7,x30,3
+ld x6,480(x8)
+add x6,x6,x7
+ld x6,0(x6)
+beq x6,x0,renum_write_empty
+slli x7,x30,7
+add x24,x19,x7
+sd x31,0(x24)
+add x31,x31,x28
+renum_write_empty:
+addi x30,x30,1
+jal x0,renum_write_line
+renum_done:
+jal x0,command_loop
+renum_error:
 jal x0,error_line
 
 store_line_ten_command:
@@ -687,6 +899,17 @@ addi x7,x0,61
 beq x5,x7,assign_generic_direct
 jal x0,command_number_check
 check_generic_name_range:
+addi x7,x0,82
+bne x10,x7,check_generic_name_range_other
+lbu x5,1(x18)
+addi x7,x0,85
+beq x5,x7,command_number_check
+addi x7,x0,69
+beq x5,x7,command_number_check
+addi x7,x0,61
+beq x5,x7,assign_generic_direct
+jal x0,assign_generic_direct
+check_generic_name_range_other:
 addi x7,x0,65
 sltu x6,x10,x7
 bne x6,x0,command_number_check
@@ -1231,10 +1454,14 @@ jal x0,error_line
 read_statement:
 lbu x5,19(x24)
 addi x7,x0,68
-bne x5,x7,early_error
+beq x5,x7,read_statement_keyword_ok
+jal x0,early_error
+read_statement_keyword_ok:
 lbu x5,20(x24)
 addi x7,x0,32
-bne x5,x7,early_error
+beq x5,x7,read_statement_space_ok
+jal x0,early_error
+read_statement_space_ok:
 addi x21,x24,21
 lbu x5,1(x21)
 addi x7,x0,36

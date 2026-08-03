@@ -185,6 +185,12 @@
 - `scripts/test-guest-runtime-asm-repl-del.sh` vérifie `DEL n`, `DEL n,m`,
   l’intervalle inclusif, le tri/listing après suppression, l’absence
   d’exécution des lignes supprimées et le rejet d’une plage inversée.
+- `scripts/test-guest-runtime-asm-repl-renum.sh` vérifie
+  `RENUM 100,10,10`, les nouveaux numéros triés, la conservation des corps et
+  l’exécution target-side du programme renuméroté.
+- `scripts/test-guest-runtime-asm-repl-renum-error.sh` vérifie le refus
+  pré-écriture d’un programme contenant `GOTO` et l’absence de résultat
+  partiellement renuméroté.
 - `scripts/test-guest-runtime-asm-repl-two-lines.sh` vérifie l’insertion hors
   ordre de `20` puis `10`, le tri observable de `LIST`, les deux slots mémoire
   et l’exécution séquentielle target-side des lignes `10` puis `20`.
