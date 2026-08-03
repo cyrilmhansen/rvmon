@@ -17,8 +17,8 @@ expressions, données, chaînes, tableaux et diagnostics. Elle ne signifie ni
 compatibilité Atari, ni compatibilité binaire, ni compatibilité des tokens,
 des nombres historiques, des périphériques, du DOS ou des graphismes.
 
-État de l’audit au 3 août 2026 : **104 scripts QEMU assembleur MiniBASIC
-recensés**. Les deux derniers scénarios fournissent la preuve nominale et
+État de l’audit au 3 août 2026 : **105 scripts QEMU assembleur MiniBASIC
+recensés**. Les scénarios récents fournissent notamment la preuve nominale et
 d’erreur de `ATN` après exécution QEMU verte. Ce nombre
 est contrôlable par :
 
@@ -282,6 +282,7 @@ sortie BASIC préenregistrée.
 | 2026-08-03 | Ajout de `DEL n` et `DEL n,m` target-side | `test-guest-runtime-asm-repl-del.sh` sous QEMU ; suppression simple, plage inclusive, listing, exécution et plage inversée | l’édition de blocs TBXL est partiellement reprise ; `RENUM` et les commandes de fichiers restent différés |
 | 2026-08-03 | Ajout de `RENUM new,old,step` target-side avec prévalidation | `test-guest-runtime-asm-repl-renum.sh` et `test-guest-runtime-asm-repl-renum-error.sh` sous QEMU ; corps simples, listing, exécution et erreur sans écriture partielle | la commande d’édition est PARTIELLE : les records conservent un alias de leur numéro précédent pour les résolveurs de contrôle de flot |
 | 2026-08-03 | Résolution des cibles après RENUM | `test-guest-runtime-asm-repl-renum-control.sh` sous QEMU ; `IF THEN`, `GOSUB/RETURN` et `ON GOTO` reprennent effectivement les lignes renumérotées | les références restent dans le texte, l’alias ne couvre que la dernière renumérotation et la réécriture permanente reste une décision ultérieure |
+| 2026-08-03 | Audit de cohérence du registre | comptage reproductible : `find scripts -maxdepth 1 -type f -name 'test-guest-runtime-asm-repl*.sh' \| wc -l` → `105` | l’inventaire courant est distingué des comptes historiques ; l’expérimentation de concaténation `PRINT` avec variables longues reste non acceptée tant qu’un scénario QEMU complet n’est pas vert |
 
 Les affectations ne constituent pas encore une parité chaîne complète : le RHS
 est soit une forme `LEFT$`/`RIGHT$`/`MID$`, soit une concaténation de termes
