@@ -335,3 +335,8 @@ compte les parenthèses, ignore les guillemets et détecte uniquement un `+` au
 niveau externe ; il route alors `LEFT$`/`RIGHT$`/`MID$` vers le concaténateur
 commun. QEMU valide les trois affectations composées, la régression `RIGHT$`,
 les erreurs de découpe et les chaînes trop longues.
+2026-08-04 — J’ai exécuté la séance complète Hammurabi avec le payload assembleur
+dans QEMU. Le script saisit les 61 lignes numérotées dans le désordre, active
+`TRACE`, injecte quinze réponses, puis vérifie `HAMMURABI-RV`, `HARVEST`, la
+sortie finale `1950.000000` et le retour par breakpoint. La preuve est verte et
+reste target-side ; elle ne masque pas les familles TBXL encore partielles.

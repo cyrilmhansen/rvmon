@@ -85,6 +85,7 @@ entièrement dans le guest.
 | Affectation chaîne par fonction | `LET destination$=LEFT$`, `RIGHT$` ou `MID$` avec source scalaire, tableau chaîne, littéral ou expression composée et destination scalaire ou tableau, copie target-side bornée et sûre en cas de recouvrement | PARTIEL | `string-assignment.sh`, `test-guest-runtime-asm-repl-string-slice-expression.sh`, `string-slice-assignment*.sh`, `string-slice-array-source.sh`, `string-slice-array-destination*.sh`, `string-slice-literal-source*.sh`; fonctions et imbrications au-delà des cadres documentés restent différées |
 | Concaténation chaîne en affectation | affectation de termes littéraux, variables, éléments de tableaux, `LEFT$`/`RIGHT$`/`MID$` ou `CHR$` avec `+`, buffer target-side de 120 octets et rejet des dépassements | PARTIEL | `test-guest-runtime-asm-repl-string-concat.sh`, `test-guest-runtime-asm-repl-string-concat-error.sh`; conversions numériques et autres opérateurs chaîne différés |
 | Concaténation chaîne dans `PRINT` | `PRINT` de littéraux, variables, découpes, `CHR$` et `STR$` avec `+`, évaluation complète dans le guest et sortie sans résultat préenregistré | VERT | `test-guest-runtime-asm-repl-string-print-concat.sh` sous QEMU ; `LEFT$`, `RIGHT$`, `MID$`, `CHR$`, `STR$`, littéraux et variables sont couverts |
+| Programme étalon Hammurabi | Programme à lignes numérotées, variables longues, calculs, entrées, branches, boucles et sortie interactive entièrement target-side | VERT | `test-guest-runtime-asm-repl-hammurabi.sh` sous QEMU ; saisie hors ordre, `TRACE ON`, quinze entrées, sortie finale et breakpoint vérifiés |
 | Variables numériques | variables courtes historiques et identifiants ASCII de 2 à 16 caractères | VERT | `scalars.sh`, `long-names.sh`, `keyword-vars.sh` |
 | Chaînes | littéraux, variables courtes/longues, affectation, affichage et entrée | VERT | `string-var.sh`, `long-string.sh` |
 | Tableaux numériques | 1D/2D, noms courts/longs, index calculés et contrôle des bornes | VERT | `array*.sh`, `long-numeric-array*.sh` |
@@ -258,6 +259,9 @@ sortie BASIC préenregistrée.
 - **Écart important restant :** `ELSE`/`ENDIF` doivent rester en lignes dédiées ;
   certaines fonctions historiques TBXL ne sont pas encore retenues ; les expressions
   chaîne générales et les autres opérateurs chaîne restent partiels ;
+- **Démonstrateur étalon :** Hammurabi est maintenant une preuve target-side
+  automatisée, mais sa présence ne transforme pas les familles de langage
+  encore partielles en compatibilité TBXL complète ;
 - **Conclusion :** la parité d’expérience du démonstrateur est solide, mais la
   parité de langage TBXL 1.5 n’est pas complète et ne doit pas être présentée
   comme telle.
