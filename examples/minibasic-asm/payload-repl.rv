@@ -3900,6 +3900,10 @@ addi x10,x0,3
 sd x10,568(x8)
 jal x0,print_result
 print_result:
+; Publie f3 dans le buffer de sortie, puis choisit la continuation selon le
+; contexte : 0 = fin d'expression, 1 = boucle d'émission, 3 = élément après
+; une virgule. f3 est restauré après l'ecall car il reste le résultat public
+; de l'évaluateur pour l'affectation et le débogueur.
 addi x27,x8,2047
 addi x27,x27,361
 fsd f3,0(x27)
@@ -4003,6 +4007,10 @@ bne x5,x7,print_more_item
 addi x21,x21,1
 jal x0,print_more_spaces
 print_more_item:
+; PRINT choisit le type de l'élément en regardant le début du terme. Une
+; chaîne est un littéral, un nom en `$` ou une fonction chaîne ; le reste est
+; renvoyé à eval_expression. Ce choix évite de confondre le `$` interne de
+; ASC/VAL/INSTR avec un séparateur de liste PRINT.
 addi x7,x0,34
 beq x5,x7,print_more_string
 lbu x6,1(x21)
@@ -4050,6 +4058,14 @@ print_normal_continuation:
 jal x0,if_false
 run_stop:
 ebreak
+; ---------------------------------------------------------------------------
+; ABI interne des valeurs chaîne
+; Une routine reçoit x21 au début du terme et rend x7=adresse des octets
+; target-side, x11=longueur sans NUL, et x21=caractère suivant le terme.
+; Un littéral est copié dans 0x82060100. Un appel qui doit conserver deux
+; opérandes copie le premier avant de résoudre le second, car les résolveurs
+; partagent sinon leur buffer temporaire.
+; ---------------------------------------------------------------------------
 ; Résolution d'un identifiant target-side.
 ; Entrée : x21 pointe sur le premier caractère du nom.
 ; Sorties : x7 pointe sur la valeur binary64, x21 sur le caractère suivant.
@@ -7346,6 +7362,9 @@ jal x1,resolve_string_array
 ld x1,2024(x8)
 jalr x0,0(x1)
 resolve_string_literal_source:
+; La copie est limitée à 120 octets et publiée par (x7,x11). La longueur est
+; la seule sentinelle contractuelle : les consommateurs n'accèdent jamais à
+; une chaîne au-delà de x7+x11 et ne dépendent pas d'un octet NUL.
 addi x21,x21,1
 lui x7,0x82060
 slli x7,x7,32
@@ -7599,6 +7618,10 @@ sd x7,1992(x8)
 ld x1,2000(x8)
 jalr x0,0(x1)
 string_format_number:
+; Formatage pédagogique V1 : signe, partie entière, point et exactement six
+; chiffres fractionnaires. La conversion utilise le mode immédiat du payload ;
+; ce format est déterministe pour les démonstrations mais ne sérialise pas
+; toute la précision décimale possible d'un binary64 arbitraire.
 sd x1,1816(x8)
 fsd f3,1824(x8)
 fmv.x.d x10,f3
