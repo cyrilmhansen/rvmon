@@ -9649,8 +9649,8 @@ addi x6,x0,6
 beq x28,x6,statement_table_for
 addi x6,x0,7
 beq x28,x6,statement_table_next_handler
-addi x6,x0,9
-beq x28,x6,statement_table_input
+addi x6,x0,24
+beq x28,x6,statement_table_end
 addi x6,x0,16
 beq x28,x6,statement_table_else
 addi x6,x0,17
@@ -9677,7 +9677,7 @@ addi x10,x8,2047
 addi x10,x10,601
 ld x5,0(x10)
 addi x6,x0,10
-beq x5,x6,statement_table_end
+beq x5,x6,statement_table_input
 lbu x10,16(x24)
 jal x0,goto_dispatch
 statement_table_if:
@@ -9697,10 +9697,8 @@ addi x30,x0,1
 jal x1,statement_table_fallback
 jal x0,endif_statement
 statement_table_input:
-; INPUT utilise l'ABI console et le parseur target-side de input_statement.
-addi x30,x0,1
-jal x1,statement_table_fallback
-jal x0,input_statement
+; Veneer local de RETURN ; INPUT utilise le fallback legacy sans changement.
+jal x0,return_statement
 statement_table_for:
 ; FOR et NEXT partagent les frames target-side, mais gardent leurs handlers.
 addi x30,x0,1
@@ -9764,7 +9762,8 @@ jal x0,statement_dispatch_legacy
 statement_table_legacy:
 jalr x0,0(x1)
 statement_table_end:
-jal x0,return_statement
+; Veneer local d'ON ; END utilise le fallback legacy sans changement.
+jal x0,on_statement
 end
 symbols
 run-at 0x81000100
