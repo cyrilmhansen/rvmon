@@ -1353,6 +1353,8 @@ addi x7,x0,82
 beq x5,x7,print_right_probe
 addi x7,x0,67
 beq x5,x7,print_chr_probe
+addi x7,x0,83
+beq x5,x7,print_str_probe
 addi x7,x0,76
 bne x5,x7,print_statement_string_scan
 lbu x5,1(x22)
@@ -1426,6 +1428,20 @@ lbu x5,4(x22)
 addi x7,x0,40
 bne x5,x7,print_statement_string_scan
 jal x0,print_chr_string
+print_str_probe:
+lbu x5,1(x22)
+addi x7,x0,84
+bne x5,x7,print_statement_string_scan
+lbu x5,2(x22)
+addi x7,x0,82
+bne x5,x7,print_statement_string_scan
+lbu x5,3(x22)
+addi x7,x0,36
+bne x5,x7,print_statement_string_scan
+lbu x5,4(x22)
+addi x7,x0,40
+bne x5,x7,print_statement_string_scan
+jal x0,print_str_string
 print_statement_string_scan:
 lbu x5,0(x22)
 addi x7,x0,36
@@ -6370,6 +6386,24 @@ addi x17,x0,1
 ecall
 jal x0,if_false
 print_chr_error:
+jal x0,error_line
+print_str_string:
+addi x21,x21,5
+addi x22,x0,0
+jal x1,eval_expression
+lbu x5,0(x21)
+addi x6,x0,41
+bne x5,x6,print_str_error
+addi x21,x21,1
+jal x1,string_format_number
+addi x10,x7,0
+addi x17,x0,4
+ecall
+addi x10,x0,10
+addi x17,x0,1
+ecall
+jal x0,if_false
+print_str_error:
 jal x0,error_line
 resolve_string_source:
 sd x1,2024(x8)

@@ -66,7 +66,8 @@ printf '%s\n' \
   '210 PRINT INSTR(TEXT$,"")' \
   '220 PRINT NUMSTR$' \
   '230 PRINT SIGNEDSTR$' \
-  '240 END' \
+  '240 PRINT STR$(7.25)' \
+  '250 END' \
   'RUN' | while IFS= read -r line; do
     printf '%s\n' "$line" >&3
     sleep 0.08
@@ -79,7 +80,7 @@ kill "$qemu_pid" 2>/dev/null || true
 wait "$qemu_pid" 2>/dev/null || true
 qemu_pid=""
 
-for expected in 'RV HAMMURABI' 'RV HAMMURABI!' 'HAMMURABI GAME' '>HAMM<' 'RABI<' '[AMMU]' 'NILE' 'NILE RIVER' 'A' 'AB' '72.000000' 'C' '12.500000' '3.250000' '3.000000' '6.000000' '0.000000' '1.000000' '12.500000' 'N=-3.250000' 'trap: breakpoint'; do
+for expected in 'RV HAMMURABI' 'RV HAMMURABI!' 'HAMMURABI GAME' '>HAMM<' 'RABI<' '[AMMU]' 'NILE' 'NILE RIVER' 'A' 'AB' '72.000000' 'C' '12.500000' '3.250000' '3.000000' '6.000000' '0.000000' '1.000000' '12.500000' 'N=-3.250000' '7.250000' 'trap: breakpoint'; do
     if ! grep -aFq -- "$expected" "$output_file"; then
         cat "$output_file"
         printf 'missing string-concat result: %s\n' "$expected" >&2
