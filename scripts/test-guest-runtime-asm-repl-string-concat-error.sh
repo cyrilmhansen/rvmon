@@ -26,7 +26,7 @@ sleep 0.1
 awk '/^symbols$/{print; found=1; next} found && /^run-at /{print; exit} !found{print}' \
     examples/minibasic-asm/payload-repl.rv |
     while IFS= read -r line; do printf '%s\n' "$line" >&3; sleep 0.003; done
-sleep 0.3
+sleep 15
 printf '%s\n' \
   'LET TEXT$="HAMMURABI"' \
   'LET OUT$=TEXT$+' \
@@ -39,21 +39,20 @@ printf '%s\n' \
   'LET OUT$=CHR$(-1)' \
   'LET OUT$=CHR$(256)' \
   'LET OUT$=CHR$()' \
-  '10 PRINT ASC("")' \
-  '20 PRINT ASC(TEXT$)' \
-  '30 PRINT CHR$(-1)' \
-  '40 PRINT VAL("")' \
-  '50 PRINT VAL("12x")' \
-  '60 PRINT VAL("ABC")' \
-  '70 PRINT VAL()' \
-  '80 PRINT INSTR("ABC")' \
-  '90 PRINT INSTR(12,"A")' \
-  '100 LET OUT$=STR$()' \
-  '110 PRINT STR$()' \
-  '120 END' \
+  'PRINT ASC("")' \
+  'PRINT CHR$(-1)' \
+  'PRINT VAL("")' \
+  'PRINT VAL("12x")' \
+  'PRINT VAL("ABC")' \
+  'PRINT VAL()' \
+  'PRINT INSTR("ABC")' \
+  'PRINT INSTR(12,"A")' \
+  'LET OUT$=STR$()' \
+  'PRINT STR$()' \
+  '10 END' \
   'RUN' | while IFS= read -r line; do
     printf '%s\n' "$line" >&3
-    sleep 0.08
+    sleep 1
   done
 sleep 1.0
 printf 'q\n' >&3

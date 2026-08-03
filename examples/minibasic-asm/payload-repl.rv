@@ -1695,7 +1695,7 @@ let_numeric_target:
 addi x21,x30,0
 jal x1,resolve_variable
 sd x7,1112(x8)
- lbu x5,0(x21)
+lbu x5,0(x21)
 addi x7,x0,61
 beq x5,x7,let_numeric_target_continue
 jal x0,error_line
@@ -4671,6 +4671,7 @@ addi x27,x27,385
 sd x31,0(x27)
 addi x21,x21,4
 jal x1,resolve_string_source
+beq x11,x0,atom_function_error
 lbu x5,0(x21)
 addi x6,x0,41
 bne x5,x6,atom_function_error
@@ -7074,6 +7075,9 @@ print_chr_error:
 jal x0,error_line
 print_str_string:
 addi x21,x21,5
+ lbu x5,0(x21)
+addi x6,x0,41
+beq x5,x6,print_str_error
 addi x22,x0,0
 jal x1,eval_expression
 lbu x5,0(x21)
