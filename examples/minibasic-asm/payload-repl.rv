@@ -93,12 +93,57 @@ data 0x820100e0 .dword 0x3fe921fb54442d18
 data 0x82000200 .dword 0x0000000000000000
 data 0x82000218 .dword 0x0000000000000000
 assemble-program 0x81000100
+; ============================================================================
+; MiniBASIC-RV — guide de lecture du payload
+; ============================================================================
+;
+; Ce fichier est un programme utilisateur U-mode : le moniteur assemble les
+; lignes ci-dessous, les charge dans le workspace code et saute à `entry`.
+; Aucun lexer, parseur, calcul BASIC ou résultat de démonstration ne vient de
+; l'hôte. Les appels ecall sont limités à la console du guest.
+;
+; Registres persistants (convention locale, pas une ABI GNU) :
+;   x8  = base des données MiniBASIC ; toutes les cellules x8+N sont décrites
+;         dans docs/MEMORY_MAP.md.
+;   x18 = buffer de saisie courant (x8+1024).
+;   x19 = magasin des records de lignes (x8+12288), 256 records * 128 octets.
+;   x20 = table des variables numériques courtes (x8+768).
+;   x21 = curseur source/curseur d'exécution ; il pointe toujours le prochain
+;         caractère à consommer, sauf dans les routines qui documentent une
+;         sauvegarde locale.
+;   x22 = mode de l'évaluateur : 0 pour le premier opérande, 1 pour un
+;         opérande suivant ; les routines qui l'empruntent le sauvegardent.
+;   x23..x31 = contexte temporaire : pointeurs, index, longueurs, retours et
+;         cadres de contrôle. Une sous-routine qui appelle une autre routine
+;         doit sauvegarder les registres/cellules qu'elle veut conserver.
+;   f1/f2 = opérandes intermédiaires ; f3 = résultat numérique public entre
+;         l'évaluateur et PRINT/affectation ; f4..f7 = fonctions numériques.
+;
+; Représentation des lignes :
+;   record = { line_number:u64 @+0, previous_number:u64 @+8,
+;              body[112] @+16 } dans x19 + index*128.
+;   la table des longueurs est pointée par x8+480 et contient 256 u64.
+;   un numéro N est valide si 10 <= N <= 2560 et N % 10 == 0.
+;
+; Pipeline d'une ligne :
+;   command_loop -> store/list/new/run dispatcher -> run_line
+;   -> statement dispatcher -> expression/string/control-flow routine.
+; Les fonctions retournent soit par `jalr` avec x1 restauré, soit par un saut
+; direct vers le label de continuation lorsqu'elles sont des tail-routines.
+;
+; Conventions pédagogiques : les commentaires de section expliquent
+; l'algorithme et l'invariant ; les commentaires d'une instruction isolée
+; signalent seulement un piège (largeur, signe, sauvegarde ou alias mémoire).
+; ============================================================================
 ; MiniBASIC-RV payload assembleur : noyau REPL target-side.
 ; Contrat de cette tranche : une ligne 10 PRINT X+Y, LIST, NEW, RUN.
 ; Les variables X/Y sont déjà dans la table cible ; le résultat est f3 et RAM.
 entry:
+; Bootstrap : x8 est reconstruit à partir du PC pour éviter toute adresse ELF
+; hôte ; le reste de l'état BASIC est initialisé dans les zones réservées.
 auipc x8,0x1000
 addi x8,x8,-256
+; Buffer de saisie historique ; le scratch numérique de sauvegarde est déplacé séparément.
 addi x18,x8,1024
 ; 256 enregistrements de 128 octets, lignes 10..2560 par pas de 10.
 ; Le magasin est séparé de la table des variables et des tableaux.
@@ -117,7 +162,7 @@ addi x21,x21,2
 ; x8+480 : pointeur vers la table des longueurs de lignes.
 ; x8+584 : descripteurs des tableaux numériques courts.
 ; x8+800 : descripteurs des tableaux de chaînes courts.
-; x8+1024 : buffer de saisie ; ces zones ne doivent pas être confondues.
+; x8+1024 : buffer de saisie ; x8+2400..2424 sont les scratchs numériques.
 sd x21,480(x8)
 sd x0,1160(x8)
 sd x0,1616(x8)
@@ -138,6 +183,8 @@ addi x29,x8,2047
 addi x29,x29,153
 sd x0,0(x29)
 command_loop:
+; REPL target-side : affiche READY>, lit une ligne ASCII terminée par LF,
+; puis choisit commande directe, record numéroté ou erreur récupérable.
 addi x10,x8,0
 addi x11,x0,7
 addi x17,x0,4
@@ -349,6 +396,9 @@ addi x7,x0,32
 bne x5,x7,run_command
 jal x0,renum_command
 ; Compatibilité des anciens labels conservée pour les symboles historiques.
+; Magasin de programme : parse le numéro et copie le corps dans un record
+; fixe. Le remplacement et la suppression ne déplacent jamais les autres
+; records ; LIST les parcourt ensuite par index croissant.
 store_line_generic:
 ; Parse un numéro décimal, puis le convertit en index de ligne (N/10)-1.
 ; V1 de cette tranche : numéros 10..640 multiples de dix, corps <=111 octets.
@@ -424,6 +474,8 @@ jal x0,error_line
 
 ; DEL start[,end] : suppression target-side d'un intervalle inclusif de lignes.
 ; Les numéros suivent la même politique que le magasin : 10..2560, pas de dix.
+; DEL : prévalide les deux bornes avant d'effacer la table des longueurs.
+; L'effacement est donc atomique du point de vue du programme utilisateur.
 delete_range_command:
 addi x21,x18,4
 addi x26,x0,0
@@ -514,6 +566,9 @@ jal x0,error_line
 ; RENUM new_start,old_start,step.
 ; V1 conserve l'ordre des records et mémorise le numéro précédent en +8.
 ; Les résolveurs de contrôle de flot acceptent le numéro courant ou cet alias.
+; RENUM : deux passes. La première refuse toute référence non supportée et
+; vérifie les bornes ; la seconde écrit le nouveau numéro et garde l'ancien à
+; record+8 afin que les résolveurs de contrôle restent utilisables une fois.
 renum_command:
 addi x21,x18,6
 addi x26,x0,0
@@ -975,6 +1030,9 @@ ld x10,512(x8)
 or x10,x10,x6
 sd x10,512(x8)
 jal x0,command_loop
+; LIST : sélectionne les records non vides, reconstruit leur numéro et émet
+; le corps via le service guest de sortie ; aucun texte n'est fabriqué par
+; l'hôte.
 list_line:
 jal x0,list_line_generic
 list_line_generic:
@@ -1136,6 +1194,8 @@ addi x11,x0,1
 addi x17,x0,4
 ecall
 jal x0,command_loop
+; NEW : remet à zéro les longueurs, variables et piles de contrôle sans
+; toucher au code du payload ni à la mémoire du moniteur.
 new_program:
 addi x10,x0,0
 addi x11,x0,1
@@ -1168,6 +1228,8 @@ addi x11,x0,4
 addi x17,x0,4
 ecall
 jal x0,command_loop
+; RUN : initialise le curseur de ligne et le contexte de contrôle, puis
+; délègue chaque record à run_line jusqu'à END, erreur ou Ctrl-C.
 run_command:
 jal x0,run_command_generic
 run_command_generic:
@@ -1223,6 +1285,8 @@ run_command_ten:
 addi x10,x0,0
 sd x10,536(x8)
 jal x0,run_line
+; Exécuteur de ligne : trace éventuellement le numéro, positionne x21 sur le
+; corps du record et distribue les statements séparés par ':'.
 run_line:
 jal x0,run_line_generic
 run_line_generic:
@@ -2578,6 +2642,9 @@ beq x5,x7,if_statement
 addi x7,x0,78
 beq x5,x7,input_statement
 jal x0,error_line
+; INPUT : lit la ligne par ecall, parse le nombre dans le guest et écrit la
+; variable cible après validation ; la chaîne éventuelle est copiée dans sa
+; cellule fixe avec contrôle de capacité.
 input_statement:
 addi x10,x8,96
 addi x11,x0,2
@@ -2639,6 +2706,8 @@ sd x9,0(x6)
 jal x0,if_false
 error_line_near:
 jal x0,error_line
+; FOR/NEXT : un frame statique contient variable, limite, pas et continuation.
+; Le signe du STEP choisit la comparaison terminale ; huit frames maximum.
 for_statement:
  lbu x5,17(x24)
  addi x7,x0,61
@@ -2768,6 +2837,8 @@ next_loop_stop:
 addi x10,x0,2
 sd x10,568(x8)
 jal x0,print_result
+; WHILE/WEND et REPEAT/UNTIL utilisent des piles statiques distinctes pour
+; retrouver le record de reprise et sauter les blocs faux sans récursion hôte.
 while_dispatch:
 lbu x5,17(x24)
 addi x7,x0,72
@@ -3157,6 +3228,8 @@ add x30,x30,x7
 ld x26,0(x30)
 sd x26,536(x8)
 jal x0,run_line
+; IF : compare deux binary64, puis branche soit vers une cible numérique,
+; soit vers le scanner de blocs IF/ELSE/ENDIF (terminateurs sur lignes dédiées).
 if_statement:
 addi x21,x24,19
 addi x22,x0,0
@@ -3607,7 +3680,9 @@ ecall
 jal x0,command_loop
 run_save:
 ld x24,1864(x8)
-fsd f3,1024(x8)
+addi x27,x8,2047
+addi x27,x27,353
+fsd f3,0(x27)
 sd x21,1176(x8)
 lbu x5,0(x21)
 addi x7,x0,44
@@ -3619,7 +3694,9 @@ addi x10,x0,3
 sd x10,568(x8)
 jal x0,print_result
 print_result:
-fsd f3,1048(x8)
+addi x27,x8,2047
+addi x27,x27,361
+fsd f3,0(x27)
 addi x12,x18,32
 addi x13,x12,0
 fmv.x.d x10,f3
@@ -3691,7 +3768,9 @@ sub x11,x13,x12
 addi x10,x12,0
 addi x17,x0,4
 ecall
-fld f3,1048(x8)
+addi x27,x8,2047
+addi x27,x27,361
+fld f3,0(x27)
 ld x11,568(x8)
 beq x11,x0,print_normal_continuation
 sd x0,568(x8)
@@ -3770,6 +3849,8 @@ ebreak
 ; Sorties : x7 pointe sur la valeur binary64, x21 sur le caractère suivant.
 ; Les noms de 1 caractère restent dans la table A..Z historique ; les autres
 ; sont conservés dans 32 entrées de 32 octets à data+3000 (nom[16], valeur).
+; Résolution des variables numériques : x21 désigne le nom, x7 retourne
+; l'adresse de la cellule binary64 et x24 conserve le contexte de l'appel.
 resolve_variable:
 sd x22,1168(x8)
 sd x24,1120(x8)
@@ -3899,6 +3980,9 @@ ld x25,1128(x8)
 ld x26,1136(x8)
 ld x27,1144(x8)
 jalr x0,0(x1)
+; Évaluateur numérique : descente en deux niveaux, somme puis produit, avec
+; parse_atom pour signes, parenthèses, variables, tableaux et fonctions.
+; f3 est le résultat ; les opérations arithmétiques sont les instructions D.
 eval_expression:
 addi x31,x1,0
 addi x22,x0,0
@@ -3919,7 +4003,9 @@ addi x6,x0,45
 beq x27,x6,sum_sub
 fmv.x.d x10,f7
 fmv.d.x f3,x10
-fld f1,1040(x8)
+addi x27,x8,2047
+addi x27,x27,377
+fld f1,0(x27)
 jalr x0,0(x31)
 sum_add:
 addi x21,x21,1
@@ -3937,13 +4023,17 @@ fsub.d f3,f7,f1
 fmv.x.d x10,f3
 fmv.d.x f7,x10
 jal x0,sum_loop
+; Produit/division : conserve le premier opérande dans le scratch dédié et
+; boucle tant que '*' ou '/' est rencontré ; division par zéro est rejetée.
 parse_product:
 addi x30,x1,0
 jal x1,parse_atom
 beq x22,x0,save_first_operand
 jal x0,product_first_ready
 save_first_operand:
-fsd f1,1040(x8)
+addi x27,x8,2047
+addi x27,x27,377
+fsd f1,0(x27)
 product_first_ready:
 beq x22,x0,product_loop
 fmv.x.d x10,f2
@@ -3973,6 +4063,8 @@ addi x22,x0,1
 jal x1,parse_atom
 fdiv.d f1,f1,f2
 jal x0,product_loop
+; Atome : reconnaît un littéral décimal, un identifiant, une fonction ou une
+; parenthèse ; la fermeture consommée laisse x21 sur le prochain caractère.
 parse_atom:
 addi x28,x0,0
 addi x29,x0,0
@@ -4404,9 +4496,13 @@ addi x6,x0,41
 bne x5,x6,error_line
 addi x21,x21,1
 atom_paren_done:
-fsd f4,1032(x8)
+addi x27,x8,2047
+addi x27,x27,369
+fsd f4,0(x27)
 beq x22,x0,store_left_atom
-fld f2,1032(x8)
+addi x27,x8,2047
+addi x27,x27,369
+fld f2,0(x27)
 jalr x0,0(x1)
 ; Fonctions numériques target-side. Les zones 1184..1536 sont des scratch
 ; distincts par fonction afin de permettre des appels imbriqués.
@@ -4848,7 +4944,9 @@ jal x0,store_atom
 atom_function_error:
 jal x0,error_line
 store_left_atom:
-fld f1,1032(x8)
+addi x27,x8,2047
+addi x27,x27,369
+fld f1,0(x27)
 jalr x0,0(x1)
 atom_x:
 addi x6,x0,23
@@ -5230,6 +5328,9 @@ ld x25,1128(x8)
 ld x26,1136(x8)
 ld x27,1144(x8)
 jalr x0,0(x1)
+; DIM : crée un descripteur fixe et initialise chaque cellule à zéro/vide.
+; Les tableaux longs sont séparés du workspace local dans les régions 0x8201...
+; / 0x8202... ; les contrôles de dimension précèdent toute écriture.
 dim_array:
 addi x30,x1,0
 sd x1,1744(x8)
@@ -5658,6 +5759,8 @@ ld x1,1600(x8)
 ld x6,1112(x8)
 fsd f1,0(x6)
 jalr x0,0(x1)
+; Chaînes : une cellule contient une longueur u64 suivie d'octets ASCII.
+; Les sources et destinations sont toujours des adresses de la RAM cible.
 string_assign:
 sd x1,1152(x8)
 jal x1,resolve_string_variable
@@ -5668,31 +5771,63 @@ lbu x5,0(x21)
 addi x6,x0,61
 bne x5,x6,string_long_error
 addi x21,x21,1
+sd x21,2040(x8)
 lbu x5,0(x21)
 addi x6,x0,34
-beq x5,x6,string_literal_open
+beq x5,x6,string_literal_open_save
 addi x6,x0,76
+sd x21,1992(x8)
 beq x5,x6,string_assign_check_left
 addi x6,x0,82
+sd x21,1992(x8)
 beq x5,x6,string_assign_check_right
 addi x6,x0,77
+sd x21,1992(x8)
 bne x5,x6,string_assign_concat
 jal x0,string_assign_check_mid
 string_assign_concat:
-sd x1,2000(x8)
+; Retour externe du wrapper : séparé des cadres de termes qui utilisent x8+2000.
+lui x27,0x82060
+slli x27,x27,32
+srli x27,x27,32
+addi x27,x27,1792
+sd x1,0(x27)
 jal x1,string_concat_assign
-ld x1,2000(x8)
+lui x27,0x82060
+slli x27,x27,32
+srli x27,x27,32
+addi x27,x27,1792
+ld x1,0(x27)
 jalr x0,0(x1)
 string_assign_left:
-sd x1,2000(x8)
+ lui x27,0x82060
+slli x27,x27,32
+srli x27,x27,32
+addi x27,x27,1832
+sd x1,0(x27)
 jal x1,string_left_assign
-ld x1,2000(x8)
+ lui x27,0x82060
+slli x27,x27,32
+srli x27,x27,32
+addi x27,x27,1832
+ld x1,0(x27)
 jalr x0,0(x1)
 string_assign_right:
-sd x1,2000(x8)
+ lui x27,0x82060
+slli x27,x27,32
+srli x27,x27,32
+addi x27,x27,1832
+sd x1,0(x27)
 jal x1,string_right_assign
-ld x1,2000(x8)
+ lui x27,0x82060
+slli x27,x27,32
+srli x27,x27,32
+addi x27,x27,1832
+ld x1,0(x27)
 jalr x0,0(x1)
+string_literal_open_save:
+sd x21,2040(x8)
+jal x0,string_literal_open
 string_literal_open:
 addi x21,x21,1
 addi x9,x0,0
@@ -5711,6 +5846,12 @@ jal x0,string_copy
 string_done:
 addi x6,x27,-8
 sd x9,0(x6)
+ lbu x5,1(x21)
+addi x6,x0,43
+bne x5,x6,string_done_return
+ld x21,2040(x8)
+jal x0,string_assign_concat
+string_done_return:
 jalr x0,0(x1)
 string_array_assign:
 sd x1,1584(x8)
@@ -5722,6 +5863,7 @@ lbu x5,0(x21)
 addi x6,x0,61
 bne x5,x6,string_long_error
 addi x21,x21,1
+sd x21,2040(x8)
 lbu x5,0(x21)
 addi x6,x0,34
 beq x5,x6,string_array_literal_open
@@ -5733,19 +5875,44 @@ addi x6,x0,77
 bne x5,x6,string_array_assign_concat
 jal x0,string_assign_check_mid
 string_array_assign_concat:
-sd x1,2000(x8)
+; Même séparation pour une destination de tableau de chaînes.
+lui x27,0x82060
+slli x27,x27,32
+srli x27,x27,32
+addi x27,x27,1792
+sd x1,0(x27)
 jal x1,string_concat_assign
-ld x1,2000(x8)
+lui x27,0x82060
+slli x27,x27,32
+srli x27,x27,32
+addi x27,x27,1792
+ld x1,0(x27)
 jalr x0,0(x1)
 string_array_assign_left:
-sd x1,2000(x8)
+ lui x27,0x82060
+slli x27,x27,32
+srli x27,x27,32
+addi x27,x27,1832
+sd x1,0(x27)
 jal x1,string_left_assign
-ld x1,2000(x8)
+ lui x27,0x82060
+slli x27,x27,32
+srli x27,x27,32
+addi x27,x27,1832
+ld x1,0(x27)
 jalr x0,0(x1)
 string_array_assign_right:
-sd x1,2000(x8)
+ lui x27,0x82060
+slli x27,x27,32
+srli x27,x27,32
+addi x27,x27,1832
+sd x1,0(x27)
 jal x1,string_right_assign
-ld x1,2000(x8)
+ lui x27,0x82060
+slli x27,x27,32
+srli x27,x27,32
+addi x27,x27,1832
+ld x1,0(x27)
 jalr x0,0(x1)
 string_assign_check_left:
 lbu x5,1(x21)
@@ -5798,9 +5965,17 @@ lbu x5,4(x21)
 addi x6,x0,40
 bne x5,x6,string_assign_concat
 string_assign_mid:
-sd x1,2000(x8)
+ lui x27,0x82060
+slli x27,x27,32
+srli x27,x27,32
+addi x27,x27,1832
+sd x1,0(x27)
 jal x1,string_mid_assign
-ld x1,2000(x8)
+ lui x27,0x82060
+slli x27,x27,32
+srli x27,x27,32
+addi x27,x27,1832
+ld x1,0(x27)
 jalr x0,0(x1)
 string_array_literal_open:
 addi x21,x21,1
@@ -6603,6 +6778,9 @@ lbu x5,0(x21)
 addi x6,x0,41
 bne x5,x6,print_left_error
 addi x21,x21,1
+ lbu x5,0(x21)
+addi x6,x0,43
+beq x5,x6,string_left_assign_concat
 fcvt.l.d x10,f3,1
 srai x6,x10,63
 bne x6,x0,print_left_error
@@ -6810,6 +6988,8 @@ ecall
 jal x0,if_false
 print_str_error:
 jal x0,error_line
+; Résolution de source chaîne : littéral, variable scalaire ou élément de
+; tableau. Retourne x7=data, x11=length et avance x21 après le terme.
 resolve_string_source:
 sd x1,2024(x8)
  lbu x5,0(x21)
@@ -6856,23 +7036,33 @@ jal x0,resolve_string_literal_copy
 resolve_string_literal_done:
 addi x21,x21,1
 addi x11,x9,0
+sd x7,1992(x8)
 jalr x0,0(x1)
+; Concaténation : résout chaque terme, contrôle la longueur totale <=120,
+; copie dans le buffer temporaire cible, puis écrit la cellule destination.
+; Les retours globaux sont distincts des frames x8 réutilisés par les découpes.
 string_concat_assign:
-sd x1,2016(x8)
+; Retour persistant du concaténateur : les termes peuvent réutiliser les cadres x8+.
+ lui x27,0x82060
+slli x27,x27,32
+srli x27,x27,32
+addi x27,x27,1808
+sd x1,0(x27)
 addi x9,x0,0
 string_concat_term:
 sd x9,2032(x8)
 jal x1,resolve_string_concat_term
 ld x9,2032(x8)
 add x6,x9,x11
-sltiu x7,x6,121
-beq x7,x0,string_concat_error
+sltiu x6,x6,121
+beq x6,x0,string_concat_error
 addi x10,x9,0
 lui x27,0x82060
 slli x27,x27,32
 srli x27,x27,32
 addi x27,x27,512
 add x27,x27,x9
+ld x7,1992(x8)
 addi x10,x0,0
 string_concat_copy:
 sltu x6,x10,x11
@@ -6911,7 +7101,11 @@ addi x6,x6,1
 addi x10,x10,1
 jal x0,string_concat_store_loop
 string_concat_done:
-ld x1,2016(x8)
+ lui x27,0x82060
+slli x27,x27,32
+srli x27,x27,32
+addi x27,x27,1808
+ld x1,0(x27)
 jalr x0,0(x1)
 string_concat_error:
 jal x0,error_line
@@ -7006,23 +7200,30 @@ addi x6,x0,40
 beq x5,x6,string_concat_str_term
 jal x0,string_concat_source
 string_concat_source:
-sd x1,2000(x8)
+sd x1,2040(x8)
 jal x1,resolve_string_source
-ld x1,2000(x8)
+sd x7,1992(x8)
+ld x1,2040(x8)
 jalr x0,0(x1)
 string_concat_left_term:
 addi x28,x0,1
-sd x28,2040(x8)
+addi x27,x8,2047
+addi x27,x27,25
+sd x28,0(x27)
 addi x21,x21,6
 jal x0,string_concat_slice_term
 string_concat_right_term:
 addi x28,x0,2
-sd x28,2040(x8)
+addi x27,x8,2047
+addi x27,x27,25
+sd x28,0(x27)
 addi x21,x21,7
 jal x0,string_concat_slice_term
 string_concat_mid_term:
 addi x28,x0,3
-sd x28,2040(x8)
+addi x27,x8,2047
+addi x27,x27,25
+sd x28,0(x27)
 addi x21,x21,5
 jal x0,string_concat_slice_term
 string_concat_chr_term:
@@ -7045,6 +7246,7 @@ srli x7,x7,32
 addi x7,x7,1024
 sb x10,0(x7)
 addi x11,x0,1
+sd x7,1992(x8)
 ld x1,2000(x8)
 jalr x0,0(x1)
 string_concat_str_term:
@@ -7057,6 +7259,7 @@ addi x6,x0,41
 bne x5,x6,string_concat_slice_error
 addi x21,x21,1
 jal x1,string_format_number
+sd x7,1992(x8)
 ld x1,2000(x8)
 jalr x0,0(x1)
 string_format_number:
@@ -7138,7 +7341,9 @@ sd x1,2000(x8)
 jal x1,resolve_string_source
 sd x7,1944(x8)
 sd x11,1952(x8)
-ld x28,2040(x8)
+addi x27,x8,2047
+addi x27,x27,25
+ld x28,0(x27)
 addi x6,x0,3
 beq x28,x6,string_concat_mid_arguments
 lbu x5,0(x21)
@@ -7181,7 +7386,9 @@ bne x6,x0,string_concat_slice_error
 sltiu x7,x10,121
 beq x7,x0,string_concat_slice_error
 ld x7,1952(x8)
-ld x28,2040(x8)
+addi x27,x8,2047
+addi x27,x27,25
+ld x28,0(x27)
 addi x6,x0,1
 beq x28,x6,string_concat_slice_left
 addi x6,x0,2
@@ -7238,10 +7445,14 @@ slli x7,x7,32
 srli x7,x7,32
 addi x7,x7,768
 addi x11,x10,0
+sd x7,1992(x8)
 ld x1,2000(x8)
 jalr x0,0(x1)
 string_concat_slice_error:
 jal x0,error_line
+; LEFT$/RIGHT$/MID$ en affectation : calculent une fenêtre source, la copient
+; dans un scratch chaîne, puis la recopient vers la destination ; cette double
+; copie rend l'auto-affectation sûre.
 string_left_assign:
 sd x1,2016(x8)
 addi x21,x21,6
@@ -7258,6 +7469,9 @@ lbu x5,0(x21)
 addi x6,x0,41
 bne x5,x6,string_left_assign_error
 addi x21,x21,1
+ lbu x5,0(x21)
+addi x6,x0,43
+beq x5,x6,string_left_assign_concat
 fcvt.l.d x10,f3,1
 srai x6,x10,63
 bne x6,x0,string_left_assign_error
@@ -7301,6 +7515,10 @@ jal x0,string_left_assign_store
 string_left_assign_done:
 ld x1,2016(x8)
 jalr x0,0(x1)
+string_left_assign_concat:
+ld x1,2016(x8)
+ld x21,2040(x8)
+jal x0,string_assign_concat
 string_left_assign_error:
 jal x0,error_line
 string_right_assign:
@@ -7319,6 +7537,9 @@ lbu x5,0(x21)
 addi x6,x0,41
 bne x5,x6,string_right_assign_error
 addi x21,x21,1
+ lbu x5,0(x21)
+addi x6,x0,43
+beq x5,x6,string_right_assign_concat
 fcvt.l.d x10,f3,1
 srai x6,x10,63
 bne x6,x0,string_right_assign_error
@@ -7364,6 +7585,10 @@ jal x0,string_right_assign_store
 string_right_assign_done:
 ld x1,2016(x8)
 jalr x0,0(x1)
+string_right_assign_concat:
+ld x1,2016(x8)
+ld x21,2040(x8)
+jal x0,string_assign_concat
 string_right_assign_error:
 jal x0,error_line
 string_mid_assign:
@@ -7393,6 +7618,9 @@ lbu x5,0(x21)
 addi x6,x0,41
 bne x5,x6,string_mid_assign_error
 addi x21,x21,1
+ lbu x5,0(x21)
+addi x6,x0,43
+beq x5,x6,string_mid_assign_concat
 fcvt.l.d x10,f3,1
 srai x6,x10,63
 bne x6,x0,string_mid_assign_error
@@ -7447,8 +7675,15 @@ jal x0,string_mid_assign_store
 string_mid_assign_done:
 ld x1,2016(x8)
 jalr x0,0(x1)
+string_mid_assign_concat:
+ld x1,2016(x8)
+ld x21,2040(x8)
+jal x0,string_assign_concat
 string_mid_assign_error:
 jal x0,error_line
+; Fonctions mathématiques transcendantes : chaque routine sauvegarde son
+; contexte dans une frame statique, réduit l'intervalle et évalue un polynôme
+; binary64 avec les instructions D. Aucun calcul ne vient de l'hôte.
 atom_sin_function:
 sd x29,1968(x8)
 addi x29,x8,2047
