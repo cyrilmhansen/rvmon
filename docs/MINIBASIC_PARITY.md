@@ -75,7 +75,7 @@ entièrement dans le guest.
 | `ATN` | Fonction en radians, résultat binary64 target-side et imbrication bornée | VERT | `atn.sh` et `atn-error.sh` ; cas nominaux, appel imbriqué et diagnostic QEMU |
 | Conversion caractère | `ASC(string-source)` numérique et `CHR$(expression)` chaîne, exécutés dans le guest avec bornes explicites ; `ASC` accepte l'expression chaîne commune, y compris concaténation et parenthèses imbriquées | PARTIEL | `test-guest-runtime-asm-repl-string-asc-concat*.sh`, `test-guest-runtime-asm-repl-string-concat.sh`, `test-guest-runtime-asm-repl-string-concat-error.sh`; `CHR$` est disponible en affectation, concaténation et `PRINT`, tandis que les conversions implicites restent différées |
 | Conversion chaîne → nombre | `VAL(string-source)` consomme le résultat du résolveur d'expression chaîne commun dans le guest et refuse les caractères non consommés | PARTIEL | `test-guest-runtime-asm-repl-string-val-concat*.sh`; exposants et formats historiques restent hors V1 |
-| Recherche chaîne | `INSTR(haystack,needle)` target-side, résultat 1-based, `0` absent et `1` pour aiguille vide | PARTIEL | `test-guest-runtime-asm-repl-string-concat.sh`, `test-guest-runtime-asm-repl-string-concat-error.sh`; options de comparaison historiques non retenues |
+| Recherche chaîne | `INSTR(haystack,needle)` target-side, résultat 1-based, `0` absent et `1` pour aiguille vide ; les deux opérandes peuvent être des expressions chaîne communes | PARTIEL | `test-guest-runtime-asm-repl-string-instr-expression.sh`, `test-guest-runtime-asm-repl-string-concat.sh`, `test-guest-runtime-asm-repl-string-concat-error.sh`; les découpes dans une expression `INSTR` restent à intégrer |
 | Conversion nombre → chaîne | `STR$(expression)` target-side, format fixe à six décimales réutilisable en affectation, concaténation et `PRINT` | PARTIEL | `test-guest-runtime-asm-repl-string-concat.sh`, `test-guest-runtime-asm-repl-string-concat-error.sh`; formats historiques différés |
 | Aléatoire | `RND` et `RND()`, LCG target-side reproductible, graine à 1 | VERT | `rnd.sh`, `rnd-error.sh` |
 | Fonctions de chaînes | `LEN`, `PRINT LEFT$`, `PRINT RIGHT$` et `PRINT MID$` avec buffer target-side, sources scalaires, tableaux chaîne ou littéraux ; `LEN` accepte l'expression chaîne commune | PARTIEL | `string-len*.sh`, `test-guest-runtime-asm-repl-string-len-concat.sh`, `string-left*.sh`, `string-right*.sh`, `string-mid*.sh`, `string-slice-array-source.sh`, `string-slice-literal-source*.sh`; expressions générales des découpes différées |
@@ -249,7 +249,7 @@ sortie BASIC préenregistrée.
 - **Décisions de parité figées :** mode direct, lignes, contrôle de flot,
   chaînes, tableaux, binary64 target-side, interruption et périmètre Atari
   rejeté ;
-- **Preuve automatisée :** 116 scripts QEMU assembleur recensés au moment de
+- **Preuve automatisée :** 117 scripts QEMU assembleur recensés au moment de
   cet audit, avec des cas nominaux et négatifs dédiés aux chaînes, tableaux,
   conversions, fonctions de recherche, formatage et blocs structurés ;
 - **Écart important restant :** `ELSE`/`ENDIF` doivent rester en lignes dédiées ;
@@ -291,6 +291,7 @@ sortie BASIC préenregistrée.
 | 2026-08-03 | `LEN` accepte les littéraux ASCII | `test-guest-runtime-asm-repl-string-len.sh` sous QEMU, avec `LEN("RV64")` en plus des variables et tableaux | la résolution reste target-side ; les expressions chaîne générales restent différées |
 | 2026-08-03 | Correction de `RIGHT$` concaténé dans une affectation et preuve d’une destination tableau | `test-guest-runtime-asm-repl-string-right-assignment-concat.sh` et `test-guest-runtime-asm-repl-string-array-assignment-concat.sh` sous QEMU ; `RABI<` et `RABI!` sans fault | les trois découpes d’affectation rejoignent leur concaténateur target-side propre, y compris pour un élément de tableau ; la composition générale reste PARTIELLE |
 | 2026-08-03 | Généralisation du résolveur d'expressions chaîne pour `LEN`, `ASC` et `VAL` | `test-guest-runtime-asm-repl-string-len-concat.sh`, `test-guest-runtime-asm-repl-string-asc-concat.sh`, `test-guest-runtime-asm-repl-string-val-concat.sh` et leurs régressions QEMU ; parenthèses imbriquées validées par `LEN(A$(1))` | les trois consommateurs partagent le contrat target-side `{adresse,longueur}` ; la profondeur est bornée à 8, tandis que `INSTR` et les fonctions de découpe restent à migrer |
+| 2026-08-03 | `INSTR` consomme deux expressions chaîne séparées par une virgule de niveau zéro | `test-guest-runtime-asm-repl-string-instr-expression.sh` sous QEMU : concaténation dans les deux opérandes, virgule littérale et résultats 4, 3, 2 | la séparation syntaxique est maintenant générique pour les opérandes chaîne ; la composition avec `LEFT$`/`RIGHT$`/`MID$` reste une dette séparée du résolveur de termes |
 
 Les affectations ne constituent pas encore une parité chaîne complète : le RHS
 est soit une forme `LEFT$`/`RIGHT$`/`MID$`, soit une concaténation de termes
