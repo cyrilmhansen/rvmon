@@ -171,6 +171,11 @@
   `TAN(pi)`, `TAN(COS(0))` et le calcul target-side jusqu’au breakpoint.
 - `scripts/test-guest-runtime-asm-repl-tan-error.sh` vérifie le refus target-side
   d’un pôle de tangente (`COS(pi/2)=0`) et le retour propre au moniteur.
+- `scripts/test-guest-runtime-asm-repl-log-exp.sh` vérifie `LOG(1)`, `LOG(e)`,
+  `LOG(10)`, `EXP(0)`, `EXP(±1)` et une composition `EXP(LOG(10))` dans le
+  guest, avec affichage déterministe et breakpoint final.
+- `scripts/test-guest-runtime-asm-repl-log-exp-error.sh` vérifie le refus
+  target-side de `LOG(0)` et le retour propre au moniteur.
 - `scripts/test-guest-runtime-asm-repl-two-lines.sh` vérifie l’insertion hors
   ordre de `20` puis `10`, le tri observable de `LIST`, les deux slots mémoire
   et l’exécution séquentielle target-side des lignes `10` puis `20`.

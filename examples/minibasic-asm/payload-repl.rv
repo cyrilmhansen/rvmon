@@ -70,6 +70,24 @@ data 0x82010028 .dword 0x3f81111111111111
 data 0x82010030 .dword 0xbf2a01a01a01a01a
 data 0x82010038 .dword 0x3ec71de3a556c734
 data 0x82010040 .dword 0xbe5ae64567f544e4
+data 0x82010048 .dword 0x3fe62e42fefa39ef
+data 0x82010050 .dword 0x3fd5555555555555
+data 0x82010058 .dword 0x3fc999999999999a
+data 0x82010060 .dword 0x3fc2492492492492
+data 0x82010068 .dword 0x3fbc71c71c71c71c
+data 0x82010070 .dword 0x3fb745d1745d1746
+data 0x82010078 .dword 0x3fe0000000000000
+data 0x82010080 .dword 0x3fc5555555555555
+data 0x82010088 .dword 0x3fa5555555555555
+data 0x82010090 .dword 0x3f81111111111111
+data 0x82010098 .dword 0x3f56c16c16c16c17
+data 0x820100a0 .dword 0x3f2a01a01a01a01a
+data 0x820100a8 .dword 0x3efa01a01a01a01a
+data 0x820100b0 .dword 0x3ec71de3a556c734
+data 0x820100b8 .dword 0x3e927e4fb7789f5c
+data 0x820100c0 .dword 0x4086200000000000
+data 0x820100c8 .dword 0xc086200000000000
+data 0x820100d0 .dword 0x4086280000000000
 data 0x82000200 .dword 0x0000000000000000
 data 0x82000218 .dword 0x0000000000000000
 assemble-program 0x81000100
@@ -3693,7 +3711,9 @@ beq x5,x6,atom_sgn_dispatch
 addi x6,x0,67
 beq x5,x6,atom_cos_probe
 addi x6,x0,76
-beq x5,x6,atom_len_dispatch
+beq x5,x6,atom_l_dispatch
+addi x6,x0,69
+beq x5,x6,atom_e_dispatch
 addi x6,x0,84
 beq x5,x6,atom_t_dispatch
 addi x6,x0,70
@@ -3744,6 +3764,30 @@ lbu x6,3(x21)
 addi x7,x0,40
 bne x6,x7,atom_a
 jal x0,atom_abs_function
+atom_e_dispatch:
+lbu x6,1(x21)
+addi x7,x0,88
+bne x6,x7,atom_array_name_scan
+lbu x6,2(x21)
+addi x7,x0,80
+bne x6,x7,atom_array_name_scan
+lbu x6,3(x21)
+addi x7,x0,40
+bne x6,x7,atom_array_name_scan
+jal x0,atom_exp_function
+atom_l_dispatch:
+lbu x6,1(x21)
+addi x7,x0,69
+beq x6,x7,atom_len_dispatch
+addi x7,x0,79
+bne x6,x7,atom_array_name_scan
+lbu x6,2(x21)
+addi x7,x0,71
+bne x6,x7,atom_array_name_scan
+lbu x6,3(x21)
+addi x7,x0,40
+bne x6,x7,atom_array_name_scan
+jal x0,atom_log_function
 atom_t_dispatch:
 lbu x6,1(x21)
 addi x7,x0,82
@@ -7274,6 +7318,221 @@ ld x30,24(x29)
 ld x31,32(x29)
 ld x29,1632(x8)
 jal x0,store_atom
+atom_log_function:
+sd x29,1424(x8)
+addi x29,x8,2047
+addi x29,x29,449
+sd x1,0(x29)
+sd x22,8(x29)
+sd x23,16(x29)
+sd x28,24(x29)
+sd x30,32(x29)
+sd x31,40(x29)
+lbu x5,1(x21)
+addi x6,x0,79
+bne x5,x6,atom_log_error
+lbu x5,2(x21)
+addi x6,x0,71
+bne x5,x6,atom_log_error
+lbu x5,3(x21)
+addi x6,x0,40
+bne x5,x6,atom_log_error
+addi x21,x21,4
+addi x22,x0,0
+jal x1,eval_expression
+lbu x5,0(x21)
+addi x6,x0,41
+beq x5,x6,atom_log_close_present
+beq x5,x0,atom_log_close_consumed
+jal x0,atom_log_error
+atom_log_close_present:
+addi x21,x21,1
+jal x0,math_log_prepare
+atom_log_close_consumed:
+addi x6,x21,-1
+lbu x5,0(x6)
+addi x6,x0,41
+bne x5,x6,atom_log_error
+math_log_prepare:
+addi x29,x8,2047
+addi x29,x29,449
+fcvt.d.l f5,x0,0
+feq.d x7,f3,f3
+beq x7,x0,atom_log_error
+fmv.x.d x10,f3
+srai x11,x10,63
+bne x11,x0,atom_log_error
+fle.d x7,f3,f5
+bne x7,x0,atom_log_error
+srli x22,x10,52
+andi x22,x22,2047
+beq x22,x0,atom_log_error
+addi x22,x22,-1023
+slli x10,x10,1
+srli x10,x10,1
+slli x10,x10,12
+srli x10,x10,12
+lui x23,0x3ff00
+slli x23,x23,32
+or x10,x10,x23
+fmv.d.x f4,x10
+addi x10,x0,1
+fcvt.d.l f5,x10,0
+fsub.d f6,f4,f5
+fadd.d f7,f4,f5
+fdiv.d f6,f6,f7
+fmul.d f7,f6,f6
+lui x7,0x82010
+slli x7,x7,32
+srli x7,x7,32
+addi x7,x7,80
+fld f1,32(x7)
+fmul.d f1,f1,f7
+fld f5,24(x7)
+fadd.d f1,f5,f1
+fmul.d f1,f1,f7
+fld f5,16(x7)
+fadd.d f1,f5,f1
+fmul.d f1,f1,f7
+fld f5,8(x7)
+fadd.d f1,f5,f1
+fmul.d f1,f1,f7
+fld f5,0(x7)
+fadd.d f1,f5,f1
+fmul.d f1,f1,f7
+addi x10,x0,1
+fcvt.d.l f5,x10,0
+fadd.d f1,f5,f1
+fmul.d f6,f6,f1
+addi x10,x0,2
+fcvt.d.l f5,x10,0
+fmul.d f6,f6,f5
+fcvt.d.l f5,x22,0
+lui x7,0x82010
+slli x7,x7,32
+srli x7,x7,32
+addi x7,x7,72
+fld f7,0(x7)
+fmul.d f5,f5,f7
+fadd.d f4,f6,f5
+ld x1,0(x29)
+ld x22,8(x29)
+ld x23,16(x29)
+ld x28,24(x29)
+ld x30,32(x29)
+ld x31,40(x29)
+ld x29,1424(x8)
+jal x0,store_atom
+atom_log_error:
+jal x0,error_line
+atom_exp_function:
+sd x29,1232(x8)
+addi x29,x8,2047
+addi x29,x29,513
+sd x1,0(x29)
+sd x22,8(x29)
+sd x23,16(x29)
+sd x28,24(x29)
+sd x30,32(x29)
+sd x31,40(x29)
+lbu x5,1(x21)
+addi x6,x0,88
+bne x5,x6,atom_exp_error
+lbu x5,2(x21)
+addi x6,x0,80
+bne x5,x6,atom_exp_error
+lbu x5,3(x21)
+addi x6,x0,40
+bne x5,x6,atom_exp_error
+addi x21,x21,4
+addi x22,x0,0
+jal x1,eval_expression
+lbu x5,0(x21)
+addi x6,x0,41
+beq x5,x6,atom_exp_close_present
+beq x5,x0,atom_exp_close_consumed
+jal x0,atom_exp_error
+atom_exp_close_present:
+addi x21,x21,1
+jal x0,math_exp_prepare
+atom_exp_close_consumed:
+addi x6,x21,-1
+lbu x5,0(x6)
+addi x6,x0,41
+bne x5,x6,atom_exp_error
+math_exp_prepare:
+addi x29,x8,2047
+addi x29,x29,513
+lui x7,0x82010
+slli x7,x7,32
+srli x7,x7,32
+addi x7,x7,192
+fld f5,0(x7)
+flt.d x6,f5,f3
+bne x6,x0,atom_exp_error
+addi x7,x7,8
+fld f5,0(x7)
+flt.d x6,f3,f5
+bne x6,x0,atom_exp_error
+addi x7,x7,-128
+fld f7,0(x7)
+fdiv.d f5,f3,f7
+fcvt.l.d x22,f5,1
+fcvt.d.l f5,x22,0
+fmul.d f5,f5,f7
+fsub.d f3,f3,f5
+lui x7,0x82010
+slli x7,x7,32
+srli x7,x7,32
+addi x7,x7,120
+fld f1,64(x7)
+fmul.d f1,f1,f3
+fld f5,56(x7)
+fadd.d f1,f5,f1
+fmul.d f1,f1,f3
+fld f5,48(x7)
+fadd.d f1,f5,f1
+fmul.d f1,f1,f3
+fld f5,40(x7)
+fadd.d f1,f5,f1
+fmul.d f1,f1,f3
+fld f5,32(x7)
+fadd.d f1,f5,f1
+fmul.d f1,f1,f3
+fld f5,24(x7)
+fadd.d f1,f5,f1
+fmul.d f1,f1,f3
+fld f5,16(x7)
+fadd.d f1,f5,f1
+fmul.d f1,f1,f3
+fld f5,8(x7)
+fadd.d f1,f5,f1
+fmul.d f1,f1,f3
+fld f5,0(x7)
+fadd.d f1,f5,f1
+fmul.d f1,f1,f3
+addi x10,x0,1
+fcvt.d.l f5,x10,0
+fadd.d f1,f5,f1
+fmul.d f1,f1,f3
+fadd.d f1,f5,f1
+fmv.x.d x10,f1
+fmv.d.x f4,x10
+addi x23,x22,1023
+slli x23,x23,52
+fmv.d.x f5,x23
+fmul.d f4,f4,f5
+math_exp_result:
+ld x1,0(x29)
+ld x22,8(x29)
+ld x23,16(x29)
+ld x28,24(x29)
+ld x30,32(x29)
+ld x31,40(x29)
+ld x29,1232(x8)
+jal x0,store_atom
+atom_exp_error:
+jal x0,error_line
 atom_tan_function:
 sd x29,1536(x8)
 addi x29,x8,2047

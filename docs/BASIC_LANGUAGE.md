@@ -68,6 +68,8 @@ factor        = number | variable | "(" , expression , ")"
               | "SIN" , "(" , expression , ")"
               | "COS" , "(" , expression , ")"
               | "TAN" , "(" , expression , ")"
+              | "LOG" , "(" , expression , ")"
+              | "EXP" , "(" , expression , ")"
               | "RND" | "RND" , "(" , ")"
               | ( "+" | "-" ) , factor ;
 variable      = identifier ;
@@ -118,7 +120,7 @@ zéro produit `BASIC-ARITH-001`.
 
 Les fonctions numériques `ABS(expr)`, `SGN(expr)`, `INT(expr)`,
 `TRUNC(expr)`, `FRAC(expr)`, `MOD(a,b)`, `SQR(expr)`, `SIN(expr)`,
-`COS(expr)` et `TAN(expr)` sont
+`COS(expr)`, `TAN(expr)`, `LOG(expr)` et `EXP(expr)` sont
 évaluées dans le guest. `TRUNC` convertit vers l’entier signé en arrondissant
 vers zéro puis reconvertit en binary64 ; `FRAC(x)` vaut `x-TRUNC(x)` ;
 `MOD(a,b)` vaut `a-TRUNC(a/b)*b` et refuse `b=0`. Les scratchs target-side sont
@@ -162,6 +164,18 @@ cosinus nul est refusé par le diagnostic arithmétique cible au lieu de
 produire silencieusement une division par zéro. Le résultat est binary64 et
 est soumis à la même précision pratique et au même affichage fixe que
 `SIN`/`COS`.
+
+`LOG(x)` est le logarithme naturel. Il exige un opérande strictement positif,
+normalisé et fini ; zéro, les valeurs négatives, les NaN et les sous-normaux
+sont refusés par le diagnostic target-side V1. Le guest extrait l’exposant et
+la mantisse binary64, puis évalue `log(m)` par la série en `z=(m-1)/(m+1)` et
+ajoute `exposant*ln(2)`. `EXP(x)` utilise une réduction par `ln(2)`, un
+polynôme de degré 10 et une reconstruction de l’exposant binary64. V1 accepte
+la plage bornée `-708 <= x <= 708`; les opérandes hors plage sont refusés pour
+éviter un résultat subnormal ou infini non documenté. Ces approximations sont
+déterministes et exécutées uniquement par les instructions D dans la cible.
+À six décimales tronquées, une composition comme `EXP(LOG(10))` peut donc
+afficher `9.999999` plutôt que `10.000000`; ce n’est pas une délégation hôte.
 
 `LEN(string-variable)` renvoie dans le guest la longueur de la variable chaîne
 ou de l’élément de tableau chaîne fourni. La résolution accepte les noms
