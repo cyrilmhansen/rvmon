@@ -210,9 +210,9 @@ comme le BASIC traditionnel. `start=0` et les valeurs négatives sont rejetés ;
 un début supérieur à la longueur source produit une chaîne vide. Une longueur
 nulle produit également une chaîne vide, et une longueur supérieure au restant
 disponible est ramenée à ce restant. Le résultat est copié et affiché dans la
-RAM cible. Comme `LEFT$` et `RIGHT$`, `MID$` n’est pas encore disponible dans
-une concaténation avec d’autres termes chaîne ; son affectation directe accepte
-les sources littérales, scalaires et tableaux décrites ci-dessous.
+RAM cible. Comme `LEFT$` et `RIGHT$`, `MID$` peut être utilisée comme terme
+d’une concaténation target-side ; son affectation directe accepte les sources
+littérales, scalaires et tableaux décrites ci-dessous.
 
 La tranche assembleur accepte également
 `LET destination$=LEFT$(source$,n)`, `RIGHT$` et `MID$` (avec `LET` facultatif).
@@ -228,12 +228,13 @@ recouvrements restent sûrs, puis écrit la longueur et les octets de destinatio
 sans intervention de l’hôte.
 
 Une affectation peut également concaténer plusieurs termes chaîne avec `+` :
-chaque terme est un littéral ASCII, une variable, un élément de tableau chaîne
-ou une fonction `LEFT$`/`RIGHT$`/`MID$`, par exemple
+chaque terme est un littéral ASCII, une variable, un élément de tableau chaîne,
+une fonction `LEFT$`/`RIGHT$`/`MID$` ou un constructeur `CHR$`/`STR$`, par exemple
 `LET TITLE$="RV "+LEFT$(TEXT$,4)+"!"`. Le résultat est assemblé dans un buffer
 cible borné à 120 octets avant d’être copié vers la destination. Les
-conversions implicites numériques et les opérateurs chaîne autres que `+`
-restent rejetés.
+conversions numériques implicites et les opérateurs chaîne autres que `+`
+restent rejetés ; `CHR$` et `STR$` sont des conversions explicites évaluées
+dans le guest.
 
 `ASC(string-source)` renvoie dans le guest le premier octet ASCII de la source
 et refuse la chaîne vide. `CHR$(expression)` convertit dans le guest une valeur

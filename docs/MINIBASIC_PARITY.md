@@ -17,7 +17,7 @@ expressions, données, chaînes, tableaux et diagnostics. Elle ne signifie ni
 compatibilité Atari, ni compatibilité binaire, ni compatibilité des tokens,
 des nombres historiques, des périphériques, du DOS ou des graphismes.
 
-État de l’audit au 3 août 2026 : **108 scripts QEMU assembleur MiniBASIC
+État de l’audit au 3 août 2026 : **109 scripts QEMU assembleur MiniBASIC
 recensés**. Les scénarios récents fournissent notamment la preuve nominale et
 d’erreur de `ATN` après exécution QEMU verte. Ce nombre
 est contrôlable par :
@@ -250,7 +250,7 @@ sortie BASIC préenregistrée.
 - **Décisions de parité figées :** mode direct, lignes, contrôle de flot,
   chaînes, tableaux, binary64 target-side, interruption et périmètre Atari
   rejeté ;
-- **Preuve automatisée :** 108 scripts QEMU assembleur recensés au moment de
+- **Preuve automatisée :** 109 scripts QEMU assembleur recensés au moment de
   cet audit, avec des cas nominaux et négatifs dédiés aux chaînes, tableaux,
   conversions, fonctions de recherche, formatage et blocs structurés ;
 - **Écart important restant :** `ELSE`/`ENDIF` doivent rester en lignes dédiées ;
@@ -287,7 +287,7 @@ sortie BASIC préenregistrée.
 | 2026-08-03 | Audit de cohérence du registre | comptage reproductible : `find scripts -maxdepth 1 -type f -name 'test-guest-runtime-asm-repl*.sh' \| wc -l` → `107` | l’inventaire courant est distingué des comptes historiques ; la concaténation `PRINT` est maintenant validée par un scénario QEMU dédié |
 | 2026-08-03 | Correction de la résolution des tableaux courts nommés `C` | `test-guest-runtime-asm-repl-array-table.sh` sous QEMU : `DIM B(3)`, `DIM C(2)`, affectations et `PRINT B(1)+C(2)` produisent `16.000000` | `C(...)` ne tombe plus dans le résolveur de tableaux longs ; le test de la fonction `COS(...)` doit rester vert |
 | 2026-08-03 | `LEN` accepte les littéraux ASCII | `test-guest-runtime-asm-repl-string-len.sh` sous QEMU, avec `LEN("RV64")` en plus des variables et tableaux | la résolution reste target-side ; les expressions chaîne générales restent différées |
-| 2026-08-03 | Correction de `RIGHT$` concaténé dans une affectation | `test-guest-runtime-asm-repl-string-right-assignment-concat.sh` sous QEMU ; `RIGHT$(TEXT$,4)+"<"` produit `RABI<` sans fault | les trois découpes d’affectation rejoignent désormais leur concaténateur target-side propre ; la composition générale reste PARTIELLE |
+| 2026-08-03 | Correction de `RIGHT$` concaténé dans une affectation et preuve d’une destination tableau | `test-guest-runtime-asm-repl-string-right-assignment-concat.sh` et `test-guest-runtime-asm-repl-string-array-assignment-concat.sh` sous QEMU ; `RABI<` et `RABI!` sans fault | les trois découpes d’affectation rejoignent leur concaténateur target-side propre, y compris pour un élément de tableau ; la composition générale reste PARTIELLE |
 
 Les affectations ne constituent pas encore une parité chaîne complète : le RHS
 est soit une forme `LEFT$`/`RIGHT$`/`MID$`, soit une concaténation de termes
