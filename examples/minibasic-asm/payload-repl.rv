@@ -4690,9 +4690,12 @@ addi x6,x0,45
 beq x5,x6,atom_minus
 addi x6,x5,-97
 sltiu x7,x6,26
-beq x7,x0,atom_dispatch
-addi x5,x5,-32
-sb x5,0(x21)
+bne x7,x0,atom_function_table_entry
+addi x6,x5,-65
+sltiu x7,x6,26
+bne x7,x0,atom_function_table_entry
+jal x0,atom_dispatch
+atom_function_table_entry:
 jal x0,atom_function_table_probe
 atom_dispatch:
 addi x27,x21,0
@@ -9364,21 +9367,23 @@ ld x1,1984(x8)
 jal x0,store_atom
 atom_sqr_error:
 jal x0,error_line
-; Table-driven function recognizer. Kept after the evaluator so adding entries
+; Table-driven function recognizer. Upper- and lower-case alphabetic names
+; enter here; a miss falls back to the variable/array dispatcher. Kept after
+; the evaluator so adding entries
 ; does not move the historical branches in eval_expression/parse_product.
 ; IDs 1..17 correspond to the four string consumers and the parenthesized
 ; numeric functions. Dispatch stubs use jal for the long handler transfers.
 atom_function_table_probe:
+addi x29,x0,0
+atom_function_table_next:
 lui x27,0x82062
 slli x27,x27,32
 srli x27,x27,32
-addi x29,x0,0
-atom_function_table_next:
 slli x6,x29,4
 add x27,x27,x6
 lbu x28,0(x27)
 bne x28,x0,atom_function_table_nonempty
-jal x0,atom_dispatch
+jal x0,atom_function_table_fallback
 atom_function_table_nonempty:
 addi x9,x0,0
 addi x7,x27,2
@@ -9404,6 +9409,7 @@ lbu x5,0(x10)
 addi x6,x0,40
 bne x5,x6,atom_function_table_miss
 lbu x28,1(x27)
+addi x29,x0,0
 addi x6,x0,1
 beq x28,x6,atom_function_table_id1
 addi x6,x0,2
@@ -9438,46 +9444,68 @@ addi x6,x0,16
 beq x28,x6,atom_function_table_id16
 addi x6,x0,17
 beq x28,x6,atom_function_table_id17
-jal x0,atom_dispatch
+jal x0,atom_function_table_fallback
 atom_function_table_miss:
 addi x29,x29,1
 sltiu x6,x29,18
 bne x6,x0,atom_function_table_next
-jal x0,atom_dispatch
+jal x0,atom_function_table_fallback
 atom_function_table_id1:
+addi x28,x0,0
 jal x0,atom_len_function
 atom_function_table_id2:
+addi x28,x0,0
 jal x0,atom_asc_function
 atom_function_table_id3:
+addi x28,x0,0
 jal x0,atom_val_function
 atom_function_table_id4:
+addi x28,x0,0
 jal x0,atom_instr_function
 atom_function_table_id5:
+addi x28,x0,0
 jal x0,atom_cos_function
 atom_function_table_id6:
+addi x28,x0,0
 jal x0,atom_abs_function
 atom_function_table_id7:
+addi x28,x0,0
 jal x0,atom_atn_function
 atom_function_table_id8:
+addi x28,x0,0
 jal x0,atom_exp_function
 atom_function_table_id9:
+addi x28,x0,0
 jal x0,atom_log_function
 atom_function_table_id10:
+addi x28,x0,0
 jal x0,atom_tan_function
 atom_function_table_id11:
+addi x28,x0,0
 jal x0,atom_int_function
 atom_function_table_id12:
+addi x28,x0,0
 jal x0,atom_sin_function
 atom_function_table_id13:
+addi x28,x0,0
 jal x0,atom_sgn_function
 atom_function_table_id14:
+addi x28,x0,0
 jal x0,atom_trunc_function
 atom_function_table_id15:
+addi x28,x0,0
 jal x0,atom_frac_function
 atom_function_table_id16:
+addi x28,x0,0
 jal x0,atom_mod_function
 atom_function_table_id17:
+addi x28,x0,0
 jal x0,atom_sqr_function
+atom_function_table_fallback:
+addi x28,x0,0
+addi x29,x0,0
+lbu x5,0(x21)
+jal x0,atom_dispatch
 end
 symbols
 run-at 0x81000100

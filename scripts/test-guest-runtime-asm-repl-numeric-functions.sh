@@ -28,11 +28,12 @@ awk '/^symbols$/{print; found=1; next} found && /^run-at /{print; exit} !found{p
     while IFS= read -r line; do printf '%s\n' "$line" >&3; sleep 0.003; done
 sleep 0.3
 printf '%s\n' \
-  '10 PRINT TRUNC(3.9)' \
-  '20 PRINT FRAC(-3.9)' \
-  '30 PRINT MOD(17,5)' \
-  '40 PRINT MOD(TRUNC(17.9),5)' \
-  '50 END' \
+  '10 PRINT ABS(-3.9)' \
+  '20 PRINT TRUNC(3.9)' \
+  '30 PRINT FRAC(-3.9)' \
+  '40 PRINT MOD(17,5)' \
+  '50 PRINT MOD(TRUNC(17.9),5)' \
+  '60 END' \
   'RUN' >&3
 sleep 1.0
 printf 'q\n' >&3
@@ -42,7 +43,7 @@ kill "$qemu_pid" 2>/dev/null || true
 wait "$qemu_pid" 2>/dev/null || true
 qemu_pid=""
 
-for expected in '3.000000' '-0.899999' '2.000000' 'trap: breakpoint'; do
+for expected in '3.899999' '3.000000' '-0.899999' '2.000000' 'trap: breakpoint'; do
     if ! grep -aFq -- "$expected" "$output_file"; then
         cat "$output_file"
         printf 'missing numeric-function result: %s\n' "$expected" >&2

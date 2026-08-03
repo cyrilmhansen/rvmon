@@ -140,6 +140,8 @@ L'implémentation assembleur est actuellement en migration :
   place ; il n'existe pas encore de flux de tokens indépendant ;
 * les fonctions parenthésées courantes sont reconnues par une table de
   descripteurs target-side, puis envoyées vers des évaluateurs spécialisés ;
+  la reconnaissance est insensible à la casse et le repli conserve les
+  invariants de l'analyseur de variables/tableaux ;
 * `RND` et plusieurs chemins historiques de variables, tableaux et mots-clés
   conservent des probes explicites ;
 * les limites de mémoire, de profondeur et de cadres sont des limites
