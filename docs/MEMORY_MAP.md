@@ -116,7 +116,7 @@ peuvent être réécrits.
 | `0x820608a8..0x82060bff` | réserve globale chaîne | non allouée dans V1 | réservé |
 | `0x82060c00..0x82060dff` | scratch de réécriture des cibles après `RENUM` | 512 octets ; un record à la fois, avant publication dans le record source | commande `RENUM` |
 | `0x82060e00..0x820615ff` | copie transactionnelle des 256 numéros de lignes | 256 valeurs `u64`, utilisée pour restaurer `RENUM` avant publication en cas de dépassement de record | commande `RENUM` |
-| `0x82061600..0x82061eff` | pile des concaténateurs chaîne | 8 cadres de 288 octets : retour, total, buffer de concaténation et buffer source d'expression | appel target-side ; profondeur maximale 8 |
+| `0x82061600..0x82061eff` | pile des concaténateurs chaîne | 8 cadres de 288 octets : retour, total, pointeurs de buffers et destination, buffer de concaténation et buffer source d'expression | appel target-side ; profondeur maximale 8 |
 | `0x82061f00..0x82061f7f` | métadonnées des résolveurs d'expressions chaîne | 8 cadres de 16 octets : retour et curseur appelant | appel target-side ; indexé par la profondeur de concaténation |
 | `0x82061f80..0x82061fff` | réserve globale chaîne | non allouée dans V1 | réservé |
 

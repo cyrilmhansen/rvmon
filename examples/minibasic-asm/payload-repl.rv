@@ -7915,6 +7915,8 @@ add x27,x27,x7
 sd x1,0(x27)
 addi x7,x27,160
 sd x7,16(x27)
+ld x10,1976(x8)
+sd x10,24(x27)
 addi x6,x6,1
 addi x27,x8,2047
 addi x27,x27,441
@@ -7990,8 +7992,9 @@ slli x27,x27,32
 srli x27,x27,32
 addi x27,x27,1536
 add x27,x27,x6
-ld x27,16(x27)
-ld x6,1976(x8)
+ld x7,16(x27)
+ld x6,24(x27)
+addi x27,x7,0
 sd x9,-8(x6)
 addi x11,x9,0
 addi x10,x0,0
