@@ -171,7 +171,7 @@ Chaque jalon conserve un build vert et une démonstration scriptée. M1–M4 son
    BASIC, avec limites centralisées, diagnostic de saturation, tests de
    consommation de pile M-mode et compatibilité snapshot/projet. La capacité
    du source assembleur guest distingue maintenant 4096 lignes persistantes
-   et 8192 lignes pour `assemble-program`, avec scratch statique ; elle ne
+   et 9216 lignes pour `assemble-program`, avec scratch statique ; elle ne
    préjuge pas de la capacité du programme
    BASIC. Aucune extension ISA n’est ajoutée.
 3. **P2 — interface graphique et historique arrière** : stabiliser d’abord les

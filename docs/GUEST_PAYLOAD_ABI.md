@@ -27,6 +27,8 @@ workspace et de la région de données.
 La région de données cible est `[0x82000000,0x82100000)` et fait 1 MiB. Les
 accès du payload à ces deux régions sont des adresses RV64 ordinaires ; aucune
 traduction de pointeur ILP32 ni alias implicite n’est appliquée par ce contrat.
+Le découpage détaillé du moniteur, du payload et des scratchs MiniBASIC est
+maintenu dans [`MEMORY_MAP.md`](MEMORY_MAP.md).
 
 La commande guest `info payload` expose ces valeurs depuis l’image exécutée,
 afin que la séance de démonstration ne dépende pas d’une adresse recopiée dans
@@ -72,9 +74,13 @@ l’assemblage du texte. Le futur chargeur `assemble-load` devra réunir ces
 sections atomiquement.
 
 `run-at` est un lanceur de payload, pas encore un chargeur de fichier : le
-source est toujours saisi par `assemble-program`. La commande valide l’adresse
-et réinitialise le contexte avant le saut ; une entrée hors workspace, non
-alignée ou non hexadécimale produit `GUEST-RUNAT-001` ou `GUEST-RUNAT-002`.
+source est toujours saisi par `assemble-program`. Le chemin d’assemblage
+accepte maintenant jusqu’à 9216 lignes d’instructions/directives et 1024
+symboles dans son scratch de payload ; le document source persistant reste
+limité séparément à 4096 lignes. La commande
+valide l’adresse et réinitialise le contexte avant le saut ; une entrée hors
+workspace, non alignée ou non hexadécimale produit `GUEST-RUNAT-001` ou
+`GUEST-RUNAT-002`.
 
 ## Limites et prochaine étape
 
