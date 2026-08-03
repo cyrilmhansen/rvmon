@@ -5043,6 +5043,11 @@ sd x29,1920(x8)
 sd x30,1928(x8)
 sd x31,1936(x8)
 addi x21,x21,4
+; Un littéral chaîne est résolu dans la RAM cible comme pour ASC/VAL ; les
+; noms continuent vers les résolveurs de variables et de tableaux.
+lbu x6,0(x21)
+addi x7,x0,34
+beq x6,x7,atom_len_literal
 addi x27,x21,0
 atom_len_name_scan:
 lbu x5,0(x27)
@@ -5059,6 +5064,9 @@ jal x1,resolve_string_variable
 jal x0,atom_len_value
 atom_len_array:
 jal x1,resolve_string_array
+jal x0,atom_len_value
+atom_len_literal:
+jal x1,resolve_string_source
 atom_len_value:
 fcvt.d.l f4,x11,0
 lbu x5,0(x21)

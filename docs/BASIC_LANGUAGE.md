@@ -190,12 +190,11 @@ déterministes et exécutées uniquement par les instructions D dans la cible.
 À six décimales tronquées, une composition comme `EXP(LOG(10))` peut donc
 afficher `9.999999` plutôt que `10.000000`; ce n’est pas une délégation hôte.
 
-`LEN(string-variable)` renvoie dans le guest la longueur de la variable chaîne
-ou de l’élément de tableau chaîne fourni. La résolution accepte les noms
-courts/longs et les tableaux 1D/2D déjà disponibles ; le résultat est converti
-en binary64 pour rester utilisable dans une expression numérique. Les chaînes
-littérales et les expressions chaîne générales ne sont pas encore des
-arguments de fonction en V1.
+`LEN(string-source)` renvoie dans le guest la longueur d’un littéral ASCII, de
+la variable chaîne ou de l’élément de tableau chaîne fourni. La résolution
+accepte les noms courts/longs et les tableaux 1D/2D déjà disponibles ; le
+résultat est converti en binary64 pour rester utilisable dans une expression
+numérique. Les expressions chaîne générales restent hors de cette tranche.
 
 `PRINT LEFT$(string-variable,n)` et `PRINT RIGHT$(string-variable,n)` sont
 disponibles dans la tranche target-side actuelle pour une variable chaîne

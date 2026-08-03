@@ -30,13 +30,14 @@ sleep 0.3
 printf '%s\n' \
   'DIM A$(2)' \
   'LET A$(1)="ABC"' \
-  '10 LET S$="HELLO"' \
-  '20 LET LONGTEXT$="RV64"' \
-  '30 PRINT LEN(S$)' \
-  '40 PRINT LEN(LONGTEXT$)' \
-  '50 PRINT LEN(A$(1))' \
-  '60 PRINT LEN(S$)+LEN(LONGTEXT$)' \
-  '70 END' \
+  '10 PRINT LEN("RV64")' \
+  '20 LET S$="HELLO"' \
+  '30 LET LONGTEXT$="RV64"' \
+  '40 PRINT LEN(S$)' \
+  '50 PRINT LEN(LONGTEXT$)' \
+  '60 PRINT LEN(A$(1))' \
+  '70 PRINT LEN(S$)+LEN(LONGTEXT$)' \
+  '80 END' \
   'RUN' | while IFS= read -r line; do
     printf '%s\n' "$line" >&3
     sleep 0.08
