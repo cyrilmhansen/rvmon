@@ -17,7 +17,7 @@ expressions, données, chaînes, tableaux et diagnostics. Elle ne signifie ni
 compatibilité Atari, ni compatibilité binaire, ni compatibilité des tokens,
 des nombres historiques, des périphériques, du DOS ou des graphismes.
 
-État de l’audit au 3 août 2026 : **91 scripts QEMU assembleur MiniBASIC
+État de l’audit au 3 août 2026 : **92 scripts QEMU assembleur MiniBASIC
 recensés**. Le nombre
 est contrôlable par :
 
@@ -92,7 +92,7 @@ entièrement dans le guest.
 | `WHILE/WEND` | boucles imbriquées jusqu’à huit niveaux | VERT | `while.sh`, `while-error.sh` |
 | `REPEAT/UNTIL` | test terminal et boucles imbriquées jusqu’à huit niveaux | VERT | `repeat.sh`, `repeat-error.sh` |
 | `DO/LOOP` | boucle inconditionnelle et sortie par `EXIT`/`POP` | VERT | `test-guest-runtime-asm-repl-do-loop.sh` |
-| `IF ... ELSE ... ENDIF` | bloc structuré non imbriqué, terminateurs sur lignes dédiées | PARTIEL | `if-block.sh`, `if-block-error.sh` |
+| `IF ... ELSE ... ENDIF` | blocs structurés imbriqués jusqu’à huit niveaux, terminateurs sur lignes dédiées | VERT | `if-block.sh`, `if-block-nested.sh`, `if-block-error.sh` |
 | `ON ... GOTO/GOSUB` | sélection entière 1-based sur une liste de lignes | VERT | `on.sh`, `on-error.sh` |
 | `DATA/READ/RESTORE` | données numériques et chaînes, curseur target-side | VERT | `data-read.sh`, `restore.sh` |
 | `REM` | commentaire BASIC jusqu’à la fin de la ligne | VERT | `rem.sh` |
@@ -123,10 +123,10 @@ portant au minimum le type de cadre et la ligne source. Cette représentation
 permet de rendre `POP` et `EXIT` typés ; elle ne reproduit pas les adresses ou
 les tables internes de TBXL.
 
-La forme `IF expression THEN` sans numéro ouvre un bloc MiniBASIC. En V1, les
-blocs sont non imbriqués et `ELSE`/`ENDIF` doivent être les premières
-instructions de lignes dédiées. Cette contrainte est **PARTIELLE** et doit
-rester visible dans le tutoriel.
+La forme `IF expression THEN` sans numéro ouvre un bloc MiniBASIC. Les blocs
+peuvent être imbriqués jusqu’à huit niveaux ; `ELSE`/`ENDIF` doivent être les
+premières instructions de lignes dédiées. La contrainte de lignes dédiées reste
+**PARTIELLE** et doit rester visible dans le tutoriel.
 
 Les recherches de terminateurs sont bornées au magasin de lignes et portent
 sur le premier statement de chaque ligne. Les structures ouvertes et fermées
@@ -209,13 +209,12 @@ sortie BASIC préenregistrée.
 - **Décisions de parité figées :** mode direct, lignes, contrôle de flot,
   chaînes, tableaux, binary64 target-side, interruption et périmètre Atari
   rejeté ;
-- **Preuve automatisée :** 91 tests QEMU assembleur recensés au moment de cet
+- **Preuve automatisée :** 92 tests QEMU assembleur recensés au moment de cet
   audit, dont six scénarios dédiés aux affectations chaîne et à leurs sources
   ou destinations tableau ;
-- **Écart important restant :** `IF/ELSE/ENDIF` est non imbriqué ; certaines
-  fonctions historiques TBXL ne sont pas encore retenues ; les expressions
-  chaîne générales, `CHR$` en item `PRINT` direct et les autres opérateurs
-  chaîne restent partiels ;
+- **Écart important restant :** `ELSE`/`ENDIF` doivent rester en lignes dédiées ;
+  certaines fonctions historiques TBXL ne sont pas encore retenues ; les expressions
+  chaîne générales et les autres opérateurs chaîne restent partiels ;
 - **Conclusion :** la parité d’expérience du démonstrateur est solide, mais la
   parité de langage TBXL 1.5 n’est pas complète et ne doit pas être présentée
   comme telle.
@@ -232,7 +231,8 @@ sortie BASIC préenregistrée.
 | 2026-08-03 | Conversion `VAL(string-source)` dans l’évaluateur numérique target-side | mêmes scénarios QEMU, littéraux/variables valides et sources vides ou avec traîne invalide | la conversion reste entièrement dans la cible et réutilise le parseur binary64 existant |
 | 2026-08-03 | Recherche `INSTR` dans les sources chaîne target-side | mêmes scénarios QEMU, occurrences préfixe/milieu, absence, aiguille vide et erreurs | les pointeurs et longueurs restent dans la RAM cible ; aucun appel de recherche hôte n’est utilisé |
 | 2026-08-03 | Formatage et impression `STR$(expression)` dans un buffer chaîne target-side | mêmes scénarios QEMU, valeurs positives/négatives, affectation, concaténation, `PRINT` et argument absent | le formateur partage la politique fixe à six décimales de `PRINT` sans délégation hôte |
-| 2026-08-03 | Inventaire recalculé | `find scripts -maxdepth 1 -type f -name 'test-guest-runtime-asm-repl*.sh' \| wc -l` → `91` | le nombre annoncé dans ce document est reproductible et non maintenu manuellement |
+| 2026-08-03 | Preuve des blocs `IF/ELSE/ENDIF` imbriqués | `test-guest-runtime-asm-repl-if-block-nested.sh` sous QEMU, branches vraie/fausse internes et externes | la profondeur de recherche et la pile unifiée sont désormais couvertes jusqu’à la limite documentée |
+| 2026-08-03 | Inventaire recalculé | `find scripts -maxdepth 1 -type f -name 'test-guest-runtime-asm-repl*.sh' \| wc -l` → `92` | le nombre annoncé dans ce document est reproductible et non maintenu manuellement |
 
 Les affectations ne constituent pas encore une parité chaîne complète : le RHS
 est soit une forme `LEFT$`/`RIGHT$`/`MID$`, soit une concaténation de termes

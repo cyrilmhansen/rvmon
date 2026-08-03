@@ -227,11 +227,10 @@ doivent être les premières instructions de leurs lignes numérotées. Une
 condition différente de `0.0` exécute la branche `THEN`, puis saute jusqu’à
 `ENDIF` ; une condition fausse recherche `ELSE` ou `ENDIF` et reprend dans la
 branche appropriée. Le cadre de bloc utilise le type 6 de la pile de contrôle
-unifiée. La tranche V1 valide les blocs non imbriqués ; les recherches sont
-bornées à 256
-enregistrements et portent sur la première instruction de chaque ligne ; les
-formes `IF ... THEN` à numéro, les blocs imbriqués et les blocs séparés par `:`
-ne doivent donc pas être utilisés dans cette tranche. Un `ELSE` ou `ENDIF`
+unifiée. Les blocs peuvent être imbriqués jusqu’à huit niveaux, avec recherche
+bornée à 256 enregistrements et portant sur la première instruction de chaque
+ligne ; les formes `IF ... THEN` à numéro et les blocs séparés par `:` ne
+doivent donc pas être utilisés dans cette tranche. Un `ELSE` ou `ENDIF`
 orphelin, un terminateur absent ou une profondeur excessive produit une erreur
 de flot et rend la main à l’invite.
 
