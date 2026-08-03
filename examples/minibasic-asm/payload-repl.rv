@@ -9625,6 +9625,10 @@ beq x5,x0,statement_table_id
 jal x0,statement_table_miss
 statement_table_id:
 lbu x28,1(x27)
+addi x6,x0,19
+beq x28,x6,statement_table_do
+addi x6,x0,20
+beq x28,x6,statement_table_loop
 addi x6,x0,4
 beq x28,x6,statement_table_until
 addi x6,x0,13
@@ -9815,6 +9819,28 @@ ld x27,24(x10)
 ld x28,32(x10)
 ld x29,40(x10)
 jal x0,repeat_statement
+statement_table_do:
+; DO pose une frame de contrôle et vérifie la forme V1 sans suffixe.
+addi x10,x8,2047
+addi x10,x10,513
+ld x6,0(x10)
+ld x7,8(x10)
+ld x9,16(x10)
+ld x27,24(x10)
+ld x28,32(x10)
+ld x29,40(x10)
+jal x0,do_statement
+statement_table_loop:
+; LOOP reprend la continuation de la frame DO target-side.
+addi x10,x8,2047
+addi x10,x10,513
+ld x6,0(x10)
+ld x7,8(x10)
+ld x9,16(x10)
+ld x27,24(x10)
+ld x28,32(x10)
+ld x29,40(x10)
+jal x0,loop_statement
 jal x0,statement_table_fallback
 statement_table_miss:
 addi x29,x29,1
