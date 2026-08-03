@@ -61,6 +61,11 @@ static mut WATCHPOINTS: [GuestWatchpoint; MAX_WATCHPOINTS] =
     [GuestWatchpoint::disabled(); MAX_WATCHPOINTS];
 static mut STEPPED_PERMANENT_BREAKPOINT: u8 = u8::MAX;
 static mut RUN_REMAINING: u64 = 0;
+static mut STEPIDP_REMAINING: u64 = 0;
+static mut STEPIDP_ACTIVE: bool = false;
+static mut STEPIDP_BEFORE: TargetContext = TargetContext::empty();
+static mut STEPIDP_STACK_ADDRESS: u64 = 0;
+static mut STEPIDP_STACK_BEFORE: [u8; 16] = [0; 16];
 static mut SYMBOLS: [GuestSymbol; MAX_SYMBOLS] = [GuestSymbol::empty(); MAX_SYMBOLS];
 static mut SOURCE_LINES: [[u8; COMMAND_CAPACITY]; MAX_SOURCE_LINES] =
     [[0; COMMAND_CAPACITY]; MAX_SOURCE_LINES];
@@ -249,6 +254,32 @@ pub extern "C" fn rust_trap(context: *mut TargetContext) -> ! {
     let budget_stop = context.mcause == StopReason::Breakpoint as u64
         && permanent_breakpoint_at(context.mepc).is_none()
         && target_load32(context.mepc) != Some(EBREAK_WORD);
+    let stepidp_active = unsafe { core::ptr::read_volatile(core::ptr::addr_of!(STEPIDP_ACTIVE)) };
+    let stepidp_landed_on_ebreak = stepidp_active
+        && context.mcause == StopReason::Breakpoint as u64
+        && target_load32(context.mepc) == Some(EBREAK_WORD)
+        && unsafe { core::ptr::read_volatile(core::ptr::addr_of!(STEPIDP_BEFORE)).pc }
+            != context.mepc;
+    let stepidp_stop = stepidp_active && (budget_stop || stepidp_landed_on_ebreak);
+    if stepidp_stop {
+        stepidp_report(context);
+        let remaining = unsafe { core::ptr::read_volatile(core::ptr::addr_of!(STEPIDP_REMAINING)) };
+        if remaining > 1 {
+            unsafe {
+                core::ptr::write_volatile(
+                    core::ptr::addr_of_mut!(STEPIDP_REMAINING),
+                    remaining - 1,
+                );
+            }
+            stepidp_capture_before(context);
+            resume_single_step(context as *mut TargetContext);
+        }
+        unsafe {
+            core::ptr::write_volatile(core::ptr::addr_of_mut!(STEPIDP_REMAINING), 0);
+            core::ptr::write_volatile(core::ptr::addr_of_mut!(STEPIDP_ACTIVE), false);
+        }
+        monitor_loop(context as *mut TargetContext);
+    }
     if budget_stop {
         let remaining = unsafe { core::ptr::read_volatile(core::ptr::addr_of!(RUN_REMAINING)) };
         if remaining > 0 {
@@ -456,6 +487,7 @@ fn monitor_loop(context: *mut TargetContext) -> ! {
             b"symbols" => print_symbols(),
             command if command.starts_with(b"disasm ") => print_disassembly(&command[7..]),
             b"step" | b"s" => step_target(context),
+            command if command.starts_with(b"stepidp ") => stepidp_target(context, &command[8..]),
             command if command.starts_with(b"run ") => run_target(context, &command[4..]),
             command if command.starts_with(b"run-at ") => run_target_at(context, &command[7..]),
             b"continue" | b"c" => continue_target(context),
@@ -505,7 +537,8 @@ fn print_help() {
           assembler comments: ';' starts a comment to end of line\r\n\
           symbols                         list source symbols\r\n\
           disasm <addr|label> <count>    disassemble target words\r\n\
-          step|s, run <count>             execute with a bounded budget\r\n\
+          step|s, stepidp <count>         step with full register/stack trace\r\n\
+          run <count>                     execute with a bounded budget\r\n\
           run-at <addr>                  launch an assembled U-mode payload\r\n\
           continue|c                      resume from a breakpoint\r\n\
           break <addr|label>              software breakpoint\r\n\
@@ -3211,6 +3244,97 @@ fn step_target(context: *mut TargetContext) -> ! {
     resume_single_step(context);
 }
 
+fn stepidp_target(context: *mut TargetContext, argument: &[u8]) -> ! {
+    let context = unsafe { &mut *context };
+    if context.mcause != StopReason::Breakpoint as u64 {
+        guest_error(
+            b"GUEST-STEPIDP-001",
+            b"target is not stopped at a breakpoint",
+        );
+        monitor_loop(context);
+    }
+    let Some(count) = parse_decimal(argument.trim_ascii()) else {
+        guest_error(
+            b"GUEST-STEPIDP-002",
+            b"stepidp expects a decimal instruction count",
+        );
+        monitor_loop(context);
+    };
+    if count == 0 || count > 1000 {
+        guest_error(
+            b"GUEST-STEPIDP-003",
+            b"stepidp count must be between 1 and 1000",
+        );
+        monitor_loop(context);
+    }
+    unsafe {
+        core::ptr::write_volatile(core::ptr::addr_of_mut!(STEPIDP_REMAINING), count);
+        core::ptr::write_volatile(core::ptr::addr_of_mut!(STEPIDP_ACTIVE), true);
+    }
+    stepidp_capture_before(context);
+    resume_single_step(context);
+}
+
+fn stepidp_capture_before(context: &TargetContext) {
+    let stack_address = context.x[2] & !0xf;
+    let mut stack_before = [0u8; 16];
+    for (index, byte) in stack_before.iter_mut().enumerate() {
+        *byte = target_load8(stack_address + index as u64).unwrap_or(0);
+    }
+    unsafe {
+        core::ptr::write_volatile(core::ptr::addr_of_mut!(STEPIDP_BEFORE), *context);
+        core::ptr::write_volatile(
+            core::ptr::addr_of_mut!(STEPIDP_STACK_ADDRESS),
+            stack_address,
+        );
+        core::ptr::write_volatile(core::ptr::addr_of_mut!(STEPIDP_STACK_BEFORE), stack_before);
+    }
+}
+
+fn stepidp_report(context: &TargetContext) {
+    let before = unsafe { core::ptr::read_volatile(core::ptr::addr_of!(STEPIDP_BEFORE)) };
+    let stack_address =
+        unsafe { core::ptr::read_volatile(core::ptr::addr_of!(STEPIDP_STACK_ADDRESS)) };
+    let stack_before =
+        unsafe { core::ptr::read_volatile(core::ptr::addr_of!(STEPIDP_STACK_BEFORE)) };
+    uart_write("stepidp retired pc=0x");
+    uart_hex(before.pc);
+    uart_write(" -> 0x");
+    uart_hex(context.pc);
+    uart_write(" fcsr=0x");
+    uart_hex(u64::from(context.fcsr));
+    uart_write(" flags=0x");
+    uart_hex(u64::from(context.fcsr & 0x1f));
+    uart_write("\r\n");
+    print_registers(context as *const TargetContext as *mut TargetContext);
+    uart_write("stepidp stack[0x");
+    uart_hex(stack_address);
+    uart_write("]: ");
+    let mut changed = false;
+    for index in 0..16 {
+        let value = target_load8(stack_address + index as u64).unwrap_or(0);
+        if value != stack_before[index] {
+            changed = true;
+        }
+        uart_hex_byte(value);
+        if index != 15 {
+            uart_write(" ");
+        }
+    }
+    if !changed {
+        uart_write(" unchanged");
+    } else {
+        uart_write(" changed-from: ");
+        for (index, value) in stack_before.iter().enumerate() {
+            uart_hex_byte(*value);
+            if index != 15 {
+                uart_write(" ");
+            }
+        }
+    }
+    uart_write("\r\n");
+}
+
 fn run_target(context: *mut TargetContext, argument: &[u8]) -> ! {
     let context = unsafe { &mut *context };
     if context.mcause != StopReason::Breakpoint as u64 {
@@ -3750,11 +3874,25 @@ fn restore_stepped_permanent_breakpoint() {
     }
 }
 
+fn target_load8(address: u64) -> Option<u8> {
+    if !valid_target_byte_address(address) {
+        return None;
+    }
+    Some(unsafe { core::ptr::read_volatile(address as *const u8) })
+}
+
 fn target_load32(address: u64) -> Option<u32> {
     if !valid_target_word_address(address) {
         return None;
     }
     Some(unsafe { core::ptr::read_volatile(address as *const u32) })
+}
+
+fn valid_target_byte_address(address: u64) -> bool {
+    address >= TARGET_RAM_START
+        && address
+            .checked_add(1)
+            .is_some_and(|end| end <= TARGET_RAM_END)
 }
 
 fn target_store32(address: u64, word: u32) -> bool {
