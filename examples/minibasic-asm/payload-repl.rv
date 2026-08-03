@@ -9584,6 +9584,7 @@ sd x9,16(x10)
 sd x27,24(x10)
 sd x28,32(x10)
 sd x29,40(x10)
+addi x30,x0,0
 addi x29,x0,0
 statement_table_next:
 lui x27,0x82062
@@ -9625,6 +9626,13 @@ beq x5,x0,statement_table_id
 jal x0,statement_table_miss
 statement_table_id:
 lbu x28,1(x27)
+addi x10,x8,2047
+addi x10,x10,601
+sd x28,0(x10)
+addi x6,x0,2
+beq x28,x6,statement_table_goto
+addi x6,x0,10
+beq x28,x6,statement_table_goto
 addi x6,x0,19
 beq x28,x6,statement_table_do
 addi x6,x0,20
@@ -9651,197 +9659,91 @@ addi x6,x0,15
 beq x28,x6,statement_table_if
 addi x6,x0,1
 beq x28,x6,statement_table_goto
-addi x6,x0,5
-beq x28,x6,statement_table_end
 addi x6,x0,23
-beq x28,x6,statement_table_rem
 addi x6,x0,8
 bne x28,x6,statement_table_fallback
 ; PRINT est le premier handler de données migré : son contrat d'entrée est le
 ; record x24 avec les registres de contexte restaurés comme dans l'historique.
 statement_table_print:
-addi x10,x8,2047
-addi x10,x10,513
-ld x6,0(x10)
-ld x7,8(x10)
-ld x9,16(x10)
-ld x27,24(x10)
-ld x28,32(x10)
-ld x29,40(x10)
+addi x30,x0,1
+jal x1,statement_table_fallback
 lbu x10,16(x24)
 jal x0,print_dispatch
-statement_table_end:
-; END est terminal : même contexte restauré, puis handler historique.
-addi x10,x8,2047
-addi x10,x10,513
-ld x6,0(x10)
-ld x7,8(x10)
-ld x9,16(x10)
-ld x27,24(x10)
-ld x28,32(x10)
-ld x29,40(x10)
-lbu x10,16(x24)
-jal x0,end_statement
-statement_table_rem:
-; REM ignore le reste de la ligne via le chemin historique de fin de ligne.
-addi x10,x8,2047
-addi x10,x10,513
-ld x6,0(x10)
-ld x7,8(x10)
-ld x9,16(x10)
-ld x27,24(x10)
-ld x28,32(x10)
-ld x29,40(x10)
-jal x0,rem_statement
 statement_table_goto:
 ; GOTO/GOSUB sont distingués par goto_dispatch après restauration du contexte.
+addi x30,x0,1
+jal x1,statement_table_fallback
 addi x10,x8,2047
-addi x10,x10,513
-ld x6,0(x10)
-ld x7,8(x10)
-ld x9,16(x10)
-ld x27,24(x10)
-ld x28,32(x10)
-ld x29,40(x10)
+addi x10,x10,601
+ld x5,0(x10)
+addi x6,x0,10
+beq x5,x6,statement_table_end
 lbu x10,16(x24)
 jal x0,goto_dispatch
 statement_table_if:
 ; IF conserve son expression générique et ses branches dans if_statement.
-addi x10,x8,2047
-addi x10,x10,513
-ld x6,0(x10)
-ld x7,8(x10)
-ld x9,16(x10)
-ld x27,24(x10)
-ld x28,32(x10)
-ld x29,40(x10)
+addi x30,x0,1
+jal x1,statement_table_fallback
 lbu x10,16(x24)
 jal x0,if_statement
 statement_table_else:
 ; ELSE reprend le contrôle de bloc sans changer son contrat historique.
-addi x10,x8,2047
-addi x10,x10,513
-ld x6,0(x10)
-ld x7,8(x10)
-ld x9,16(x10)
-ld x27,24(x10)
-ld x28,32(x10)
-ld x29,40(x10)
+addi x30,x0,1
+jal x1,statement_table_fallback
 jal x0,else_statement
 statement_table_endif:
 ; ENDIF dépile le contexte de bloc dans endif_statement.
-addi x10,x8,2047
-addi x10,x10,513
-ld x6,0(x10)
-ld x7,8(x10)
-ld x9,16(x10)
-ld x27,24(x10)
-ld x28,32(x10)
-ld x29,40(x10)
+addi x30,x0,1
+jal x1,statement_table_fallback
 jal x0,endif_statement
 statement_table_input:
 ; INPUT utilise l'ABI console et le parseur target-side de input_statement.
-addi x10,x8,2047
-addi x10,x10,513
-ld x6,0(x10)
-ld x7,8(x10)
-ld x9,16(x10)
-ld x27,24(x10)
-ld x28,32(x10)
-ld x29,40(x10)
+addi x30,x0,1
+jal x1,statement_table_fallback
 jal x0,input_statement
 statement_table_for:
 ; FOR et NEXT partagent les frames target-side, mais gardent leurs handlers.
-addi x10,x8,2047
-addi x10,x10,513
-ld x6,0(x10)
-ld x7,8(x10)
-ld x9,16(x10)
-ld x27,24(x10)
-ld x28,32(x10)
-ld x29,40(x10)
+addi x30,x0,1
+jal x1,statement_table_fallback
 lbu x10,16(x24)
 jal x0,for_statement
 statement_table_next_handler:
-addi x10,x8,2047
-addi x10,x10,513
-ld x6,0(x10)
-ld x7,8(x10)
-ld x9,16(x10)
-ld x27,24(x10)
-ld x28,32(x10)
-ld x29,40(x10)
+addi x30,x0,1
+jal x1,statement_table_fallback
 lbu x10,16(x24)
 jal x0,next_statement
 statement_table_while:
 ; WHILE garde son analyse de comparaison et sa frame de continuation.
-addi x10,x8,2047
-addi x10,x10,513
-ld x6,0(x10)
-ld x7,8(x10)
-ld x9,16(x10)
-ld x27,24(x10)
-ld x28,32(x10)
-ld x29,40(x10)
+addi x30,x0,1
+jal x1,statement_table_fallback
 lbu x10,16(x24)
 jal x0,while_dispatch
 statement_table_wend:
 ; WEND reprend directement la continuation de la frame WHILE.
-addi x10,x8,2047
-addi x10,x10,513
-ld x6,0(x10)
-ld x7,8(x10)
-ld x9,16(x10)
-ld x27,24(x10)
-ld x28,32(x10)
-ld x29,40(x10)
+addi x30,x0,1
+jal x1,statement_table_fallback
 lbu x10,16(x24)
 jal x0,wend_statement
 statement_table_until:
 ; UNTIL évalue sa condition et dépile/reprend la frame REPEAT côté cible.
-addi x10,x8,2047
-addi x10,x10,513
-ld x6,0(x10)
-ld x7,8(x10)
-ld x9,16(x10)
-ld x27,24(x10)
-ld x28,32(x10)
-ld x29,40(x10)
+addi x30,x0,1
+jal x1,statement_table_fallback
 jal x0,until_statement
 statement_table_repeat:
 ; REPEAT marque ou réutilise la continuation target-side.
-addi x10,x8,2047
-addi x10,x10,513
-ld x6,0(x10)
-ld x7,8(x10)
-ld x9,16(x10)
-ld x27,24(x10)
-ld x28,32(x10)
-ld x29,40(x10)
+addi x30,x0,1
+jal x1,statement_table_fallback
 jal x0,repeat_statement
 statement_table_do:
 ; DO pose une frame de contrôle et vérifie la forme V1 sans suffixe.
-addi x10,x8,2047
-addi x10,x10,513
-ld x6,0(x10)
-ld x7,8(x10)
-ld x9,16(x10)
-ld x27,24(x10)
-ld x28,32(x10)
-ld x29,40(x10)
+addi x30,x0,1
+jal x1,statement_table_fallback
 jal x0,do_statement
 statement_table_loop:
 ; LOOP reprend la continuation de la frame DO target-side.
-addi x10,x8,2047
-addi x10,x10,513
-ld x6,0(x10)
-ld x7,8(x10)
-ld x9,16(x10)
-ld x27,24(x10)
-ld x28,32(x10)
-ld x29,40(x10)
+addi x30,x0,1
+jal x1,statement_table_fallback
 jal x0,loop_statement
-jal x0,statement_table_fallback
 statement_table_miss:
 addi x29,x29,1
 sltiu x6,x29,25
@@ -9857,7 +9759,12 @@ ld x27,24(x10)
 ld x28,32(x10)
 ld x29,40(x10)
 lbu x10,16(x24)
+ bne x30,x0,statement_table_legacy
 jal x0,statement_dispatch_legacy
+statement_table_legacy:
+jalr x0,0(x1)
+statement_table_end:
+jal x0,return_statement
 end
 symbols
 run-at 0x81000100
