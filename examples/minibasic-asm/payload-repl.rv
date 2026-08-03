@@ -6536,7 +6536,7 @@ beq x5,x6,string_concat_mid_term
 jal x0,string_concat_source
 string_concat_check_chr:
 addi x6,x0,67
-bne x5,x6,string_concat_source
+bne x5,x6,string_concat_check_str
 lbu x5,1(x21)
 addi x6,x0,72
 bne x5,x6,string_concat_source
@@ -6549,6 +6549,22 @@ bne x5,x6,string_concat_source
 lbu x5,4(x21)
 addi x6,x0,40
 beq x5,x6,string_concat_chr_term
+jal x0,string_concat_source
+string_concat_check_str:
+addi x6,x0,83
+bne x5,x6,string_concat_source
+lbu x5,1(x21)
+addi x6,x0,84
+bne x5,x6,string_concat_source
+lbu x5,2(x21)
+addi x6,x0,82
+bne x5,x6,string_concat_source
+lbu x5,3(x21)
+addi x6,x0,36
+bne x5,x6,string_concat_source
+lbu x5,4(x21)
+addi x6,x0,40
+beq x5,x6,string_concat_str_term
 jal x0,string_concat_source
 string_concat_source:
 sd x1,2000(x8)
@@ -6591,6 +6607,92 @@ addi x7,x7,1024
 sb x10,0(x7)
 addi x11,x0,1
 ld x1,2000(x8)
+jalr x0,0(x1)
+string_concat_str_term:
+sd x1,2000(x8)
+addi x21,x21,5
+addi x22,x0,0
+jal x1,eval_expression
+lbu x5,0(x21)
+addi x6,x0,41
+bne x5,x6,string_concat_slice_error
+addi x21,x21,1
+jal x1,string_format_number
+ld x1,2000(x8)
+jalr x0,0(x1)
+string_format_number:
+sd x1,1816(x8)
+fsd f3,1824(x8)
+fmv.x.d x10,f3
+srai x11,x10,63
+lui x12,0x82060
+slli x12,x12,32
+srli x12,x12,32
+addi x12,x12,1280
+addi x13,x12,0
+beq x11,x0,string_format_positive
+addi x6,x0,45
+sb x6,0(x13)
+addi x13,x13,1
+addi x6,x0,1
+slli x6,x6,63
+xor x10,x10,x6
+fmv.d.x f3,x10
+string_format_positive:
+addi x14,x13,0
+fcvt.l.d x10,f3,1
+fcvt.d.l f4,x10,0
+fsub.d f5,f3,f4
+lui x6,0xf4
+addi x6,x6,576
+fcvt.d.l f6,x6,0
+fmul.d f5,f5,f6
+fcvt.l.d x11,f5,1
+beq x10,x0,string_format_zero_integer
+string_format_integer:
+addi x6,x0,10
+remu x7,x10,x6
+addi x7,x7,48
+sb x7,0(x13)
+addi x13,x13,1
+divu x10,x10,x6
+bne x10,x0,string_format_integer
+addi x15,x14,0
+addi x16,x13,-1
+string_format_reverse:
+sltu x7,x15,x16
+beq x7,x0,string_format_integer_done
+lbu x5,0(x15)
+lbu x6,0(x16)
+sb x6,0(x15)
+sb x5,0(x16)
+addi x15,x15,1
+addi x16,x16,-1
+jal x0,string_format_reverse
+string_format_zero_integer:
+addi x6,x0,48
+sb x6,0(x13)
+addi x13,x13,1
+string_format_integer_done:
+addi x6,x0,46
+sb x6,0(x13)
+addi x13,x13,1
+lui x6,0x18
+addi x6,x6,1696
+addi x9,x0,6
+string_format_fraction:
+divu x7,x11,x6
+addi x7,x7,48
+sb x7,0(x13)
+addi x13,x13,1
+remu x11,x11,x6
+addi x7,x0,10
+divu x6,x6,x7
+addi x9,x9,-1
+bne x9,x0,string_format_fraction
+sub x11,x13,x12
+addi x7,x12,0
+ld x1,1816(x8)
 jalr x0,0(x1)
 string_concat_slice_term:
 sd x1,2000(x8)

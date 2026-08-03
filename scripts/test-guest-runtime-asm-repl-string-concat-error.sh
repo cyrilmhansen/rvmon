@@ -48,7 +48,8 @@ printf '%s\n' \
   '70 PRINT VAL()' \
   '80 PRINT INSTR("ABC")' \
   '90 PRINT INSTR(12,"A")' \
-  '100 END' \
+  '100 LET OUT$=STR$()' \
+  '110 END' \
   'RUN' | while IFS= read -r line; do
     printf '%s\n' "$line" >&3
     sleep 0.08
@@ -62,9 +63,9 @@ wait "$qemu_pid" 2>/dev/null || true
 qemu_pid=""
 
 error_count=$(grep -aF -- 'ERR' "$output_file" | wc -l)
-if (( error_count < 16 )); then
+if (( error_count < 17 )); then
     cat "$output_file"
-    printf 'expected sixteen string-concat/character/VAL/INSTR diagnostics, got %s\n' "$error_count" >&2
+    printf 'expected seventeen string-concat/character/VAL/INSTR/STR diagnostics, got %s\n' "$error_count" >&2
     exit 1
 fi
 if ! grep -aFq -- 'trap: breakpoint' "$output_file"; then
