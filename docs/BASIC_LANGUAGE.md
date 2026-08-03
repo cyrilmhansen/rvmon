@@ -387,9 +387,9 @@ littéral. Le guest copie l’argument jusqu’à la parenthèse fermante dans u
 scratch borné, exécute le même concaténateur que les affectations, puis mesure
 le résultat ; la longueur totale est renvoyée par le contrat interne en `x11`
 avant conversion binary64. Aucune conversion n’est faite par l’hôte. Les
-fonctions imbriquées dans cet argument restent à étendre séparément ; les
-fonctions de découpe imbriquées sont toutefois couvertes par la tranche
-target-side dédiée ci-dessous.
+Les consommateurs `LEN`, `ASC`, `VAL` et `INSTR` acceptent désormais les
+fonctions de découpe imbriquées dans la borne de cadres documentée ; les
+compositions plus profondes restent limitées par cette même borne.
 
 `PRINT LEFT$(string-expression,n)` et `PRINT RIGHT$(string-expression,n)` sont
 disponibles dans la tranche target-side actuelle. La source peut être une

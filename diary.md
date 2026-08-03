@@ -347,3 +347,10 @@ Le probe target-side détecte maintenant `$(` hors guillemets et route ce cas ve
 le concaténateur commun. QEMU valide `LEFT$(RIGHT$(...))`, `MID$(LEFT$(...))`
 et leur affectation, ainsi que les régressions de découpe, concaténation et
 Hammurabi.
+2026-08-04 — J’ai ajouté une preuve QEMU commune pour les consommateurs
+numériques de sources chaîne. `LEN(LEFT$(...))`, `ASC(RIGHT$(...))`,
+`VAL(LEFT$(...))` et `INSTR(RIGHT$(...),...)` produisent respectivement
+4, 82, 12.5 et 1 dans le guest. Une première attente de test était erronée
+(`LEFT$("12.5X",3)` vaut `12.`) ; le scénario a été corrigé puis validé sans
+`ERR` ni fault. Le résolveur commun est donc plus avancé que l’ancienne
+description documentaire ne le laissait entendre.
