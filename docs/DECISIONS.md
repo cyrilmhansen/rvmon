@@ -128,3 +128,71 @@ des dépendances du runtime.
 couverture initiale limitée à huit cas RNE F/D. Une absence ou une divergence
 QEMU bloque la validation sémantique et est rapportée comme unsupported, pas
 convertie en succès.
+
+## D-018 — Représentation cible des chaînes et tableaux MiniBASIC
+
+**Décision :** les chaînes et tableaux sont des objets du runtime cible, jamais
+des objets ou des pointeurs de l’hôte. Une chaîne est un descripteur aligné sur
+8 octets de 24 octets :
+
+StringDesc {
+    data_addr: u64,   // adresse cible RV64, ou 0 pour la chaîne vide
+    length:    u64,   // nombre d’octets ASCII
+    capacity:  u64,   // capacité réservée dans le pool cible
+}
+
+data_addr est une adresse de la machine cible et non un pointeur C de
+l’ABI RV64ILP32. Le runtime ne convertit donc pas silencieusement une adresse
+par extension de signe ; toute conversion entre handle interne et pointeur ABI
+doit être explicite et contrôlée. Les copies vérifient length <= capacity
+avant toute écriture.
+
+Un tableau est un descripteur aligné sur 8 octets de 64 octets, avec un rang
+maximal de 4 :
+
+ArrayDesc {
+    data_addr:    u64,
+    element_cnt:  u64,
+    element_size: u32,
+    rank:         u32,
+    element_kind: u32,  // binary64 ou StringDesc
+    flags:        u32,
+    dimensions:   u64[4], // bornes supérieures inclusives
+}
+
+DIM A(10) crée onze éléments, indexés de 0 à 10, et le stockage est
+row-major. Pour un tableau de chaînes, un élément est un StringDesc de
+24 octets. Le produit des dimension + 1, le calcul de taille et chaque index
+sont contrôlés avant l’accès. Les budgets de pool et d’éléments restent des
+limites de configuration du payload et produisent un diagnostic stable plutôt
+qu’une allocation hôte.
+
+**Alternative :** stocker des pointeurs hôte, utiliser des chaînes terminées
+par zéro ou choisir une représentation dépendante de l’ABI C, rejeté pour
+l’isolation, les octets nuls, la reproductibilité et le futur profil BE.
+
+**Coût :** 24 octets par variable chaîne, descripteurs de tableaux de taille
+fixe et une copie explicite lors d’une affectation de chaîne ; les tableaux
+dynamiques et les chaînes Unicode sont différés.
+
+## D-019 — Compilateur MiniBASIC comme backend natif optionnel
+
+**Décision :** planifier un compilateur explicite, postérieur au chemin
+interprété, qui partage le lexer/parser mais produit un payload RV64 natif,
+un runtime cible versionné, des symboles et une carte source. Il ne remplace
+pas `RUN` et ne délègue aucune analyse ou évaluation à l’hôte. L’artefact
+`.luna` ou payload brut contrôlé est prioritaire sur ELF externe.
+
+**Alternative :** compiler uniquement côté hôte vers une VM, ou remplacer
+l’interpréteur par un compilateur transparent ; rejetée car cela empêcherait la
+preuve d’exécution cible et supprimerait l’oracle différentiel interprété /
+compilé.
+
+**Référence historique :** l’étude couvre Turbo-BASIC XL 1.5, Compiler 1.1,
+Runtime, Linker, les manuels, images et désassemblage MADS. Le source original
+étant déclaré perdu dans les références disponibles, aucun code historique
+n’est une dépendance ou une source à recopier.
+
+**Coût :** AST/IR, backend RV64, runtime/linker, source mapping, manifeste et
+une matrice de tests distincte ; estimation initiale 20–35 journées-agent,
+hors optimisations et compatibilité ELF externe.

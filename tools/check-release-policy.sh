@@ -26,7 +26,7 @@ fi
 
 question_count="$(rg -c '^[0-9]+\. ' docs/OPEN_QUESTIONS.md || true)"
 ((question_count <= 10)) || fail 'more than ten open questions'
-if rg -n '^[0-9]+\. ' docs/OPEN_QUESTIONS.md | grep -v 'Différable'; then
+if rg -n '^[0-9]+\. ' docs/OPEN_QUESTIONS.md | grep -v -E 'Différable|Résolue'; then
     fail 'an open question is still blocking without an explicit decision'
 fi
 

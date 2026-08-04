@@ -122,3 +122,26 @@ Scripts terminal couvrant : assemble/load/run/step, edit memory/undo, code↔hex
 Exécuter sur Linux/macOS/Windows x86_64 et arm64 quand disponibles. Les mêmes manifest, source, profile et initial state doivent produire les mêmes hashes d’image, snapshot et trace ; les chemins hôte sont normalisés ou anonymisés explicitement. Seuils : couverture lignes cœur ≥90 %, branches critiques (encode/decode, traps, FP flags, ABI) ≥85 %, 100 % des codes diagnostics documentés testés, zéro flaky test accepté, zéro violation de génération R2.
 
 Les seuils de performance SPEC sont bloquants pour release ou exigent un waiver signé : assemblage p95 <1 s/64 KiB, latence commande p95 <50 ms hors run, snapshot sparse <200 ms, UI mémoire au repos <256 MiB.
+
+## 13. Tests du compilateur MiniBASIC (post-V1)
+
+Le compilateur possède une matrice distincte de l’interpréteur :
+
+- tests AST/IR comparant l’analyse commune, sans comparer deux exécutions du
+  même backend ;
+- golden RV64 générés à partir de l’IR et vérifiés par désassemblage et
+  encodages R2 générés ; aucune table d’opcodes compilateur saisie à la main ;
+- exécution QEMU du payload compilé pour expressions, `fdiv.d`, `PRINT`,
+  `INPUT`, `IF/GOTO`, `FOR/NEXT`, puis chaînes et tableaux ;
+- tests différentiels interprété contre compilé sur sorties, mémoire, résultats
+  binary64 et `fflags`, avec un contrôle indépendant par motifs de bits ;
+- vérification de la carte source : breakpoint sur une ligne BASIC, symbole
+  compilé et instruction RV64 correspondante ;
+- tests de refus : instruction non compilable, dimension invalide, runtime ou
+  profil incompatibles, artefact corrompu et option inconnue ;
+- benchmarks séparant temps interprété, temps compilé et coût de compilation,
+  sans transformer un gain historique Atari en exigence RV64.
+
+Le corpus historique AtariWiki est conservé comme entrée d’étude et de
+provenance, pas comme oracle binaire : les artefacts sont utilisés selon leur
+licence et aucune sortie historique ne prouve la conformité MiniBASIC-RV.

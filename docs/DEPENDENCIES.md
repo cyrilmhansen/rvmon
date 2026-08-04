@@ -31,6 +31,12 @@
 26. `QUAL-001` fuzz/corpus
 27. `QUAL-002` perf/accessibilité
 28. `REL-001` release candidate
+29. `COMP-001` étude Turbo-BASIC XL et provenance
+30. `COMP-002` AST/IR partagé
+31. `COMP-003` backend RV64 expressions
+32. `COMP-004` contrôle de flot et runtime compilé
+33. `COMP-005` strings/tableaux et debug source compilé
+34. `COMP-006` optimisation et benchmarks
 
 ## 2. Graphe Mermaid
 
@@ -77,13 +83,23 @@ flowchart TD
   FP3 --> Q1
   Q1 --> REL[REL-001]
   Q2 --> REL
+  BASIC[BASIC interpreter/runtime target] --> C0[COMP-001 étude historique]
+  C0 --> C1[COMP-002 AST/IR partagé]
+  ASM2 --> C2[COMP-003 backend RV64]
+  FP3 --> C2
+  C1 --> C2
+  C2 --> C3[COMP-004 contrôle de flot/runtime]
+  C3 --> C4[COMP-005 strings/tableaux/debug]
+  FORMAT --> C4
+  C4 --> C5[COMP-006 optimisation/benchmarks]
+  C5 --> REL
 ```
 
 ## 3. Chemin critique
 
 `BOOT-001/002/003 → BOOT-004 → GEN-001 → ISA-001 + MEM-001 → MACHINE-001 → ASM-BOOT-001 → DEMO-001` est le chemin critique du premier incrément. Pour le produit complet : `DEMO-001 → ASM-001 → ASM-002 → ASM-003/DIS-001 → FP-001/FP-ORACLE-001 → FP-002 → CMD/MON → REG/DBG → FORMAT/UI → QUAL → REL`.
 
-Le chemin FP est volontairement lancé en parallèle de M3 dès que `FP-001` et l’oracle sont disponibles. Le chemin UI ne doit pas bloquer M2–M5.
+Le chemin FP est volontairement lancé en parallèle de M3 dès que `FP-001` et l’oracle sont disponibles. Le chemin UI ne doit pas bloquer M2–M5. Le chemin compiler démarre par COMP-001, en parallèle du support des chaînes/tableaux, mais son backend ne peut être intégré avant AST/IR, ISA/R2 et les contrats de runtime cible.
 
 ## 4. Interfaces à stabiliser tôt
 
@@ -109,6 +125,8 @@ Après M0, générateur R2, diagnostics, lexer, RAM transactions, FP oracle adap
 * fin M4 : backend FP et oracle approuvés ;
 * fin M6 : commandes/events/views gelés avant UI ;
 * fin M8 : schéma `.luna` et migrations gelés ;
+* fin COMP-1 : AST/IR et diagnostics partagés gelés ;
+* fin COMP-3 : ABI runtime compilé, format payload et source mapping gelés ;
 * M9 : merge train unique pour release.
 
 Un conflit de contrat ouvre un ADR avant résolution. Les artefacts générés sont régénérés dans la branche de fusion, jamais résolus manuellement.

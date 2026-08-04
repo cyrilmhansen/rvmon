@@ -343,6 +343,30 @@ confondre code présent et exigence formellement auditée.
   l’affichage multi-éléments restent à implémenter.
 - **Taille :** 4 points / 2 journées-agent, incertitude moyenne.
 
+#### BASIC-LOAD-005AW — Identifiants target-side de 2 à 16 caractères — TERMINÉE
+
+- **Priorité :** P0, capacité nécessaire aux programmes BASIC traditionnels.
+- **But :** résoudre dans la cible des noms insensibles à la casse, conserver
+  les 26 variables historiques et ajouter 32 slots nommés de 16 octets de nom
+  canonique suivis d’un binary64.
+- **Non-but :** chaînes, tableaux associatifs, allocation dynamique et
+  extension de la capacité au-delà de 32 noms longs.
+- **Entrées/sources :** `BASIC_LANGUAGE.md`, ABI mémoire du payload, extension
+  précédente `BASIC-LOAD-005AR`, ISA RV64D pour les charges/stockages binary64.
+- **Étapes réalisées :** résolveur target-side partagé par affectation et
+  expression, normalisation ASCII, comparaison/copie bornée, désambiguïsation
+  avec `RUN`, `LIST`, `TRACE` et `NEW`, acceptation des minuscules dans les
+  atomes d’expression.
+- **Tests :** `scripts/test-guest-runtime-asm-repl-long-names.sh` et
+  non-régression `scripts/test-guest-runtime-asm-repl-scalars.sh`, quatre
+  lignes, tableaux et Hammurabi.
+- **Critères de sortie :** `LONGVARIABLE16=40`, puis une affectation numérotée
+  `LONGVARIABLE16=longvariable16+2` produit effectivement `LONG 42.000000`
+  dans QEMU, sans sortie préenregistrée.
+- **Limites restantes :** les noms longs ne sont pas encore intégrés à toutes
+  les formes historiques `FOR/NEXT`, `INPUT` et aux variables chaîne.
+- **Taille :** 5 points / 2 journées-agent, incertitude moyenne.
+
 #### BASIC-LOAD-005AS — Conditions IF composées target-side — TERMINÉE
 
 - **Priorité :** P0, expression minimale nécessaire à Hammurabi.
