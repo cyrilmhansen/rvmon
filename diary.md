@@ -418,3 +418,8 @@ la spécification déterministe : le payload conserve un compteur target-side à
 statement. Le test QEMU produit `1.000000` puis `2.000000` sur deux lignes
 `PRINT TIME`. Cette divergence par rapport au compteur TBXL à 60 Hz est
 documentée ; `TIME$` et l’écriture de l’heure restent la prochaine sous-tranche.
+2026-08-04 — La sous-tranche `TIME$` est maintenant target-side : le formatteur
+calcule `HHMMSS` à partir des ticks virtuels, écrit six octets dans le scratch
+chaîne et le résolveur générique le rend utilisable dans `PRINT` et les
+concaténations. Le test QEMU vérifie `000000` et `T=000000`. Le réglage de
+`TIME$` reste volontairement différé pour ne pas introduire d’horloge hôte.

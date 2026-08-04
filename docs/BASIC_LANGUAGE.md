@@ -50,7 +50,8 @@ string-term = string-source | string-assignment-function | string-constructor ;
 string-constructor = "CHR$" , "(" , expression , ")"
                    | "STR$" , "(" , expression , ")"
                    | "HEX$" , "(" , expression , ")"
-                   | "INKEY$" , "(" , ")" ;
+                   | "INKEY$" , "(" , ")"
+                   | "TIME$" ;
 expression    = comparison ;
 comparison    = sum , [ ( "=" | "<>" | "<" | "<=" | ">" | ">=" ) , sum ] ;
 if-condition  = expression | string-source , ( "=" | "<>" | "<" | "<=" | ">" | ">=" ) , string-source ;
@@ -512,8 +513,10 @@ déterministe ; il ne lit ni `mcycle`, ni l’horloge QEMU, ni un wall-clock de
 l’hôte. Turbo BASIC XL documente historiquement un compteur à 60 ticks par
 seconde ([Expanded Documentation, section TIME](https://seriouscomputerist.atariverse.com/media/pdf/manual/Turbo-BASIC%20XL%20-%20Expanded%20Documentation.pdf)),
 mais cette tranche RV adopte volontairement un tick par statement afin de
-respecter la reproductibilité de `SPEC.md`. `TIME$` et l’écriture de l’heure
-restent différés.
+respecter la reproductibilité de `SPEC.md`. `TIME$` renvoie les six caractères
+ASCII `HHMMSS`, calculés à partir du même compteur virtuel et d’une cadence
+locale de 60 ticks par seconde. La forme est disponible dans `PRINT` et les
+expressions chaîne ; l’écriture `TIME$="HHMMSS"` reste différée.
 
 `ERR()` et `ERL()` exposent l’état du dernier diagnostic dans la cible. Ils
 acceptent uniquement une liste d’arguments vide : `ERR()` renvoie `1.0` pour

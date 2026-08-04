@@ -705,6 +705,8 @@ sd x0,0(x27)
 jal x0,error_line
 resolve_string_concat_term:
 lbu x5,0(x21)
+addi x6,x0,84
+beq x5,x6,string_concat_check_time
 addi x6,x0,73
 bne x5,x6,string_concat_check_left
 lbu x5,1(x21)
@@ -725,6 +727,20 @@ bne x5,x6,string_concat_source
 lbu x5,6(x21)
 addi x6,x0,40
 beq x5,x6,string_concat_inkey_term
+jal x0,string_concat_source
+string_concat_check_time:
+lbu x5,1(x21)
+addi x6,x0,73
+bne x5,x6,string_concat_source
+lbu x5,2(x21)
+addi x6,x0,77
+bne x5,x6,string_concat_source
+lbu x5,3(x21)
+addi x6,x0,69
+bne x5,x6,string_concat_source
+lbu x5,4(x21)
+addi x6,x0,36
+beq x5,x6,string_concat_time_term
 jal x0,string_concat_source
 addi x6,x0,72
 bne x5,x6,string_concat_check_left
@@ -904,6 +920,52 @@ ld x1,2000(x8)
 jalr x0,0(x1)
 string_concat_inkey_empty:
 addi x11,x0,0
+ld x1,2000(x8)
+jalr x0,0(x1)
+; TIME$ : format target-side HHMMSS à partir des ticks virtuels.
+string_concat_time_term:
+sd x1,2000(x8)
+addi x21,x21,5
+addi x27,x8,2047
+addi x27,x27,649
+ld x10,0(x27)
+addi x6,x0,60
+divu x11,x10,x6
+lui x6,0x15
+addi x6,x6,384
+remu x11,x11,x6
+lui x6,1
+addi x6,x6,-496
+divu x12,x11,x6
+remu x13,x11,x6
+addi x6,x0,60
+divu x14,x13,x6
+remu x15,x13,x6
+lui x7,0x82060
+slli x7,x7,32
+srli x7,x7,32
+addi x7,x7,1280
+addi x6,x0,10
+divu x16,x12,x6
+remu x12,x12,x6
+addi x16,x16,48
+sb x16,0(x7)
+addi x12,x12,48
+sb x12,1(x7)
+divu x16,x14,x6
+remu x14,x14,x6
+addi x16,x16,48
+sb x16,2(x7)
+addi x14,x14,48
+sb x14,3(x7)
+divu x16,x15,x6
+remu x15,x15,x6
+addi x16,x16,48
+sb x16,4(x7)
+addi x15,x15,48
+sb x15,5(x7)
+addi x11,x0,6
+sd x7,1992(x8)
 ld x1,2000(x8)
 jalr x0,0(x1)
 string_concat_str_term:

@@ -52,8 +52,9 @@ fi
 
 printf '%s\n' \
     '10 PRINT TIME' \
-    '20 PRINT TIME' \
-    '30 END' \
+    '20 PRINT TIME$' \
+    '30 PRINT "T="+TIME$' \
+    '40 END' \
     'RUN' |
     while IFS= read -r line; do
         printf '%s\n' "$line" >&3
@@ -67,7 +68,7 @@ kill "$qemu_pid" 2>/dev/null || true
 wait "$qemu_pid" 2>/dev/null || true
 qemu_pid=""
 
-for expected in '1.000000' '2.000000' 'trap: breakpoint'; do
+for expected in '1.000000' '000000' 'T=000000' 'trap: breakpoint'; do
     if ! grep -aFq -- "$expected" "$output_file"; then
         cat "$output_file"
         printf 'missing TIME result: %s\n' "$expected" >&2
