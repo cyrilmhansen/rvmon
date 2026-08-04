@@ -636,3 +636,8 @@ différence entre `wait` dans le shell parent et dans une sous-coquille. Le
 validateur mono-pane ne pouvait pas servir tel quel : tmux efface et redessine
 l'écran, alors que le cast brut conserve bien tous les événements. Un validateur
 dédié au cast brut est donc ajouté.
+
+2026-08-04 — La capture finale a révélé une seule ligne parasite issue de la
+configuration Fish de l'hôte, avant le lancement de tmux. La procédure force
+désormais `SHELL=/bin/bash` pour asciinema ; cet avertissement local ne fait pas
+partie de l'exécution QEMU et ne doit pas polluer la preuve pédagogique.

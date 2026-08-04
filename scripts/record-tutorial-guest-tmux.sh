@@ -20,6 +20,9 @@ timeout_seconds="${TUTORIAL_GUEST_TIMEOUT:-360}"
 
 cargo build -p luna-guest-monitor --target riscv64gc-unknown-none-elf >/dev/null
 
+# asciinema starts its command through the user's shell.  Force Bash here so a
+# host-specific interactive Fish configuration cannot pollute the audit cast.
+export SHELL=/bin/bash
 asciinema rec --overwrite \
     --title "RVMonitor guest tutorial / tmux source + QEMU / $short_commit" \
     --command "env TUTORIAL_GUEST_PAUSE=$pause_seconds TUTORIAL_GUEST_TIMEOUT=$timeout_seconds bash scripts/tutorial-guest-tmux-record-command.sh" \
