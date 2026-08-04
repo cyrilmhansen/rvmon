@@ -583,3 +583,9 @@ commande ; le test devient indépendant de la vitesse de démarrage du runner.
 jobs : workspace Ubuntu, macOS et Windows, ainsi que `guest-qemu`. La chaîne
 de checkout propre valide maintenant le formatage, la composition ASM, les
 smoke tests MiniBASIC et la matrice RENUM.
+
+2026-08-04 — Audit des fichiers locaux : `luna-minibasic-payload` est un
+payload Rust autonome, distinct du payload ASM principal, mais il possède un
+build reproductible, une carte 64 KiB, un listing/symbol map et un test QEMU
+de chargement réel. Il est intégré dans une tranche séparée et ajouté à la CI
+pour éviter qu'un changement local testé ne reste invisible au dépôt distant.

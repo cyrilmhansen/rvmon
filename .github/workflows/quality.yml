@@ -55,6 +55,7 @@ jobs:
         run: |
           bash scripts/test-guest-runtime-asm-repl-direct.sh
           bash scripts/test-guest-runtime-asm-repl-hammurabi.sh
+          bash scripts/test-guest-minibasic-payload.sh
       - name: Run target-side RENUM matrix
         shell: bash
         run: |

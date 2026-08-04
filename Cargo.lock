@@ -213,6 +213,10 @@ dependencies = [
 ]
 
 [[package]]
+name = "luna-minibasic-payload"
+version = "0.1.0"
+
+[[package]]
 name = "luna-monitor"
 version = "0.1.0"
 dependencies = [
