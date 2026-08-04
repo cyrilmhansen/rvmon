@@ -429,3 +429,9 @@ dispatch a fait échouer l’assemblage du payload avec `GUEST-ASM-008` avant
 l’exécution, sans preuve de corruption du runtime validé. J’ai retiré toute la
 tentative et conservé `TIME/TIME$` en lecture ; cette extension devra reprendre
 avec un test assembleur minimal du dispatcher avant intégration au payload.
+2026-08-04 — La reprise compacte de `TIME$="HHMMSS"` est validée sous QEMU.
+Le parseur cible accumule les six chiffres, extrait HH/MM/SS, refuse
+`246000`, puis conserve `010203` dans `x8+2704`; `TIME$` ajoute cette base aux
+ticks virtuels et le test vérifie aussi la concaténation. La forme `LET` et la
+forme directe sont désormais couvertes ; le branchement direct a été réduit à
+un probe de six octets pour respecter les limites pratiques de l’assembleur.

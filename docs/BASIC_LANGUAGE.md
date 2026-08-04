@@ -516,7 +516,10 @@ mais cette tranche RV adopte volontairement un tick par statement afin de
 respecter la reproductibilité de `SPEC.md`. `TIME$` renvoie les six caractères
 ASCII `HHMMSS`, calculés à partir du même compteur virtuel et d’une cadence
 locale de 60 ticks par seconde. La forme est disponible dans `PRINT` et les
-expressions chaîne ; l’écriture `TIME$="HHMMSS"` reste différée.
+expressions chaîne. L’écriture target-side `LET TIME$="HHMMSS"` et sa forme
+directe `TIME$="HHMMSS"` acceptent exactement six chiffres ASCII, avec
+`00..23` pour les heures et `00..59` pour les minutes et secondes ; les formes
+hors bornes produisent un diagnostic.
 
 `ERR()` et `ERL()` exposent l’état du dernier diagnostic dans la cible. Ils
 acceptent uniquement une liste d’arguments vide : `ERR()` renvoie `1.0` pour

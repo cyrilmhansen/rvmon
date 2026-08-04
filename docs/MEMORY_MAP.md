@@ -60,6 +60,7 @@ possède.
 | `2680` | `0x82000a78` | code du dernier diagnostic (`0` ou `1` en V1) | diagnostic target-side ; session |
 | `2688` | `0x82000a80` | numéro de la dernière ligne exécutée au moment du diagnostic (`0` hors `RUN`) | diagnostic target-side ; session |
 | `2696` | `0x82000a88` | horloge virtuelle MiniBASIC : ticks de statements du `RUN` courant | runtime target-side ; session |
+| `2704` | `0x82000a90` | base persistante de `TIME$` en secondes depuis minuit | runtime target-side ; session |
 | `4096..12287` | `0x82001000..0x82002fff` | table des longueurs et cellules de variables/chaînes courtes selon le payload | MiniBASIC ; session |
 | `12288..` | `0x82003000..` | magasin fixe des 256 records de lignes, 128 octets chacun | éditeur ; session |
 

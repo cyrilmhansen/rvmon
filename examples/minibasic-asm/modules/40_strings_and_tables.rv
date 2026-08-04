@@ -931,6 +931,10 @@ addi x27,x27,649
 ld x10,0(x27)
 addi x6,x0,60
 divu x11,x10,x6
+addi x27,x8,2047
+addi x27,x27,657
+ld x6,0(x27)
+add x11,x11,x6
 lui x6,0x15
 addi x6,x6,384
 remu x11,x11,x6

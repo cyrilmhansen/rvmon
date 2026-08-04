@@ -1330,6 +1330,25 @@ jalr x0,0(x1)
 ; hôte. Les helpers utilisent les buffers temporaires de MEMORY_MAP.md.
 string_assign:
 sd x1,1152(x8)
+lbu x5,0(x21)
+addi x6,x0,84
+bne x5,x6,string_assign_regular
+lbu x5,1(x21)
+addi x6,x0,73
+bne x5,x6,string_assign_regular
+lbu x5,2(x21)
+addi x6,x0,77
+bne x5,x6,string_assign_regular
+lbu x5,3(x21)
+addi x6,x0,69
+bne x5,x6,string_assign_regular
+lbu x5,4(x21)
+addi x6,x0,36
+bne x5,x6,string_assign_regular
+lbu x5,5(x21)
+addi x6,x0,61
+beq x5,x6,time_string_assign
+string_assign_regular:
 jal x1,resolve_string_variable
 ld x1,1152(x8)
 addi x27,x7,0
@@ -1543,6 +1562,53 @@ slli x27,x27,32
 srli x27,x27,32
 addi x27,x27,1832
 ld x1,0(x27)
+jalr x0,0(x1)
+
+; Affectation TIME$ : six chiffres ASCII HHMMSS convertis en secondes.
+time_string_assign:
+addi x27,x8,2047
+addi x27,x27,657
+addi x21,x21,6
+lbu x5,0(x21)
+addi x6,x0,34
+bne x5,x6,string_long_error
+addi x21,x21,1
+addi x10,x0,0
+addi x9,x0,0
+time_string_digit_loop:
+lbu x5,0(x21)
+addi x6,x5,-48
+sltiu x7,x6,10
+beq x7,x0,string_long_error
+addi x7,x0,10
+mul x10,x10,x7
+add x10,x10,x6
+addi x9,x9,1
+addi x21,x21,1
+sltiu x7,x9,6
+bne x7,x0,time_string_digit_loop
+lbu x5,0(x21)
+addi x6,x0,34
+bne x5,x6,string_long_error
+addi x6,x0,100
+remu x12,x10,x6
+divu x11,x10,x6
+divu x10,x11,x6
+remu x11,x11,x6
+sltiu x7,x10,24
+beq x7,x0,string_long_error
+sltiu x7,x11,60
+beq x7,x0,string_long_error
+sltiu x7,x12,60
+beq x7,x0,string_long_error
+lui x6,1
+addi x6,x6,-496
+mul x10,x10,x6
+addi x6,x0,60
+mul x11,x11,x6
+add x10,x10,x11
+add x10,x10,x12
+sd x10,0(x27)
 jalr x0,0(x1)
 string_array_literal_open:
 addi x21,x21,1
