@@ -605,3 +605,10 @@ pas confondre les deux chemins de démonstration.
 dossier de release a été régénéré depuis le checkout versionné : manifeste
 `cce16c4`, 396 fichiers d'entrée et SBOM incluant `luna-minibasic-payload`.
 Le contrôle générateur passe.
+
+2026-08-04 — L'audit strict a identifié des assertions historiques dans la
+campagne E2E : `test-guest-monitor.sh` avait déjà été réduit à un smoke
+target-side cohérent avec l'interface actuelle, et `test-minibasic.sh` vérifiait
+encore le runtime Rust résident. Ce dernier devient un point d'entrée vers les
+smoke tests ASM direct, Hammurabi et payload chargé ; les chemins réellement
+exécutés restent observables sous QEMU.
