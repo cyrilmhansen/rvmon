@@ -59,6 +59,7 @@ factor        = number | variable | "(" , expression , ")"
               | "LEN" , "(" , string-reference , ")"
               | "ASC" , "(" , string-source , ")"
               | "VAL" , "(" , string-source , ")"
+              | "DEC" , "(" , string-source , ")"
               | "INSTR" , "(" , string-source , "," , string-source , ")"
               | "ABS" , "(" , expression , ")"
               | "SGN" , "(" , expression , ")"
@@ -454,6 +455,15 @@ restent rejetés ; `CHR$`, `STR$` et `HEX$` sont des conversions explicites
 comprise entre `0` et `0xffffffff`, produit des chiffres hexadécimaux ASCII
 majuscules sans zéros de tête (`HEX$(0)` vaut `"0"`) et rejette les autres
 valeurs sans écriture partielle.
+
+`DEC(string-source)` réalise l'opération inverse dans le guest : la source est
+résolue dans la RAM cible, puis accepte de 1 à 8 chiffres hexadécimaux ASCII
+(`0`–`9`, `A`–`F` ou `a`–`f`) sans préfixe. La valeur entière non signée est
+convertie en binary64 par `fcvt.d.l` ; `DEC("DEAD")` vaut donc `57005.0` et
+`HEX$(DEC("DEAD"))` vaut `"DEAD"`. Une source vide, un caractère hors alphabet
+hexadécimal ou plus de huit chiffres produit une erreur avant publication du
+résultat. Le préfixe `$` n'est pas accepté en V1 afin de conserver une syntaxe
+non ambiguë avec les variables et les tableaux chaîne.
 
 `ASC(string-source)` renvoie dans le guest le premier octet ASCII de la source
 et refuse la chaîne vide. Une concaténation simple peut servir de source à

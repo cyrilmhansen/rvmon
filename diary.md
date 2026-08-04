@@ -369,3 +369,17 @@ hors portée B après la croissance du payload ; deux branches lointaines vers
 lexicographique ASCII target-side et les six branches correctes. Le harnais a
 également été rendu synchronisé sur `READY>` et ralenti pour éviter la perte de
 caractères UART pendant l’injection du payload de plus de 10 000 lignes.
+2026-08-04 — J’ai ajouté `DEC(string-source)` dans le payload assembleur comme
+complément target-side de `HEX$`. Les premiers essais ont exposé des erreurs de
+scénario plutôt que de conversion : un préfixe `$` provoquait l’arrêt du
+programme avant `DEAD`, puis des `PRINT` envoyés après `END` étaient interprétés
+par le moniteur hôte. Une instrumentation temporaire a confirmé que
+`DEC("D")` produisait bien `13.000000` dans la cible.
+2026-08-04 — Un parcours expérimental jusqu’au NUL a ensuite révélé une
+seconde erreur : les buffers de chaînes sont bornés par longueur et peuvent
+conserver des octets résiduels (`D` lisait alors `0xD9FB`). Le handler utilise
+désormais la longueur publiée par le résolveur, accepte 1..8 chiffres
+hexadécimaux ASCII sans préfixe, et le test QEMU valide `0`, `FF`, `1a2b`,
+`D`, `DE`, `DEA`, `DEAD` ainsi que `HEX$(DEC("DEAD"))`. Le test laisse une
+session unique se terminer par `END`, sans confondre le prompt du moniteur avec
+une invite BASIC.

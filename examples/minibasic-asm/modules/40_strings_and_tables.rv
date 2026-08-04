@@ -2124,11 +2124,82 @@ ld x1,1984(x8)
 jal x0,store_atom
 atom_sqr_error:
 jal x0,error_line
+; DEC(string) : conversion hexadécimale target-side vers binary64.
+; La forme accepte au plus huit chiffres hexadécimaux ASCII (sans préfixe) ;
+; le résolveur fournit l'adresse et la longueur. Ni la copie de la chaîne ni
+; l'accumulation ne passent par l'hôte.
+atom_dec_function:
+sd x1,1648(x8)
+sd x22,1656(x8)
+sd x28,1664(x8)
+sd x29,1680(x8)
+sd x30,1808(x8)
+addi x21,x21,4
+; Les littéraux constituent le chemin pédagogique et déterministe le plus
+; court. Les expressions chaîne (variables, LEFT$/RIGHT$/MID$, concaténations)
+; passent encore par le résolveur composé commun.
+lbu x5,0(x21)
+addi x6,x0,34
+bne x5,x6,atom_dec_expression_source
+jal x1,resolve_string_literal_source
+jal x0,atom_dec_source_ready
+atom_dec_expression_source:
+addi x30,x0,0
+jal x1,resolve_string_expression
+atom_dec_source_ready:
+beq x11,x0,atom_dec_error
+addi x10,x0,0
+addi x29,x0,0
+atom_dec_hex_loop:
+beq x11,x0,atom_dec_hex_done
+sltiu x6,x29,8
+beq x6,x0,atom_dec_error
+lbu x5,0(x7)
+addi x6,x5,-48
+sltiu x6,x6,10
+bne x6,x0,atom_dec_hex_digit
+addi x6,x5,-97
+sltiu x6,x6,6
+bne x6,x0,atom_dec_hex_lower
+addi x6,x5,-65
+sltiu x6,x6,6
+bne x6,x0,atom_dec_hex_upper
+jal x0,atom_dec_error
+atom_dec_hex_lower:
+addi x5,x5,-87
+jal x0,atom_dec_hex_accumulate
+atom_dec_hex_upper:
+addi x5,x5,-55
+jal x0,atom_dec_hex_accumulate
+atom_dec_hex_digit:
+addi x5,x5,-48
+atom_dec_hex_accumulate:
+slli x10,x10,4
+add x10,x10,x5
+addi x7,x7,1
+addi x11,x11,-1
+addi x29,x29,1
+jal x0,atom_dec_hex_loop
+atom_dec_hex_done:
+beq x29,x0,atom_dec_error
+fcvt.d.l f4,x10,0
+lbu x5,0(x21)
+addi x6,x0,41
+bne x5,x6,atom_dec_error
+addi x21,x21,1
+ld x22,1656(x8)
+ld x28,1664(x8)
+ld x29,1680(x8)
+ld x30,1808(x8)
+ld x1,1648(x8)
+jal x0,store_atom
+atom_dec_error:
+jal x0,error_line
 ; Table-driven function recognizer. Upper- and lower-case alphabetic names
 ; enter here; a miss falls back to the variable/array dispatcher. Kept after
 ; the evaluator so adding entries
 ; does not move the historical branches in eval_expression/parse_product.
-; IDs 1..17 correspond to the four string consumers and the parenthesized
+; IDs 1..18 correspond to the four string consumers and the parenthesized
 ; numeric functions. Dispatch stubs use jal for the long handler transfers.
 atom_function_table_probe:
 addi x29,x0,0
@@ -2201,10 +2272,12 @@ addi x6,x0,16
 beq x28,x6,atom_function_table_id16
 addi x6,x0,17
 beq x28,x6,atom_function_table_id17
+addi x6,x0,18
+beq x28,x6,atom_function_table_id18
 jal x0,atom_function_table_fallback
 atom_function_table_miss:
 addi x29,x29,1
-sltiu x6,x29,18
+sltiu x6,x29,19
 bne x6,x0,atom_function_table_next
 jal x0,atom_function_table_fallback
 atom_function_table_id1:
@@ -2258,6 +2331,9 @@ jal x0,atom_mod_function
 atom_function_table_id17:
 addi x28,x0,0
 jal x0,atom_sqr_function
+atom_function_table_id18:
+addi x28,x0,0
+jal x0,atom_dec_function
 atom_function_table_fallback:
 addi x28,x0,0
 addi x29,x0,0

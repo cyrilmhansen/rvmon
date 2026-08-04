@@ -131,6 +131,8 @@ data 0x820620f0 .dword 0x000000444f4d1003
 data 0x820620f8 .dword 0x0000000000000000
 data 0x82062100 .dword 0x0000005251531103
 data 0x82062108 .dword 0x0000000000000000
+data 0x82062110 .dword 0x0000004345441203
+data 0x82062118 .dword 0x0000000000000000
 ; Table des mots-clés statement : {longueur:u8, id:u8, nom ASCII, padding}.
 ; Les IDs sont résolus par statement_table_probe ; les formes ambiguës
 ; retombent dans dispatch_statement_legacy.
