@@ -1,0 +1,66 @@
+info payload
+data 0x82000000 .byte 0x32
+data 0x82000001 .byte 0x2b
+data 0x82000002 .byte 0x33
+data 0x82000003 .byte 0x2a
+data 0x82000004 .byte 0x34
+data 0x82000010 .double 0x4000000000000000
+data 0x82000018 .double 0x4008000000000000
+data 0x82000020 .double 0x4010000000000000
+assemble-program 0x81000100
+entry:
+auipc x8,0x1000
+addi x8,x8,-256
+lbu x5,0(x8)
+addi x6,x0,50
+beq x5,x6,first_two
+addi x6,x0,51
+beq x5,x6,first_three
+addi x6,x0,52
+beq x5,x6,first_four
+jal x0,fail
+first_two:
+fld f1,16(x8)
+jal x0,parse_add
+first_three:
+fld f1,24(x8)
+jal x0,parse_add
+first_four:
+fld f1,32(x8)
+parse_add:
+lbu x5,1(x8)
+addi x6,x0,43
+bne x5,x6,fail
+lbu x5,2(x8)
+addi x6,x0,51
+beq x5,x6,second_three
+addi x6,x0,52
+beq x5,x6,second_four
+jal x0,fail
+second_three:
+fld f2,24(x8)
+jal x0,parse_mul
+second_four:
+fld f2,32(x8)
+parse_mul:
+lbu x5,3(x8)
+addi x6,x0,42
+bne x5,x6,fail
+lbu x5,4(x8)
+addi x6,x0,52
+bne x5,x6,fail
+fld f3,32(x8)
+fmul.d f4,f2,f3
+fadd.d f5,f1,f4
+fsd f5,40(x8)
+ebreak
+fail:
+addi x10,x0,1
+addi x17,x0,3
+ecall
+end
+symbols
+run-at 0x81000100
+regs
+memory 0x82000028 8
+q

@@ -1,0 +1,47 @@
+info payload
+data 0x82000200 .byte 0x45
+data 0x82000201 .byte 0x52
+data 0x82000202 .byte 0x52
+data 0x82000203 .byte 0x0a
+assemble-program 0x81000100
+entry:
+auipc x8,0x1000
+addi x8,x8,-256
+addi x9,x0,0
+read_char:
+addi x17,x0,2
+ecall
+addi x5,x0,10
+beq x10,x5,line_end
+sltiu x5,x9,128
+beq x5,x0,overflow
+add x6,x8,x9
+sb x10,0(x6)
+addi x9,x9,1
+jal x0,read_char
+line_end:
+sd x8,256(x8)
+sd x9,264(x8)
+addi x12,x0,128
+sd x12,272(x8)
+ld x10,256(x8)
+ld x11,264(x8)
+addi x17,x0,4
+ecall
+addi x10,x0,0
+addi x17,x0,3
+ecall
+overflow:
+addi x10,x8,512
+addi x11,x0,4
+addi x17,x0,4
+ecall
+addi x10,x0,2
+addi x17,x0,3
+ecall
+end
+symbols
+run-at 0x81000100
+Hammurabi
+memory 0x82000100 24
+q

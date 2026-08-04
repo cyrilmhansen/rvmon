@@ -589,3 +589,9 @@ payload Rust autonome, distinct du payload ASM principal, mais il possède un
 build reproductible, une carte 64 KiB, un listing/symbol map et un test QEMU
 de chargement réel. Il est intégré dans une tranche séparée et ajouté à la CI
 pour éviter qu'un changement local testé ne reste invisible au dépôt distant.
+
+2026-08-04 — Le corpus ASM modulaire et les tests target-side associés ont été
+validés sous QEMU : expression décimale, division, lexer, chaînes, tableaux,
+ISA et composition en fragments. Ces tests sont publiés comme tranche
+pédagogique séparée ; les tests UART expérimentaux restent volontairement hors
+de la release temporaire.

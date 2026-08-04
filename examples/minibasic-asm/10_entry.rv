@@ -1,0 +1,13 @@
+assemble-program 0x81000100
+; Entrée U-mode : x8 devient la base de la zone data cible.
+entry:
+auipc x8,0x1000
+addi x8,x8,-256 ; 0x82000000 sur la carte guest actuelle
+lbu x5,0(x8)
+addi x6,x0,50
+beq x5,x6,first_two
+addi x6,x0,51
+beq x5,x6,first_three
+addi x6,x0,52
+beq x5,x6,first_four
+jal x0,fail

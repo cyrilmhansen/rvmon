@@ -1,0 +1,47 @@
+info payload
+data 0x82000400 .dword 0x4045000000000000
+assemble-program 0x81000100
+entry:
+auipc x8,0x1000
+addi x8,x8,-256
+addi x7,x8,1024
+sd x7,512(x8)
+addi x6,x0,11
+sd x6,520(x8)
+addi x6,x0,8
+sb x6,528(x8)
+addi x6,x0,1
+sb x6,532(x8)
+sb x6,536(x8)
+addi x6,x0,10
+sd x6,544(x8)
+ld x5,512(x8)
+ld x6,520(x8)
+bne x5,x7,fail
+addi x5,x0,11
+bne x6,x5,fail
+addi x9,x0,10
+sltiu x5,x9,11
+beq x5,x0,fail
+slli x6,x9,3
+add x7,x7,x6
+ld x6,1024(x8)
+sd x6,0(x7)
+ld x5,0(x7)
+bne x5,x6,fail
+addi x9,x0,11
+sltiu x5,x9,11
+bne x5,x0,fail
+addi x10,x0,0
+addi x17,x0,3
+ecall
+fail:
+addi x10,x0,1
+addi x17,x0,3
+ecall
+end
+symbols
+run-at 0x81000100
+memory 0x82000200 64
+memory 0x82000400 8
+q

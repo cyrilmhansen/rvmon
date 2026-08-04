@@ -1,0 +1,22 @@
+; Niveau produit : f2 * f3 est calculé avant f1 + produit.
+second_three:
+fld f2,24(x8)
+jal x0,parse_mul
+second_four:
+fld f2,32(x8)
+parse_mul:
+lbu x5,3(x8)
+addi x6,x0,42
+bne x5,x6,fail
+lbu x5,4(x8)
+addi x6,x0,52
+bne x5,x6,fail
+fld f3,32(x8)
+fmul.d f4,f2,f3 ; produit intermédiaire, observable au debugger
+fadd.d f5,f1,f4 ; résultat de l’expression
+fsd f5,40(x8)
+ebreak
+fail:
+addi x10,x0,1
+addi x17,x0,3
+ecall

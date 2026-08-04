@@ -1,0 +1,35 @@
+info payload
+data 0x82000000 .byte 0x52
+data 0x82000001 .byte 0x56
+data 0x82000002 .byte 0x4d
+assemble-program 0x81000100
+entry:
+auipc x5,0x1000
+addi x5,x5,-256
+lbu x6,0(x5)
+addi x7,x0,82
+bne x6,x7,fail
+lbu x6,1(x5)
+addi x7,x0,86
+bne x6,x7,fail
+lbu x6,2(x5)
+addi x7,x0,77
+bne x6,x7,fail
+addi x10,x0,42
+sd x10,8(x5)
+ld x10,8(x5)
+andi x10,x10,255
+slli x10,x10,1
+ori x10,x10,1
+addi x17,x0,3
+ecall
+fail:
+addi x10,x0,99
+addi x17,x0,3
+ecall
+end
+symbols
+disasm 0x81000100 16
+run-at 0x81000100
+memory 0x82000000 16
+q

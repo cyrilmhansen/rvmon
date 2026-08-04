@@ -1,0 +1,6 @@
+end
+symbols
+run-at 0x81000100
+regs
+memory 0x82000028 8
+q
