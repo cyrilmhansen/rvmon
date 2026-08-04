@@ -383,3 +383,10 @@ hexadécimaux ASCII sans préfixe, et le test QEMU valide `0`, `FF`, `1a2b`,
 `D`, `DE`, `DEA`, `DEAD` ainsi que `HEX$(DEC("DEAD"))`. Le test laisse une
 session unique se terminer par `END`, sans confondre le prompt du moniteur avec
 une invite BASIC.
+2026-08-04 — L’audit TBXL a identifié `INKEY$` comme une extension utile et
+compatible avec l’ABI actuelle. Le payload assembleur l’implémente maintenant
+comme constructeur chaîne : `poll-char` est appelé dans le guest, une file vide
+produit une chaîne de longueur nulle et un octet disponible est copié dans le
+scratch target-side. Le test QEMU valide `PRINT "["+INKEY$()+"]"` avec une file
+vide, `[]` et aucune faute ; le cas d’un caractère volontairement disponible
+reste à renforcer dans une tranche ultérieure.

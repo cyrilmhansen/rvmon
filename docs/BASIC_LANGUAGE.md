@@ -49,7 +49,8 @@ string-expression = string-term , { "+" , string-term } ;
 string-term = string-source | string-assignment-function | string-constructor ;
 string-constructor = "CHR$" , "(" , expression , ")"
                    | "STR$" , "(" , expression , ")"
-                   | "HEX$" , "(" , expression , ")" ;
+                   | "HEX$" , "(" , expression , ")"
+                   | "INKEY$" , "(" , ")" ;
 expression    = comparison ;
 comparison    = sum , [ ( "=" | "<>" | "<" | "<=" | ">" | ">=" ) , sum ] ;
 if-condition  = expression | string-source , ( "=" | "<>" | "<" | "<=" | ">" | ">=" ) , string-source ;
@@ -488,6 +489,13 @@ les arguments manquants sont rejetés.
 que `PRINT` et produit un terme chaîne réutilisable dans une affectation ou une
 concaténation. Le format conserve le signe et les zéros de fraction ; les
 valeurs particulières suivent la limite du formateur V1. `PRINT STR$(...)`
+
+`INKEY$()` appelle dans la cible le service non bloquant `poll-char`. Si aucun
+octet n'est disponible, le résultat est la chaîne vide ; sinon il contient
+l'octet lu, sans conversion de codage. L'appel ne délègue ni le parsing ni
+l'état BASIC à l'hôte. Les caractères déjà en attente sur la console peuvent
+donc être consommés par le programme ; les tests déterministes utilisent une
+file vide au moment de l'appel.
 émet directement ce buffer target-side puis un saut de ligne.
 
 `RND` et `RND()` renvoient un nombre pseudo-aléatoire binary64 dans `[0,1)`.

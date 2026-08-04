@@ -705,6 +705,27 @@ sd x0,0(x27)
 jal x0,error_line
 resolve_string_concat_term:
 lbu x5,0(x21)
+addi x6,x0,73
+bne x5,x6,string_concat_check_left
+lbu x5,1(x21)
+addi x6,x0,78
+bne x5,x6,string_concat_source
+lbu x5,2(x21)
+addi x6,x0,75
+bne x5,x6,string_concat_source
+lbu x5,3(x21)
+addi x6,x0,69
+bne x5,x6,string_concat_source
+lbu x5,4(x21)
+addi x6,x0,89
+bne x5,x6,string_concat_source
+lbu x5,5(x21)
+addi x6,x0,36
+bne x5,x6,string_concat_source
+lbu x5,6(x21)
+addi x6,x0,40
+beq x5,x6,string_concat_inkey_term
+jal x0,string_concat_source
 addi x6,x0,72
 bne x5,x6,string_concat_check_left
 lbu x5,1(x21)
@@ -857,6 +878,32 @@ addi x7,x7,1024
 sb x10,0(x7)
 addi x11,x0,1
 sd x7,1992(x8)
+ld x1,2000(x8)
+jalr x0,0(x1)
+; INKEY$() : lecture non bloquante d'un octet du service console cible.
+; Un résultat nul est la chaîne vide ; un octet disponible est copié dans le
+; buffer chaîne scratch. Le service poll-char reste une primitive d'E/S et ne
+; délègue ni le parseur ni l'état BASIC à l'hôte.
+string_concat_inkey_term:
+sd x1,2000(x8)
+addi x21,x21,7
+addi x17,x0,5
+ecall
+lbu x5,0(x21)
+addi x6,x0,41
+bne x5,x6,string_concat_slice_error
+addi x21,x21,1
+lui x7,0x82060
+slli x7,x7,32
+srli x7,x7,32
+addi x7,x7,1024
+beq x10,x0,string_concat_inkey_empty
+sb x10,0(x7)
+addi x11,x0,1
+ld x1,2000(x8)
+jalr x0,0(x1)
+string_concat_inkey_empty:
+addi x11,x0,0
 ld x1,2000(x8)
 jalr x0,0(x1)
 string_concat_str_term:
