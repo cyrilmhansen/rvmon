@@ -84,6 +84,21 @@ Elle produit `tutorial-guest.cast`, `tutorial-guest.txt` et
 La conversion est contrôlée par `scripts/check-tutorial-transcript.sh` : une
 capture contenant une commande inconnue, un état de débogueur invalide ou un
 trap d’instruction illégale est refusée comme preuve de tutoriel.
+
+Pour afficher le texte français du tutoriel au-dessus de la session QEMU,
+utiliser la variante tmux :
+
+```sh
+bash scripts/record-tutorial-guest-tmux.sh
+```
+
+Le panneau supérieur montre la section et un extrait de
+`docs/TUTORIAL-GUEST.md`; le panneau inférieur est le guest QEMU réel. Le cast
+brut conserve les écritures des deux panneaux, tandis que la conversion texte
+peut ne montrer que l’écran final à cause des effacements ANSI de tmux. Le
+contrôle adapté est donc `scripts/check-tutorial-tmux-cast.sh`, qui vérifie les
+marqueurs documentaires, le chargement du payload, les sorties Hammurabi et
+les diagnostics interdits directement dans le cast.
 Le moniteur guest laisse volontairement QEMU vivant après `q` ; le wrapper
 attend donc sa limite de 600 secondes et conserve le cast avant la terminaison
 normale du processus QEMU. Pour seulement régénérer la transcription et le

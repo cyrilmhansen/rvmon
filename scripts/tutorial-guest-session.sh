@@ -15,8 +15,19 @@ divide_offset="$(awk '$2 == "<integrated_reduce_div>:" { print $1; exit }' "$asm
 test -n "$divide_offset"
 divide_address="$(printf '0x%x' "$((0x81000100 + 16#$divide_offset))")"
 pause="${TUTORIAL_GUEST_PAUSE:-1}"
+guide_fifo="${TUTORIAL_GUEST_GUIDE_FIFO:-}"
+if [[ -n "$guide_fifo" ]]; then
+    exec 9>"$guide_fifo"
+fi
+
+guide_event() {
+    if [[ -n "$guide_fifo" ]]; then
+        printf '%s\n' "$1" >&9
+    fi
+}
 
 send() {
+    guide_event "C|$1"
     printf '%s\n' "$1"
     sleep "$pause"
 }
@@ -25,6 +36,7 @@ send() {
 # Ces annotations sont donc écrites sur stderr, qui reste visible dans le cast,
 # et ne sont jamais interprétées comme des commandes par le guest.
 note() {
+    guide_event "N|$1"
     printf '\r\n=== %s ===\r\n' "$1" >&2
     sleep "$pause"
 }
@@ -53,6 +65,7 @@ stream_payload_binary() {
     done < <(od -An -v -tx1 -w32 "$path" | awk '{gsub(/[[:space:]]/, ""); if (length) print}')
 }
 
+tutorial_commands() {
 {
     sleep "$pause"
 
@@ -206,5 +219,16 @@ stream_payload_binary() {
     send 'snapshot save'
     send 'snapshot info'
     send 'q'
-} | timeout "${TUTORIAL_GUEST_TIMEOUT:-600}s" qemu-system-riscv64 \
-    -M virt -m 64M -bios none -kernel "$image" -nographic
+}
+}
+
+if [[ -n "${TUTORIAL_GUEST_QEMU_INPUT_FIFO:-}" ]]; then
+    tutorial_commands >"$TUTORIAL_GUEST_QEMU_INPUT_FIFO"
+else
+    tutorial_commands | timeout "${TUTORIAL_GUEST_TIMEOUT:-600}s" qemu-system-riscv64 \
+        -M virt -m 64M -bios none -kernel "$image" -nographic
+fi
+
+if [[ -n "$guide_fifo" ]]; then
+    exec 9>&-
+fi

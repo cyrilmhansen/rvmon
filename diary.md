@@ -628,3 +628,11 @@ tests UART passent sous QEMU. Le test de concaténation a été stabilisé pour
 charger le payload ASM binaire réel, puis ces trois familles de tests ont été
 ajoutées au job guest de la CI. Les fichiers sont conservés dans un commit
 séparé des expérimentations non retenues.
+2026-08-04 — Première capture tmux complète du tutoriel guest obtenue avec deux
+panneaux : le tutoriel français synchronisé au-dessus et QEMU en dessous. Les
+principales difficultés ont été le socket tmux non accessible dans l'isolation,
+le pseudo-TTY nécessaire à asciinema, la fermeture coordonnée des FIFO et la
+différence entre `wait` dans le shell parent et dans une sous-coquille. Le
+validateur mono-pane ne pouvait pas servir tel quel : tmux efface et redessine
+l'écran, alors que le cast brut conserve bien tous les événements. Un validateur
+dédié au cast brut est donc ajouté.
