@@ -92,6 +92,9 @@ data 0x820100d8 .dword 0x3fda827999fcef34
 data 0x820100e0 .dword 0x3fe921fb54442d18
 data 0x82000200 .dword 0x0000000000000000
 data 0x82000218 .dword 0x0000000000000000
+; Diagnostic persistant de la dernière erreur BASIC : code V1 et ligne.
+data 0x82000a78 .dword 0x0000000000000000
+data 0x82000a80 .dword 0x0000000000000000
 ; Table de reconnaissance des fonctions numériques déjà migrées vers le
 ; résolveur chaîne commun. Chaque entrée fait 16 octets : longueur, identifiant,
 ; nom ASCII majuscule puis remplissage nul. Les identifiants sont dispatchés
@@ -1723,6 +1726,12 @@ jal x0,command_loop
 run_command:
 jal x0,run_command_generic
 run_command_generic:
+addi x27,x8,2047
+addi x27,x27,633
+sd x0,0(x27)
+addi x27,x8,2047
+addi x27,x27,641
+sd x0,0(x27)
 sd x0,1616(x8)
 sd x0,1704(x8)
 sd x0,1712(x8)
@@ -1859,6 +1868,10 @@ addi x24,x19,0
 dispatch_statement:
 sd x24,1864(x8)
 sd x26,1872(x8)
+ld x10,0(x24)
+addi x27,x8,2047
+addi x27,x27,641
+sd x10,0(x27)
 ld x10,544(x8)
 beq x10,x0,trace_done
 ld x10,536(x8)
@@ -4513,6 +4526,13 @@ jal x0,run_stop
 ; print_result convertit ensuite le résultat binary64 en forme décimale V1.
 ; ---------------------------------------------------------------------------
 error_line:
+addi x10,x0,1
+addi x27,x8,2047
+addi x27,x27,633
+sd x10,0(x27)
+; RUN laisse x26 à 256 après une recherche infructueuse ; réarmer l'index
+; direct évite que la requête suivante soit décodée comme une ligne absente.
+addi x26,x0,0
 addi x10,x8,48
 addi x11,x0,4
 addi x17,x0,4
@@ -5712,6 +5732,8 @@ bne x6,x7,atom_a
 jal x0,atom_atn_function
 atom_e_dispatch:
 lbu x6,1(x21)
+addi x7,x0,82
+beq x6,x7,atom_er_probe
 addi x7,x0,88
 bne x6,x7,atom_array_name_scan
 lbu x6,2(x21)
@@ -5721,6 +5743,23 @@ lbu x6,3(x21)
 addi x7,x0,40
 bne x6,x7,atom_array_name_scan
 jal x0,atom_exp_function
+atom_er_probe:
+lbu x6,2(x21)
+addi x7,x0,82
+beq x6,x7,atom_err_probe
+addi x7,x0,76
+bne x6,x7,atom_array_name_scan
+lbu x6,3(x21)
+addi x7,x0,40
+beq x6,x7,atom_er_erl_name
+jal x0,atom_array_name_scan
+atom_er_erl_name:
+jal x0,atom_erl_function
+atom_err_probe:
+lbu x6,3(x21)
+addi x7,x0,40
+bne x6,x7,atom_array_name_scan
+jal x0,atom_err_function
 atom_l_dispatch:
 lbu x6,1(x21)
 addi x7,x0,69
@@ -10581,6 +10620,26 @@ ld x1,1648(x8)
 jal x0,store_atom
 atom_dec_error:
 jal x0,error_line
+; ERR()/ERL() exposent le dernier diagnostic target-side. V1 regroupe les
+; fautes syntaxiques et d'exécution sous le code 1 ; ERL vaut zéro hors RUN.
+atom_err_function:
+addi x21,x21,4
+addi x21,x21,1
+addi x10,x0,1
+fcvt.d.l f4,x10,0
+addi x28,x0,0
+addi x29,x0,0
+jal x0,store_atom
+atom_erl_function:
+addi x21,x21,4
+addi x21,x21,1
+addi x27,x8,2047
+addi x27,x27,641
+ld x10,0(x27)
+fcvt.d.l f4,x10,0
+addi x28,x0,0
+addi x29,x0,0
+jal x0,store_atom
 ; Table-driven function recognizer. Upper- and lower-case alphabetic names
 ; enter here; a miss falls back to the variable/array dispatcher. Kept after
 ; the evaluator so adding entries

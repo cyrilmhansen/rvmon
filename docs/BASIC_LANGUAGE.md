@@ -504,6 +504,14 @@ Le générateur est un LCG 32 bits target-side de paramètres `1664525` et
 `NEW`. Cette séquence est volontairement reproductible ; les arguments comme
 `RND(1)` sont rejetés en V1.
 
+`ERR()` et `ERL()` exposent l’état du dernier diagnostic dans la cible. Ils
+acceptent uniquement une liste d’arguments vide : `ERR()` renvoie `1.0` pour
+une faute V1 et `ERL()` le numéro de ligne BASIC actif au moment de cette
+faute ; hors `RUN`, `ERL()` vaut `0.0`. Le chemin d’erreur réarme l’index
+interne de recherche avant de rendre la main à `READY>`, afin qu’une requête
+directe puisse suivre immédiatement une faute d’exécution. Les cellules sont
+`x8+2680` et `x8+2688` ; elles ne sont pas des variables utilisateur.
+
 `FOR` et `GOSUB` utilisent chacun une pile cible fixe de huit frames. Un STEP
 nul, une pile pleine, une cible GOTO/THEN/GOSUB absente et une boucle
 interrompue produisent respectivement `BASIC-FLOW-003`, `BASIC-FLOW-002`,

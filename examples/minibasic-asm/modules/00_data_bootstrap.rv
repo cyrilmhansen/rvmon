@@ -92,6 +92,9 @@ data 0x820100d8 .dword 0x3fda827999fcef34
 data 0x820100e0 .dword 0x3fe921fb54442d18
 data 0x82000200 .dword 0x0000000000000000
 data 0x82000218 .dword 0x0000000000000000
+; Diagnostic persistant de la dernière erreur BASIC : code V1 et ligne.
+data 0x82000a78 .dword 0x0000000000000000
+data 0x82000a80 .dword 0x0000000000000000
 ; Table de reconnaissance des fonctions numériques déjà migrées vers le
 ; résolveur chaîne commun. Chaque entrée fait 16 octets : longueur, identifiant,
 ; nom ASCII majuscule puis remplissage nul. Les identifiants sont dispatchés

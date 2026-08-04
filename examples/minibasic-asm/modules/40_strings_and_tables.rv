@@ -2242,6 +2242,26 @@ ld x1,1648(x8)
 jal x0,store_atom
 atom_dec_error:
 jal x0,error_line
+; ERR()/ERL() exposent le dernier diagnostic target-side. V1 regroupe les
+; fautes syntaxiques et d'exécution sous le code 1 ; ERL vaut zéro hors RUN.
+atom_err_function:
+addi x21,x21,4
+addi x21,x21,1
+addi x10,x0,1
+fcvt.d.l f4,x10,0
+addi x28,x0,0
+addi x29,x0,0
+jal x0,store_atom
+atom_erl_function:
+addi x21,x21,4
+addi x21,x21,1
+addi x27,x8,2047
+addi x27,x27,641
+ld x10,0(x27)
+fcvt.d.l f4,x10,0
+addi x28,x0,0
+addi x29,x0,0
+jal x0,store_atom
 ; Table-driven function recognizer. Upper- and lower-case alphabetic names
 ; enter here; a miss falls back to the variable/array dispatcher. Kept after
 ; the evaluator so adding entries

@@ -1398,6 +1398,12 @@ jal x0,command_loop
 run_command:
 jal x0,run_command_generic
 run_command_generic:
+addi x27,x8,2047
+addi x27,x27,633
+sd x0,0(x27)
+addi x27,x8,2047
+addi x27,x27,641
+sd x0,0(x27)
 sd x0,1616(x8)
 sd x0,1704(x8)
 sd x0,1712(x8)
@@ -1534,6 +1540,10 @@ addi x24,x19,0
 dispatch_statement:
 sd x24,1864(x8)
 sd x26,1872(x8)
+ld x10,0(x24)
+addi x27,x8,2047
+addi x27,x27,641
+sd x10,0(x27)
 ld x10,544(x8)
 beq x10,x0,trace_done
 ld x10,536(x8)
@@ -4188,6 +4198,13 @@ jal x0,run_stop
 ; print_result convertit ensuite le résultat binary64 en forme décimale V1.
 ; ---------------------------------------------------------------------------
 error_line:
+addi x10,x0,1
+addi x27,x8,2047
+addi x27,x27,633
+sd x10,0(x27)
+; RUN laisse x26 à 256 après une recherche infructueuse ; réarmer l'index
+; direct évite que la requête suivante soit décodée comme une ligne absente.
+addi x26,x0,0
 addi x10,x8,48
 addi x11,x0,4
 addi x17,x0,4

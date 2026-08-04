@@ -996,6 +996,8 @@ bne x6,x7,atom_a
 jal x0,atom_atn_function
 atom_e_dispatch:
 lbu x6,1(x21)
+addi x7,x0,82
+beq x6,x7,atom_er_probe
 addi x7,x0,88
 bne x6,x7,atom_array_name_scan
 lbu x6,2(x21)
@@ -1005,6 +1007,23 @@ lbu x6,3(x21)
 addi x7,x0,40
 bne x6,x7,atom_array_name_scan
 jal x0,atom_exp_function
+atom_er_probe:
+lbu x6,2(x21)
+addi x7,x0,82
+beq x6,x7,atom_err_probe
+addi x7,x0,76
+bne x6,x7,atom_array_name_scan
+lbu x6,3(x21)
+addi x7,x0,40
+beq x6,x7,atom_er_erl_name
+jal x0,atom_array_name_scan
+atom_er_erl_name:
+jal x0,atom_erl_function
+atom_err_probe:
+lbu x6,3(x21)
+addi x7,x0,40
+bne x6,x7,atom_array_name_scan
+jal x0,atom_err_function
 atom_l_dispatch:
 lbu x6,1(x21)
 addi x7,x0,69

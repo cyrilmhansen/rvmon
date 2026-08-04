@@ -390,3 +390,11 @@ produit une chaîne de longueur nulle et un octet disponible est copié dans le
 scratch target-side. Le test QEMU valide `PRINT "["+INKEY$()+"]"` avec une file
 vide, `[]` et aucune faute ; le cas d’un caractère volontairement disponible
 reste à renforcer dans une tranche ultérieure.
+2026-08-04 — J’ai ajouté `ERR()` et `ERL()` au payload assembleur. Le premier
+essai a exposé deux problèmes réels : le contrat de curseur des fonctions sans
+argument ne devait pas réutiliser la validation générique des appels, et une
+erreur `RUN` laissait `x26` à 256, ce qui empoisonnait la requête directe suivante.
+Après réarmement de l’index dans `error_line`, le test QEMU complet exécute
+`10 GOTO 999`, puis `?ERR(),ERL()` et obtient `1.000000` et `10.000000` dans la
+cible, sans fault. Le scénario est conservé dans
+`scripts/test-guest-runtime-asm-repl-err-erl.sh`.
