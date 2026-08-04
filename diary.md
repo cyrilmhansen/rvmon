@@ -595,3 +595,8 @@ validés sous QEMU : expression décimale, division, lexer, chaînes, tableaux,
 ISA et composition en fragments. Ces tests sont publiés comme tranche
 pédagogique séparée ; les tests UART expérimentaux restent volontairement hors
 de la release temporaire.
+
+2026-08-04 — La CI guest exécute désormais aussi ce corpus : expression
+modulaire, arithmétique, lexer, chaînes, tableaux et ISA. Le payload Rust
+chargé et le payload ASM restent testés dans des étapes distinctes afin de ne
+pas confondre les deux chemins de démonstration.
