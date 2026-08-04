@@ -114,6 +114,11 @@ impl GuestSymbol {
     }
 }
 
+// A single-instruction assembly does not need symbols, but the parser keeps a
+// fixed-size symbol-table contract.  Keep the empty table in static storage:
+// 2048 GuestSymbol entries are far larger than the bounded M-mode stack.
+static EMPTY_SYMBOLS: [GuestSymbol; MAX_SYMBOLS] = [GuestSymbol::empty(); MAX_SYMBOLS];
+
 #[derive(Clone, Copy)]
 struct MemoryUndo {
     address: u64,
@@ -1423,8 +1428,7 @@ fn assemble_command(context: *mut TargetContext, argument: &[u8]) {
         uart_write("error: cannot assemble over an active breakpoint\r\n");
         return;
     }
-    let empty_symbols = [GuestSymbol::empty(); MAX_SYMBOLS];
-    let Some(word) = parse_source_instruction(source, address, &empty_symbols) else {
+    let Some(word) = parse_source_instruction(source, address, &EMPTY_SYMBOLS) else {
         uart_write("error: expected supported instruction with valid operands\r\n");
         return;
     };

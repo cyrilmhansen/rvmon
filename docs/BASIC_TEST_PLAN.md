@@ -194,6 +194,13 @@
 - `scripts/test-guest-runtime-asm-repl-renum-control.sh` vérifie, sous QEMU,
   la résolution par alias après RENUM pour `IF THEN`, `GOSUB/RETURN` et
   `ON GOTO`.
+- `scripts/test-guest-runtime-asm-repl-renum-reference-matrix.sh` vérifie la
+  combinaison `GOSUB`, `ON ... GOSUB`, `IF ... THEN`, plusieurs cibles,
+  l'exécution après réécriture et la non-modification des nombres contenus
+  dans une chaîne littérale.
+- `scripts/test-guest-assemble-command.sh` vérifie qu'une assemblée
+  mono-instruction avec la table complète de symboles ne déborde pas la pile
+  M-mode et publie bien le PC préparé.
 - `scripts/test-guest-runtime-asm-repl-two-lines.sh` vérifie l’insertion hors
   ordre de `20` puis `10`, le tri observable de `LIST`, les deux slots mémoire
   et l’exécution séquentielle target-side des lignes `10` puis `20`.

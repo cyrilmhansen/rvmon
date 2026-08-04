@@ -258,11 +258,11 @@ motif hexadécimal exact, sans conversion flottante dépendante de l’hôte.
 Le premier cycle source → encodage → RAM → pas-à-pas dans le guest est :
 
 ```text
-rvmonitor> assemble 0x80001000 addi x1,x0,1
-assembled instruction at 0x0000000080001000 = 0x0000000000100093
+rvmonitor> assemble 0x81000100 addi x1,x0,1
+assembled instruction at 0x0000000081000100 = 0x0000000000100093
 rvmonitor> step
 step: temporary breakpoint restored
-trap: breakpoint pc=0x0000000080001004
+trap: breakpoint pc=0x0000000081000104
 rvmonitor> regs
 ... x1=0x0000000000000001 ...
 ```
@@ -286,7 +286,7 @@ source> addi x1,x0,1 ; premier résultat observable
 ```
 
 ```text
-rvmonitor> assemble-program 0x80010a30
+rvmonitor> assemble-program 0x81000a30
 source mode: enter integer/control, lui/auipc, ld/sd/fld/fsd, f arithmetic or fmv lines, finish with end
 source> _start:
 source> addi x1,x0,1
@@ -295,22 +295,22 @@ source> addi x1,x0,99
 source> next:
 source> addi x1,x1,2
 source> end
-assembled program: 4 instruction(s) at 0x0000000080010a30
+assembled program: 4 instruction(s) at 0x0000000081000a30
 rvmonitor> symbols
 symbols:
-  0x0000000080010a30 _start
-  0x0000000080010a3c next
+  0x0000000081000a30 _start
+  0x0000000081000a3c next
 rvmonitor> disasm _start 4
-0x0000000080010a30: 0000000000100093 <_start>  addi x1,x0,1
-0x0000000080010a34: 0000000000108463  beq x1,x1,next
-0x0000000080010a38: 0000000006300093  addi x1,x0,99
-0x0000000080010a3c: 0000000000208093 <next>  addi x1,x1,2
+0x0000000081000a30: 0000000000100093 <_start>  addi x1,x0,1
+0x0000000081000a34: 0000000000108463  beq x1,x1,next
+0x0000000081000a38: 0000000006300093  addi x1,x0,99
+0x0000000081000a3c: 0000000000208093 <next>  addi x1,x1,2
 rvmonitor> step
-trap: breakpoint pc=0x0000000080010a34
+trap: breakpoint pc=0x0000000081000a34
 rvmonitor> step
-trap: breakpoint pc=0x0000000080010a3c
+trap: breakpoint pc=0x0000000081000a3c
 rvmonitor> step
-trap: breakpoint pc=0x0000000080010a40
+trap: breakpoint pc=0x0000000081000a40
 rvmonitor> regs
 ... x1=0x0000000000000003 ...
 ```
@@ -375,8 +375,8 @@ rvmonitor> setf f1 0xffffffff3f800000
 set f1=0xffffffff3f800000
 rvmonitor> setf f2 0xffffffff40000000
 set f2=0xffffffff40000000
-rvmonitor> assemble 0x80001000 fadd.s f3,f1,f2
-assembled instruction at 0x0000000080001000 = 0x00000000002081d3
+rvmonitor> assemble 0x81002000 fadd.s f3,f1,f2
+assembled instruction at 0x0000000081002000 = 0x00000000002081d3
 rvmonitor> step
 rvmonitor> regs
 ... f3=0xffffffff40400000 ... fcsr=0x0000000000000000 ...

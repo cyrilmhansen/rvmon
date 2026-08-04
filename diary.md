@@ -488,3 +488,15 @@ avant d’étendre le parser ; la variante stable sans espaces reste conservée.
 2026-08-04 — Le test de recherche a été renforcé sans élargir le payload :
 `INSTR("Hello","l",0)` produit bien un diagnostic récupérable dans le guest,
 les résultats nominaux restent présents et aucun `mcause` n’apparaît.
+
+2026-08-04 — Pour préparer un point de release temporaire, j'ai ajouté une
+matrice QEMU RENUM couvrant simultanément `GOSUB`, `ON ... GOSUB`,
+`IF ... THEN`, plusieurs cibles et des nombres dans une chaîne littérale.
+Elle vérifiera le listing réécrit, l'exécution des branches attendues et
+l'absence de mutation textuelle dans les chaînes.
+lundi 2026-08-04 — La première capture du tutoriel s'arrêtait sur `assemble`
+avec une adresse désormais correcte. L'audit du désassemblage Rust a montré
+que `assemble_command` allouait `[GuestSymbol; 2048]` sur la pile M-mode ; ce
+cadre dépassait la pile de 64 KiB. La table vide est maintenant statique,
+`assemble 0x81000100 addi x1,x0,1` répond correctement, et une régression QEMU
+dediee est ajoutée pour empêcher le retour de ce défaut.
