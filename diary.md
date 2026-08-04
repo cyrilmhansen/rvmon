@@ -546,3 +546,16 @@ sur un `ebreak`, résout `integrated_reduce_div` dans le listing ASM, puis fait
 `setf`/`step`; le REPL termine chaque record direct. `DUMP` a aussi reçu un
 chemin target-side réel (en-tête puis records), tandis que `memory` reste la
 preuve brute des octets.
+
+2026-08-04 — Les cinq tests RENUM du payload ASM utilisaient encore une
+réinjection ligne par ligne du source monolithique. Cette méthode dépassait la
+borne de l'assembleur interactif et pouvait provoquer un trap avant le test.
+Ils démarrent désormais le payload binaire chargé avec `basic`, comme le
+scénario utilisateur. La matrice de références, les contrôles de flux, les
+erreurs, les répétitions et la capacité passent sur QEMU.
+
+2026-08-04 — Une capture complète du tutoriel a été régénérée avec une pause
+d'une seconde. Le validateur confirme le chargement effectif du payload ASM,
+les motifs `fadd.s`/`fadd.d`, `DUMP` target-side, l'introduction Hammurabi et
+l'absence d'erreur parasite. Artefacts :
+`artifacts/audit/93b1e96/tutorial-guest.{cast,txt}`.

@@ -24,14 +24,8 @@ qemu-system-riscv64 -M virt -m 64M -bios none -kernel "$image" \
 qemu_pid=$!
 exec 3>"$input_fifo"
 sleep 0.1
-awk '/^symbols$/{print; found=1; next} found && /^run-at /{print; exit} !found{print}' \
-    examples/minibasic-asm/payload-repl.rv |
-    while IFS= read -r line; do
-        [[ -z "$line" || "$line" == \;* ]] && continue
-        printf '%s\n' "$line" >&3
-        sleep 0.003
-    done
-sleep 0.2
+printf 'basic\n' >&3
+sleep 0.3
 
 long_line='10 GOTO 20'
 for _ in $(seq 1 12); do
