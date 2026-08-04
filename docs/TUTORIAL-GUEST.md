@@ -681,6 +681,11 @@ parseur, ses variables et ses calculs sont exécutés dans la machine cible ; le
 moniteur ne fournit que les services console et l’arrêt coopératif documentés
 plus haut. Le parcours ci-dessous introduit une seule idée à la fois.
 
+Dans cette version du payload, `END` écrit le message de fin puis exécute un
+`ebreak` volontaire : le contrôle revient alors à `rvmonitor>`. Pour commencer
+un nouvel exercice BASIC, relancer explicitement `basic`; les commandes
+`NEW`, `LIST`, `DUMP` et `TRACE` ne sont pas des commandes du moniteur M-mode.
+
 ### 4.0 Ce que fait réellement `basic`
 
 Lors du build, le script `scripts/build-minibasic-asm-payload.sh` assemble
@@ -798,6 +803,10 @@ READY> RUN
 [30]
 READY> TRACE OFF
 ```
+
+Après l'exécution d'un programme qui se termine par `END`, relancer `basic`
+avant l'exercice suivant. Le `ebreak` de fin est précisément ce qui permet au
+moniteur d'inspecter les registres et la mémoire entre deux sessions.
 
 `FOR` utilise la pile FOR cible ; huit boucles imbriquées sont garanties en
 V1. Un `STEP 0`, une pile pleine ou une expression invalide provoquent un

@@ -104,7 +104,6 @@ send() {
     send 'regs'
     send 'delete 1'
     send 'continue'
-    send 'q'
 
     # Sections 4.1–4.5: direct mode, storage, FOR, TRACE, INPUT and D.
     send 'basic'
@@ -116,15 +115,14 @@ send() {
     send '20 PRINT A*A'
     send 'LIST'
     send 'RUN'
-    send 'NEW'
+    send 'basic'
     send '10 FOR I=1 TO 3'
     send '20 PRINT I,I*I'
     send '30 NEXT I'
     send 'LIST'
     send 'TRACE ON'
     send 'RUN'
-    send 'TRACE OFF'
-    send 'NEW'
+    send 'basic'
     send '10 INPUT N'
     send '20 IF N<0 THEN 50'
     send '30 PRINT N*N'
@@ -134,7 +132,6 @@ send() {
     send '3'
     send '4'
     send '-1'
-    send 'q'
 
     # Section 4.6: complete tutorial game, copied from the documented listing.
     send 'basic'
@@ -144,14 +141,13 @@ send() {
             send "$line"
         done
     send 'LIST'
+    send 'DUMP'
     send 'TRACE ON'
     send 'RUN'
     for value in 0 20 190 0 20 190 0 20 190 0 20 190 0 20 190; do
         send "$value"
     done
-    send 'TRACE OFF'
-    send 'DUMP'
-    send 'q'
+    send 'regs'
     send 'snapshot save'
     send 'snapshot info'
     send 'q'
