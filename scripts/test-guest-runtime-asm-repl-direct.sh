@@ -40,6 +40,7 @@ wait "$qemu_pid" 2>/dev/null || true
 qemu_pid=""
 
 for expected in \
+    'PRINT 2+3' \
     'trap: breakpoint' \
     'f1=0x4014000000000000' \
     'f2=0x4008000000000000' \
