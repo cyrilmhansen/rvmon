@@ -103,7 +103,6 @@ send() {
     send 'step'
     send 'regs'
     send 'delete 1'
-    send 'continue'
 
     # Sections 4.1–4.5: direct mode, storage, FOR, TRACE, INPUT and D.
     send 'basic'
