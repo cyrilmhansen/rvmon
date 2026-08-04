@@ -450,3 +450,7 @@ QEMU vérifie `TIME=62` et le passage de `TIME$` à `010204`.
 virtuel n’est plus remis à zéro par `RUN`, mais reste monotone depuis le
 démarrage de la session cible. Il reste déterministe et indépendant de l’hôte ;
 `NEW` et les snapshots conservent cette décision de session.
+2026-08-04 — Audit de parité TBXL : le source assembleur principal reste
+maintenu dans six modules, `payload-repl.rv` étant le miroir généré. Après
+vérification de la sémantique historique de RND, ajout de l’alias target-side
+`RND(0)` ; la forme `RND(1)` reste refusée volontairement.

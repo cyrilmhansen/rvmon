@@ -501,11 +501,13 @@ donc être consommés par le programme ; les tests déterministes utilisent une
 file vide au moment de l'appel.
 émet directement ce buffer target-side puis un saut de ligne.
 
-`RND` et `RND()` renvoient un nombre pseudo-aléatoire binary64 dans `[0,1)`.
+`RND`, `RND()` et la forme de compatibilité historique `RND(0)` renvoient un
+nombre pseudo-aléatoire binary64 dans `[0,1)`.
 Le générateur est un LCG 32 bits target-side de paramètres `1664525` et
 `1013904223`, initialisé à la graine `1` au chargement et réinitialisé par
-`NEW`. Cette séquence est volontairement reproductible ; les arguments comme
-`RND(1)` sont rejetés en V1.
+`NEW`. Cette séquence est volontairement reproductible. `RND(0)` est accepté
+uniquement comme l’ancien argument factice Atari/TBXL ; les autres arguments,
+notamment `RND(1)`, sont rejetés en V1.
 
 `TIME` renvoie dans la cible l’horloge virtuelle MiniBASIC, exprimée en ticks
 de statements dispatchés depuis le démarrage de la session cible. Le compteur

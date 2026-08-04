@@ -25,14 +25,19 @@ exec 3>"$input_fifo"
 sleep 0.1
 awk '/^symbols$/{print; found=1; next} found && /^run-at /{print; exit} !found{print}' \
     examples/minibasic-asm/payload-repl.rv |
-    while IFS= read -r line; do printf '%s\n' "$line" >&3; sleep 0.003; done
+    while IFS= read -r line; do
+        [[ -z "$line" || "$line" == \;* ]] && continue
+        printf '%s\n' "$line" >&3
+        sleep 0.003
+    done
 sleep 0.3
 printf '%s\n' \
   '10 PRINT RND' \
   '20 PRINT RND()' \
-  '30 PRINT RND()' \
-  '40 PRINT RND' \
-  '50 END' \
+  '30 PRINT RND(0)' \
+  '40 PRINT RND()' \
+  '50 PRINT RND' \
+  '60 END' \
   'RUN' >&3
 sleep 0.9
 printf 'q\n' >&3
@@ -42,7 +47,7 @@ kill "$qemu_pid" 2>/dev/null || true
 wait "$qemu_pid" 2>/dev/null || true
 qemu_pid=""
 
-for expected in '0.236455' '0.369270' '0.504242' '0.704883' 'trap: breakpoint'; do
+for expected in '0.236455' '0.369270' '0.504242' '0.704883' '0.050543' 'trap: breakpoint'; do
     if ! grep -aFq -- "$expected" "$output_file"; then
         cat "$output_file"
         printf 'missing deterministic RND result: %s\n' "$expected" >&2
