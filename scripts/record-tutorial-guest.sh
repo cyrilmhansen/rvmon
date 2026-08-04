@@ -12,6 +12,7 @@ mkdir -p "$output_dir"
 cast="$output_dir/tutorial-guest.cast"
 transcript="$output_dir/tutorial-guest.txt"
 manifest="$output_dir/tutorial-manifest.toml"
+pause_seconds="${TUTORIAL_GUEST_PAUSE:-3}"
 
 cargo build -p luna-guest-monitor --target riscv64gc-unknown-none-elf >/dev/null
 if [[ "${REUSE_CAST:-0}" == 1 && -s "$cast" ]]; then
@@ -31,7 +32,7 @@ transcript_sha256="$(sha256sum "$transcript" | awk '{print $1}')"
     printf 'project = "rvmonitor"\n'
     printf 'git_commit = "%s"\n' "$commit"
     printf 'profile = "RV64ILP32D-MON-1"\n'
-    printf 'pause_seconds = 3\n'
+    printf 'pause_seconds = %s\n' "$pause_seconds"
     printf 'cast_file = "%s"\n' "$(basename "$cast")"
     printf 'cast_sha256 = "%s"\n' "$cast_sha256"
     printf 'transcript_file = "%s"\n' "$(basename "$transcript")"

@@ -705,6 +705,14 @@ $ bash scripts/test-guest-minibasic-basic-command.sh
 faciliter les comparaisons et les régressions. Il n’est pas utilisé par le
 parcours normal.
 
+Dans ce tutoriel, la commande `basic` lance le MiniBASIC-RV assembleur : son
+REPL, son lexer, son évaluateur binary64 et son contrôle de flot s’exécutent
+dans le payload U-mode chargé dans la machine cible. La commande
+`basic-rust` désigne uniquement l’ancien moteur Rust résident, conservé comme
+référence de régression ; elle ne constitue pas la preuve du parcours guest.
+La capture asciinema affiche ces deux statuts explicitement afin qu’une invite
+`READY>` ne puisse pas être attribuée au mauvais moteur.
+
 ### 4.0.1 Limites restantes du chargement
 
 Le chargement automatique actuel est spécialisé au payload MiniBASIC et ne

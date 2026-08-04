@@ -88,3 +88,11 @@ manifeste d’un cast déjà capturé :
 ```sh
 REUSE_CAST=1 bash scripts/record-tutorial-guest.sh
 ```
+
+Les lignes `=== ... ===` du cast sont des annotations de l’orchestrateur hôte,
+pas des commandes envoyées à QEMU. Elles séparent le moniteur M-mode, le
+MiniBASIC assembleur lancé par `basic`, et l’ancien MiniBASIC Rust indiqué comme
+référence seulement. Le payload assembleur réémet aussi les caractères lus
+sur la console cible : les lignes BASIC saisies et les valeurs de `INPUT` sont
+donc visibles dans la transcription au lieu de produire une succession
+ambiguë de `READY>`.

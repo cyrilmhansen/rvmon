@@ -507,3 +507,11 @@ le mode direct ne pouvait pas enchaîner les commandes. Le payload revient
 maintenant à `command_loop` pour les commandes directes ; `END` conserve son
 `ebreak` volontaire de retour au moniteur. La régression directe est adaptée
 pour vérifier `PRINT`, puis un programme `END` inspectable.
+
+2026-08-04 — Les invites `READY>` répétées dans la capture asciinema
+provenaient de l'absence d'écho du service cible `read_char` : les lignes
+envoyées au pipe QEMU n'étaient pas visibles. Le REPL et `INPUT` réémettent
+désormais les caractères dans la cible, et le script de capture ajoute des
+annotations stderr explicites pour distinguer le moniteur, le MiniBASIC
+assembleur et la référence MiniBASIC Rust. Hammurabi reste la dernière section
+enregistrée du tutoriel.

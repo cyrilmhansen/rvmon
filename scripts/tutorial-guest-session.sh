@@ -7,15 +7,25 @@ cd "$repo_root"
 image=target/riscv64gc-unknown-none-elf/debug/luna-guest-monitor
 divide_address="$(riscv64-linux-gnu-nm -n "$image" | awk '$3 == "minibasic_divide" && !found { value=$1; found=1 } END { print value }')"
 test -n "$divide_address"
+pause="${TUTORIAL_GUEST_PAUSE:-3}"
 
 send() {
     printf '%s\n' "$1"
-    sleep 3
+    sleep "$pause"
+}
+
+# Les caractères envoyés dans le pipe QEMU ne sont pas un écho de terminal.
+# Ces annotations sont donc écrites sur stderr, qui reste visible dans le cast,
+# et ne sont jamais interprétées comme des commandes par le guest.
+note() {
+    printf '\r\n=== %s ===\r\n' "$1" >&2
+    sleep "$pause"
 }
 
 {
-    sleep 3
+    sleep "$pause"
 
+    note 'MONITEUR GUEST — M-mode, cible U-mode et services console'
     # Sections 3 and 4: help, registers, memory, edit, undo and data.
     send 'help'
     send 'regs'
@@ -90,6 +100,8 @@ send() {
     send 'info watch'
     send 'delete watch 1'
 
+    note 'ASM MINIBASIC-RV — payload assembleur chargé dans la cible'
+    note 'RUST MINIBASIC-RV — référence legacy résidente, non utilisée dans ce parcours'
     # Breakpoint and floating BASIC expression inspection.
     send "break 0x$divide_address"
     send 'basic'
@@ -104,6 +116,7 @@ send() {
     send 'regs'
     send 'delete 1'
 
+    note 'ASM MINIBASIC-RV — sections progressives du tutoriel'
     # Sections 4.1–4.5: direct mode, storage, FOR, TRACE, INPUT and D.
     send 'basic'
     send 'PRINT 2+3*4'
@@ -134,7 +147,8 @@ send() {
     send '4'
     send '-1'
 
-    # Section 4.6: complete tutorial game, copied from the documented listing.
+    note 'ASM MINIBASIC-RV — jeu final HAMMURABI-RV'
+    # Section 4.7: complete tutorial game, copied from the documented listing.
     send 'basic'
     awk '/^### 4.7/{found=1} found && /^```basic/{program=1; next} program && /^```/{exit} program{print}' \
         docs/TUTORIAL-GUEST.md |
