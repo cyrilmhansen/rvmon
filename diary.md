@@ -578,3 +578,8 @@ runner QEMU pouvait encore être avant son invite `rvmonitor>` lorsque le
 script écrivait `basic`. Le délai fixe local masquait ce défaut. Les tests
 direct et Hammurabi attendent maintenant l'invite monitor observée avant toute
 commande ; le test devient indépendant de la vitesse de démarrage du runner.
+
+2026-08-04 — Le run GitHub Actions `30900349864` est vert sur les quatre
+jobs : workspace Ubuntu, macOS et Windows, ainsi que `guest-qemu`. La chaîne
+de checkout propre valide maintenant le formatage, la composition ASM, les
+smoke tests MiniBASIC et la matrice RENUM.
