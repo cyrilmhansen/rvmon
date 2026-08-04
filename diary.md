@@ -620,3 +620,11 @@ conserve maintenant le numéro du record BASIC et le convertit côté cible en
 `[N]\n`. Un test QEMU dédié vérifie notamment `[10]`, `[20]`, `[30]` et `[40]`,
 avec deux passages effectifs sur la ligne 30. Le tutoriel et son enregistrement
 ne sont pas réenregistrés pour cette correction ciblée.
+
+2026-08-04 — Relecture des fichiers locaux : la roadmap du compilateur était
+déjà référencée par les documents de parité et le backlog ; la documentation
+UART correspond aux modules 16550A/PLIC effectivement présents ; les deux
+tests UART passent sous QEMU. Le test de concaténation a été stabilisé pour
+charger le payload ASM binaire réel, puis ces trois familles de tests ont été
+ajoutées au job guest de la CI. Les fichiers sont conservés dans un commit
+séparé des expérimentations non retenues.
