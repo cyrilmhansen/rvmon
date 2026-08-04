@@ -641,3 +641,9 @@ dédié au cast brut est donc ajouté.
 configuration Fish de l'hôte, avant le lancement de tmux. La procédure force
 désormais `SHELL=/bin/bash` pour asciinema ; cet avertissement local ne fait pas
 partie de l'exécution QEMU et ne doit pas polluer la preuve pédagogique.
+
+2026-08-04 — Le panneau source du premier enregistrement ne montrait qu'un
+aperçu fixe de huit lignes. Le guide tmux lit maintenant le FIFO avec un délai
+borné : entre deux événements du contrôleur, il avance dans la plage de la
+section active ; un événement réinitialise la fenêtre et reste prioritaire. Un
+marqueur de fin explicite évite d'attendre indéfiniment une FIFO fermée.

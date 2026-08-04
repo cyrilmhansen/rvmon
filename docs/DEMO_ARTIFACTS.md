@@ -99,6 +99,12 @@ peut ne montrer que l’écran final à cause des effacements ANSI de tmux. Le
 contrôle adapté est donc `scripts/check-tutorial-tmux-cast.sh`, qui vérifie les
 marqueurs documentaires, le chargement du payload, les sorties Hammurabi et
 les diagnostics interdits directement dans le cast.
+Le lecteur supérieur défile maintenant automatiquement dans la plage de la
+phase active (`0,75 s` et une ligne par défaut), et chaque nouvelle commande ou
+annotation le préempte. Les paramètres
+`TUTORIAL_GUEST_GUIDE_SCROLL_INTERVAL` et `TUTORIAL_GUEST_GUIDE_SCROLL_STEP`
+permettent de ralentir ou d'accélérer ce défilement sans modifier la session
+QEMU.
 Le moniteur guest laisse volontairement QEMU vivant après `q` ; le wrapper
 attend donc sa limite de 600 secondes et conserve le cast avant la terminaison
 normale du processus QEMU. Pour seulement régénérer la transcription et le

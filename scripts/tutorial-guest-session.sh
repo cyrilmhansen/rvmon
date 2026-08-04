@@ -230,5 +230,6 @@ else
 fi
 
 if [[ -n "$guide_fifo" ]]; then
+    guide_event 'E|done'
     exec 9>&-
 fi
