@@ -39,7 +39,8 @@ printf '%s\n' \
   '40 PRINT UINSTR("Hello","zz")' \
   '50 PRINT INSTR("Hello","l",3)' \
   '60 PRINT INSTR("Hello","l",5)' \
-  '70 END' \
+  '70 PRINT INSTR("Hello","l",0)' \
+  '80 END' \
   'RUN' >&3
 sleep 0.9
 printf 'q\n' >&3
@@ -56,9 +57,14 @@ for expected in '3.000000' '0.000000' '4.000000' '4.000000' '0.000000' 'trap: br
         exit 1
     fi
 done
-if grep -aFq -- 'ERR' "$output_file" || grep -aFq -- 'mcause=' "$output_file"; then
+if grep -aFq -- 'mcause=' "$output_file"; then
     cat "$output_file"
     printf 'unexpected UINSTR diagnostic or target fault\n' >&2
+    exit 1
+fi
+if ! grep -aFq -- 'ERR' "$output_file"; then
+    cat "$output_file"
+    printf 'missing invalid start diagnostic\n' >&2
     exit 1
 fi
 printf 'guest assembly REPL UINSTR QEMU test passed\n'

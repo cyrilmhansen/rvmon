@@ -485,3 +485,6 @@ un échec d’assemblage dans la séance complète à la ligne 8700, malgré une
 instruction identique déjà valide dans le payload précédent. L’hypothèse
 retenue est une limite ou une corruption de la longue séance source, à isoler
 avant d’étendre le parser ; la variante stable sans espaces reste conservée.
+2026-08-04 — Le test de recherche a été renforcé sans élargir le payload :
+`INSTR("Hello","l",0)` produit bien un diagnostic récupérable dans le guest,
+les résultats nominaux restent présents et aucun `mcause` n’apparaît.
