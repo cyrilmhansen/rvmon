@@ -12,7 +12,7 @@ mkdir -p "$output_dir"
 cast="$output_dir/tutorial-guest.cast"
 transcript="$output_dir/tutorial-guest.txt"
 manifest="$output_dir/tutorial-manifest.toml"
-pause_seconds="${TUTORIAL_GUEST_PAUSE:-3}"
+pause_seconds="${TUTORIAL_GUEST_PAUSE:-1}"
 
 cargo build -p luna-guest-monitor --target riscv64gc-unknown-none-elf >/dev/null
 if [[ "${REUSE_CAST:-0}" == 1 && -s "$cast" ]]; then

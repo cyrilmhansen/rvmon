@@ -713,7 +713,34 @@ référence de régression ; elle ne constitue pas la preuve du parcours guest.
 La capture asciinema affiche ces deux statuts explicitement afin qu’une invite
 `READY>` ne puisse pas être attribuée au mauvais moteur.
 
-### 4.0.1 Limites restantes du chargement
+### 4.0.1 Chargement explicite du programme utilisateur
+
+La démo longue rend aussi visible le chargement, au lieu de présenter le
+payload comme une partie mystérieusement résidente de l'ELF. Après construction,
+`target/payloads/minibasic-payload-asm.bin` contient le code et
+`target/payloads/minibasic-payload-asm-data.bin` les données initialisées. Le
+script de démonstration envoie ces fichiers par blocs de 32 octets au moniteur :
+
+```text
+rvmonitor> payload-load 0x81000100 <hex-code-0..31>
+payload loaded address=0x0000000081000100 length=32
+rvmonitor> payload-load-data 0x82000000 <hex-data-0..31>
+payload loaded address=0x0000000082000000 length=32
+rvmonitor> info payload
+rvmonitor> memory 0x82000100 33
+0x0000000082000100: 4d 49 4e 49 42 41 53 49 43 2d 52 56 20 41 53 4d ...
+rvmonitor> run-at 0x81000100
+```
+
+Le transfert est réel : chaque bloc est écrit dans la RAM cible puis contrôlé
+par le moniteur. Le texte `asm-source>` qui défile pendant environ vingt
+secondes est un aperçu lisible du source envoyé/assemblé en amont ; il est
+explicitement annoté comme tel et ne prétend pas que l'hôte interprète le
+BASIC. La chaîne `MINIBASIC-RV ASM v0.3 2026-08-04` est une métadonnée placée
+dans l'image de données et relue par `memory`, ce qui donne une preuve simple
+de la version effectivement chargée.
+
+### 4.0.2 Limites restantes du chargement
 
 Le chargement automatique actuel est spécialisé au payload MiniBASIC et ne
 constitue pas encore un chargeur général de fichiers utilisateur. Le dialecte
@@ -733,11 +760,11 @@ La trajectoire retenue est :
 4. écrire progressivement le REPL, lexer, évaluateur D et contrôle de flot en
    assembleur accepté par ce dialecte, en utilisant le binaire Rust comme
    oracle différentiel temporaire ;
-5. ajouter `load-program` ou `assemble-load` : assemblage dans le workspace,
-   validation des bornes, symboles, pile et point d’entrée, puis lancement
-   U-mode par adresse chargée ;
-6. remplacer `basic` résident par un exemple chargé depuis le moniteur et
-   conserver le chemin résident uniquement comme mode de secours/tests.
+5. remplacer les commandes de transfert manuel par un chargeur de fichier
+   utilisateur avec assemblage dans le workspace, validation des bornes,
+   symboles, pile et point d'entrée ;
+6. conserver `basic` comme raccourci reproductible et garder le transfert
+   explicite comme preuve et outil pédagogique.
 
 Le désassemblage du Rust compilé sera utilisé pour comprendre les séquences
 RV64D, les appels de services et les conventions de pile, jamais comme
@@ -990,6 +1017,9 @@ rester descriptifs tout en passant par l’affectation générique.
 
 ```basic
 10 PRINT "HAMMURABI-RV"
+11 PRINT "GOVERN SUMER"
+12 PRINT "ANCIENT SUMER"
+13 PRINT "FIVE YEAR TERM"
 20 CITIZENS=95
 30 HOLDINGS=1000
 40 CORNSTOCK=2800
@@ -1045,6 +1075,13 @@ acheter ou vendre des terres, planter davantage, puis observer l’effet d’une
 distribution insuffisante. Une entrée négative ou trop grande ramène à la
 question correspondante ; une année où `CITIZENFED<CITIZENS` conserve la famine
 dans `MORTALITY` et alimente le bilan `OVERALLDEATH`.
+
+Les premières lignes rendent explicite le message d'introduction du jeu : le
+lecteur sait immédiatement quel est l'univers gouverné et quelle est la durée
+de cette adaptation. Les messages annuels, les questions d'achat, de
+plantation et de nourriture, la récolte, la famine, la révolte et le bilan final
+sont des instructions `PRINT` du programme cible ; ils ne sont pas injectés par
+la démonstration.
 
 Une séance pédagogique recommandée est :
 

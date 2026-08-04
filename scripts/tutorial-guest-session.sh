@@ -7,7 +7,11 @@ cd "$repo_root"
 image=target/riscv64gc-unknown-none-elf/debug/luna-guest-monitor
 divide_address="$(riscv64-linux-gnu-nm -n "$image" | awk '$3 == "minibasic_divide" && !found { value=$1; found=1 } END { print value }')"
 test -n "$divide_address"
-pause="${TUTORIAL_GUEST_PAUSE:-3}"
+asm_code="target/payloads/minibasic-payload-asm.bin"
+asm_data="target/payloads/minibasic-payload-asm-data.bin"
+test -s "$asm_code"
+test -s "$asm_data"
+pause="${TUTORIAL_GUEST_PAUSE:-1}"
 
 send() {
     printf '%s\n' "$1"
@@ -20,6 +24,30 @@ send() {
 note() {
     printf '\r\n=== %s ===\r\n' "$1" >&2
     sleep "$pause"
+}
+
+send_fast() {
+    printf '%s\n' "$1"
+    sleep 0.002
+}
+
+preview_asm_source() {
+    while IFS= read -r line; do
+        printf 'asm-source> %s\r\n' "$line" >&2
+        sleep 0.002
+    done < examples/minibasic-asm/payload-repl.rv
+}
+
+stream_payload_binary() {
+    local command="$1"
+    local base="$2"
+    local path="$3"
+    local offset=0
+    while IFS= read -r hex; do
+        [[ -z "$hex" ]] && continue
+        send_fast "$command $(printf '0x%x' "$((base + offset))") $hex"
+        offset=$((offset + ${#hex} / 2))
+    done < <(od -An -v -tx1 -w32 "$path" | awk '{gsub(/[[:space:]]/, ""); if (length) print}')
 }
 
 {
@@ -70,6 +98,17 @@ note() {
     send 'source replace 2 "addi x1,x1,5"'
     send 'assemble-source'
 
+    note 'ASM MINIBASIC-RV — aperçu source assembleur, non exécuté par l’hôte (500 lignes/s)'
+    preview_asm_source
+    note 'ASM MINIBASIC-RV — chargement binaire explicite via les commandes du moniteur'
+    stream_payload_binary 'payload-load' 0x81000100 "$asm_code"
+    stream_payload_binary 'payload-load-data' 0x82000000 "$asm_data"
+    send 'info payload'
+    # Preuve que l'image chargée a laissé ses propres métadonnées en RAM cible.
+    send 'memory 0x82000100 33'
+    send "break 0x$divide_address"
+    send 'run-at 0x81000100'
+
     # Floating point motifs and exact register views.
     send 'setf f1 0xffffffff3f800000'
     send 'setf f2 0xffffffff40000000'
@@ -100,11 +139,9 @@ note() {
     send 'info watch'
     send 'delete watch 1'
 
-    note 'ASM MINIBASIC-RV — payload assembleur chargé dans la cible'
+    note 'ASM MINIBASIC-RV — payload assembleur chargé et exécuté depuis le workspace'
     note 'RUST MINIBASIC-RV — référence legacy résidente, non utilisée dans ce parcours'
     # Breakpoint and floating BASIC expression inspection.
-    send "break 0x$divide_address"
-    send 'basic'
     send '10 I=1'
     send '20 X=I/3'
     send '30 PRINT X'

@@ -41,7 +41,7 @@ possède.
 
 | Offset relatif | Adresse de référence | Contenu | Propriétaire / durée |
 |---:|---:|---|---|
-| `0..479` | `0x82000000..0x820001df` | données initiales, invite, messages et constantes courtes | payload ; statique |
+| `0..479` | `0x82000000..0x820001df` | données initiales, invite, messages, identité/version de l'image et constantes courtes | payload ; statique ; `0x100..0x120` = `MINIBASIC-RV ASM v0.3 2026-08-04\\0` |
 | `480` | `0x820001e0` | pointeur vers la table des longueurs de lignes | éditeur ; session |
 | `512..583` | `0x82000200..0x82000247` | état de `RUN`, drapeaux d’exécution et continuation de `PRINT` | exécuteur ; appel courant |
 | `584..767` | `0x82000248..0x820002ff` | descripteurs des tableaux numériques courts | tableaux ; session |

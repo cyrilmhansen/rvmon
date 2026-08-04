@@ -523,3 +523,17 @@ programme. Elles utilisent maintenant des lignes de sortie exactes ; la
 matrice couvre avec succès la réécriture simple, les erreurs sans mutation,
 `GOTO/GOSUB/THEN/ON GOSUB`, les renumérotations répétées et le dépassement de
 capacité.
+
+2026-08-04 — La démo guest montre désormais un aperçu cadencé du source
+assembleur puis le transfert réel des images code/données par `payload-load` et
+`payload-load-data`. L'image de données contient une identité visible
+(`MINIBASIC-RV ASM v0.3 2026-08-04`) à `0x82000100`, relue avec `memory` après
+le chargement. Le programme Hammurabi du tutoriel affiche aussi explicitement
+son introduction traditionnelle (gouverner Sumer, durée de cinq ans), en plus
+des messages annuels et des questions de jeu exécutés par le payload.
+
+2026-08-04 — La capture accélérée à `TUTORIAL_GUEST_PAUSE=0.01` est réservée
+à la validation automatisée et n'est pas le réglage pédagogique : elle ne
+change pas le défilement du source (`2 ms/ligne`, environ 500 lignes/s). Le
+réglage par défaut du tutoriel est passé à une seconde entre commandes, avec
+trois secondes explicitement disponibles pour une lecture plus lente.

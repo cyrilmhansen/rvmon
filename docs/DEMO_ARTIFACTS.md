@@ -69,7 +69,11 @@ bash scripts/record-tutorial-guest.sh
 ```
 
 Cette variante rejoue les sections de `docs/TUTORIAL-GUEST.md` dans leur ordre
-et attend trois secondes après chaque commande ou ligne saisie. Elle comprend
+et attend une seconde après chaque commande ou ligne saisie (réglable à trois
+secondes avec `TUTORIAL_GUEST_PAUSE=3`). Elle commence
+par environ vingt secondes d'aperçu du source assembleur à environ 500 lignes
+par seconde, puis montre le transfert réel des images code et données par
+`payload-load`/`payload-load-data` et relit leur métadonnée en RAM cible. Elle comprend
 les diagnostics, l’assembleur, les flottants, les snapshots, les watchpoints,
 le breakpoint `fdiv.d`, les exercices directs et le jeu Hammurabi final. Sa
 durée attendue est de plusieurs minutes ; `TUTORIAL_GUEST_TIMEOUT` permet

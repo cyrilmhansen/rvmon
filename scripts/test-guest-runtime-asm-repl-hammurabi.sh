@@ -42,6 +42,9 @@ awk '/^symbols$/{print; found=1; next} found && /^run-at /{print; exit} !found{p
     while IFS= read -r line; do printf '%s\n' "$line" >&3; sleep 0.002; done
 wait_for_text 'READY> '
 printf '%s\n' \
+  '11 PRINT "GOVERN SUMER"' \
+  '12 PRINT "ANCIENT SUMER"' \
+  '13 PRINT "FIVE YEAR TERM"' \
   '10 PRINT "HAMMURABI-RV"' \
   '20 CITIZENS=95' \
   '30 HOLDINGS=1000' \
@@ -105,6 +108,9 @@ qemu_pid=""
 
 for expected in \
     'HAMMURABI-RV' \
+    'GOVERN SUMER' \
+    'ANCIENT SUMER' \
+    'FIVE YEAR TERM' \
     'YEAR' \
     'HARVEST' \
     'FINAL STARVED' \
