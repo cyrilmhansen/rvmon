@@ -441,3 +441,8 @@ avait le bon modèle déterministe, mais son ajout au dispatcher du gros payload
 a reproduit `GUEST-ASM-008` sur une référence de label existante. Je l’ai
 retirée sans commit ; elle reprendra avec un micro-payload de dispatch et une
 intégration plus petite.
+2026-08-04 — Le diagnostic de `PAUSE` a identifié la vraie cause : un
+branchement conditionnel vers `error_line` dépassait la portée immédiate RISC-V
+(le label est à plus de 4 Kio). Les erreurs passent maintenant par des labels
+locaux puis `jal`, et `PAUSE 59`/`PAUSE 1` sont exécutés dans le guest ; le test
+QEMU vérifie `TIME=62` et le passage de `TIME$` à `010204`.

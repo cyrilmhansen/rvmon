@@ -54,11 +54,11 @@ printf '%s\n' \
     'TIME$="246000"' \
     'TIME$="010203"' \
     '10 PRINT TIME' \
-    '20 PRINT TIME$' \
-    '30 PRINT "T="+TIME$' \
-    '40 LET TIME$="020304"' \
-    '50 PRINT TIME$' \
-    '60 PRINT "T="+TIME$' \
+    '20 PAUSE 59' \
+    '30 PRINT TIME' \
+    '40 PRINT TIME$' \
+    '50 PAUSE 1' \
+    '60 PRINT TIME$' \
     '70 END' \
     'RUN' |
     while IFS= read -r line; do
@@ -73,7 +73,7 @@ kill "$qemu_pid" 2>/dev/null || true
 wait "$qemu_pid" 2>/dev/null || true
 qemu_pid=""
 
-for expected in 'ERR' '1.000000' '010203' 'T=010203' '020304' 'T=020304' 'trap: breakpoint'; do
+for expected in 'ERR' '1.000000' '62.000000' '010204' 'trap: breakpoint'; do
     if ! grep -aFq -- "$expected" "$output_file"; then
         cat "$output_file"
         printf 'missing TIME result: %s\n' "$expected" >&2

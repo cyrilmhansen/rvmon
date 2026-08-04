@@ -37,6 +37,7 @@ statement     = "REM" , text
               | "READ" , variable
               | "RESTORE"
               | "FOR" , variable , "=" , expression , "TO" , expression , [ "STEP" , expression ]
+              | "PAUSE" , expression
               | "NEXT" , variable
               | "END" ;
 print-item    = string | expression | string-function ;
@@ -520,6 +521,12 @@ expressions chaîne. L’écriture target-side `LET TIME$="HHMMSS"` et sa forme
 directe `TIME$="HHMMSS"` acceptent exactement six chiffres ASCII, avec
 `00..23` pour les heures et `00..59` pour les minutes et secondes ; les formes
 hors bornes produisent un diagnostic.
+
+`PAUSE n` accepte une expression numérique non négative et avance l’horloge
+virtuelle target-side de `n` ticks (`60` ticks représentent une seconde pour
+`TIME$`). V1 ne bloque pas sur l’horloge de l’hôte : cette modernisation garde
+les exécutions reproductibles ; les valeurs négatives et supérieures à
+`1_000_000` sont rejetées.
 
 `ERR()` et `ERL()` exposent l’état du dernier diagnostic dans la cible. Ils
 acceptent uniquement une liste d’arguments vide : `ERR()` renvoie `1.0` pour

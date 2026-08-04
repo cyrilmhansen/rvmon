@@ -1615,7 +1615,12 @@ bne x10,x7,dispatch_not_i
 jal x0,statement_i
 dispatch_not_i:
 addi x7,x0,80
-beq x10,x7,print_dispatch
+bne x10,x7,dispatch_not_p
+lbu x5,17(x24)
+addi x7,x0,65
+bne x5,x7,print_dispatch
+jal x0,pause_statement
+dispatch_not_p:
 addi x7,x0,82
 beq x10,x7,rem_or_assignment
 addi x7,x0,76
@@ -2285,6 +2290,26 @@ fsd f3,0(x6)
 jal x0,if_false
 assignment_error:
 jal x0,error_line_near
+pause_statement:
+addi x21,x24,22
+jal x1,eval_expression
+fcvt.l.d x10,f3,1
+srai x6,x10,63
+beq x6,x0,pause_nonnegative
+jal x0,error_line
+pause_nonnegative:
+lui x6,0xf4
+addi x6,x6,577
+sltu x7,x10,x6
+ bne x7,x0,pause_limit_ok
+jal x0,error_line
+pause_limit_ok:
+addi x27,x8,2047
+addi x27,x27,649
+ld x7,0(x27)
+add x7,x7,x10
+sd x7,0(x27)
+jal x0,if_false
 print_dispatch:
 lbu x5,17(x24)
 addi x7,x0,82
