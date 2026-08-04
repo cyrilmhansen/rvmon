@@ -77,6 +77,9 @@ d’augmenter la limite si une machine est plus lente.
 
 Elle produit `tutorial-guest.cast`, `tutorial-guest.txt` et
 `tutorial-manifest.toml` dans le même répertoire d’artefacts ignoré.
+La conversion est contrôlée par `scripts/check-tutorial-transcript.sh` : une
+capture contenant une commande inconnue, un état de débogueur invalide ou un
+trap d’instruction illégale est refusée comme preuve de tutoriel.
 Le moniteur guest laisse volontairement QEMU vivant après `q` ; le wrapper
 attend donc sa limite de 600 secondes et conserve le cast avant la terminaison
 normale du processus QEMU. Pour seulement régénérer la transcription et le

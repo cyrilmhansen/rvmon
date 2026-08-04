@@ -17,10 +17,11 @@ cargo build -p luna-guest-monitor --target riscv64gc-unknown-none-elf >/dev/null
 if [[ "${REUSE_CAST:-0}" == 1 && -s "$cast" ]]; then
     printf 'reusing existing cast %s\n' "$cast"
 else
-    asciinema rec --overwrite --title "RVMonitor guest tutorial / $short_commit" \
+asciinema rec --overwrite --title "RVMonitor guest tutorial / $short_commit" \
         --command "bash scripts/tutorial-guest-session.sh" "$cast"
 fi
 asciinema convert --overwrite --output-format txt "$cast" "$transcript"
+bash scripts/check-tutorial-transcript.sh "$transcript"
 
 cast_sha256="$(sha256sum "$cast" | awk '{print $1}')"
 transcript_sha256="$(sha256sum "$transcript" | awk '{print $1}')"

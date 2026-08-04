@@ -66,14 +66,15 @@ send() {
     send 'assemble 0x81002000 fadd.s f3,f1,f2'
     send 'assemble 0x81002004 ebreak'
     send 'run-at 0x81002000'
-    send 'regs'
     send 'setf f1 0xffffffff3f800000'
     send 'setf f2 0xffffffff40000000'
+    send 'assemble 0x81002000 fadd.s f3,f1,f2'
+    send 'step'
+    send 'regs'
     send 'setf f4 0x3ff0000000000000'
     send 'setf f5 0x4000000000000000'
     send 'assemble 0x81002000 fadd.d f6,f4,f5'
-    send 'assemble 0x81002004 ebreak'
-    send 'run-at 0x81002000'
+    send 'step'
     send 'regs'
 
     # Continue, snapshots and software watchpoints.
@@ -103,7 +104,7 @@ send() {
     send 'regs'
     send 'delete 1'
     send 'continue'
-    send 'BYE'
+    send 'q'
 
     # Sections 4.1–4.5: direct mode, storage, FOR, TRACE, INPUT and D.
     send 'basic'
@@ -133,7 +134,7 @@ send() {
     send '3'
     send '4'
     send '-1'
-    send 'BYE'
+    send 'q'
 
     # Section 4.6: complete tutorial game, copied from the documented listing.
     send 'basic'
@@ -150,7 +151,7 @@ send() {
     done
     send 'TRACE OFF'
     send 'DUMP'
-    send 'BYE'
+    send 'q'
     send 'snapshot save'
     send 'snapshot info'
     send 'q'
