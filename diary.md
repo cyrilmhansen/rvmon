@@ -647,3 +647,10 @@ aperçu fixe de huit lignes. Le guide tmux lit maintenant le FIFO avec un délai
 borné : entre deux événements du contrôleur, il avance dans la plage de la
 section active ; un événement réinitialise la fenêtre et reste prioritaire. Un
 marqueur de fin explicite évite d'attendre indéfiniment une FIFO fermée.
+
+2026-08-04 — Audit de lisibilité : l'en-tête de la première capture indiquait
+`80x24`, malgré le redimensionnement tenté dans le pseudo-terminal. Le lecteur
+était bien animé, mais cette taille pouvait replier ou tronquer les lignes du
+tutoriel. La taille `160x48` est maintenant imposée directement à asciinema et
+le validateur exige cette dimension ainsi que des positions de défilement
+intermédiaires dans les sections du payload et de Hammurabi.

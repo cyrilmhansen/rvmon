@@ -24,6 +24,7 @@ cargo build -p luna-guest-monitor --target riscv64gc-unknown-none-elf >/dev/null
 # host-specific interactive Fish configuration cannot pollute the audit cast.
 export SHELL=/bin/bash
 asciinema rec --overwrite \
+    --window-size 160x48 \
     --title "RVMonitor guest tutorial / tmux source + QEMU / $short_commit" \
     --command "env TUTORIAL_GUEST_PAUSE=$pause_seconds TUTORIAL_GUEST_TIMEOUT=$timeout_seconds bash scripts/tutorial-guest-tmux-record-command.sh" \
     "$cast"
@@ -39,6 +40,7 @@ transcript_sha256="$(sha256sum "$transcript" | awk '{print $1}')"
     printf 'git_commit = "%s"\n' "$commit"
     printf 'profile = "RV64ILP32D-MON-1"\n'
     printf 'layout = "tmux: top 30%% tutorial source / bottom 70%% QEMU guest"\n'
+    printf 'window_size = "160x48"\n'
     printf 'pause_seconds = %s\n' "$pause_seconds"
     printf 'timeout_seconds = %s\n' "$timeout_seconds"
     printf 'cast_file = "%s"\n' "$(basename "$cast")"
