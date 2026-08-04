@@ -43,7 +43,7 @@ printf '%s\n' \
   '80 PRINT "SUB"' \
   '90 RETURN' \
   '100 PRINT "ON-SUB"' \
-  '110 PRINT "BAD-ON"' \
+  '110 RETURN' \
   '120 PRINT "THEN"' \
   '130 PRINT "literal 20 30"' \
   '140 END' \
@@ -67,6 +67,7 @@ for expected in \
     '1000 GOSUB 1050' \
     '1010 ON 1 GOSUB 1070,1080' \
     '1020 IF X=1 THEN 1090' \
+    '1080 RETURN' \
     '1100 PRINT "literal 20 30"' \
     'SUB' \
     'ON-SUB' \
@@ -80,7 +81,7 @@ for expected in \
     fi
 done
 for forbidden in 'BAD-FLOW' 'BAD-ON' 'ERR'; do
-    if grep -aFq -- "$forbidden" "$output_file"; then
+    if grep -aFxq -- "$forbidden" "$output_file"; then
         cat "$output_file"
         printf 'unexpected RENUM reference-matrix output: %s\n' "$forbidden" >&2
         exit 1

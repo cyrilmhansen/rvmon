@@ -61,7 +61,7 @@ for expected in 'SUB' 'trap: breakpoint'; do
     fi
 done
 for forbidden in 'BAD-IF' 'BAD-ON' 'ERR'; do
-    if grep -aFq -- "$forbidden" "$output_file"; then
+    if grep -aFxq -- "$forbidden" "$output_file"; then
         cat "$output_file"
         printf 'unexpected RENUM control-flow output: %s\n' "$forbidden" >&2
         exit 1

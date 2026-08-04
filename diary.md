@@ -515,3 +515,11 @@ désormais les caractères dans la cible, et le script de capture ajoute des
 annotations stderr explicites pour distinguer le moniteur, le MiniBASIC
 assembleur et la référence MiniBASIC Rust. Hammurabi reste la dernière section
 enregistrée du tutoriel.
+
+2026-08-04 — La matrice RENUM complète a été rejouée sous QEMU. Deux
+assertions de non-sortie recherchaient des marqueurs dans tout le transcript et
+confondaient désormais les lignes source rééchosées avec la sortie du
+programme. Elles utilisent maintenant des lignes de sortie exactes ; la
+matrice couvre avec succès la réécriture simple, les erreurs sans mutation,
+`GOTO/GOSUB/THEN/ON GOSUB`, les renumérotations répétées et le dépassement de
+capacité.
