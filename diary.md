@@ -423,3 +423,9 @@ calcule `HHMMSS` à partir des ticks virtuels, écrit six octets dans le scratch
 chaîne et le résolveur générique le rend utilisable dans `PRINT` et les
 concaténations. Le test QEMU vérifie `000000` et `T=000000`. Le réglage de
 `TIME$` reste volontairement différé pour ne pas introduire d’horloge hôte.
+2026-08-04 — Tentative de tranche `TIME$="HHMMSS"` interrompue avant commit.
+Le code de validation target-side était isolé, mais l’ajout du branchement de
+dispatch a fait échouer l’assemblage du payload avec `GUEST-ASM-008` avant
+l’exécution, sans preuve de corruption du runtime validé. J’ai retiré toute la
+tentative et conservé `TIME/TIME$` en lecture ; cette extension devra reprendre
+avec un test assembleur minimal du dispatcher avant intégration au payload.
