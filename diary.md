@@ -600,3 +600,8 @@ de la release temporaire.
 modulaire, arithmétique, lexer, chaînes, tableaux et ISA. Le payload Rust
 chargé et le payload ASM restent testés dans des étapes distinctes afin de ne
 pas confondre les deux chemins de démonstration.
+
+2026-08-04 — Après publication des lots payload, corpus et documentation, le
+dossier de release a été régénéré depuis le checkout versionné : manifeste
+`cce16c4`, 396 fichiers d'entrée et SBOM incluant `luna-minibasic-payload`.
+Le contrôle générateur passe.

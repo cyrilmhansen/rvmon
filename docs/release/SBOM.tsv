@@ -31,6 +31,7 @@ luna-isa	0.1.0	Apache-2.0	workspace	-
 luna-isa-core	0.1.0	Apache-2.0	workspace	-
 luna-machine	0.1.0	Apache-2.0	workspace	-
 luna-memory	0.1.0	Apache-2.0	workspace	-
+luna-minibasic-payload	0.1.0	Apache-2.0	workspace	-
 luna-monitor	0.1.0	Apache-2.0	workspace	-
 luna-qemu-backend	0.1.0	Apache-2.0	workspace	-
 luna-snapshot-format	0.1.0	Apache-2.0	workspace	-
