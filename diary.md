@@ -468,3 +468,15 @@ chaîne ne sera déplacé vers l’hôte.
 réelle des branchements RV64 : l’ajout d’une routine avait repoussé certaines
 cibles au-delà de ±4 Kio. La routine a été déplacée et ses erreurs rendues
 locales ; le test QEMU cible valide maintenant `3`, `2`, `1` et `0`.
+2026-08-04 — La lecture de la liste TBXL 1.5 a confirmé que `INSTR` et
+`UINSTR` ont aussi une position de départ optionnelle. Le résolveur commun
+réutilise l’évaluateur numérique target-side pour ce troisième argument ; la
+routine renvoie une position zéro-based en interne et conserve une API BASIC
+1-based. La validation QEMU doit couvrir le décalage, l’absence et l’aiguille
+vide avant publication.
+2026-08-04 — La tranche `INSTR/UINSTR` avec position de départ est validée par
+QEMU dans la cible : recherche par défaut, `start=3`, `start=5`, aiguille vide
+et recherche absente produisent les valeurs attendues sans diagnostic ni trap.
+Le chemin générique d’expression imbriquée n’étant pas encore fiable dans ce
+contexte, V1 documente honnêtement un littéral décimal positif parsé dans le
+guest ; cette restriction est désormais une dette de parité explicite.

@@ -34,10 +34,12 @@ awk '/^symbols$/{print; found=1; next} found && /^run-at /{print; exit} !found{p
 sleep 0.3
 printf '%s\n' \
   '10 PRINT UINSTR("HaMmUrAbI","mMu")' \
-  '20 PRINT UINSTR("Hello","EL")' \
-  '30 PRINT UINSTR("Hello","")' \
+  '20 PRINT UINSTR("Hello","EL",3)' \
+  '30 PRINT UINSTR("Hello","",4)' \
   '40 PRINT UINSTR("Hello","zz")' \
-  '50 END' \
+  '50 PRINT INSTR("Hello","l",3)' \
+  '60 PRINT INSTR("Hello","l",5)' \
+  '70 END' \
   'RUN' >&3
 sleep 0.9
 printf 'q\n' >&3
@@ -47,7 +49,7 @@ kill "$qemu_pid" 2>/dev/null || true
 wait "$qemu_pid" 2>/dev/null || true
 qemu_pid=""
 
-for expected in '3.000000' '2.000000' '1.000000' '0.000000' 'trap: breakpoint'; do
+for expected in '3.000000' '0.000000' '4.000000' '4.000000' '0.000000' 'trap: breakpoint'; do
     if ! grep -aFq -- "$expected" "$output_file"; then
         cat "$output_file"
         printf 'missing UINSTR result: %s\n' "$expected" >&2

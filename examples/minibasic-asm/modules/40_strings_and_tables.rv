@@ -445,7 +445,9 @@ jal x0,rse_copy_char
 rse_close_probe:
 bne x29,x0,rse_copy_char
 bne x28,x0,rse_nested_close
-bne x30,x0,string_long_error
+beq x30,x0,rse_close
+addi x6,x30,-2
+bne x6,x0,string_long_error
 jal x0,rse_close
 rse_nested_close:
 sltiu x6,x9,120

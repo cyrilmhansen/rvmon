@@ -6226,6 +6226,7 @@ jalr x0,0(x1)
 atom_instr_function:
 sd x1,1648(x8)
 sd x22,1656(x8)
+sd x23,1672(x8)
 sd x28,1664(x8)
 sd x29,1680(x8)
 sd x30,1808(x8)
@@ -6258,14 +6259,11 @@ lbu x5,0(x21)
 addi x6,x0,44
 bne x5,x6,atom_function_error
 addi x21,x21,1
-addi x30,x0,0
+addi x30,x0,2
 jal x1,resolve_string_expression
 sd x7,1960(x8)
 sd x11,1976(x8)
-lbu x5,0(x21)
-addi x6,x0,41
-bne x5,x6,atom_function_error
-addi x21,x21,1
+jal x1,instr_optional_start
 ld x27,1952(x8)
 ld x28,1976(x8)
 beq x28,x0,atom_instr_empty_needle
@@ -6273,7 +6271,7 @@ sltu x6,x27,x28
 bne x6,x0,atom_instr_not_found
 sub x29,x27,x28
 addi x29,x29,1
-addi x9,x0,0
+addi x9,x23,0
 atom_instr_outer:
 sltu x6,x9,x29
 beq x6,x0,atom_instr_not_found
@@ -6299,13 +6297,14 @@ addi x10,x9,1
 fcvt.d.l f4,x10,0
 jal x0,atom_instr_restore
 atom_instr_empty_needle:
-addi x10,x0,1
+addi x10,x23,1
 fcvt.d.l f4,x10,0
 jal x0,atom_instr_restore
 atom_instr_not_found:
 fcvt.d.l f4,x0,0
 atom_instr_restore:
 ld x22,1656(x8)
+ld x23,1672(x8)
 ld x28,1664(x8)
 ld x29,1680(x8)
 ld x30,1808(x8)
@@ -8640,6 +8639,7 @@ sltu x7,x5,x6
 atom_uinstr_function:
 sd x1,1648(x8)
 sd x22,1656(x8)
+sd x23,1672(x8)
 sd x28,1664(x8)
 sd x29,1680(x8)
 sd x30,1808(x8)
@@ -8672,14 +8672,11 @@ lbu x5,0(x21)
 addi x6,x0,44
 bne x5,x6,atom_uinstr_error
 addi x21,x21,1
-addi x30,x0,0
+addi x30,x0,2
 jal x1,resolve_string_expression
 sd x7,1960(x8)
 sd x11,1976(x8)
-lbu x5,0(x21)
-addi x6,x0,41
-bne x5,x6,atom_uinstr_error
-addi x21,x21,1
+jal x1,instr_optional_start
 ld x27,1952(x8)
 ld x28,1976(x8)
 beq x28,x0,atom_uinstr_empty_needle
@@ -8687,7 +8684,7 @@ sltu x6,x27,x28
 bne x6,x0,atom_uinstr_not_found
 sub x29,x27,x28
 addi x29,x29,1
-addi x9,x0,0
+addi x9,x23,0
 atom_uinstr_outer:
 sltu x6,x9,x29
 beq x6,x0,atom_uinstr_not_found
@@ -8723,19 +8720,94 @@ addi x10,x9,1
 fcvt.d.l f4,x10,0
 jal x0,atom_uinstr_restore
 atom_uinstr_empty_needle:
-addi x10,x0,1
+addi x10,x23,1
 fcvt.d.l f4,x10,0
 jal x0,atom_uinstr_restore
 atom_uinstr_not_found:
 fcvt.d.l f4,x0,0
 atom_uinstr_restore:
 ld x22,1656(x8)
+ld x23,1672(x8)
 ld x28,1664(x8)
 ld x29,1680(x8)
 ld x30,1808(x8)
 ld x1,1648(x8)
 jal x0,store_atom
 atom_uinstr_error:
+jal x0,atom_function_error
+
+; Optional third argument shared by INSTR/UINSTR. The caller has already
+; resolved the needle and leaves x21 on a closing delimiter, an optional comma,
+; or the first byte of the optional decimal argument.
+; x23 returns a zero-based start offset; the public result remains 1-based.
+instr_optional_start:
+sd x1,2032(x8)
+lbu x5,0(x21)
+addi x6,x0,41
+beq x5,x6,instr_optional_default
+beq x5,x0,instr_optional_consumed
+addi x6,x0,44
+beq x5,x6,instr_optional_comma
+jal x0,instr_optional_argument
+instr_optional_comma:
+addi x21,x21,1
+instr_optional_argument:
+addi x10,x0,0
+addi x7,x0,0
+instr_optional_digits:
+lbu x5,0(x21)
+addi x6,x5,-48
+sltiu x6,x6,10
+beq x6,x0,instr_optional_digits_done
+slli x6,x10,3
+slli x10,x10,1
+add x10,x10,x6
+addi x6,x5,-48
+add x10,x10,x6
+addi x21,x21,1
+addi x7,x7,1
+jal x0,instr_optional_digits
+instr_optional_digits_done:
+beq x7,x0,instr_optional_error
+beq x10,x0,instr_optional_error
+addi x23,x10,0
+lbu x5,0(x21)
+addi x6,x0,41
+beq x5,x6,instr_optional_value_close
+beq x5,x0,instr_optional_value_consumed
+jal x0,instr_optional_error
+instr_optional_value_consumed:
+addi x6,x21,-1
+addi x7,x0,8
+addi x27,x0,41
+instr_optional_close_scan:
+lbu x5,0(x6)
+beq x5,x27,instr_optional_close_found
+addi x6,x6,-1
+addi x7,x7,-1
+bne x7,x0,instr_optional_close_scan
+jal x0,instr_optional_error
+instr_optional_close_found:
+addi x21,x6,1
+instr_optional_value_close:
+beq x23,x0,instr_optional_error
+addi x23,x23,-1
+addi x21,x21,1
+ld x1,2032(x8)
+jalr x0,0(x1)
+instr_optional_consumed:
+addi x6,x21,-1
+lbu x5,0(x6)
+addi x6,x0,41
+bne x5,x6,instr_optional_error
+ld x1,2032(x8)
+jalr x0,0(x1)
+instr_optional_default:
+addi x23,x0,0
+addi x21,x21,1
+ld x1,2032(x8)
+jalr x0,0(x1)
+instr_optional_error:
 jal x0,atom_function_error
 bne x7,x0,resolve_long_array_2d_done
 addi x6,x0,58
@@ -9184,7 +9256,9 @@ jal x0,rse_copy_char
 rse_close_probe:
 bne x29,x0,rse_copy_char
 bne x28,x0,rse_nested_close
-bne x30,x0,string_long_error
+beq x30,x0,rse_close
+addi x6,x30,-2
+bne x6,x0,string_long_error
 jal x0,rse_close
 rse_nested_close:
 sltiu x6,x9,120

@@ -58,13 +58,16 @@ comparison    = sum , [ ( "=" | "<>" | "<" | "<=" | ">" | ">=" ) , sum ] ;
 if-condition  = expression | string-source , ( "=" | "<>" | "<" | "<=" | ">" | ">=" ) , string-source ;
 sum           = product , { ( "+" | "-" ) , product } ;
 product       = factor , { ( "*" | "/" ) , factor } ;
+positive-decimal = nonzero-digit , { digit } ;
+digit         = "0" | nonzero-digit ;
+nonzero-digit = "1" | "2" | "3" | "4" | "5" | "6" | "7" | "8" | "9" ;
 factor        = number | variable | "(" , expression , ")"
               | "LEN" , "(" , string-reference , ")"
               | "ASC" , "(" , string-source , ")"
               | "VAL" , "(" , string-source , ")"
               | "DEC" , "(" , string-source , ")"
-              | "INSTR" , "(" , string-source , "," , string-source , ")"
-              | "UINSTR" , "(" , string-source , "," , string-source , ")"
+              | "INSTR" , "(" , string-source , "," , string-source , [ "," , positive-decimal ] , ")"
+              | "UINSTR" , "(" , string-source , "," , string-source , [ "," , positive-decimal ] , ")"
               | "ABS" , "(" , expression , ")"
               | "SGN" , "(" , expression , ")"
               | "INT" , "(" , expression , ")"
@@ -484,16 +487,20 @@ parseur numérique binary64 du guest. Les espaces et le format décimal accepté
 par l’expression numérique sont conservés ; toute source vide, non numérique ou
 contenant une traîne non consommée est rejetée.
 
-`INSTR(haystack,needle)` recherche `needle` dans `haystack` entièrement dans la
-RAM cible et renvoie une position 1-based, ou `0.0` si aucune occurrence n’est
-trouvée. Une aiguille vide renvoie `1.0`. Les deux opérandes acceptent les
-littéraux, variables et éléments de tableaux chaîne ; les formes numériques ou
-les arguments manquants sont rejetés.
+`INSTR(haystack,needle[,start])` recherche `needle` dans `haystack` entièrement
+dans la RAM cible et renvoie une position 1-based, ou `0.0` si aucune occurrence
+n’est trouvée. `start` est une position 1-based entière et positive ; il vaut
+`1` par défaut et limite la recherche aux positions suivantes. Une aiguille
+vide renvoie `start`. Les deux opérandes chaîne acceptent les littéraux,
+variables et éléments de tableaux chaîne ; les formes numériques ou les
+arguments manquants sont rejetés.
 
-`UINSTR(haystack,needle)` applique la même recherche target-side, mais compare
-les lettres ASCII sans tenir compte de la casse. Le résultat reste 1-based,
-`0.0` en cas d’absence et `1.0` pour une aiguille vide ; les octets non
-alphabétiques ne sont pas transformés.
+`UINSTR(haystack,needle[,start])` applique la même recherche target-side, mais
+compare les lettres ASCII sans tenir compte de la casse. Le résultat reste
+1-based, `0.0` en cas d’absence et `start` pour une aiguille vide ; les octets
+non alphabétiques ne sont pas transformés. En V1, `start` est un littéral
+décimal positif parsé dans le guest ; il doit être entier et strictement positif.
+Les expressions numériques générales en troisième position restent différées.
 
 `STR$(expression)` utilise dans le guest le même format fixe à six décimales
 que `PRINT` et produit un terme chaîne réutilisable dans une affectation ou une
