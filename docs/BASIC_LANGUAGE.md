@@ -663,6 +663,12 @@ retourne une erreur sans mutation partielle.
 Ctrl-C est capturé par le pilote UART interrupt-driven puis consommé par
 polling coopératif pendant `RUN`.
 
+Une commande directe telle que `PRINT` revient à l'invite `READY>` dans le
+payload cible et peut être suivie immédiatement d'une autre commande. Une
+ligne de programme `END` est différente : elle affiche la fin du programme et
+exécute un `ebreak` volontaire afin de rendre le contexte au moniteur M-mode
+pour inspection.
+
 ## ABI console cible
 
 Les appels `ecall` utilisent `a7=x17` comme numéro, `a0=x10` comme argument ou

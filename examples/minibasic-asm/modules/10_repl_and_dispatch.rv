@@ -4447,7 +4447,9 @@ jal x0,print_string_value_cont
 print_normal_continuation:
 jal x0,if_false
 run_stop:
-ebreak
+; Une commande directe revient à l'invite BASIC. Les programmes qui
+; exécutent END passent par end_or_endif et conservent l'ebreak d'inspection.
+jal x0,command_loop
 ; ---------------------------------------------------------------------------
 ; ABI interne des valeurs chaîne
 ; Une routine reçoit x21 au début du terme et rend x7=adresse des octets

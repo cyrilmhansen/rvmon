@@ -500,3 +500,10 @@ que `assemble_command` allouait `[GuestSymbol; 2048]` sur la pile M-mode ; ce
 cadre dépassait la pile de 64 KiB. La table vide est maintenant statique,
 `assemble 0x81000100 addi x1,x0,1` répond correctement, et une régression QEMU
 dediee est ajoutée pour empêcher le retour de ce défaut.
+
+2026-08-04 — La capture du tutoriel a exposé un défaut plus profond que la
+séquence hôte : `run_stop` était un `ebreak` même après `PRINT` direct, donc
+le mode direct ne pouvait pas enchaîner les commandes. Le payload revient
+maintenant à `command_loop` pour les commandes directes ; `END` conserve son
+`ebreak` volontaire de retour au moniteur. La régression directe est adaptée
+pour vérifier `PRINT`, puis un programme `END` inspectable.
