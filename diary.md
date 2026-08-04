@@ -480,3 +480,8 @@ et recherche absente produisent les valeurs attendues sans diagnostic ni trap.
 Le chemin générique d’expression imbriquée n’étant pas encore fiable dans ce
 contexte, V1 documente honnêtement un littéral décimal positif parsé dans le
 guest ; cette restriction est désormais une dette de parité explicite.
+2026-08-04 — Un essai de tolérance des espaces autour de `start` a déclenché
+un échec d’assemblage dans la séance complète à la ligne 8700, malgré une
+instruction identique déjà valide dans le payload précédent. L’hypothèse
+retenue est une limite ou une corruption de la longue séance source, à isoler
+avant d’étendre le parser ; la variante stable sans espaces reste conservée.
