@@ -333,6 +333,14 @@ srli x10,x10,32
 addi x10,x10,1848
 sd x9,0(x10)
 jal x1,expression_lexer
+; expression_lexer utilise cette cellule comme garde de réentrance. Elle ne
+; doit pas survivre au retour normal : sinon l'expression suivante réutilise
+; silencieusement le flux de tokens précédent.
+lui x10,0x82062
+slli x10,x10,32
+srli x10,x10,32
+addi x10,x10,736
+sd x0,0(x10)
 jal x1,integrated_token_try
 bne x6,x0,eval_expression_token_done
 jal x1,parse_product

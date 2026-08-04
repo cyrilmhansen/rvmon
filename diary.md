@@ -559,3 +559,9 @@ d'une seconde. Le validateur confirme le chargement effectif du payload ASM,
 les motifs `fadd.s`/`fadd.d`, `DUMP` target-side, l'introduction Hammurabi et
 l'absence d'erreur parasite. Artefacts :
 `artifacts/audit/93b1e96/tutorial-guest.{cast,txt}`.
+
+2026-08-04 — La première exécution GitHub Actions a exposé deux écarts de
+checkout propre : `rustfmt` n'était pas appliqué à trois appels dans le monitor,
+et le module ASM d'expression contenait une correction déjà présente dans le
+payload composé mais pas dans le module source. Le formatage et la
+synchronisation des modules sont corrigés avant une nouvelle exécution CI.

@@ -594,7 +594,9 @@ fn print_payload_info() {
     uart_write(" m-stack-bytes=");
     uart_decimal(M_MODE_STACK_BYTES as u64);
     uart_write("\r\n");
-    uart_write("  ecall: 1=write-char 2=read-char 3=exit 4=write-buffer 5=poll-char 6=poll-break\r\n");
+    uart_write(
+        "  ecall: 1=write-char 2=read-char 3=exit 4=write-buffer 5=poll-char 6=poll-break\r\n",
+    );
     uart_write(
         "  payload-load: hexadecimal chunks are limited to 32 bytes and are not undoable\r\n",
     );
@@ -1494,7 +1496,10 @@ fn assemble_program_command(context: *mut TargetContext, argument: &[u8]) {
     }
 
     if overflow {
-        guest_error(b"GUEST-ASM-001", b"source program exceeds 12288 assembly lines");
+        guest_error(
+            b"GUEST-ASM-001",
+            b"source program exceeds 12288 assembly lines",
+        );
         return;
     }
     if count == 0 {
@@ -1638,7 +1643,9 @@ fn assemble_program_command(context: *mut TargetContext, argument: &[u8]) {
         )
     };
     if !source_saved {
-        uart_write("source document not retained: assembled program exceeds 4096 editable lines\r\n");
+        uart_write(
+            "source document not retained: assembled program exceeds 4096 editable lines\r\n",
+        );
     }
     uart_write("assembled program: ");
     uart_decimal(word_count as u64);
