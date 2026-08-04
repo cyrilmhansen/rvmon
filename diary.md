@@ -407,3 +407,8 @@ cela une opération `take` distincte de `peek`. La régression QEMU de la file
 vide reste verte ; le cas d’un octet disponible doit encore être stabilisé dans
 un scénario d’injection qui ne mélange pas le flux de commandes et le flux
 programme.
+2026-08-04 — Le cas d’un octet disponible pour `INKEY$()` est enfin stabilisé
+sans temporisation : le test QEMU charge un programme qui boucle sur
+`IF INKEY$()<>"" THEN 40`, injecte `K` après `RUN`, puis observe `GOT` et le
+breakpoint final. Cela prouve que `poll-char` consomme bien l’octet target-side
+et que `poll-break` n’interfère plus avec la lecture BASIC.

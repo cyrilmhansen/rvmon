@@ -51,13 +51,16 @@ if [[ "$assembled" -ne 1 ]]; then
 fi
 
 printf '%s\n' \
-    '10 PRINT "["+INKEY$()+"]"' \
-    '20 END' \
+    '10 IF INKEY$()<>"" THEN 40' \
+    '20 GOTO 10' \
+    '40 PRINT "GOT"' \
+    '50 END' \
     'RUN' |
     while IFS= read -r line; do
         printf '%s\n' "$line" >&3
         sleep 0.15
-done
+    done
+printf 'K' >&3
 sleep 1.0
 printf 'q\n' >&3
 exec 3>&-
@@ -66,7 +69,7 @@ kill "$qemu_pid" 2>/dev/null || true
 wait "$qemu_pid" 2>/dev/null || true
 qemu_pid=""
 
-for expected in '[]' 'trap: breakpoint'; do
+for expected in 'GOT' 'trap: breakpoint'; do
     if ! grep -aFq -- "$expected" "$output_file"; then
         cat "$output_file"
         printf 'missing INKEY$ result: %s\n' "$expected" >&2
