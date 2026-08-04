@@ -57,7 +57,7 @@ printf '%s\n' \
     while IFS= read -r line; do
         printf '%s\n' "$line" >&3
         sleep 0.15
-    done
+done
 sleep 1.0
 printf 'q\n' >&3
 exec 3>&-

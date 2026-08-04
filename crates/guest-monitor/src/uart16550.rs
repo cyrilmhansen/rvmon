@@ -140,6 +140,15 @@ pub fn peek() -> Option<u8> {
     }
 }
 
+/// Remove one byte from the software RX queue without waiting.
+///
+/// This is distinct from `peek`: guest `INKEY$()` owns the byte it observes,
+/// while the monitor's Ctrl-C polling path must only inspect availability.
+pub fn take() -> Option<u8> {
+    poll_rx();
+    pop_rx()
+}
+
 pub fn enable_receive_interrupts() {
     unsafe { write_reg(UART_IER, UART_IER_RLSI | UART_IER_RDI) }
 }

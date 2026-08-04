@@ -622,8 +622,10 @@ polling coopératif pendant `RUN`.
 
 Les appels `ecall` utilisent `a7=x17` comme numéro, `a0=x10` comme argument ou
 résultat et `a1=x11` pour la longueur : `1=write_char`, `2=read_char`
-(bloquant), `3=exit`, `5=poll_char` (zéro si aucun octet, sinon octet). Le
-service 4 `write_buffer` est documenté dans `docs/TUTORIAL-GUEST.md`.
+(bloquant), `3=exit`, `5=poll_char` (zéro si aucun octet, sinon octet
+consommé) et `6=poll_break` (zéro si aucun signal, sinon `3`, sans consommer
+les octets ordinaires). Le service 4 `write_buffer` est documenté dans
+`docs/TUTORIAL-GUEST.md`.
 
 ## Limites du jalon courant et extensions conservées
 

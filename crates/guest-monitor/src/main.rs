@@ -52,6 +52,7 @@ const ECALL_READ_CHAR: u64 = 2;
 const ECALL_EXIT: u64 = 3;
 const ECALL_WRITE_BUFFER: u64 = 4;
 const ECALL_POLL_CHAR: u64 = 5;
+const ECALL_POLL_BREAK: u64 = 6;
 
 global_asm!(include_str!("entry.S"));
 
@@ -332,6 +333,10 @@ fn handle_environment_call(context: &mut TargetContext) -> ! {
             context.x[10] = u64::from(target_poll_char().unwrap_or(0));
             resume_after_environment_call(context);
         }
+        ECALL_POLL_BREAK => {
+            context.x[10] = u64::from(target_poll_break().unwrap_or(0));
+            resume_after_environment_call(context);
+        }
         ECALL_WRITE_BUFFER => {
             let address = context.x[10];
             let length = context.x[11];
@@ -411,12 +416,18 @@ fn target_poll_char() -> Option<u8> {
     if uart16550::take_break_request() {
         return Some(3);
     }
-    if uart16550::peek().is_some() {
-        // Polling is used only for the guest's Ctrl-C escape hatch.  Ordinary
-        // input must remain queued for a later ECALL_READ_CHAR/INPUT call.
-        Some(0)
-    } else if uart16550::take_break_request() {
+    // `poll-char` is also the ownership boundary for target INKEY$(): unlike
+    // the monitor's Ctrl-C availability check, it must consume the byte.
+    uart16550::take().or_else(|| uart16550::take_break_request().then_some(3))
+}
+
+fn target_poll_break() -> Option<u8> {
+    if uart16550::take_break_request() {
         Some(3)
+    } else if uart16550::peek().is_some() {
+        // Preserve ordinary input for READ_CHAR/INKEY$; a Ctrl-C is removed
+        // by the UART driver's interrupt-side break detector above.
+        Some(0)
     } else {
         None
     }
@@ -578,7 +589,7 @@ fn print_payload_info() {
     uart_write(" m-stack-bytes=");
     uart_decimal(M_MODE_STACK_BYTES as u64);
     uart_write("\r\n");
-    uart_write("  ecall: 1=write-char 2=read-char 3=exit 4=write-buffer 5=poll-char\r\n");
+    uart_write("  ecall: 1=write-char 2=read-char 3=exit 4=write-buffer 5=poll-char 6=poll-break\r\n");
     uart_write(
         "  payload-load: hexadecimal chunks are limited to 32 bytes and are not undoable\r\n",
     );

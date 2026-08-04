@@ -398,3 +398,12 @@ Après réarmement de l’index dans `error_line`, le test QEMU complet exécute
 `10 GOTO 999`, puis `?ERR(),ERL()` et obtient `1.000000` et `10.000000` dans la
 cible, sans fault. Le scénario est conservé dans
 `scripts/test-guest-runtime-asm-repl-err-erl.sh`.
+2026-08-04 — En renforçant `INKEY$()`, j’ai trouvé une collision d’ABI : le
+sondage Ctrl-C appelé avant chaque ligne utilisait le même `ecall 5` que la
+lecture non bloquante et pouvait consommer l’octet utilisateur. Le contrat est
+maintenant séparé : `ecall 5` consomme pour `INKEY$()`, tandis que `ecall 6`
+sonde Ctrl-C sans retirer les octets ordinaires ; le pilote UART expose pour
+cela une opération `take` distincte de `peek`. La régression QEMU de la file
+vide reste verte ; le cas d’un octet disponible doit encore être stabilisé dans
+un scénario d’injection qui ne mélange pas le flux de commandes et le flux
+programme.
