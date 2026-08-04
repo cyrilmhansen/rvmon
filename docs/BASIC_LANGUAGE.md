@@ -78,7 +78,8 @@ factor        = number | variable | "(" , expression , ")"
               | "LOG" , "(" , expression , ")"
               | "EXP" , "(" , expression , ")"
               | "ATN" , "(" , expression , ")"
-              | "RND" | "RND" , "(" , ")"
+              | "RND" | "RND" , "(" , ")" | "RND" , "(" , "0" , ")"
+              | "RAND" , "(" , expression , ")"
               | ( "+" | "-" ) , factor ;
 variable      = identifier ;
 string-variable = identifier , "$" ;
@@ -508,6 +509,11 @@ Le générateur est un LCG 32 bits target-side de paramètres `1664525` et
 `NEW`. Cette séquence est volontairement reproductible. `RND(0)` est accepté
 uniquement comme l’ancien argument factice Atari/TBXL ; les autres arguments,
 notamment `RND(1)`, sont rejetés en V1.
+
+`RAND(n)` complète cette famille avec un résultat entier target-side. Pour
+`n>0`, le domaine est `0..n-1`; pour `n<0`, il est `n..-1`. L’argument doit
+être un entier binary64 non nul et la séquence partage le LCG de `RND` ; zéro,
+les fractions et les formes hors parenthèses produisent un diagnostic.
 
 `TIME` renvoie dans la cible l’horloge virtuelle MiniBASIC, exprimée en ticks
 de statements dispatchés depuis le démarrage de la session cible. Le compteur

@@ -492,6 +492,74 @@ ld x30,1336(x8)
 ld x31,1344(x8)
 ld x1,1304(x8)
 jal x0,store_atom
+; RAND(n) : générateur entier historique TBXL, entièrement target-side.
+; Pour n>0 le résultat est 0..n-1 ; pour n<0 il est -n..-1. L'argument
+; doit être un entier non nul ; le générateur partage l'état LCG de RND.
+atom_rand_function:
+addi x27,x8,2047
+addi x27,x27,449
+sd x1,0(x27)
+sd x22,8(x27)
+sd x28,16(x27)
+sd x29,24(x27)
+sd x30,32(x27)
+sd x31,40(x27)
+addi x21,x21,5
+addi x22,x0,0
+jal x1,eval_expression
+lbu x5,0(x21)
+addi x6,x0,41
+beq x5,x6,atom_rand_close_present
+beq x5,x0,atom_rand_close_consumed
+jal x0,atom_rand_error
+atom_rand_close_present:
+addi x21,x21,1
+jal x0,atom_rand_validate
+atom_rand_close_consumed:
+addi x6,x21,-1
+lbu x5,0(x6)
+addi x6,x0,41
+bne x5,x6,atom_rand_error
+atom_rand_validate:
+fcvt.l.d x10,f3,1
+fcvt.d.l f5,x10,0
+feq.d x7,f3,f5
+beq x7,x0,atom_rand_error
+beq x10,x0,atom_rand_error
+srai x22,x10,63
+beq x22,x0,atom_rand_positive_bound
+sub x11,x0,x10
+jal x0,atom_rand_generate
+atom_rand_positive_bound:
+addi x11,x10,0
+atom_rand_generate:
+ld x10,1360(x8)
+lui x6,0x196
+addi x6,x6,1549
+mul x10,x10,x6
+lui x6,0x3c6ef
+addi x6,x6,863
+add x10,x10,x6
+slli x10,x10,32
+srli x10,x10,32
+sd x10,1360(x8)
+remu x10,x10,x11
+beq x22,x0,atom_rand_result_ready
+addi x10,x10,1
+sub x10,x0,x10
+atom_rand_result_ready:
+fcvt.d.l f4,x10,0
+addi x27,x8,2047
+addi x27,x27,449
+ld x22,8(x27)
+ld x28,16(x27)
+ld x29,24(x27)
+ld x30,32(x27)
+ld x31,40(x27)
+ld x1,0(x27)
+jal x0,store_atom
+atom_rand_error:
+jal x0,error_line
 atom_function_error:
 jal x0,error_line
 store_left_atom:

@@ -454,3 +454,9 @@ démarrage de la session cible. Il reste déterministe et indépendant de l’h�
 maintenu dans six modules, `payload-repl.rv` étant le miroir généré. Après
 vérification de la sémantique historique de RND, ajout de l’alias target-side
 `RND(0)` ; la forme `RND(1)` reste refusée volontairement.
+2026-08-04 — Portage de `RAND(n)` : l’assemblage initial a révélé que les
+offsets de cadre au-delà de 2047 doivent être adressés par une base locale.
+La première exécution QEMU a ensuite montré des bornes erronées (`8, 3, -11`)
+malgré des bits bas LCG corrects ; le modulo utilisait les bits hauts d’un
+produit RV64. L’état partagé est maintenant normalisé en 32 bits, et QEMU
+valide `8, 7, -3` ainsi que les diagnostics de domaine.

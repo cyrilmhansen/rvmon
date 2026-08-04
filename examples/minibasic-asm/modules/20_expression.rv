@@ -1180,6 +1180,8 @@ bne x6,x7,atom_array_name_scan
 jal x0,atom_val_function
 atom_rnd_dispatch:
 lbu x6,1(x21)
+addi x7,x0,65
+beq x6,x7,atom_rand_probe
 addi x7,x0,78
 bne x6,x7,atom_array_name_scan
 lbu x6,2(x21)
@@ -1218,6 +1220,17 @@ addi x7,x0,41
 bne x6,x7,atom_function_error
 addi x21,x21,6
 jal x0,atom_rnd_generate
+atom_rand_probe:
+lbu x6,2(x21)
+addi x7,x0,78
+bne x6,x7,atom_array_name_scan
+lbu x6,3(x21)
+addi x7,x0,68
+bne x6,x7,atom_array_name_scan
+lbu x6,4(x21)
+addi x7,x0,40
+bne x6,x7,atom_array_name_scan
+jal x0,atom_rand_function
 atom_rnd_bare:
 addi x21,x21,3
 atom_rnd_generate:
@@ -1228,6 +1241,8 @@ mul x10,x10,x6
 lui x6,0x3c6ef
 addi x6,x6,863
 add x10,x10,x6
+slli x10,x10,32
+srli x10,x10,32
 sd x10,1360(x8)
 slli x11,x10,33
 srli x11,x11,33
