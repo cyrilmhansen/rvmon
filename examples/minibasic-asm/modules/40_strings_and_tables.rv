@@ -2262,6 +2262,19 @@ fcvt.d.l f4,x10,0
 addi x28,x0,0
 addi x29,x0,0
 jal x0,store_atom
+
+; TIME : horloge virtuelle déterministe. Un tick correspond à un statement
+; BASIC dispatché ; le format historique 60 ticks/seconde est réservé à
+; l'affichage TIME$ de la tranche suivante.
+atom_time_function:
+addi x21,x21,4
+addi x27,x8,2047
+addi x27,x27,649
+ld x10,0(x27)
+addi x28,x0,0
+addi x29,x0,0
+fcvt.d.l f4,x10,0
+jal x0,store_atom
 ; Table-driven function recognizer. Upper- and lower-case alphabetic names
 ; enter here; a miss falls back to the variable/array dispatcher. Kept after
 ; the evaluator so adding entries

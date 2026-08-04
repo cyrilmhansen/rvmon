@@ -1039,6 +1039,8 @@ bne x6,x7,atom_array_name_scan
 jal x0,atom_log_function
 atom_t_dispatch:
 lbu x6,1(x21)
+addi x7,x0,73
+beq x6,x7,atom_time_probe
 addi x7,x0,82
 beq x6,x7,atom_trunc_dispatch
 addi x7,x0,65
@@ -1050,6 +1052,14 @@ lbu x6,3(x21)
 addi x7,x0,40
 bne x6,x7,atom_array_name_scan
 jal x0,atom_tan_function
+atom_time_probe:
+lbu x6,2(x21)
+addi x7,x0,77
+bne x6,x7,atom_array_name_scan
+lbu x6,3(x21)
+addi x7,x0,69
+bne x6,x7,atom_array_name_scan
+jal x0,atom_time_function
 atom_int_dispatch:
 lbu x6,1(x21)
 addi x7,x0,78

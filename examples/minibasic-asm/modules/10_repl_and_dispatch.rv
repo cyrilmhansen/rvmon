@@ -1404,6 +1404,9 @@ sd x0,0(x27)
 addi x27,x8,2047
 addi x27,x27,641
 sd x0,0(x27)
+addi x27,x8,2047
+addi x27,x27,649
+sd x0,0(x27)
 sd x0,1616(x8)
 sd x0,1704(x8)
 sd x0,1712(x8)
@@ -1543,6 +1546,11 @@ sd x26,1872(x8)
 ld x10,0(x24)
 addi x27,x8,2047
 addi x27,x27,641
+sd x10,0(x27)
+addi x27,x8,2047
+addi x27,x27,649
+ld x10,0(x27)
+addi x10,x10,1
 sd x10,0(x27)
 ld x10,544(x8)
 beq x10,x0,trace_done

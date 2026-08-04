@@ -72,6 +72,7 @@ factor        = number | variable | "(" , expression , ")"
               | "SIN" , "(" , expression , ")"
               | "COS" , "(" , expression , ")"
               | "TAN" , "(" , expression , ")"
+              | "TIME"
               | "LOG" , "(" , expression , ")"
               | "EXP" , "(" , expression , ")"
               | "ATN" , "(" , expression , ")"
@@ -503,6 +504,16 @@ Le générateur est un LCG 32 bits target-side de paramètres `1664525` et
 `1013904223`, initialisé à la graine `1` au chargement et réinitialisé par
 `NEW`. Cette séquence est volontairement reproductible ; les arguments comme
 `RND(1)` sont rejetés en V1.
+
+`TIME` renvoie dans la cible l’horloge virtuelle MiniBASIC, exprimée en ticks
+de statements dispatchés depuis le début du dernier `RUN`. Le compteur est
+réinitialisé par `RUN`, est monotone pendant ce `RUN` et reste entièrement
+déterministe ; il ne lit ni `mcycle`, ni l’horloge QEMU, ni un wall-clock de
+l’hôte. Turbo BASIC XL documente historiquement un compteur à 60 ticks par
+seconde ([Expanded Documentation, section TIME](https://seriouscomputerist.atariverse.com/media/pdf/manual/Turbo-BASIC%20XL%20-%20Expanded%20Documentation.pdf)),
+mais cette tranche RV adopte volontairement un tick par statement afin de
+respecter la reproductibilité de `SPEC.md`. `TIME$` et l’écriture de l’heure
+restent différés.
 
 `ERR()` et `ERL()` exposent l’état du dernier diagnostic dans la cible. Ils
 acceptent uniquement une liste d’arguments vide : `ERR()` renvoie `1.0` pour

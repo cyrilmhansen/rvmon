@@ -412,3 +412,9 @@ sans temporisation : le test QEMU charge un programme qui boucle sur
 `IF INKEY$()<>"" THEN 40`, injecte `K` après `RUN`, puis observe `GOT` et le
 breakpoint final. Cela prouve que `poll-char` consomme bien l’octet target-side
 et que `poll-break` n’interfère plus avec la lecture BASIC.
+2026-08-04 — J’ai ajouté `TIME` comme première tranche d’horloge compatible avec
+la spécification déterministe : le payload conserve un compteur target-side à
+`x8+2696`, remis à zéro au début de `RUN` et incrémenté à chaque dispatch de
+statement. Le test QEMU produit `1.000000` puis `2.000000` sur deux lignes
+`PRINT TIME`. Cette divergence par rapport au compteur TBXL à 60 Hz est
+documentée ; `TIME$` et l’écriture de l’heure restent la prochaine sous-tranche.

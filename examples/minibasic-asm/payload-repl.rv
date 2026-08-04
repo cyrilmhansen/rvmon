@@ -95,6 +95,8 @@ data 0x82000218 .dword 0x0000000000000000
 ; Diagnostic persistant de la dernière erreur BASIC : code V1 et ligne.
 data 0x82000a78 .dword 0x0000000000000000
 data 0x82000a80 .dword 0x0000000000000000
+; Horloge virtuelle MiniBASIC : un tick par statement dispatché.
+data 0x82000a88 .dword 0x0000000000000000
 ; Table de reconnaissance des fonctions numériques déjà migrées vers le
 ; résolveur chaîne commun. Chaque entrée fait 16 octets : longueur, identifiant,
 ; nom ASCII majuscule puis remplissage nul. Les identifiants sont dispatchés
@@ -1732,6 +1734,9 @@ sd x0,0(x27)
 addi x27,x8,2047
 addi x27,x27,641
 sd x0,0(x27)
+addi x27,x8,2047
+addi x27,x27,649
+sd x0,0(x27)
 sd x0,1616(x8)
 sd x0,1704(x8)
 sd x0,1712(x8)
@@ -1871,6 +1876,11 @@ sd x26,1872(x8)
 ld x10,0(x24)
 addi x27,x8,2047
 addi x27,x27,641
+sd x10,0(x27)
+addi x27,x8,2047
+addi x27,x27,649
+ld x10,0(x27)
+addi x10,x10,1
 sd x10,0(x27)
 ld x10,544(x8)
 beq x10,x0,trace_done
@@ -5775,6 +5785,8 @@ bne x6,x7,atom_array_name_scan
 jal x0,atom_log_function
 atom_t_dispatch:
 lbu x6,1(x21)
+addi x7,x0,73
+beq x6,x7,atom_time_probe
 addi x7,x0,82
 beq x6,x7,atom_trunc_dispatch
 addi x7,x0,65
@@ -5786,6 +5798,14 @@ lbu x6,3(x21)
 addi x7,x0,40
 bne x6,x7,atom_array_name_scan
 jal x0,atom_tan_function
+atom_time_probe:
+lbu x6,2(x21)
+addi x7,x0,77
+bne x6,x7,atom_array_name_scan
+lbu x6,3(x21)
+addi x7,x0,69
+bne x6,x7,atom_array_name_scan
+jal x0,atom_time_function
 atom_int_dispatch:
 lbu x6,1(x21)
 addi x7,x0,78
@@ -10639,6 +10659,19 @@ ld x10,0(x27)
 fcvt.d.l f4,x10,0
 addi x28,x0,0
 addi x29,x0,0
+jal x0,store_atom
+
+; TIME : horloge virtuelle déterministe. Un tick correspond à un statement
+; BASIC dispatché ; le format historique 60 ticks/seconde est réservé à
+; l'affichage TIME$ de la tranche suivante.
+atom_time_function:
+addi x21,x21,4
+addi x27,x8,2047
+addi x27,x27,649
+ld x10,0(x27)
+addi x28,x0,0
+addi x29,x0,0
+fcvt.d.l f4,x10,0
 jal x0,store_atom
 ; Table-driven function recognizer. Upper- and lower-case alphabetic names
 ; enter here; a miss falls back to the variable/array dispatcher. Kept after

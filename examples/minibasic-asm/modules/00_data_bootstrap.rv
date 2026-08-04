@@ -95,6 +95,8 @@ data 0x82000218 .dword 0x0000000000000000
 ; Diagnostic persistant de la dernière erreur BASIC : code V1 et ligne.
 data 0x82000a78 .dword 0x0000000000000000
 data 0x82000a80 .dword 0x0000000000000000
+; Horloge virtuelle MiniBASIC : un tick par statement dispatché.
+data 0x82000a88 .dword 0x0000000000000000
 ; Table de reconnaissance des fonctions numériques déjà migrées vers le
 ; résolveur chaîne commun. Chaque entrée fait 16 octets : longueur, identifiant,
 ; nom ASCII majuscule puis remplissage nul. Les identifiants sont dispatchés
