@@ -1613,16 +1613,44 @@ addi x10,x10,1
 sd x10,0(x27)
 ld x10,544(x8)
 beq x10,x0,trace_done
-ld x10,536(x8)
-beq x10,x0,trace_ten
-addi x10,x8,128
-addi x11,x0,5
-addi x17,x0,4
-ecall
-jal x0,trace_done
-trace_ten:
+; Format the actual current BASIC line as [number]\n.  The previous
+; implementation selected two literal strings ([10] and [20]), which made
+; TRACE misleading for every other line.  x8+2688 is populated above from
+; the current record's line-number field before dispatch.
+addi x27,x8,2047
+addi x27,x27,641
+ld x14,0(x27)
 addi x10,x8,112
-addi x11,x0,5
+addi x5,x0,91
+sb x5,0(x10)
+addi x13,x8,120
+addi x15,x0,10
+trace_digits:
+remu x5,x14,x15
+addi x5,x5,48
+sb x5,0(x13)
+divu x14,x14,x15
+beq x14,x0,trace_copy
+addi x13,x13,-1
+jal x0,trace_digits
+trace_copy:
+addi x14,x13,0
+addi x15,x8,113
+addi x16,x8,120
+trace_copy_loop:
+lbu x5,0(x14)
+sb x5,0(x15)
+beq x14,x16,trace_suffix
+addi x14,x14,1
+addi x15,x15,1
+jal x0,trace_copy_loop
+trace_suffix:
+addi x5,x0,93
+sb x5,1(x15)
+addi x5,x0,10
+sb x5,2(x15)
+addi x11,x15,3
+sub x11,x11,x10
 addi x17,x0,4
 ecall
 trace_done:

@@ -612,3 +612,11 @@ target-side cohérent avec l'interface actuelle, et `test-minibasic.sh` vérifia
 encore le runtime Rust résident. Ce dernier devient un point d'entrée vers les
 smoke tests ASM direct, Hammurabi et payload chargé ; les chemins réellement
 exécutés restent observables sous QEMU.
+
+2026-08-04 — Relecture de la transcription Hammurabi : TRACE affichait presque
+toujours `[20]` parce que le payload choisissait deux chaînes littérales,
+`[10]` et `[20]`, au lieu du numéro de la ligne courante. Le dispatch assembleur
+conserve maintenant le numéro du record BASIC et le convertit côté cible en
+`[N]\n`. Un test QEMU dédié vérifie notamment `[10]`, `[20]`, `[30]` et `[40]`,
+avec deux passages effectifs sur la ligne 30. Le tutoriel et son enregistrement
+ne sont pas réenregistrés pour cette correction ciblée.
