@@ -64,6 +64,7 @@ factor        = number | variable | "(" , expression , ")"
               | "VAL" , "(" , string-source , ")"
               | "DEC" , "(" , string-source , ")"
               | "INSTR" , "(" , string-source , "," , string-source , ")"
+              | "UINSTR" , "(" , string-source , "," , string-source , ")"
               | "ABS" , "(" , expression , ")"
               | "SGN" , "(" , expression , ")"
               | "INT" , "(" , expression , ")"
@@ -488,6 +489,11 @@ RAM cible et renvoie une position 1-based, ou `0.0` si aucune occurrence n’est
 trouvée. Une aiguille vide renvoie `1.0`. Les deux opérandes acceptent les
 littéraux, variables et éléments de tableaux chaîne ; les formes numériques ou
 les arguments manquants sont rejetés.
+
+`UINSTR(haystack,needle)` applique la même recherche target-side, mais compare
+les lettres ASCII sans tenir compte de la casse. Le résultat reste 1-based,
+`0.0` en cas d’absence et `1.0` pour une aiguille vide ; les octets non
+alphabétiques ne sont pas transformés.
 
 `STR$(expression)` utilise dans le guest le même format fixe à six décimales
 que `PRINT` et produit un terme chaîne réutilisable dans une affectation ou une

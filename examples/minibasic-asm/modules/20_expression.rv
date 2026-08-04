@@ -937,6 +937,8 @@ addi x6,x0,77
 beq x5,x6,atom_mod_dispatch
 addi x6,x0,86
 beq x5,x6,atom_val_dispatch
+addi x6,x0,85
+beq x5,x6,atom_u_dispatch
 addi x6,x0,65
 sltu x7,x5,x6
 bne x7,x0,atom_numeric
@@ -1081,6 +1083,26 @@ lbu x6,5(x21)
 addi x7,x0,40
 bne x6,x7,atom_array_name_scan
 jal x0,atom_instr_function
+atom_u_dispatch:
+lbu x6,1(x21)
+addi x7,x0,73
+bne x6,x7,atom_array_name_scan
+lbu x6,2(x21)
+addi x7,x0,78
+bne x6,x7,atom_array_name_scan
+lbu x6,3(x21)
+addi x7,x0,83
+bne x6,x7,atom_array_name_scan
+lbu x6,4(x21)
+addi x7,x0,84
+bne x6,x7,atom_array_name_scan
+lbu x6,5(x21)
+addi x7,x0,82
+bne x6,x7,atom_array_name_scan
+lbu x6,6(x21)
+addi x7,x0,40
+bne x6,x7,atom_array_name_scan
+jal x0,atom_uinstr_function
 atom_int_function_probe:
 lbu x6,3(x21)
 addi x7,x0,40

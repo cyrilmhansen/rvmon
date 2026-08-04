@@ -460,3 +460,11 @@ La première exécution QEMU a ensuite montré des bornes erronées (`8, 3, -11`
 malgré des bits bas LCG corrects ; le modulo utilisait les bits hauts d’un
 produit RV64. L’état partagé est maintenant normalisé en 32 bits, et QEMU
 valide `8, 7, -3` ainsi que les diagnostics de domaine.
+2026-08-04 — La prochaine tranche sélectionnée dans l’inventaire TBXL est
+`UINSTR`. Elle réutilise la séparation target-side de `INSTR` et n’ajoute qu’une
+normalisation ASCII locale au moment de comparer les octets ; aucun état de
+chaîne ne sera déplacé vers l’hôte.
+2026-08-04 — Le premier assemblage intégré de `UINSTR` a révélé une limite
+réelle des branchements RV64 : l’ajout d’une routine avait repoussé certaines
+cibles au-delà de ±4 Kio. La routine a été déplacée et ses erreurs rendues
+locales ; le test QEMU cible valide maintenant `3`, `2`, `1` et `0`.
