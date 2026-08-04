@@ -572,3 +572,9 @@ MiniBASIC encore placé dans le BSS du monitor, alors que la carte mémoire gues
 réserve les données du payload à `.payload_data`. Le linker et l'attribut de
 section de `STATE` sont maintenant publiés ; cette correction est nécessaire
 au démarrage cible, pas un contournement du test.
+
+2026-08-04 — Le second run CI a isolé une course dans les smoke tests : le
+runner QEMU pouvait encore être avant son invite `rvmonitor>` lorsque le
+script écrivait `basic`. Le délai fixe local masquait ce défaut. Les tests
+direct et Hammurabi attendent maintenant l'invite monitor observée avant toute
+commande ; le test devient indépendant de la vitesse de démarrage du runner.

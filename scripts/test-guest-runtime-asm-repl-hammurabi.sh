@@ -36,7 +36,7 @@ wait_for_text() {
     return 1
 }
 
-sleep 0.1
+wait_for_text 'rvmonitor> '
 printf 'basic\n' >&3
 wait_for_text 'READY> '
 printf '%s\n' \

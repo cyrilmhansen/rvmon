@@ -36,7 +36,7 @@ qemu-system-riscv64 -M virt -m 64M -bios none -kernel "$image" \
     -nographic <"$input_fifo" >"$output_file" 2>&1 &
 qemu_pid=$!
 exec 3>"$input_fifo"
-sleep 0.1
+wait_for_text 'rvmonitor> '
 printf 'basic\n' >&3
 wait_for_text 'READY> '
 printf 'PRINT 22/7\nPRINT 2+3\n10 END\nRUN\n' >&3
