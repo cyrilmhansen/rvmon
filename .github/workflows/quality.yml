@@ -32,3 +32,38 @@ jobs:
           bash tools/fuzz-smoke.sh
           bash tools/accessibility-smoke.sh
 
+  guest:
+    name: guest-qemu
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install guest toolchain and QEMU
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes \
+            binutils-riscv64-linux-gnu \
+            gcc-riscv64-linux-gnu \
+            qemu-system-misc
+          rustup target add riscv64gc-unknown-none-elf
+      - name: Validate assembly payload composition
+        shell: bash
+        run: |
+          bash scripts/check-minibasic-asm-modules.sh
+          bash scripts/build-minibasic-asm-payload.sh
+      - name: Run target-side MiniBASIC smoke tests
+        shell: bash
+        run: |
+          bash scripts/test-guest-runtime-asm-repl-direct.sh
+          bash scripts/test-guest-runtime-asm-repl-hammurabi.sh
+      - name: Run target-side RENUM matrix
+        shell: bash
+        run: |
+          bash scripts/test-guest-runtime-asm-repl-renum-reference-matrix.sh
+          bash scripts/test-guest-runtime-asm-repl-renum-repeat-control.sh
+          bash scripts/test-guest-runtime-asm-repl-renum-capacity.sh
+      - name: Validate tutorial and recording scripts
+        shell: bash
+        run: |
+          bash -n scripts/tutorial-guest-session.sh
+          bash -n scripts/record-tutorial-guest.sh
+          bash -n scripts/check-tutorial-transcript.sh
