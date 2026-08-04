@@ -446,3 +446,7 @@ branchement conditionnel vers `error_line` dépassait la portée immédiate RISC
 (le label est à plus de 4 Kio). Les erreurs passent maintenant par des labels
 locaux puis `jal`, et `PAUSE 59`/`PAUSE 1` sont exécutés dans le guest ; le test
 QEMU vérifie `TIME=62` et le passage de `TIME$` à `010204`.
+2026-08-04 — J’ai aligné la durée de vie de `TIME` sur TBXL : le compteur
+virtuel n’est plus remis à zéro par `RUN`, mais reste monotone depuis le
+démarrage de la session cible. Il reste déterministe et indépendant de l’hôte ;
+`NEW` et les snapshots conservent cette décision de session.

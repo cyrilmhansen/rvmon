@@ -508,9 +508,9 @@ Le générateur est un LCG 32 bits target-side de paramètres `1664525` et
 `RND(1)` sont rejetés en V1.
 
 `TIME` renvoie dans la cible l’horloge virtuelle MiniBASIC, exprimée en ticks
-de statements dispatchés depuis le début du dernier `RUN`. Le compteur est
-réinitialisé par `RUN`, est monotone pendant ce `RUN` et reste entièrement
-déterministe ; il ne lit ni `mcycle`, ni l’horloge QEMU, ni un wall-clock de
+de statements dispatchés depuis le démarrage de la session cible. Le compteur
+est monotone entre les `RUN` et reste entièrement déterministe ; il ne lit ni
+`mcycle`, ni l’horloge QEMU, ni un wall-clock de
 l’hôte. Turbo BASIC XL documente historiquement un compteur à 60 ticks par
 seconde ([Expanded Documentation, section TIME](https://seriouscomputerist.atariverse.com/media/pdf/manual/Turbo-BASIC%20XL%20-%20Expanded%20Documentation.pdf)),
 mais cette tranche RV adopte volontairement un tick par statement afin de

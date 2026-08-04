@@ -1413,7 +1413,6 @@ addi x27,x27,641
 sd x0,0(x27)
 addi x27,x8,2047
 addi x27,x27,649
-sd x0,0(x27)
 sd x0,1616(x8)
 sd x0,1704(x8)
 sd x0,1712(x8)
