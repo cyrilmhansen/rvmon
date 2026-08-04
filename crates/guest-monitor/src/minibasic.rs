@@ -1,5 +1,3 @@
-#![allow(clippy::missing_const_for_fn)]
-
 use core::arch::asm;
 
 const LINE_CAPACITY: usize = 96;
@@ -211,6 +209,7 @@ enum Error {
     Interrupt,
 }
 
+#[unsafe(link_section = ".payload_data")]
 static mut STATE: BasicState = BasicState::new();
 
 #[unsafe(no_mangle)]

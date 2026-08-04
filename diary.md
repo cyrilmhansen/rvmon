@@ -565,3 +565,10 @@ checkout propre : `rustfmt` n'était pas appliqué à trois appels dans le monit
 et le module ASM d'expression contenait une correction déjà présente dans le
 payload composé mais pas dans le module source. Le formatage et la
 synchronisation des modules sont corrigés avant une nouvelle exécution CI.
+
+2026-08-04 — Le job QEMU GitHub a ensuite montré que `basic` ne revenait pas
+à `READY>` sur un checkout propre. La cause était l'état statique Rust de
+MiniBASIC encore placé dans le BSS du monitor, alors que la carte mémoire guest
+réserve les données du payload à `.payload_data`. Le linker et l'attribut de
+section de `STATE` sont maintenant publiés ; cette correction est nécessaire
+au démarrage cible, pas un contournement du test.

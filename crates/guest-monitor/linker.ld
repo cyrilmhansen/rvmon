@@ -21,6 +21,7 @@ SECTIONS
     .data : ALIGN(8)
     {
         *(.data .data.*)
+        *(.payload_data)
     } > RAM
 
     .bss : ALIGN(8)
