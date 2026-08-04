@@ -435,3 +435,9 @@ Le parseur cible accumule les six chiffres, extrait HH/MM/SS, refuse
 ticks virtuels et le test vérifie aussi la concaténation. La forme `LET` et la
 forme directe sont désormais couvertes ; le branchement direct a été réduit à
 un probe de six octets pour respecter les limites pratiques de l’assembleur.
+2026-08-04 — J’ai étudié `PAUSE n` de TBXL, qui ajoute environ n/60 seconde,
+comme prochaine extension temporelle. Une implémentation virtuelle target-side
+avait le bon modèle déterministe, mais son ajout au dispatcher du gros payload
+a reproduit `GUEST-ASM-008` sur une référence de label existante. Je l’ai
+retirée sans commit ; elle reprendra avec un micro-payload de dispatch et une
+intégration plus petite.
