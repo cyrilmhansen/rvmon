@@ -21,16 +21,25 @@ cleanup() {
 }
 trap cleanup EXIT
 
+wait_for_text() {
+    local text="$1"
+    for _ in {1..2000}; do
+        if grep -aFq -- "$text" "$output_file"; then return 0; fi
+        sleep 0.01
+    done
+    cat "$output_file" >&2
+    printf 'timeout waiting for guest text: %s\n' "$text" >&2
+    return 1
+}
+
 qemu-system-riscv64 -M virt -m 64M -bios none -kernel "$image" \
     -nographic <"$input_fifo" >"$output_file" 2>&1 &
 qemu_pid=$!
 exec 3>"$input_fifo"
 sleep 0.1
-awk '/^symbols$/{print; found=1; next} found && /^run-at /{print; exit} !found{print}' \
-    examples/minibasic-asm/payload-repl.rv |
-    while IFS= read -r line; do printf '%s\n' "$line" >&3; sleep 0.003; done
-sleep 0.2
-printf 'PRINT 2+3\n10 END\nRUN\n' >&3
+printf 'basic\n' >&3
+wait_for_text 'READY> '
+printf 'PRINT 22/7\nPRINT 2+3\n10 END\nRUN\n' >&3
 sleep 0.4
 printf 'regs\nmemory 0x82000420 8\nq\n' >&3
 exec 3>&-
@@ -41,6 +50,7 @@ qemu_pid=""
 
 for expected in \
     'PRINT 2+3' \
+    '3.142857' \
     'trap: breakpoint' \
     'f1=0x4014000000000000' \
     'f2=0x4008000000000000' \

@@ -107,9 +107,10 @@ MiniBASIC réserve 64 variables binary64 dans le dialecte général ; une
 variable lue avant affectation est créée avec la valeur zéro. Le payload
 assembleur actuel expose 26 emplacements historiques `A`..`Z` et 32 entrées
 nommées de 2 à 16 caractères. Au-delà de la capacité de la tranche ou de 16
-caractères, l’instruction est rejetée par `BASIC-SYNTAX-001`. `LIST` montre le
-texte ; `DUMP` montre slot, adresse, longueur et octets du record, puis les
-variables utilisées avec leur motif binary64 et leur affichage fixe.
+ caractères, l’instruction est rejetée par `BASIC-SYNTAX-001`. `LIST` montre le
+texte ; le payload assembleur implémente `DUMP` target-side comme un en-tête
+suivi des records numérotés. La commande moniteur `memory` fournit la vue brute
+des adresses et octets du record, ainsi que les motifs binary64 des variables.
 
 Les variables chaînes portent le suffixe `$` : `S$` et les noms de 2 à 16
 caractères suivis de `$` sont distincts des variables numériques. Le payload

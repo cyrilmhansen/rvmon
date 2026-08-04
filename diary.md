@@ -537,3 +537,12 @@ des messages annuels et des questions de jeu exécutés par le payload.
 change pas le défilement du source (`2 ms/ligne`, environ 500 lignes/s). Le
 réglage par défaut du tutoriel est passé à une seconde entre commandes, avec
 trois secondes explicitement disponibles pour une lecture plus lente.
+
+2026-08-04 — La validation du tutoriel a révélé trois défauts target-side :
+`run-at` réinitialise les registres flottants, l'adresse de breakpoint provenait
+du runtime Rust résident, et le record synthétique de `PRINT` ne recevait pas
+de NUL après une commande plus courte. Le tutoriel initialise maintenant le PC
+sur un `ebreak`, résout `integrated_reduce_div` dans le listing ASM, puis fait
+`setf`/`step`; le REPL termine chaque record direct. `DUMP` a aussi reçu un
+chemin target-side réel (en-tête puis records), tandis que `memory` reste la
+preuve brute des octets.

@@ -985,8 +985,9 @@ le texte aux octets, utiliser `DUMP`, puis revenir au moniteur et examiner la
 zone indiquée par `memory <adresse> <longueur>` en hexadécimal/ASCII.
 
 L’exemple illustre aussi les limites assumées : pas de tableaux, de chaînes
-variables, de hasard, de sous-programmes, de `INT`, de `OR`, de labels ni de
-séparateur `:` en V1. Cette réduction rend chaque décision visible dans le
+variables, de hasard, de sous-programmes, de `INT`, de `OR` ni de labels en V1.
+Le séparateur `:` est disponible pour plusieurs `PRINT` dans une même ligne.
+Cette réduction rend chaque décision visible dans le
 moniteur et conserve l’esprit rapport annuel / allocation / conséquences du
 BASIC historique.
 
@@ -994,8 +995,9 @@ BASIC historique.
 
 Voici la version finale du parcours. Elle reste un programme MiniBASIC V1
 réellement saisissable : les noms de variables longs sont volontairement
-utilisés pour rendre l’état visible dans le moniteur, sans `:` ni fonctions
-cachées, et uniquement avec les instructions documentées plus haut. Elle
+utilisés pour rendre l’état visible dans le moniteur. La ligne d'introduction
+emploie le séparateur `:` déjà supporté par le payload, sans fonction cachée,
+et uniquement avec les instructions documentées plus haut. Elle
 reprend les éléments structurants de *Hammurabi* — rapport annuel, population,
 terres, grain, décision du joueur, famine et bilan — sans recopier le listing
 de référence. La page de référence décrit cette adaptation de *The Sumerian
@@ -1007,7 +1009,8 @@ Les variables sont volontairement descriptives : `REGNALYEAR` année,
 quantité saisie, `HARVESTED` récolte, `CITIZENFED` personnes nourries,
 `MORTALITY` morts de faim et `OVERALLDEATH` total des morts. Leurs longueurs
 varient de 8 à 10 caractères : `LIST`, `TRACE ON`, `DUMP` et les registres
-permettent de suivre ces états sans quitter le programme cible.
+permettent de suivre ces états sans quitter le programme cible ; `memory` du
+moniteur permet ensuite d'inspecter les octets bruts.
 
 Dans cette version assembleur, un identifiant long ne doit pas commencer par
 le préfixe d’une instruction ou d’un raccourci historique dont le dispatcher
@@ -1016,10 +1019,7 @@ les variables courtes, etc.). `CORNSTOCK` et `REGNALYEAR` sont choisis pour
 rester descriptifs tout en passant par l’affectation générique.
 
 ```basic
-10 PRINT "HAMMURABI-RV"
-11 PRINT "GOVERN SUMER"
-12 PRINT "ANCIENT SUMER"
-13 PRINT "FIVE YEAR TERM"
+10 PRINT "HAMMURABI-RV":PRINT "GOVERN SUMER":PRINT "ANCIENT SUMER":PRINT "FIVE YEAR TERM"
 20 CITIZENS=95
 30 HOLDINGS=1000
 40 CORNSTOCK=2800
@@ -1094,11 +1094,13 @@ READY> TRACE ON
 READY> RUN
 ```
 
-Pendant l’exécution, placer un breakpoint sur `minibasic_divide` pour observer
-`QUANTITY/2`. Après le retour à l’invite, `DUMP` montre chaque variable longue,
-son motif binary64 et sa valeur fixe ; le moniteur permet ainsi de comparer
-trois niveaux au même moment : la ligne BASIC (`360 CITIZENFED=QUANTITY/2`), l’instruction `fdiv.d` et les
-bits du registre flottant. Après une famine volontaire, utiliser `snapshot
+Pendant l’exécution explicitement chargée, placer le breakpoint sur le symbole
+ASM résolu `integrated_reduce_div` pour observer `QUANTITY/2`. Après le retour
+à l’invite, `DUMP` réaffiche les records BASIC dans la cible ; la commande
+`memory` montre leurs octets et les registres montrent les motifs binary64. Le
+moniteur permet ainsi de comparer trois niveaux au même moment : la ligne BASIC
+(`360 CITIZENFED=QUANTITY/2`), l’instruction `fdiv.d` et les bits du registre
+flottant. Après une famine volontaire, utiliser `snapshot
 save`, modifier une décision, puis `snapshot restore` pour rejouer la partie.
 
 Le programme est assez compact pour être recopié manuellement, mais assez

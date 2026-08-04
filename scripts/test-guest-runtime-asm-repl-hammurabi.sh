@@ -37,15 +37,10 @@ wait_for_text() {
 }
 
 sleep 0.1
-awk '/^symbols$/{print; found=1; next} found && /^run-at /{print; exit} !found{print}' \
-    examples/minibasic-asm/payload-repl.rv |
-    while IFS= read -r line; do printf '%s\n' "$line" >&3; sleep 0.002; done
+printf 'basic\n' >&3
 wait_for_text 'READY> '
 printf '%s\n' \
-  '11 PRINT "GOVERN SUMER"' \
-  '12 PRINT "ANCIENT SUMER"' \
-  '13 PRINT "FIVE YEAR TERM"' \
-  '10 PRINT "HAMMURABI-RV"' \
+  '10 PRINT "HAMMURABI-RV":PRINT "GOVERN SUMER":PRINT "ANCIENT SUMER":PRINT "FIVE YEAR TERM"' \
   '20 CITIZENS=95' \
   '30 HOLDINGS=1000' \
   '40 CORNSTOCK=2800' \
@@ -94,7 +89,7 @@ printf '%s\n' \
   '600 PRINT "FINAL STARVED",OVERALLDEATH,"GRAIN",CORNSTOCK' \
   '610 END' >&3
 sleep 0.4
-printf 'TRACE ON\nRUN\n' >&3
+printf 'DUMP\nTRACE ON\nRUN\n' >&3
 for value in 0 20 190 0 20 190 0 20 190 0 20 190 0 20 190; do
     printf '%s\n' "$value" >&3
     sleep 0.15
@@ -108,6 +103,7 @@ qemu_pid=""
 
 for expected in \
     'HAMMURABI-RV' \
+    'DUMP' \
     'GOVERN SUMER' \
     'ANCIENT SUMER' \
     'FIVE YEAR TERM' \

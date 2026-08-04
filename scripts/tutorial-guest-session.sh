@@ -5,12 +5,15 @@ repo_root="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$repo_root"
 
 image=target/riscv64gc-unknown-none-elf/debug/luna-guest-monitor
-divide_address="$(riscv64-linux-gnu-nm -n "$image" | awk '$3 == "minibasic_divide" && !found { value=$1; found=1 } END { print value }')"
-test -n "$divide_address"
 asm_code="target/payloads/minibasic-payload-asm.bin"
 asm_data="target/payloads/minibasic-payload-asm-data.bin"
+asm_listing="target/payloads/minibasic-payload-asm.objdump.txt"
 test -s "$asm_code"
 test -s "$asm_data"
+test -s "$asm_listing"
+divide_offset="$(awk '$2 == "<integrated_reduce_div>:" { print $1; exit }' "$asm_listing")"
+test -n "$divide_offset"
+divide_address="$(printf '0x%x' "$((0x81000100 + 16#$divide_offset))")"
 pause="${TUTORIAL_GUEST_PAUSE:-1}"
 
 send() {
@@ -106,23 +109,35 @@ stream_payload_binary() {
     send 'info payload'
     # Preuve que l'image chargée a laissé ses propres métadonnées en RAM cible.
     send 'memory 0x82000100 33'
-    send "break 0x$divide_address"
+    send "break $divide_address"
     send 'run-at 0x81000100'
 
+    # Le payload explicitement transféré est maintenant réellement piloté :
+    # cette ligne atteint son propre integrated_reduce_div/fdiv.d breakpoint.
+    send '10 I=1'
+    send '20 X=I/3'
+    send '30 PRINT X'
+    send '40 END'
+    send 'RUN'
+    send 'regs'
+    send "disasm $divide_address 6"
+    send 'step'
+    send 'regs'
+    send 'delete 1'
+
     # Floating point motifs and exact register views.
-    send 'setf f1 0xffffffff3f800000'
-    send 'setf f2 0xffffffff40000000'
-    send 'assemble 0x81002000 fadd.s f3,f1,f2'
-    send 'assemble 0x81002004 ebreak'
+    send 'assemble 0x81002000 ebreak'
     send 'run-at 0x81002000'
     send 'setf f1 0xffffffff3f800000'
     send 'setf f2 0xffffffff40000000'
     send 'assemble 0x81002000 fadd.s f3,f1,f2'
     send 'step'
     send 'regs'
+    send 'assemble 0x81002004 ebreak'
+    send 'run-at 0x81002004'
     send 'setf f4 0x3ff0000000000000'
     send 'setf f5 0x4000000000000000'
-    send 'assemble 0x81002000 fadd.d f6,f4,f5'
+    send 'assemble 0x81002004 fadd.d f6,f4,f5'
     send 'step'
     send 'regs'
 
@@ -141,18 +156,6 @@ stream_payload_binary() {
 
     note 'ASM MINIBASIC-RV — payload assembleur chargé et exécuté depuis le workspace'
     note 'RUST MINIBASIC-RV — référence legacy résidente, non utilisée dans ce parcours'
-    # Breakpoint and floating BASIC expression inspection.
-    send '10 I=1'
-    send '20 X=I/3'
-    send '30 PRINT X'
-    send '40 END'
-    send 'RUN'
-    send 'regs'
-    send "disasm 0x$divide_address 12"
-    send 'step'
-    send 'regs'
-    send 'delete 1'
-
     note 'ASM MINIBASIC-RV — sections progressives du tutoriel'
     # Sections 4.1–4.5: direct mode, storage, FOR, TRACE, INPUT and D.
     send 'basic'

@@ -525,6 +525,8 @@ beq x5,x7,direct_print
 jal x0,check_generic_assignment
 check_d_command:
 lbu x5,1(x18)
+addi x7,x0,85
+beq x5,x7,check_dump_command
 addi x7,x0,73
 beq x5,x7,dim_direct
 addi x7,x0,69
@@ -538,6 +540,34 @@ lbu x5,3(x18)
 addi x7,x0,32
 bne x5,x7,check_generic_assignment
 jal x0,delete_range_command
+check_dump_command:
+lbu x5,2(x18)
+addi x7,x0,77
+bne x5,x7,check_generic_assignment
+lbu x5,3(x18)
+addi x7,x0,80
+bne x5,x7,check_generic_assignment
+lbu x5,4(x18)
+bne x5,x0,check_generic_assignment
+jal x0,dump_program_command
+dump_program_command:
+; DUMP is target-side: the header and every numbered record are emitted by
+; the payload. Raw bytes and the payload identity remain inspectable with the
+; monitor's `memory` command.
+addi x10,x0,68
+addi x17,x0,1
+ecall
+addi x10,x0,85
+ecall
+addi x10,x0,77
+ecall
+addi x10,x0,80
+ecall
+addi x10,x0,13
+ecall
+addi x10,x0,10
+ecall
+jal x0,list_line_generic
 trace_command:
 lbu x5,1(x18)
 addi x7,x0,82
@@ -1386,8 +1416,17 @@ sb x10,16(x6)
 addi x9,x9,1
 ld x7,520(x8)
 bne x9,x7,copy_direct
+; The synthetic record is reused by every direct command. Always terminate
+; the newly copied body so a shorter command cannot inherit stale bytes from
+; the previous expression.
+add x6,x19,x9
+sb x0,16(x6)
 addi x10,x0,1
 sd x10,512(x8)
+; Direct PRINT re-enters run_line with the synthetic record at index zero.
+; if_false may have scanned the program table after the previous direct
+; expression, so reset the synthetic execution index explicitly.
+addi x26,x0,0
 sd x0,536(x8)
 jal x0,run_line
 direct_print_error:
