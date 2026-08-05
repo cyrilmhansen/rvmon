@@ -654,3 +654,12 @@ marqueur de fin explicite évite d'attendre indéfiniment une FIFO fermée.
 tutoriel. La taille `160x48` est maintenant imposée directement à asciinema et
 le validateur exige cette dimension ainsi que des positions de défilement
 intermédiaires dans les sections du payload et de Hammurabi.
+
+2026-08-05 — Clarification de roadmap : l’assembleur guest est bien un
+parseur/encodeur Rust embarqué dans le moniteur et prouvé par `assemble` et
+`assemble-program`, mais le gros MiniBASIC est encore préparé par GNU `as` sur
+l’hôte. Le backlog distingue maintenant l’enrichissement nécessaire
+`BASIC-LOAD-002B` (sections, symboles, relocations et image complète) de
+`BASIC-LOAD-002C` (clear de plage et transfert sparse des données). Le futur
+`BASIC-LOAD-005` ne pourra être déclaré atteint que lorsque le source sera
+assemblé dans le guest, et non seulement chargé sous forme binaire.

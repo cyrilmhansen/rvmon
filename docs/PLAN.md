@@ -163,10 +163,17 @@ Chaque jalon conserve un build vert et une démonstration scriptée. M1–M4 son
 
 À la demande du projet, les travaux post-M9 sont réordonnés ainsi :
 
-1. **P0 — MiniBASIC chargé comme payload assembleur** : extraire un runtime
-   assembleur maintenable, définir son ABI U-mode, l’assembler dans le
-   workspace et le lancer avec `run-at`. Le MiniBASIC résident reste un mode
-   de secours jusqu’à validation du payload chargé.
+1. **P0 — MiniBASIC chargé comme payload assembleur** : cette priorité est
+   décomposée en trois preuves qui ne doivent pas être confondues :
+   l’assembleur guest Rust embarqué existe déjà et couvre les programmes
+   bornés, mais doit encore accepter le source complet du runtime MiniBASIC
+   (sections, directives de données, symboles/relocations et image multi-
+   section) ; le transfert binaire actuel doit ensuite devenir sparse (`clear`
+   de plage puis blocs non nuls) ; enfin `assemble-load` devra assembler et
+   charger atomiquement ce payload depuis le moniteur guest. Le générateur GNU
+   `as` sur l’hôte reste un oracle/build intermédiaire explicite, jamais la
+   preuve de l’assemblage guest. Le MiniBASIC résident reste un mode de secours
+   jusqu’à validation du payload assemblé et chargé dans la cible.
 2. **P1 — capacité du magasin BASIC** : augmenter la capacité du programme
    BASIC, avec limites centralisées, diagnostic de saturation, tests de
    consommation de pile M-mode et compatibilité snapshot/projet. La capacité

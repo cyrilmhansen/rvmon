@@ -73,6 +73,23 @@ session ; la donnée est donc déposée explicitement par `data` avant
 l’assemblage du texte. Le futur chargeur `assemble-load` devra réunir ces
 sections atomiquement.
 
+Il faut distinguer l’existence de l’assembleur guest de sa complétude. Le
+moniteur contient bien un parseur/encodeur Rust exécuté en M-mode et les
+commandes `assemble`, `assemble-program` et `assemble-source` l’utilisent dans
+la cible. En revanche, le gros payload MiniBASIC est encore produit par
+`GNU as` sur l’hôte : partager l’ISA et les encodages ne signifie pas partager
+le même parseur, le même linker ou les mêmes relocations. L’enrichissement
+nécessaire est suivi dans `BASIC-LOAD-002B`; tant qu’il n’est pas terminé,
+`asm-source>` dans le tutoriel est un aperçu lisible et non une source envoyée
+au guest.
+
+Le transfert actuel des données est également volontairement littéral et
+peut matérialiser de longues zones nulles créées par les offsets absolus
+`.org`. La prochaine optimisation de transport est `BASIC-LOAD-002C` : le
+moniteur effacera une plage de données validée, puis le contrôleur enverra
+uniquement les blocs non nuls. Cette optimisation ne change ni les adresses,
+ni l’ABI, ni la sémantique du payload.
+
 `run-at` est un lanceur de payload, pas encore un chargeur de fichier : le
 source est toujours saisi par `assemble-program`. Le chemin d’assemblage
 accepte maintenant jusqu’à 12288 lignes d’instructions/directives et 2048

@@ -1979,6 +1979,94 @@ release. Elles n’ajoutent aucune extension ISA.
   QEMU, avec listing, carte de symboles et données observables reproductibles.
 - **Taille :** 4 points / 2 journées-agent, incertitude élevée.
 
+### BASIC-LOAD-002B — Enrichir l’assembleur guest pour le source MiniBASIC — À FAIRE
+
+- **Jalon / exigences :** P0, prérequis de `assemble-load`; ABI-001..016,
+  ASM-001..015, IO-003/005, ISO-001.
+- **But :** faire assembler dans le moniteur guest le source complet du
+  payload MiniBASIC, sans déléguer son analyse, son encodage ou ses
+  relocations à l’hôte.
+- **Non-but :** compiler BASIC en code natif, importer un ELF externe ou
+  reproduire toutes les extensions GNU/LLVM non retenues par le profil.
+- **État actuel :** l’assembleur Rust guest existe et prouve `assemble`,
+  `assemble-program`, labels, directives et instructions RV64 sur des
+  programmes bornés. Le payload complet est encore préparé par GNU `as` sur
+  l’hôte dans `scripts/build-minibasic-asm-payload.sh`.
+- **Entrées/sources :** `crates/guest-monitor/src/main.rs`,
+  `crates/assembler`, `examples/minibasic-asm/payload-repl.rv`,
+  `docs/GUEST_PAYLOAD_ABI.md`, R1/R2/R4 et le listing GNU comme oracle externe.
+- **Fichiers/modules probables :** assembleur guest, buffers scratch statiques,
+  `ObjectImage`/sections guest, table de symboles, diagnostics, commandes
+  `assemble-program`/`assemble-source`, tests QEMU et tutoriel.
+- **Étapes techniques :** intégrer les directives `.text/.rodata/.data/.bss`,
+  accepter les lignes de données et leurs adresses relatives, stabiliser les
+  deux passes et les relocations internes `hi20/lo12` et branches/jumps,
+  produire listing et carte de symboles, borner les sections et vérifier la
+  taille avant toute écriture, puis assembler un fragment MiniBASIC croissant
+  dans le workspace cible.
+- **Dépendances et tâches bloquées :** `BASIC-LOAD-001/002/002A`, ASM-002 et
+  ASM-003; bloque `BASIC-LOAD-005` et la preuve « source MiniBASIC assemblé
+  dans le guest ».
+- **Tests à écrire :** golden source→bytes comparé à GNU/LLVM, relocations
+  avant/arrière, sections intercalées, symboles absents, overflow, source trop
+  grand, rollback sans mutation et exécution QEMU d’un fragment puis du
+  payload complet.
+- **Critères d’acceptation :** un checkout propre envoie le source au guest,
+  le guest produit une image bit-identique à l’oracle sur le corpus accepté,
+  charge et exécute un fragment sous QEMU ; aucune sortie BASIC ni résultat
+  numérique ne provient de l’hôte.
+- **Cas limites et échecs :** relocation hors plage, section vide, symbole
+  inconnu, label local hors portée, source dépassant le scratch, directive
+  non supportée et collision avec breakpoint doivent produire un diagnostic
+  stable sans écriture partielle.
+- **Taille :** 13 points / 6,5 journées-agent, incertitude très élevée.
+- **Compétences/outils :** assembleur RISC-V, relocations, Rust `no_std`,
+  GNU/LLVM comme oracles, QEMU et analyse de listings.
+- **Parallélisable :** partiellement avec `BASIC-LOAD-002C` et les tests
+  d’oracle ; intégration du format d’image non parallélisable avec 002C.
+- **Paquet de contexte minimal :** `docs/GUEST_PAYLOAD_ABI.md`,
+  `docs/MEMORY_MAP.md`, `crates/guest-monitor/src/main.rs` fonctions
+  `assemble_program_command`/`parse_source_instruction`,
+  `scripts/build-minibasic-asm-payload.sh`, R1/R2/R4.
+
+### BASIC-LOAD-002C — Réduire le transfert des données par clear et blocs non nuls — À FAIRE
+
+- **Jalon / exigences :** P0, transport avant `assemble-load`; MEM-001..012,
+  ISO-001, OBS-001.
+- **But :** conserver l’image de données exacte tout en évitant d’envoyer par
+  UART les trous nuls introduits par les offsets absolus `.org`.
+- **Non-but :** compresser le code, modifier l’ABI ou faire croire qu’un
+  transfert source ASCII est déjà disponible.
+- **Entrées/sources :** `payload-load-data`, carte `docs/MEMORY_MAP.md`, image
+  `minibasic-payload-asm-data.bin`, contrat UART 16550A.
+- **Fichiers/modules probables :** commande guest `payload-clear-data`,
+  script de transfert et tests QEMU, tutoriel, manifeste de séance.
+- **Étapes techniques :** valider une commande bornée
+  `payload-clear-data <adresse> <longueur>`, effacer la plage en cible,
+  extraire les runs non nuls côté contrôleur, les découper en 32 octets,
+  conserver les octets nuls internes aux runs et vérifier quelques plages
+  avant/après chargement.
+- **Dépendances et tâches bloquées :** ABI/carte mémoire; peut précéder
+  `BASIC-LOAD-002B`, mais `BASIC-LOAD-005` doit utiliser une seule politique
+  de chargement déterministe.
+- **Tests à écrire :** clear borné, adresse hors région, longueur nulle,
+  image sparse reconstruite bit à bit, état pré-rempli puis clear, QEMU
+  MiniBASIC direct et Hammurabi sans changement de sortie.
+- **Critères d’acceptation :** la capture ne contient plus de longues séries
+  de commandes `payload-load-data` entièrement nulles ; l’image cible après
+  chargement est identique à l’image dense et le payload passe les mêmes
+  tests.
+- **Cas limites et échecs :** plage qui déborde, breakpoint actif, région
+  partiellement recouverte, image entièrement nulle et interruption UART.
+- **Taille :** 5 points / 2,5 journées-agent, incertitude moyenne.
+- **Compétences/outils :** Rust `no_std`, UART, scripts shell, QEMU,
+  comparaison binaire.
+- **Parallélisable :** oui avec l’analyse de 002B ; fusionner avant la nouvelle
+  capture tutorielle.
+- **Paquet de contexte minimal :** `load_payload_binary` dans
+  `crates/guest-monitor/src/main.rs`, `scripts/tutorial-guest-session.sh`,
+  `scripts/test-guest-minibasic-asm-payload.sh`, `docs/MEMORY_MAP.md`.
+
 ### BASIC-LOAD-003 — Ajouter les primitives assembleur du runtime BASIC
 
 - **Priorité :** P0.
@@ -3699,11 +3787,13 @@ release. Elles n’ajoutent aucune extension ISA.
 - **Priorité :** P0, intégration.
 - **But :** ajouter `assemble-load`/équivalent, validation atomique et fallback
   résident explicitement sélectionnable.
-- **Dépendances :** BASIC-LOAD-004, `run-at`, snapshots guest.
+- **Dépendances :** BASIC-LOAD-002B (assembleur guest enrichi),
+  BASIC-LOAD-002C (transfert sparse), BASIC-LOAD-004, `run-at`, snapshots guest.
 - **Tests :** séance tutoriel, Hammurabi, breakpoint/watch sur `fdiv.d`,
   snapshot/reprise et faute de chargement sans mutation.
-- **Acceptation :** le tutoriel indique clairement le mode chargé et aucune
-  sortie de démonstration n’est préenregistrée.
+- **Acceptation :** le source MiniBASIC est assemblé dans le guest, l’image est
+  chargée atomiquement, le tutoriel indique clairement le mode chargé et
+  aucune sortie de démonstration n’est préenregistrée.
 - **Taille :** 5 points / 2,5 journées-agent, incertitude élevée.
 
 ### BASIC-SOURCE-001 — Étendre le stockage du programme BASIC et ses preuves de capacité
