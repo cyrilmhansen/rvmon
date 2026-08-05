@@ -724,6 +724,8 @@ script de démonstration envoie ces fichiers par blocs de 32 octets au moniteur 
 ```text
 rvmonitor> payload-load 0x81000100 <hex-code-0..31>
 payload loaded address=0x0000000081000100 length=32
+rvmonitor> payload-clear-data 0x82000000 <hex-length>
+payload data cleared address=0x0000000082000000 length=<hex-length>
 rvmonitor> payload-load-data 0x82000000 <hex-data-0..31>
 payload loaded address=0x0000000082000000 length=32
 rvmonitor> info payload
@@ -732,8 +734,9 @@ rvmonitor> memory 0x82000100 33
 rvmonitor> run-at 0x81000100
 ```
 
-Le transfert est réel : chaque bloc est écrit dans la RAM cible puis contrôlé
-par le moniteur. Le texte `asm-source>` qui défile pendant environ vingt
+Le transfert est réel : la plage de données est d’abord remise à zéro dans la
+RAM cible, puis seuls les blocs non nuls sont écrits et contrôlés par le
+moniteur. Le texte `asm-source>` qui défile pendant environ vingt
 secondes est un aperçu lisible du source envoyé/assemblé en amont ; il est
 explicitement annoté comme tel et ne prétend pas que l'hôte interprète le
 BASIC. La chaîne `MINIBASIC-RV ASM v0.3 2026-08-04` est une métadonnée placée

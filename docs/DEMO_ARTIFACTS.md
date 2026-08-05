@@ -97,8 +97,8 @@ Le panneau supérieur montre la section et un extrait de
 brut conserve les écritures des deux panneaux, tandis que la conversion texte
 peut ne montrer que l’écran final à cause des effacements ANSI de tmux. Le
 contrôle adapté est donc `scripts/check-tutorial-tmux-cast.sh`, qui vérifie les
-marqueurs documentaires, le chargement du payload, les sorties Hammurabi et
-les diagnostics interdits directement dans le cast.
+marqueurs documentaires, le clear initial et le chargement sparse du payload,
+les sorties Hammurabi et les diagnostics interdits directement dans le cast.
 Le lecteur supérieur défile maintenant automatiquement dans la plage de la
 phase active (`0,75 s` et une ligne par défaut), et chaque nouvelle commande ou
 annotation le préempte. Les paramètres

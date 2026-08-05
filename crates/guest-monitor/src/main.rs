@@ -480,6 +480,9 @@ fn monitor_loop(context: *mut TargetContext) -> ! {
             command if command.starts_with(b"payload-load-data ") => {
                 load_payload_binary(context, &command[18..], true)
             }
+            command if command.starts_with(b"payload-clear-data ") => {
+                clear_payload_data(context, &command[19..])
+            }
             b"snapshot save" | b"project-save" => save_guest_snapshot(context),
             b"snapshot restore" | b"project-load" => restore_guest_snapshot(context),
             b"basic" => launch_minibasic_asm(context),
@@ -551,6 +554,7 @@ fn print_help() {
           assemble-source                 reassemble the edited source buffer\r\n\
           payload-load <addr> <hex-bytes> load a code chunk into workspace\r\n\
           payload-load-data <addr> <hex-bytes> load initialized data into target data\r\n\
+          payload-clear-data <addr> <hex-length> zero a bounded target data range\r\n\
           source [line]|replace ...       inspect or edit source buffer\r\n\
           assembler comments: ';' starts a comment to end of line\r\n\
           symbols                         list source symbols\r\n\
@@ -695,6 +699,50 @@ fn load_payload_binary(context: *mut TargetContext, argument: &[u8], data_region
     uart_hex(address);
     uart_write(" length=");
     uart_decimal(length as u64);
+    uart_write("\r\n");
+}
+
+fn clear_payload_data(context: *mut TargetContext, argument: &[u8]) {
+    if unsafe { (*context).mcause } != StopReason::Breakpoint as u64 {
+        uart_write("error: target is not stopped at a breakpoint\r\n");
+        return;
+    }
+    let Some((address_bytes, length_bytes)) = split_token_space(argument) else {
+        guest_error(
+            b"GUEST-PAYLOAD-007",
+            b"payload-clear-data expects <hex-address> <hex-length>",
+        );
+        return;
+    };
+    let Some(address) = parse_hex(address_bytes) else {
+        guest_error(b"GUEST-PAYLOAD-008", b"clear address must be hexadecimal");
+        return;
+    };
+    let Some(length) = parse_hex(length_bytes) else {
+        guest_error(b"GUEST-PAYLOAD-009", b"clear length must be hexadecimal");
+        return;
+    };
+    if length == 0 || length > TARGET_DATA_BYTES as u64 {
+        guest_error(
+            b"GUEST-PAYLOAD-010",
+            b"clear length must be 1..target-data-size",
+        );
+        return;
+    }
+    let length = length as usize;
+    if !valid_target_data_range(address, length) {
+        guest_error(b"GUEST-PAYLOAD-011", b"clear range is outside target data");
+        return;
+    }
+    for offset in 0..length {
+        unsafe {
+            core::ptr::write_volatile((address + offset as u64) as *mut u8, 0);
+        }
+    }
+    uart_write("payload data cleared address=0x");
+    uart_hex(address);
+    uart_write(" length=");
+    uart_hex(length as u64);
     uart_write("\r\n");
 }
 

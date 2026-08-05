@@ -65,6 +65,24 @@ stream_payload_binary() {
     done < <(od -An -v -tx1 -w32 "$path" | awk '{gsub(/[[:space:]]/, ""); if (length) print}')
 }
 
+stream_payload_data_sparse() {
+    local base="$1"
+    local path="$2"
+    local size
+    local offset=0
+    size="$(wc -c < "$path")"
+    send "payload-clear-data $(printf '0x%x' "$base") $(printf '0x%x' "$size")"
+    while IFS= read -r hex; do
+        [[ -z "$hex" ]] && continue
+        if [[ "$hex" != *[1-9a-fA-F]* ]]; then
+            offset=$((offset + ${#hex} / 2))
+            continue
+        fi
+        send_fast "payload-load-data $(printf '0x%x' "$((base + offset))") $hex"
+        offset=$((offset + ${#hex} / 2))
+    done < <(od -An -v -tx1 -w32 "$path" | awk '{gsub(/[[:space:]]/, ""); if (length) print}')
+}
+
 tutorial_commands() {
 {
     sleep "$pause"
@@ -118,7 +136,7 @@ tutorial_commands() {
     preview_asm_source
     note 'ASM MINIBASIC-RV — chargement binaire explicite via les commandes du moniteur'
     stream_payload_binary 'payload-load' 0x81000100 "$asm_code"
-    stream_payload_binary 'payload-load-data' 0x82000000 "$asm_data"
+    stream_payload_data_sparse 0x82000000 "$asm_data"
     send 'info payload'
     # Preuve que l'image chargée a laissé ses propres métadonnées en RAM cible.
     send 'memory 0x82000100 33'

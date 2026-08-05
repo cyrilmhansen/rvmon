@@ -663,3 +663,10 @@ l’hôte. Le backlog distingue maintenant l’enrichissement nécessaire
 `BASIC-LOAD-002C` (clear de plage et transfert sparse des données). Le futur
 `BASIC-LOAD-005` ne pourra être déclaré atteint que lorsque le source sera
 assemblé dans le guest, et non seulement chargé sous forme binaire.
+
+2026-08-05 — `payload-clear-data` est maintenant implémenté dans le moniteur
+guest avec validation de région et longueur, puis vérifié sous QEMU sur des
+octets préremplis et une plage hors limites. Le tutoriel transmet désormais
+402096 octets de données après un clear initial, mais seulement 40 blocs non
+nuls au lieu de 12566 blocs denses ; le validateur asciinema refuse les blocs
+de 32 octets entièrement nuls.

@@ -18,6 +18,7 @@ required=(
     '=== MONITEUR GUEST'
     '=== ASM MINIBASIC-RV — chargement binaire explicite'
     'payload loaded address=0x0000000081000100'
+    'payload data cleared address=0x0000000082000000'
     'docs/TUTORIAL-GUEST.md:716-723 / section 716-774'
     'docs/TUTORIAL-GUEST.md:719-726 / section 716-774'
     'MINIBASIC-RV ASM'
@@ -39,6 +40,11 @@ for marker in "${required[@]}"; do
         exit 1
     fi
 done
+
+if grep -aEq 'payload-load-data [^[:space:]]+ 0{64}' "$cast"; then
+    printf 'tmux tutorial cast contains a dense all-zero data chunk\n' >&2
+    exit 1
+fi
 
 for forbidden in 'mcause=0x0000000000000002' 'trap: illegal instruction' 'error: unknown command'; do
     if grep -aFq -- "$forbidden" "$cast"; then

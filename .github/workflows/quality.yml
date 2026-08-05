@@ -57,6 +57,7 @@ jobs:
           bash scripts/test-guest-runtime-asm-repl-hammurabi.sh
           bash scripts/test-guest-runtime-asm-repl-string-concat.sh
           bash scripts/test-guest-minibasic-payload.sh
+          bash scripts/test-guest-payload-clear-data.sh
           bash scripts/test-guest-uart.sh
           bash scripts/test-guest-uart-irq.sh
       - name: Run target-side language corpus
@@ -81,5 +82,6 @@ jobs:
         shell: bash
         run: |
           bash -n scripts/tutorial-guest-session.sh
+          bash -n scripts/test-guest-payload-clear-data.sh
           bash -n scripts/record-tutorial-guest.sh
           bash -n scripts/check-tutorial-transcript.sh
